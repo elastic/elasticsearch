@@ -21,13 +21,11 @@ package org.elasticsearch.common.lucene.search.function;
 
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.util.BytesRef;
 
 import java.io.IOException;
 
 abstract class CustomBoostFactorScorer extends Scorer {
 
-    final float subQueryBoost;
     final Scorer scorer;
     final float maxBoost;
     final CombineFunction scoreCombiner;
@@ -43,7 +41,6 @@ abstract class CustomBoostFactorScorer extends Scorer {
         } else {
             nextDoc = new MinScoreNextDoc();
         }
-        this.subQueryBoost = w.getQuery().getBoost();
         this.scorer = scorer;
         this.maxBoost = maxBoost;
         this.scoreCombiner = scoreCombiner;

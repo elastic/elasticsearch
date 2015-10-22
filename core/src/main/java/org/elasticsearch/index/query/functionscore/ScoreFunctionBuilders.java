@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query.functionscore;
 
 import org.elasticsearch.index.query.functionscore.exp.ExponentialDecayFunctionBuilder;
-import org.elasticsearch.index.query.functionscore.factor.FactorBuilder;
 import org.elasticsearch.index.query.functionscore.fieldvaluefactor.FieldValueFactorFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.lin.LinearDecayFunctionBuilder;
@@ -29,32 +28,42 @@ import org.elasticsearch.index.query.functionscore.script.ScriptScoreFunctionBui
 import org.elasticsearch.index.query.functionscore.weight.WeightBuilder;
 import org.elasticsearch.script.Script;
 
-import java.util.Map;
-
 public class ScoreFunctionBuilders {
-   
+
     public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale) {
-        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale);
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, null);
     }
-    
-    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object scale) {
-        return new ExponentialDecayFunctionBuilder(fieldName, null, scale);
+
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale, Object offset) {
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset);
     }
-    
+
+    public static ExponentialDecayFunctionBuilder exponentialDecayFunction(String fieldName, Object origin, Object scale, Object offset, double decay) {
+        return new ExponentialDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
+    }
+
     public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale) {
-        return new GaussDecayFunctionBuilder(fieldName, origin, scale);
+        return new GaussDecayFunctionBuilder(fieldName, origin, scale, null);
     }
-    
-    public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object scale) {
-        return new GaussDecayFunctionBuilder(fieldName, null, scale);
+
+    public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale, Object offset) {
+        return new GaussDecayFunctionBuilder(fieldName, origin, scale, offset);
     }
-    
+
+    public static GaussDecayFunctionBuilder gaussDecayFunction(String fieldName, Object origin, Object scale, Object offset, double decay) {
+        return new GaussDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
+    }
+
     public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale) {
-        return new LinearDecayFunctionBuilder(fieldName, origin, scale);
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, null);
     }
-    
-    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object scale) {
-        return new LinearDecayFunctionBuilder(fieldName, null, scale);
+
+    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale, Object offset) {
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset);
+    }
+
+    public static LinearDecayFunctionBuilder linearDecayFunction(String fieldName, Object origin, Object scale, Object offset, double decay) {
+        return new LinearDecayFunctionBuilder(fieldName, origin, scale, offset, decay);
     }
 
     public static ScriptScoreFunctionBuilder scriptFunction(Script script) {

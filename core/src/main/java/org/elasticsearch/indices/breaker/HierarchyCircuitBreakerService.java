@@ -162,7 +162,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     /**
      * Validate that child settings are valid
-     * @throws IllegalStateException
      */
     public static void validateSettings(BreakerSettings[] childrenSettings) throws IllegalStateException {
         for (BreakerSettings childSettings : childrenSettings) {
@@ -206,8 +205,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
 
     /**
      * Checks whether the parent breaker has been tripped
-     * @param label
-     * @throws CircuitBreakingException
      */
     public void checkParentLimit(String label) throws CircuitBreakingException {
         long totalUsed = 0;
@@ -228,8 +225,6 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
     /**
      * Allows to register a custom circuit breaker.
      * Warning: Will overwrite any existing custom breaker with the same name.
-     *
-     * @param breakerSettings
      */
     @Override
     public void registerBreaker(BreakerSettings breakerSettings) {

@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.common;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
@@ -31,11 +30,10 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class Base64Tests extends ESTestCase {
-
-    @Test // issue #6334
+    // issue #6334
     public void testBase64DecodeWithExtraCharactersAfterPadding() throws Exception {
         String plain = randomAsciiOfLengthBetween(1, 20) + ":" + randomAsciiOfLengthBetween(1, 20);
-        String encoded = Base64.encodeBytes(plain.getBytes(Charsets.UTF_8));
+        String encoded = Base64.encodeBytes(plain.getBytes(StandardCharsets.UTF_8));
         assertValidBase64(encoded, plain);
 
         // lets append some trash here, if the encoded string has been padded
@@ -46,13 +44,13 @@ public class Base64Tests extends ESTestCase {
     }
 
     private void assertValidBase64(String base64, String expected) throws IOException {
-        String decoded = new String(Base64.decode(base64.getBytes(Charsets.UTF_8)), Charsets.UTF_8);
+        String decoded = new String(Base64.decode(base64.getBytes(StandardCharsets.UTF_8)), StandardCharsets.UTF_8);
         assertThat(decoded, is(expected));
     }
 
     private void assertInvalidBase64(String base64) {
         try {
-            Base64.decode(base64.getBytes(Charsets.UTF_8));
+            Base64.decode(base64.getBytes(StandardCharsets.UTF_8));
             fail(String.format(Locale.ROOT, "Expected IOException to be thrown for string %s (len %d)", base64, base64.length()));
         } catch (IOException e) {}
     }

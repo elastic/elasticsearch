@@ -273,7 +273,7 @@ The REST tests are run automatically when executing the maven test command. To r
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-mvn verify -Dtests.filter="@Rest"
+mvn verify -Dtests.filter="@Rest" -Dskip.unit.tests=true
 ---------------------------------------------------------------------------
 
 `RestNIT` are the executable test classes that runs all the
@@ -397,16 +397,22 @@ fedora-22 with:
 mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest=fedora-22
 --------------------------------------------
 
-or run wheezy and trusty:
+or run jessie and trusty:
 
 ------------------------------------------------------------------
-mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest='wheezy, trusty'
+mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest='jessie, trusty'
 ------------------------------------------------------------------
 
 or run all the boxes:
 
 ---------------------------------------
 mvn -Dtests.vagrant=all -pl qa/vagrant verify
+---------------------------------------
+
+If you want to run a specific test on several boxes you can do:
+
+---------------------------------------
+mvn -Dtests.vagrant=all -pl qa/vagrant verify -DtestScripts=*tar*.bats
 ---------------------------------------
 
 Its important to know that if you ctrl-c any of these `mvn` runs that you'll
@@ -440,18 +446,17 @@ These are the linux flavors the Vagrantfile currently supports:
 * precise aka Ubuntu 12.04
 * trusty aka Ubuntu 14.04
 * vivid aka Ubuntun 15.04
-* wheezy aka Debian 7, the current debian oldstable distribution
 * jessie aka Debian 8, the current debina stable distribution
 * centos-6
 * centos-7
 * fedora-22
 * oel-7 aka Oracle Enterprise Linux 7
+* sles-12
 
 We're missing the following from the support matrix because there aren't high
 quality boxes available in vagrant atlas:
 
 * sles-11
-* sles-12
 * opensuse-13
 * oel-6
 

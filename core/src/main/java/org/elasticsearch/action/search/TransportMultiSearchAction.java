@@ -45,7 +45,7 @@ public class TransportMultiSearchAction extends HandledTransportAction<MultiSear
     public TransportMultiSearchAction(Settings settings, ThreadPool threadPool, TransportService transportService,
                                       ClusterService clusterService, TransportSearchAction searchAction,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiSearchRequest.class);
+        super(settings, MultiSearchAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, MultiSearchRequest::new);
         this.clusterService = clusterService;
         this.searchAction = searchAction;
     }

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.base.Predicate;
 import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
@@ -49,7 +48,7 @@ import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesLifecycle;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -58,16 +57,17 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
 /**
  * The recovery target handles recoveries of peer shards of the shard+node to recover to.
- * <p/>
- * <p>Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
+ * <p>
+ * Note, it can be safely assumed that there will only be a single recovery per shard (index+id) and
  * not several of them (since we don't allocate several shard replicas to the same node).
  */
-public class RecoveryTarget extends AbstractComponent {
+public class RecoveryTarget extends AbstractComponent implements IndexEventListener {
 
     public static class Actions {
         public static final String FILES_INFO = "internal:index/shard/recovery/filesInfo";
@@ -88,8 +88,7 @@ public class RecoveryTarget extends AbstractComponent {
     private final RecoveriesCollection onGoingRecoveries;
 
     @Inject
-    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService,
-                          IndicesLifecycle indicesLifecycle, RecoverySettings recoverySettings, ClusterService clusterService) {
+    public RecoveryTarget(Settings settings, ThreadPool threadPool, TransportService transportService, RecoverySettings recoverySettings, ClusterService clusterService) {
         super(settings);
         this.threadPool = threadPool;
         this.transportService = transportService;
@@ -97,22 +96,20 @@ public class RecoveryTarget extends AbstractComponent {
         this.clusterService = clusterService;
         this.onGoingRecoveries = new RecoveriesCollection(logger, threadPool);
 
-        transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest.class, ThreadPool.Names.GENERIC, new FilesInfoRequestHandler());
-        transportService.registerRequestHandler(Actions.FILE_CHUNK, RecoveryFileChunkRequest.class, ThreadPool.Names.GENERIC, new FileChunkTransportRequestHandler());
-        transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest.class, ThreadPool.Names.GENERIC, new CleanFilesRequestHandler());
-        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, RecoveryPrepareForTranslogOperationsRequest.class, ThreadPool.Names.GENERIC, new PrepareForTranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest.class, ThreadPool.Names.GENERIC, new TranslogOperationsRequestHandler());
-        transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest.class, ThreadPool.Names.GENERIC, new FinalizeRecoveryRequestHandler());
+        transportService.registerRequestHandler(Actions.FILES_INFO, RecoveryFilesInfoRequest::new, ThreadPool.Names.GENERIC, new FilesInfoRequestHandler());
+        transportService.registerRequestHandler(Actions.FILE_CHUNK, RecoveryFileChunkRequest::new, ThreadPool.Names.GENERIC, new FileChunkTransportRequestHandler());
+        transportService.registerRequestHandler(Actions.CLEAN_FILES, RecoveryCleanFilesRequest::new, ThreadPool.Names.GENERIC, new CleanFilesRequestHandler());
+        transportService.registerRequestHandler(Actions.PREPARE_TRANSLOG, RecoveryPrepareForTranslogOperationsRequest::new, ThreadPool.Names.GENERIC, new PrepareForTranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.TRANSLOG_OPS, RecoveryTranslogOperationsRequest::new, ThreadPool.Names.GENERIC, new TranslogOperationsRequestHandler());
+        transportService.registerRequestHandler(Actions.FINALIZE, RecoveryFinalizeRecoveryRequest::new, ThreadPool.Names.GENERIC, new FinalizeRecoveryRequestHandler());
+    }
 
-        indicesLifecycle.addListener(new IndicesLifecycle.Listener() {
-            @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                               @IndexSettings Settings indexSettings) {
-                if (indexShard != null) {
-                    onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
-                }
-            }
-        });
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                       @IndexSettings Settings indexSettings) {
+        if (indexShard != null) {
+            onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
+        }
     }
 
     /**
@@ -131,7 +128,8 @@ public class RecoveryTarget extends AbstractComponent {
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
         try {
-            indexShard.recovering("from " + sourceNode, recoveryType, sourceNode);
+            RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), indexShard.routingEntry().primary(), recoveryType, sourceNode, clusterService.localNode());
+            indexShard.recovering("from " + sourceNode, recoveryState);
         } catch (IllegalIndexShardStateException e) {
             // that's fine, since we might be called concurrently, just ignore this, we are already recovering
             logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
@@ -304,6 +302,7 @@ public class RecoveryTarget extends AbstractComponent {
                 assert recoveryStatus.indexShard().recoveryState() == recoveryStatus.state();
                 try {
                     recoveryStatus.indexShard().performBatchRecovery(request.operations());
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE);
                 } catch (TranslogRecoveryPerformer.BatchOperationException exception) {
                     MapperException mapperException = (MapperException) ExceptionsHelper.unwrap(exception, MapperException.class);
                     if (mapperException == null) {
@@ -346,8 +345,6 @@ public class RecoveryTarget extends AbstractComponent {
                     });
                 }
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
-
         }
     }
 

@@ -21,7 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.carrotsearch.hppc.IntHashSet;
 import com.carrotsearch.hppc.IntSet;
-import com.google.common.util.concurrent.ListenableFuture;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
@@ -36,7 +36,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.MetaData.Custom;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -51,6 +51,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -64,9 +65,10 @@ import org.elasticsearch.rest.action.admin.cluster.repositories.get.RestGetRepos
 import org.elasticsearch.rest.action.admin.cluster.state.RestClusterStateAction;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -80,8 +82,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
@@ -100,18 +100,16 @@ import static org.hamcrest.Matchers.nullValue;
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode // TODO only restorePersistentSettingsTest needs this maybe factor out?
 public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(MockRepository.Plugin.class);
     }
 
-    @Test
-    public void restorePersistentSettingsTest() throws Exception {
+    public void testRestorePersistentSettings() throws Exception {
         logger.info("--> start 2 nodes");
         Settings nodeSettings = settingsBuilder()
                 .put("discovery.type", "zen")
-                .put("discovery.zen.ping_timeout", "200ms")
+                .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
                 .put("discovery.initial_state_timeout", "500ms")
                 .build();
         internalCluster().startNode(nodeSettings);
@@ -167,8 +165,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
                 .getMetaData().persistentSettings().getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, -1), not(equalTo(2)));
     }
 
-    @Test
-    public void restoreCustomMetadata() throws Exception {
+    public void testRestoreCustomMetadata() throws Exception {
         Path tempDir = randomRepoPath();
 
         logger.info("--> start node");
@@ -273,7 +270,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
     private void updateClusterState(final ClusterStateUpdater updater) throws InterruptedException {
         final CountDownLatch countDownLatch = new CountDownLatch(1);
         final ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        clusterService.submitStateUpdateTask("test", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("test", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return updater.execute(currentState);
@@ -296,8 +293,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         public ClusterState execute(ClusterState currentState) throws Exception;
     }
 
-    @Test
-    public void snapshotDuringNodeShutdownTest() throws Exception {
+    public void testSnapshotDuringNodeShutdown() throws Exception {
         logger.info("--> start 2 nodes");
         Client client = client();
 
@@ -309,7 +305,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> create repository");
         logger.info("--> creating repository");
@@ -342,8 +338,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> done");
     }
 
-    @Test
-    public void snapshotWithStuckNodeTest() throws Exception {
+    public void testSnapshotWithStuckNode() throws Exception {
         logger.info("--> start 2 nodes");
         ArrayList<String> nodes = new ArrayList<>();
         nodes.add(internalCluster().startNode());
@@ -358,7 +353,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client.prepareCount("test-idx").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> creating repository");
         Path repo = randomRepoPath();
@@ -407,8 +402,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> done");
     }
 
-    @Test
-    public void restoreIndexWithMissingShards() throws Exception {
+    public void testRestoreIndexWithMissingShards() throws Exception {
         logger.info("--> start 2 nodes");
         internalCluster().startNode();
         internalCluster().startNode();
@@ -424,7 +418,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             index("test-idx-some", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client().prepareCount("test-idx-some").get().getCount(), equalTo(100L));
+        assertThat(client().prepareSearch("test-idx-some").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> shutdown one of the nodes");
         internalCluster().stopRandomDataNode();
@@ -445,7 +439,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             index("test-idx-closed", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client().prepareCount("test-idx-all").get().getCount(), equalTo(100L));
+        assertThat(client().prepareSearch("test-idx-all").setSize(0).get().getHits().totalHits(), equalTo(100L));
         assertAcked(client().admin().indices().prepareClose("test-idx-closed"));
 
         logger.info("--> create an index that will have no allocated shards");
@@ -532,7 +526,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(6));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        assertThat(client().prepareCount("test-idx-all").get().getCount(), equalTo(100L));
+        assertThat(client().prepareSearch("test-idx-all").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> restore snapshot for the partial index");
         cluster().wipeIndices("test-idx-some");
@@ -543,7 +537,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), allOf(greaterThan(0), lessThan(6)));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), greaterThan(0));
 
-        assertThat(client().prepareCount("test-idx-some").get().getCount(), allOf(greaterThan(0L), lessThan(100L)));
+        assertThat(client().prepareSearch("test-idx-some").setSize(0).get().getHits().totalHits(), allOf(greaterThan(0L), lessThan(100L)));
 
         logger.info("--> restore snapshot for the index that didn't have any shards snapshotted successfully");
         cluster().wipeIndices("test-idx-none");
@@ -554,11 +548,10 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(restoreSnapshotResponse.getRestoreInfo().successfulShards(), equalTo(0));
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(6));
 
-        assertThat(client().prepareCount("test-idx-some").get().getCount(), allOf(greaterThan(0L), lessThan(100L)));
+        assertThat(client().prepareSearch("test-idx-some").setSize(0).get().getHits().totalHits(), allOf(greaterThan(0L), lessThan(100L)));
     }
 
-    @Test
-    public void restoreIndexWithShardsMissingInLocalGateway() throws Exception {
+    public void testRestoreIndexWithShardsMissingInLocalGateway() throws Exception {
         logger.info("--> start 2 nodes");
         Settings nodeSettings = settingsBuilder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)
@@ -583,7 +576,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
             index("test-idx", "doc", Integer.toString(i), "foo", "bar" + i);
         }
         refresh();
-        assertThat(client().prepareCount("test-idx").get().getCount(), equalTo(100L));
+        assertThat(client().prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> start snapshot");
         assertThat(client().admin().cluster().prepareCreateSnapshot("test-repo", "test-snap-1").setIndices("test-idx").setWaitForCompletion(true).get().getSnapshotInfo().state(), equalTo(SnapshotState.SUCCESS));
@@ -605,7 +598,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(client().admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap-1").setRestoreGlobalState(false).setWaitForCompletion(true).get().getRestoreInfo().successfulShards(), equalTo(6));
 
         ensureGreen("test-idx");
-        assertThat(client().prepareCount("test-idx").get().getCount(), equalTo(100L));
+        assertThat(client().prepareSearch("test-idx").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         IntSet reusedShards = new IntHashSet();
         for (RecoveryState recoveryState : client().admin().indices().prepareRecoveries("test-idx").get().shardRecoveryStates().get("test-idx")) {
@@ -617,9 +610,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         assertThat(reusedShards.size(), greaterThanOrEqualTo(numberOfShards / 2));
     }
 
-
-    @Test
-    public void registrationFailureTest() {
+    public void testRegistrationFailure() {
         logger.info("--> start first node");
         internalCluster().startNode();
         logger.info("--> start second node");
@@ -638,7 +629,6 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
     }
 
-    @Test
     public void testThatSensitiveRepositorySettingsAreNotExposed() throws Exception {
         Settings nodeSettings = settingsBuilder().put().build();
         logger.info("--> start two nodes");
@@ -693,12 +683,11 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         if (clusterStateError.get() != null) {
             throw clusterStateError.get();
         }
-        
+
     }
 
-    @Test
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12621")
-    public void chaosSnapshotTest() throws Exception {
+    public void testChaosSnapshot() throws Exception {
         final List<String> indices = new CopyOnWriteArrayList<>();
         Settings settings = settingsBuilder().put("action.write_consistency", "one").build();
         int initialNodes = between(1, 3);
@@ -723,7 +712,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
 
         int asyncNodes = between(0, 5);
         logger.info("--> start {} additional nodes asynchronously", asyncNodes);
-        ListenableFuture<List<String>> asyncNodesFuture = internalCluster().startNodesAsync(asyncNodes, settings);
+        InternalTestCluster.Async<List<String>> asyncNodesFuture = internalCluster().startNodesAsync(asyncNodes, settings);
 
         int asyncIndices = between(0, 10);
         logger.info("--> create {} additional indices asynchronously", asyncIndices);
@@ -800,9 +789,7 @@ public class DedicatedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTest
         logger.info("--> done");
     }
 
-    @Test
-    public void masterShutdownDuringSnapshotTest() throws Exception {
-
+    public void testMasterShutdownDuringSnapshot() throws Exception {
         Settings masterSettings = settingsBuilder().put("node.data", false).build();
         Settings dataSettings = settingsBuilder().put("node.master", false).build();
 

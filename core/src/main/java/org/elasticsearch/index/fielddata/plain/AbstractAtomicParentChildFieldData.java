@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
@@ -33,6 +31,8 @@ import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Set;
+
+import static java.util.Collections.emptySet;
 
 
 /**
@@ -92,7 +92,7 @@ abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFi
             public long ramBytesUsed() {
                 return 0;
             }
-            
+
             @Override
             public Collection<Accountable> getChildResources() {
                 return Collections.emptyList();
@@ -109,7 +109,7 @@ abstract class AbstractAtomicParentChildFieldData implements AtomicParentChildFi
 
             @Override
             public Set<String> types() {
-                return ImmutableSet.of();
+                return emptySet();
             }
         };
     }

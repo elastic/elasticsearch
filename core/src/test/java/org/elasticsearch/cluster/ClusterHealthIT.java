@@ -23,15 +23,11 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterHealthIT extends ESIntegTestCase {
-
-
-    @Test
-    public void simpleLocalHealthTest() {
+    public void testSimpleLocalHealth() {
         createIndex("test");
         ensureGreen(); // master should thing it's green now.
 
@@ -43,7 +39,6 @@ public class ClusterHealthIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testHealth() {
         logger.info("--> running cluster health on an index that does not exists");
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth("test1").setWaitForYellowStatus().setTimeout("1s").execute().actionGet();

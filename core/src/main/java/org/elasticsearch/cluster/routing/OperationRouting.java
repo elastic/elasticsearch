@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -45,7 +44,6 @@ import java.util.Set;
  *
  */
 public class OperationRouting extends AbstractComponent {
-
 
 
     private final AwarenessAllocationDecider awarenessAllocationDecider;
@@ -196,9 +194,9 @@ public class OperationRouting extends AbstractComponent {
         // if not, then use it as the index
         String[] awarenessAttributes = awarenessAllocationDecider.awarenessAttributes();
         if (awarenessAttributes.length == 0) {
-            return indexShard.activeInitializingShardsIt(DjbHashFunction.DJB_HASH(preference));
+            return indexShard.activeInitializingShardsIt(Murmur3HashFunction.hash(preference));
         } else {
-            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, DjbHashFunction.DJB_HASH(preference));
+            return indexShard.preferAttributesActiveInitializingShardsIt(awarenessAttributes, nodes, Murmur3HashFunction.hash(preference));
         }
     }
 
@@ -237,37 +235,13 @@ public class OperationRouting extends AbstractComponent {
     @SuppressForbidden(reason = "Math#abs is trappy")
     private int shardId(ClusterState clusterState, String index, String type, String id, @Nullable String routing) {
         final IndexMetaData indexMetaData = indexMetaData(clusterState, index);
-        final Version createdVersion = indexMetaData.getCreationVersion();
-        final HashFunction hashFunction = indexMetaData.getRoutingHashFunction();
-        final boolean useType = indexMetaData.getRoutingUseType();
-
         final int hash;
         if (routing == null) {
-            if (!useType) {
-                hash = hash(hashFunction, id);
-            } else {
-                hash = hash(hashFunction, type, id);
-            }
+            hash = Murmur3HashFunction.hash(id);
         } else {
-            hash = hash(hashFunction, routing);
+            hash = Murmur3HashFunction.hash(routing);
         }
-        if (createdVersion.onOrAfter(Version.V_2_0_0_beta1)) {
-            return MathUtils.mod(hash, indexMetaData.numberOfShards());
-        } else {
-            return Math.abs(hash % indexMetaData.numberOfShards());
-        }
-    }
-
-    protected int hash(HashFunction hashFunction, String routing) {
-        return hashFunction.hash(routing);
-    }
-
-    @Deprecated
-    protected int hash(HashFunction hashFunction, String type, String id) {
-        if (type == null || "_all".equals(type)) {
-            throw new IllegalArgumentException("Can't route an operation with no type and having type part of the routing (for backward comp)");
-        }
-        return hashFunction.hash(type, id);
+        return MathUtils.mod(hash, indexMetaData.getNumberOfShards());
     }
 
     private void ensureNodeIdExists(DiscoveryNodes nodes, String nodeId) {

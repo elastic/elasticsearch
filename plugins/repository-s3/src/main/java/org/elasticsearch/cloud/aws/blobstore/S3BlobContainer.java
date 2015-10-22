@@ -25,7 +25,7 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStoreException;
-import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.blobstore.support.AbstractLegacyBlobContainer;
 import org.elasticsearch.common.blobstore.support.PlainBlobMetaData;
 import org.elasticsearch.common.collect.MapBuilder;
 
@@ -38,7 +38,7 @@ import java.util.Map;
 /**
  *
  */
-public class S3BlobContainer extends AbstractBlobContainer {
+public class S3BlobContainer extends AbstractLegacyBlobContainer {
 
     protected final S3BlobStore blobStore;
 

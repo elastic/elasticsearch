@@ -63,7 +63,6 @@ public class BestDocsDeferringCollector extends DeferringBucketCollector impleme
      * 
      * @param shardSize
      *            The number of top-scoring docs to collect for each bucket
-     * @param bigArrays
      */
     public BestDocsDeferringCollector(int shardSize, BigArrays bigArrays) {
         this.shardSize = shardSize;

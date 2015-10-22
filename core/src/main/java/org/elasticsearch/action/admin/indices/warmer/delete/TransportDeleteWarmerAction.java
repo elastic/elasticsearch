@@ -52,7 +52,7 @@ public class TransportDeleteWarmerAction extends TransportMasterNodeAction<Delet
     @Inject
     public TransportDeleteWarmerAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                        ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteWarmerRequest.class);
+        super(settings, DeleteWarmerAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, DeleteWarmerRequest::new);
     }
 
     @Override

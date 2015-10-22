@@ -24,6 +24,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
+import java.util.Map;
+
 public class SumBucketParser extends BucketMetricsParser {
     @Override
     public String type() {
@@ -32,7 +34,7 @@ public class SumBucketParser extends BucketMetricsParser {
 
     @Override
     protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-            ValueFormatter formatter) {
+            ValueFormatter formatter, Map<String, Object> unparsedParams) {
         return new SumBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter);
     }
 }

@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.http.netty;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.http.netty.NettyHttpServerTransport.HttpChannelPipelineFactory;
 import org.elasticsearch.http.netty.pipelining.OrderedDownstreamChannelEvent;
 import org.elasticsearch.http.netty.pipelining.OrderedUpstreamMessageEvent;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -44,8 +44,8 @@ import org.jboss.netty.handler.codec.http.HttpResponse;
 import org.jboss.netty.handler.codec.http.QueryStringDecoder;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -55,8 +55,9 @@ import java.util.concurrent.Executors;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.http.netty.NettyHttpClient.returnHttpResponseBodies;
-import static org.elasticsearch.http.netty.NettyHttpServerTransport.HttpChannelPipelineFactory;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 import static org.jboss.netty.handler.codec.http.HttpHeaders.Names.CONTENT_LENGTH;
 import static org.jboss.netty.handler.codec.http.HttpResponseStatus.OK;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
@@ -65,7 +66,6 @@ import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
  * This test just tests, if he pipelining works in general with out any connection the elasticsearch handler
  */
 public class NettyHttpServerPipeliningTests extends ESTestCase {
-
     private NetworkService networkService;
     private ThreadPool threadPool;
     private MockPageCacheRecycler mockPageCacheRecycler;
@@ -90,12 +90,11 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatHttpPipeliningWorksWhenEnabled() throws Exception {
         Settings settings = settingsBuilder().put("http.pipelining", true).build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
         httpServerTransport.start();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         List<String> requests = Arrays.asList("/firstfast", "/slow?sleep=500", "/secondfast", "/slow?sleep=1000", "/thirdfast");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
@@ -105,12 +104,11 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatHttpPipeliningCanBeDisabled() throws Exception {
         Settings settings = settingsBuilder().put("http.pipelining", false).build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
         httpServerTransport.start();
-        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) httpServerTransport.boundAddress().boundAddress();
+        InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
 
         List<String> requests = Arrays.asList("/slow?sleep=1000", "/firstfast", "/secondfast", "/thirdfast", "/slow?sleep=500");
         try (NettyHttpClient nettyHttpClient = new NettyHttpClient()) {
@@ -202,7 +200,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
                 request = (HttpRequest) e.getMessage();
             }
 
-            ChannelBuffer buffer = ChannelBuffers.copiedBuffer(request.getUri(), Charsets.UTF_8);
+            ChannelBuffer buffer = ChannelBuffers.copiedBuffer(request.getUri(), StandardCharsets.UTF_8);
 
             DefaultHttpResponse httpResponse = new DefaultHttpResponse(HTTP_1_1, OK);
             httpResponse.headers().add(CONTENT_LENGTH, buffer.readableBytes());

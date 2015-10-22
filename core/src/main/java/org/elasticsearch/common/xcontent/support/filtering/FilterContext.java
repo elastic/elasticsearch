@@ -198,9 +198,6 @@ public class FilterContext {
 
     /**
      * Ensure that the full path to the current field is write by the JsonGenerator
-     *
-     * @param generator
-     * @throws IOException
      */
     public void writePath(JsonGenerator generator) throws IOException {
         if (parent != null) {

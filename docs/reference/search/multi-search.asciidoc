@@ -35,7 +35,7 @@ $ cat requests
 {"search_type" : "dfs_query_then_fetch"}
 {"query" : {"match_all" : {}}}
 
-$ curl -XGET localhost:9200/_msearch --data-binary @requests; echo
+$ curl -XGET localhost:9200/_msearch --data-binary "@requests"; echo
 --------------------------------------------------
 
 Note, the above includes an example of an empty header (can also be just

@@ -38,8 +38,8 @@ public class MockNode extends Node {
     private Version version;
     private Collection<Class<? extends Plugin>> plugins;
 
-    public MockNode(Settings settings, boolean loadConfigSettings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, loadConfigSettings, version, classpathPlugins);
+    public MockNode(Settings settings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {
+        super(settings, version, classpathPlugins);
         this.version = version;
         this.plugins = classpathPlugins;
     }

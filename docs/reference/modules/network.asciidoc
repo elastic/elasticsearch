@@ -51,20 +51,12 @@ provided network interface. For example `_en0:ipv4_`.
 provided network interface. For example `_en0:ipv6_`.
 |=======================================================================
 
-When the `discovery-ec2` plugin is installed, the following are also allowed
-as valid network host settings:
+When the `discovery-ec2` plugin is installed, you can use
+{plugins}/discovery-ec2-discovery.html#discovery-ec2-network-host[ec2 specific host settings].
 
-[cols="<,<",options="header",]
-|==================================================================
-|EC2 Host Value |Description
-|`_ec2:privateIpv4_` |The private IP address (ipv4) of the machine.
-|`_ec2:privateDns_` |The private host of the machine.
-|`_ec2:publicIpv4_` |The public IP address (ipv4) of the machine.
-|`_ec2:publicDns_` |The public host of the machine.
-|`_ec2_` |Less verbose option for the private ip address.
-|`_ec2:privateIp_` |Less verbose option for the private ip address.
-|`_ec2:publicIp_` |Less verbose option for the public ip address.
-|==================================================================
+When the `discovery-gce` plugin is installed, you can use
+{plugins}/discovery-gce-network-host.html[gce specific host settings].
+
 
 [float]
 [[tcp-settings]]

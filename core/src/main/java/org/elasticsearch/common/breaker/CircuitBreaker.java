@@ -66,7 +66,6 @@ public interface CircuitBreaker {
      * @param bytes number of bytes to add
      * @param label string label describing the bytes being added
      * @return the number of "used" bytes for the circuit breaker
-     * @throws CircuitBreakingException
      */
     public double addEstimateBytesAndMaybeBreak(long bytes, String label) throws CircuitBreakingException;
 

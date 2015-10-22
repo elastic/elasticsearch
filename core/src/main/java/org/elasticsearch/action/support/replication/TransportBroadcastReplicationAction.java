@@ -28,6 +28,7 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.action.support.broadcast.BroadcastShardOperationFailedException;
@@ -46,6 +47,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Supplier;
 
 /**
  * Base class for requests that should be executed on all shards of an index or several indices.
@@ -56,7 +58,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
     private final TransportReplicationAction replicatedBroadcastShardAction;
     private final ClusterService clusterService;
 
-    public TransportBroadcastReplicationAction(String name, Class<Request> request, Settings settings, ThreadPool threadPool, ClusterService clusterService,
+    public TransportBroadcastReplicationAction(String name, Supplier<Request> request, Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                                TransportService transportService,
                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, TransportReplicationAction replicatedBroadcastShardAction) {
         super(settings, name, threadPool, transportService, actionFilters, indexNameExpressionResolver, request);
@@ -90,7 +92,7 @@ public abstract class TransportBroadcastReplicationAction<Request extends Broadc
                     int totalNumCopies = clusterState.getMetaData().index(shardId.index().getName()).getNumberOfReplicas() + 1;
                     ShardResponse shardResponse = newShardResponse();
                     ActionWriteResponse.ShardInfo.Failure[] failures;
-                    if (ExceptionsHelper.unwrap(e, UnavailableShardsException.class) != null) {
+                    if (TransportActions.isShardNotAvailableException(e)) {
                         failures = new ActionWriteResponse.ShardInfo.Failure[0];
                     } else {
                         ActionWriteResponse.ShardInfo.Failure failure = new ActionWriteResponse.ShardInfo.Failure(shardId.index().name(), shardId.id(), null, e, ExceptionsHelper.status(e), true);

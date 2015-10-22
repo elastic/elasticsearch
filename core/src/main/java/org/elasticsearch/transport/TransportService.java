@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
@@ -52,6 +51,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 
@@ -66,7 +66,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     protected final Transport transport;
     protected final ThreadPool threadPool;
 
-    volatile ImmutableMap<String, RequestHandlerRegistry> requestHandlers = ImmutableMap.of();
+    volatile Map<String, RequestHandlerRegistry> requestHandlers = Collections.emptyMap();
     final Object requestHandlerMutex = new Object();
 
     final ConcurrentMapLong<RequestHolder> clientHandlers = ConcurrentCollections.newConcurrentMapLongWithAggressiveConcurrency();
@@ -170,6 +170,9 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         transport.start();
         if (transport.boundAddress() != null && logger.isInfoEnabled()) {
             logger.info("{}", transport.boundAddress());
+            for (Map.Entry<String, BoundTransportAddress> entry : transport.profileBoundAddresses().entrySet()) {
+                logger.info("profile [{}]: {}", entry.getKey(), entry.getValue());
+            }
         }
         boolean setStarted = started.compareAndSet(false, true);
         assert setStarted : "service was already started";
@@ -398,22 +401,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     /**
      * Registers a new request handler
      * @param action The action the request handler is associated with
-     * @param request The request class that will be used to constrcut new instances for streaming
-     * @param executor The executor the request handling will be executed on
-     * @param handler The handler itself that implements the request handling
-     */
-    public final <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, TransportRequestHandler<Request> handler) {
-        registerRequestHandler(action, request, executor, false, handler);
-    }
-
-    /**
-     * Registers a new request handler
-     * @param action The action the request handler is associated with
      * @param requestFactory a callable to be used construct new instances for streaming
      * @param executor The executor the request handling will be executed on
      * @param handler The handler itself that implements the request handling
      */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Callable<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, requestFactory, handler, executor, false);
         registerRequestHandler(reg);
     }
@@ -426,7 +418,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
      * @param forceExecution Force execution on the executor queue and never reject it
      * @param handler The handler itself that implements the request handling
      */
-    public <Request extends TransportRequest> void registerRequestHandler(String action, Class<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
+    public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
         RequestHandlerRegistry<Request> reg = new RequestHandlerRegistry<>(action, request, handler, executor, forceExecution);
         registerRequestHandler(reg);
     }

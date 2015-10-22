@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.postingshighlight.*;
+import org.apache.lucene.search.postingshighlight.CustomPassageFormatter;
+import org.apache.lucene.search.postingshighlight.CustomPostingsHighlighter;
+import org.apache.lucene.search.postingshighlight.CustomSeparatorBreakIterator;
+import org.apache.lucene.search.postingshighlight.Snippet;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.StringText;
@@ -34,7 +36,12 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.text.BreakIterator;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 public class PostingsHighlighter implements Highlighter {
 
@@ -169,7 +176,7 @@ public class PostingsHighlighter implements Highlighter {
     }
 
     private static class HighlighterEntry {
-        Map<FieldMapper, MapperHighlighterEntry> mappers = Maps.newHashMap();
+        Map<FieldMapper, MapperHighlighterEntry> mappers = new HashMap<>();
     }
 
     private static class MapperHighlighterEntry {

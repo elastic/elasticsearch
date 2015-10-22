@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.analysis;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Scopes;
 import org.elasticsearch.common.inject.assistedinject.FactoryProvider;
@@ -29,6 +28,7 @@ import org.elasticsearch.index.analysis.compound.DictionaryCompoundWordTokenFilt
 import org.elasticsearch.index.analysis.compound.HyphenationCompoundWordTokenFilterFactory;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
+import java.util.HashMap;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.Objects;
@@ -45,7 +45,7 @@ public class AnalysisModule extends AbstractModule {
         }
 
         public static class CharFiltersBindings {
-            private final Map<String, Class<? extends CharFilterFactory>> charFilters = Maps.newHashMap();
+            private final Map<String, Class<? extends CharFilterFactory>> charFilters = new HashMap<>();
 
             public CharFiltersBindings() {
             }
@@ -60,7 +60,7 @@ public class AnalysisModule extends AbstractModule {
         }
 
         public static class TokenFiltersBindings {
-            private final Map<String, Class<? extends TokenFilterFactory>> tokenFilters = Maps.newHashMap();
+            private final Map<String, Class<? extends TokenFilterFactory>> tokenFilters = new HashMap<>();
 
             public TokenFiltersBindings() {
             }
@@ -75,7 +75,7 @@ public class AnalysisModule extends AbstractModule {
         }
 
         public static class TokenizersBindings {
-            private final Map<String, Class<? extends TokenizerFactory>> tokenizers = Maps.newHashMap();
+            private final Map<String, Class<? extends TokenizerFactory>> tokenizers = new HashMap<>();
 
             public TokenizersBindings() {
             }
@@ -90,7 +90,7 @@ public class AnalysisModule extends AbstractModule {
         }
 
         public static class AnalyzersBindings {
-            private final Map<String, Class<? extends AnalyzerProvider>> analyzers = Maps.newHashMap();
+            private final Map<String, Class<? extends AnalyzerProvider>> analyzers = new HashMap<>();
 
             public AnalyzersBindings() {
             }
@@ -107,10 +107,10 @@ public class AnalysisModule extends AbstractModule {
 
     private final LinkedList<AnalysisBinderProcessor> processors = new LinkedList<>();
 
-    private final Map<String, Class<? extends CharFilterFactory>> charFilters = Maps.newHashMap();
-    private final Map<String, Class<? extends TokenFilterFactory>> tokenFilters = Maps.newHashMap();
-    private final Map<String, Class<? extends TokenizerFactory>> tokenizers = Maps.newHashMap();
-    private final Map<String, Class<? extends AnalyzerProvider>> analyzers = Maps.newHashMap();
+    private final Map<String, Class<? extends CharFilterFactory>> charFilters = new HashMap<>();
+    private final Map<String, Class<? extends TokenFilterFactory>> tokenFilters = new HashMap<>();
+    private final Map<String, Class<? extends TokenizerFactory>> tokenizers = new HashMap<>();
+    private final Map<String, Class<? extends AnalyzerProvider>> analyzers = new HashMap<>();
 
     public AnalysisModule(Settings settings, IndicesAnalysisService indicesAnalysisService) {
         Objects.requireNonNull(indicesAnalysisService);

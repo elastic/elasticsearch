@@ -18,11 +18,6 @@
  */
 package org.elasticsearch.test.hamcrest;
 
-import com.google.common.base.Function;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.FluentIterable;
-import com.google.common.collect.Iterables;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
@@ -35,15 +30,12 @@ import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
-import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -59,9 +51,12 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.suggest.Suggest;
@@ -77,15 +72,36 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Set;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
-import static com.google.common.base.Predicates.isNull;
-import static org.elasticsearch.test.ESTestCase.*;
+import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  *
@@ -188,17 +204,6 @@ public class ElasticsearchAssertions {
         return msg;
     }
 
-    /*
-     * assertions
-     */
-    public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
-        if (searchResponse.getHits().totalHits() != expectedHitCount) {
-            fail("Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. "
-                    + formatShardStatus(searchResponse));
-        }
-        assertVersionSerializable(searchResponse);
-    }
-
     public static void assertNoSearchHits(SearchResponse searchResponse) {
         assertEquals(0, searchResponse.getHits().getHits().length);
     }
@@ -238,18 +243,11 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchResponse);
     }
 
-    public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
-        if (countResponse.getCount() != expectedHitCount) {
-            fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+    public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
+        if (countResponse.getHits().totalHits() != expectedHitCount) {
+            fail("Count is " + countResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
         assertVersionSerializable(countResponse);
-    }
-
-    public static void assertExists(ExistsResponse existsResponse, boolean expected) {
-        if (existsResponse.exists() != expected) {
-            fail("Exist is " + existsResponse.exists() + " but " + expected + " was expected " + formatShardStatus(existsResponse));
-        }
-        assertVersionSerializable(existsResponse);
     }
 
     public static void assertMatchCount(PercolateResponse percolateResponse, long expectedHitCount) {
@@ -647,6 +645,10 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {
+        assertVersionSerializable(version, streamable, null);
+    }
+
+    public static void assertVersionSerializable(Version version, Streamable streamable, NamedWriteableRegistry namedWriteableRegistry) {
         try {
             Streamable newInstance = tryCreateNewInstance(streamable);
             if (newInstance == null) {
@@ -658,10 +660,15 @@ public class ElasticsearchAssertions {
             }
             BytesReference orig = serialize(version, streamable);
             StreamInput input = StreamInput.wrap(orig);
+            if (namedWriteableRegistry != null) {
+                input = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
+            }
             input.setVersion(version);
             newInstance.readFrom(input);
-            assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(), equalTo(0));
-            assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]", serialize(version, streamable), equalTo(orig));
+            assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(),
+                    equalTo(0));
+            assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]",
+                    serialize(version, streamable), equalTo(orig));
         } catch (Throwable ex) {
             throw new RuntimeException("failed to check serialization - version [" + version + "] for streamable [" + streamable + "]", ex);
         }
@@ -672,7 +679,7 @@ public class ElasticsearchAssertions {
         ElasticsearchAssertions.assertVersionSerializable(version, new ThrowableWrapper(t));
     }
 
-    private static final class ThrowableWrapper implements Streamable {
+    public static final class ThrowableWrapper implements Streamable {
         Throwable throwable;
         public ThrowableWrapper(Throwable t) {
             throwable = t;
@@ -700,7 +707,6 @@ public class ElasticsearchAssertions {
             Class<? extends Streamable> clazz = streamable.getClass();
             Constructor<? extends Streamable> constructor = clazz.getDeclaredConstructor();
             assertThat(constructor, Matchers.notNullValue());
-            constructor.setAccessible(true);
             Streamable newInstance = constructor.newInstance();
             return newInstance;
         } catch (Throwable e) {
@@ -738,91 +744,68 @@ public class ElasticsearchAssertions {
         PluginsInfo plugins = response.getNodesMap().get(nodeId).getPlugins();
         Assert.assertThat(plugins, notNullValue());
 
-        List<String> pluginNames = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(nameFunction).toList();
+        List<String> pluginNames = filterAndMap(plugins, jvmPluginPredicate, nameFunction);
         for (String expectedJvmPluginName : expectedJvmPluginNames) {
             Assert.assertThat(pluginNames, hasItem(expectedJvmPluginName));
         }
 
-        List<String> pluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(descriptionFunction).toList();
+        List<String> pluginDescriptions = filterAndMap(plugins, jvmPluginPredicate, descriptionFunction);
         for (String expectedJvmPluginDescription : expectedJvmPluginDescriptions) {
             Assert.assertThat(pluginDescriptions, hasItem(expectedJvmPluginDescription));
         }
 
-        List<String> jvmPluginVersions = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(versionFunction).toList();
+        List<String> jvmPluginVersions = filterAndMap(plugins, jvmPluginPredicate, versionFunction);
         for (String pluginVersion : expectedJvmVersions) {
             Assert.assertThat(jvmPluginVersions, hasItem(pluginVersion));
         }
 
-        FluentIterable<String> jvmUrls = FluentIterable.from(plugins.getInfos())
-                .filter(Predicates.and(jvmPluginPredicate, Predicates.not(sitePluginPredicate)))
-                .filter(isNull())
-                .transform(urlFunction);
-        Assert.assertThat(Iterables.size(jvmUrls), is(0));
+        boolean anyHaveUrls =
+                plugins
+                        .getInfos()
+                        .stream()
+                        .filter(jvmPluginPredicate.and(sitePluginPredicate.negate()))
+                        .map(urlFunction)
+                        .anyMatch(p -> p != null);
+        assertFalse(anyHaveUrls);
 
-        List<String> sitePluginNames = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(nameFunction).toList();
+        List<String> sitePluginNames = filterAndMap(plugins, sitePluginPredicate, nameFunction);
+
         Assert.assertThat(sitePluginNames.isEmpty(), is(expectedSitePluginNames.isEmpty()));
         for (String expectedSitePluginName : expectedSitePluginNames) {
             Assert.assertThat(sitePluginNames, hasItem(expectedSitePluginName));
         }
 
-        List<String> sitePluginDescriptions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(descriptionFunction).toList();
+        List<String> sitePluginDescriptions = filterAndMap(plugins, sitePluginPredicate, descriptionFunction);
         Assert.assertThat(sitePluginDescriptions.isEmpty(), is(expectedSitePluginDescriptions.isEmpty()));
         for (String sitePluginDescription : expectedSitePluginDescriptions) {
             Assert.assertThat(sitePluginDescriptions, hasItem(sitePluginDescription));
         }
 
-        List<String> sitePluginUrls = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(urlFunction).toList();
+        List<String> sitePluginUrls = filterAndMap(plugins, sitePluginPredicate, urlFunction);
         Assert.assertThat(sitePluginUrls, not(contains(nullValue())));
 
-
-        List<String> sitePluginVersions = FluentIterable.from(plugins.getInfos()).filter(sitePluginPredicate).transform(versionFunction).toList();
+        List<String> sitePluginVersions = filterAndMap(plugins, sitePluginPredicate, versionFunction);
         Assert.assertThat(sitePluginVersions.isEmpty(), is(expectedSiteVersions.isEmpty()));
         for (String pluginVersion : expectedSiteVersions) {
             Assert.assertThat(sitePluginVersions, hasItem(pluginVersion));
         }
     }
 
-    private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
-        @Override
-        public boolean apply(PluginInfo pluginInfo) {
-            return pluginInfo.isJvm();
-        }
-    };
+    private static List<String> filterAndMap(PluginsInfo pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
+        return pluginsInfo.getInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
+    }
 
-    private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
-        @Override
-        public boolean apply(PluginInfo pluginInfo) {
-            return pluginInfo.isSite();
-        }
-    };
+    private static Predicate<PluginInfo> jvmPluginPredicate = p -> p.isJvm();
 
-    private static Function<PluginInfo, String> nameFunction = new Function<PluginInfo, String>() {
-        @Override
-        public String apply(PluginInfo pluginInfo) {
-            return pluginInfo.getName();
-        }
-    };
+    private static Predicate<PluginInfo> sitePluginPredicate = p -> p.isSite();
 
-    private static Function<PluginInfo, String> descriptionFunction = new Function<PluginInfo, String>() {
-        @Override
-        public String apply(PluginInfo pluginInfo) {
-            return pluginInfo.getDescription();
-        }
-    };
+    private static Function<PluginInfo, String> nameFunction = p -> p.getName();
 
-    private static Function<PluginInfo, String> urlFunction = new Function<PluginInfo, String>() {
-        @Override
-        public String apply(PluginInfo pluginInfo) {
-            return pluginInfo.getUrl();
-        }
-    };
+    private static Function<PluginInfo, String> descriptionFunction = p -> p.getDescription();
 
-    private static Function<PluginInfo, String> versionFunction = new Function<PluginInfo, String>() {
-        @Override
-        public String apply(PluginInfo pluginInfo) {
-            return pluginInfo.getVersion();
-        }
-    };
+    private static Function<PluginInfo, String> urlFunction = p -> p.getUrl();
+
+    private static Function<PluginInfo, String> versionFunction = p -> p.getVersion();
 
     /**
      * Check if a file exists

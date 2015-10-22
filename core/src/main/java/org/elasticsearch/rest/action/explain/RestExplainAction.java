@@ -30,6 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.rest.*;
@@ -74,13 +75,7 @@ public class RestExplainAction extends BaseRestHandler {
             queryStringBuilder.lenient(request.paramAsBoolean("lenient", null));
             String defaultOperator = request.param("default_operator");
             if (defaultOperator != null) {
-                if ("OR".equals(defaultOperator)) {
-                    queryStringBuilder.defaultOperator(QueryStringQueryBuilder.Operator.OR);
-                } else if ("AND".equals(defaultOperator)) {
-                    queryStringBuilder.defaultOperator(QueryStringQueryBuilder.Operator.AND);
-                } else {
-                    throw new IllegalArgumentException("Unsupported defaultOperator [" + defaultOperator + "], can either be [OR] or [AND]");
-                }
+                queryStringBuilder.defaultOperator(Operator.fromString(defaultOperator));
             }
 
             QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();

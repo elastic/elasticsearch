@@ -21,6 +21,8 @@ package org.elasticsearch.script.javascript;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Scorer;
+import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -35,6 +37,10 @@ import org.mozilla.javascript.*;
 import org.mozilla.javascript.Script;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.security.CodeSource;
+import java.security.cert.Certificate;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -94,11 +100,21 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public Object compile(String script) {
+        // we don't know why kind of safeguards rhino has,
+        // but just be safe
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
         Context ctx = Context.enter();
         try {
             ctx.setWrapFactory(wrapFactory);
             ctx.setOptimizationLevel(optimizationLevel);
-            return ctx.compileString(script, generateScriptName(), 1, null);
+            ctx.setSecurityController(new PolicySecurityController());
+            return ctx.compileString(script, generateScriptName(), 1, 
+                      new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null));
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
         } finally {
             Context.exit();
         }
@@ -160,31 +176,6 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
         } finally {
             Context.exit();
         }
-    }
-
-    @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        Context ctx = Context.enter();
-        ctx.setWrapFactory(wrapFactory);
-        try {
-            Script script = (Script) compiledScript.compiled();
-            Scriptable scope = ctx.newObject(globalScope);
-            scope.setPrototype(globalScope);
-            scope.setParentScope(null);
-
-            for (Map.Entry<String, Object> entry : vars.entrySet()) {
-                ScriptableObject.putProperty(scope, entry.getKey(), entry.getValue());
-            }
-            Object ret = script.exec(ctx, scope);
-            return ScriptValueConverter.unwrapValue(ret);
-        } finally {
-            Context.exit();
-        }
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return ScriptValueConverter.unwrapValue(value);
     }
 
     private String generateScriptName() {

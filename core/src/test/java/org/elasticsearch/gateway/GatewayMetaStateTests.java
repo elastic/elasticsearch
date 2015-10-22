@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -30,10 +29,13 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -170,11 +172,10 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                             boolean stateInMemory,
                             boolean expectMetaData) throws Exception {
         MetaData inMemoryMetaData = null;
-        ImmutableSet<String> oldIndicesList = ImmutableSet.of();
+        Set<String> oldIndicesList = emptySet();
         if (stateInMemory) {
             inMemoryMetaData = event.previousState().metaData();
-            ImmutableSet.Builder<String> relevantIndices = ImmutableSet.builder();
-            oldIndicesList = relevantIndices.addAll(GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList)).build();
+            oldIndicesList = GatewayMetaState.getRelevantIndices(event.previousState(), event.previousState(), oldIndicesList);
         }
         Set<String> newIndicesList = GatewayMetaState.getRelevantIndices(event.state(),event.previousState(), oldIndicesList);
         // third, get the actual write info
@@ -182,14 +183,13 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
 
         if (expectMetaData) {
             assertThat(indices.hasNext(), equalTo(true));
-            assertThat(indices.next().getNewMetaData().index(), equalTo("test"));
+            assertThat(indices.next().getNewMetaData().getIndex(), equalTo("test"));
             assertThat(indices.hasNext(), equalTo(false));
         } else {
             assertThat(indices.hasNext(), equalTo(false));
         }
     }
 
-    @Test
     public void testVersionChangeIsAlwaysWritten() throws Exception {
         // test that version changes are always written
         boolean initializing = randomBoolean();
@@ -201,7 +201,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testNewShardsAlwaysWritten() throws Exception {
         // make sure new shards on data only node always written
         boolean initializing = true;
@@ -213,7 +212,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testAllUpToDateNothingWritten() throws Exception {
         // make sure state is not written again if we wrote already
         boolean initializing = false;
@@ -225,7 +223,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(event, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testNoWriteIfNothingChanged() throws Exception {
         boolean initializing = false;
         boolean versionChanged = false;
@@ -237,7 +234,6 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
         assertState(newEventWithNothingChanged, stateInMemory, expectMetaData);
     }
 
-    @Test
     public void testWriteClosedIndex() throws Exception {
         // test that the closing of an index is written also on data only node
         boolean masterEligible = randomBoolean();

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.cluster.node;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -45,7 +45,7 @@ public class DiscoveryNodeService extends AbstractComponent {
     }
 
     public Map<String, String> buildAttributes() {
-        Map<String, String> attributes = Maps.newHashMap(settings.getByPrefix("node.").getAsMap());
+        Map<String, String> attributes = new HashMap<>(settings.getByPrefix("node.").getAsMap());
         attributes.remove("name"); // name is extracted in other places
         if (attributes.containsKey("client")) {
             if (attributes.get("client").equals("false")) {

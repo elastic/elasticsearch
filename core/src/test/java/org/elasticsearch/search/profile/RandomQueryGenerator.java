@@ -147,10 +147,11 @@ public class RandomQueryGenerator {
     }
 
     private static QueryBuilder randomBoostingQuery(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
-        return QueryBuilders.boostingQuery().boost(randomFloat())
-                .positive(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1))
-                .negativeBoost(randomFloat())
-                .negative(randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1));
+        return QueryBuilders.boostingQuery(
+                randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1),
+                randomQueryBuilder(stringFields, numericFields, numDocs, depth - 1))
+                .boost(randomFloat())
+                .negativeBoost(randomFloat());
     }
 
     private static QueryBuilder randomConstantScoreQuery(List<String> stringFields, List<String> numericFields, int numDocs, int depth) {
@@ -171,12 +172,12 @@ public class RandomQueryGenerator {
 
         if (randomBoolean()) {
             ((CommonTermsQueryBuilder)q).highFreqMinimumShouldMatch(Integer.toString(randomInt(numTerms)))
-                    .highFreqOperator(randomBoolean() ? CommonTermsQueryBuilder.Operator.AND : CommonTermsQueryBuilder.Operator.OR);
+                    .highFreqOperator(randomBoolean() ? Operator.AND : Operator.OR);
         }
 
         if (randomBoolean()) {
             ((CommonTermsQueryBuilder)q).lowFreqMinimumShouldMatch(Integer.toString(randomInt(numTerms)))
-                    .lowFreqOperator(randomBoolean() ? CommonTermsQueryBuilder.Operator.AND : CommonTermsQueryBuilder.Operator.OR);
+                    .lowFreqOperator(randomBoolean() ? Operator.AND : Operator.OR);
         }
 
         return q;

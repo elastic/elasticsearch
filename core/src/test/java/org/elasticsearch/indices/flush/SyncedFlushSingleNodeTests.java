@@ -42,7 +42,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
-        IndexShard shard = test.shard(0);
+        IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
@@ -86,7 +86,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
-        IndexShard shard = test.shard(0);
+        IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
@@ -106,7 +106,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
-        IndexShard shard = test.shard(0);
+        IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
@@ -129,7 +129,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
     public void testSyncFailsOnIndexClosedOrMissing() throws InterruptedException {
         createIndex("test");
         IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
-        IndexShard shard = test.shard(0);
+        IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         SyncedFlushUtil.LatchedListener listener = new SyncedFlushUtil.LatchedListener();
@@ -162,7 +162,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
-        IndexShard shard = test.shard(0);
+        IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();
@@ -195,7 +195,7 @@ public class SyncedFlushSingleNodeTests extends ESSingleNodeTestCase {
         createIndex("test");
         client().prepareIndex("test", "test", "1").setSource("{}").get();
         IndexService test = getInstanceFromNode(IndicesService.class).indexService("test");
-        IndexShard shard = test.shard(0);
+        IndexShard shard = test.getShardOrNull(0);
 
         SyncedFlushService flushService = getInstanceFromNode(SyncedFlushService.class);
         final ShardId shardId = shard.shardId();

@@ -34,7 +34,7 @@ import java.io.IOException;
 import java.util.Arrays;
 
 /**
- * Simple class to build document ID <-> ordinal mapping. Note: Ordinals are
+ * Simple class to build document ID &lt;-&gt; ordinal mapping. Note: Ordinals are
  * <tt>1</tt> based monotonically increasing positive integers. <tt>0</tt>
  * donates the missing value in this context.
  */
@@ -75,7 +75,7 @@ public final class OrdinalsBuilder implements Closeable {
      * with document 2: it has 2 more ordinals on level 1: 3 and 4 and its next level index is 1 meaning that there are remaining
      * ordinals on the next level. On level 2 at index 1, we can read [5  0  0  0] meaning that 5 is an ordinal as well, but the
      * fact that it is followed by zeros means that there are no more ordinals. In the end, document 2 has 2, 3, 4 and 5 as ordinals.
-     * <p/>
+     * <p>
      * In addition to these structures, there is another array which stores the current position (level + slice + offset in the slice)
      * in order to be able to append data in constant time.
      */
@@ -300,7 +300,7 @@ public final class OrdinalsBuilder implements Closeable {
     }
 
     /**
-     * Return a {@link PackedInts.Reader} instance mapping every doc ID to its first ordinal + 1 if it exists and 0 otherwise.
+     * Return a {@link org.apache.lucene.util.packed.PackedInts.Reader} instance mapping every doc ID to its first ordinal + 1 if it exists and 0 otherwise.
      */
     public PackedInts.Reader getFirstOrdinals() {
         return ordinals.firstOrdinals;
@@ -419,7 +419,7 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * A {@link TermsEnum} that iterates only full precision prefix coded 64 bit values.
      *
-     * @see #buildFromTerms(TermsEnum, Bits)
+     * @see #buildFromTerms(TermsEnum)
      */
     public static TermsEnum wrapNumeric64Bit(TermsEnum termsEnum) {
         return new FilteredTermsEnum(termsEnum, false) {
@@ -434,7 +434,7 @@ public final class OrdinalsBuilder implements Closeable {
     /**
      * A {@link TermsEnum} that iterates only full precision prefix coded 32 bit values.
      *
-     * @see #buildFromTerms(TermsEnum, Bits)
+     * @see #buildFromTerms(TermsEnum)
      */
     public static TermsEnum wrapNumeric32Bit(TermsEnum termsEnum) {
         return new FilteredTermsEnum(termsEnum, false) {

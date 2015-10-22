@@ -19,10 +19,14 @@
 
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Maps;
 import org.apache.lucene.search.Query;
 
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -332,7 +336,7 @@ public class SearchContextHighlight {
                     fieldOptions.fragmenter = globalOptions.fragmenter;
                 }
                 if ((fieldOptions.options == null || fieldOptions.options.size() == 0) && globalOptions.options != null) {
-                    fieldOptions.options = Maps.newHashMap(globalOptions.options);
+                    fieldOptions.options = new HashMap<>(globalOptions.options);
                 }
                 if (fieldOptions.highlightQuery == null && globalOptions.highlightQuery != null) {
                     fieldOptions.highlightQuery = globalOptions.highlightQuery;

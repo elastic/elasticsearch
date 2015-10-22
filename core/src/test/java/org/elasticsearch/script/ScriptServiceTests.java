@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableSet;
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.Nullable;
@@ -28,14 +25,11 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -45,11 +39,13 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+//TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptServiceTests extends ESTestCase {
 
     private ResourceWatcherService resourceWatcherService;
@@ -77,13 +73,13 @@ public class ScriptServiceTests extends ESTestCase {
                 .put("path.conf", genericConfigFolder)
                 .build();
         resourceWatcherService = new ResourceWatcherService(baseSettings, null);
-        scriptEngineServices = ImmutableSet.of(new TestEngineService(), new GroovyScriptEngineService(baseSettings),
-                new ExpressionScriptEngineService(baseSettings), new MustacheScriptEngineService(baseSettings));
+        scriptEngineServices = newHashSet(new TestEngineService(),
+                                               new MustacheScriptEngineService(baseSettings));
         scriptEnginesByLangMap = ScriptModesTests.buildScriptEnginesByLangMap(scriptEngineServices);
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
-        Map<String, ScriptContext.Plugin> contexts = Maps.newHashMap();
+        Map<String, ScriptContext.Plugin> contexts = new HashMap<>();
         for (int i = 0; i < randomInt; i++) {
             String plugin;
             do {
@@ -115,7 +111,6 @@ public class ScriptServiceTests extends ESTestCase {
         };
     }
 
-    @Test
     public void testNotSupportedDisableDynamicSetting() throws IOException {
         try {
             buildScriptService(Settings.builder().put(ScriptService.DISABLE_DYNAMIC_SCRIPTING_SETTING, randomUnicodeOfLength(randomIntBetween(1, 10))).build());
@@ -125,7 +120,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testScriptsWithoutExtensions() throws IOException {
 
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
@@ -157,22 +151,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void testScriptsSameNameDifferentLanguage() throws IOException {
-        ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
-        buildScriptService(Settings.EMPTY);
-        createFileScripts("groovy", "expression");
-        CompiledScript groovyScript = scriptService.compile(
-                new Script("file_script", ScriptType.FILE, GroovyScriptEngineService.NAME, null), randomFrom(scriptContexts),
-                contextAndHeaders);
-        assertThat(groovyScript.lang(), equalTo(GroovyScriptEngineService.NAME));
-        CompiledScript expressionScript = scriptService.compile(new Script("file_script", ScriptType.FILE, ExpressionScriptEngineService.NAME,
- null), randomFrom(new ScriptContext[] { ScriptContext.Standard.AGGS,
-                ScriptContext.Standard.SEARCH }), contextAndHeaders);
-        assertThat(expressionScript.lang(), equalTo(ExpressionScriptEngineService.NAME));
-    }
-
-    @Test
     public void testInlineScriptCompiledOnceCache() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -183,7 +161,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
-    @Test
     public void testInlineScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -194,7 +171,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
-    @Test
     public void testFileScriptCompiledOnceMultipleLangAcronyms() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -206,7 +182,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertThat(compiledScript1.compiled(), sameInstance(compiledScript2.compiled()));
     }
 
-    @Test
     public void testDefaultBehaviourFineGrainedSettings() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.builder();
@@ -221,20 +196,9 @@ public class ScriptServiceTests extends ESTestCase {
             builder.put("script.inline", ScriptMode.SANDBOX);
         }
         buildScriptService(builder.build());
-        createFileScripts("groovy", "expression", "mustache", "test");
+        createFileScripts("groovy", "mustache", "test");
 
         for (ScriptContext scriptContext : scriptContexts) {
-            //groovy is not sandboxed, only file scripts are enabled by default
-            assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext, contextAndHeaders);
-            assertCompileRejected(GroovyScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext, contextAndHeaders);
-            assertCompileAccepted(GroovyScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext, contextAndHeaders);
-            //expression engine is sandboxed, all scripts are enabled by default
-            if (!scriptContext.getKey().equals(ScriptContext.Standard.MAPPING.getKey()) &&
-                    !scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey())) {
-                assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext, contextAndHeaders);
-                assertCompileAccepted(ExpressionScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext, contextAndHeaders);
-                assertCompileAccepted(ExpressionScriptEngineService.NAME, "file_script", ScriptType.FILE, scriptContext, contextAndHeaders);
-            }
             //mustache engine is sandboxed, all scripts are enabled by default
             assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INLINE, scriptContext, contextAndHeaders);
             assertCompileAccepted(MustacheScriptEngineService.NAME, "script", ScriptType.INDEXED, scriptContext, contextAndHeaders);
@@ -246,7 +210,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testFineGrainedSettings() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         //collect the fine-grained settings to set for this run
@@ -337,12 +300,6 @@ public class ScriptServiceTests extends ESTestCase {
                 //Otherwise they are always considered file ones as they can be found in the static cache.
                 String script = scriptType == ScriptType.FILE ? "file_script" : "script";
                 for (ScriptContext scriptContext : this.scriptContexts) {
-                    // skip script contexts that aren't allowed for expressions
-                    if (scriptEngineService instanceof ExpressionScriptEngineService &&
-                            (scriptContext.getKey().equals(ScriptContext.Standard.MAPPING.getKey()) ||
-                             scriptContext.getKey().equals(ScriptContext.Standard.UPDATE.getKey()))) {
-                        continue;
-                    }
                     //fallback mechanism: 1) engine specific settings 2) op based settings 3) source based settings
                     ScriptMode scriptMode = engineSettings.get(scriptEngineService.types()[0] + "." + scriptType + "." + scriptContext.getKey());
                     if (scriptMode == null) {
@@ -377,7 +334,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCompileNonRegisteredContext() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -401,7 +357,6 @@ public class ScriptServiceTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCompileCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -409,7 +364,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testExecutableCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -417,14 +371,12 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testSearchCountedInCompilationStats() throws IOException {
         buildScriptService(Settings.EMPTY);
         scriptService.search(null, new Script("1+1", ScriptType.INLINE, "test", null), randomFrom(scriptContexts));
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testMultipleCompilationsCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -436,7 +388,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(numberOfCompilations, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testCompilationStatsOnCacheHit() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.builder();
@@ -447,7 +398,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testFileScriptCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -456,7 +406,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testIndexedScriptCountedInCompilationStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         buildScriptService(Settings.EMPTY);
@@ -464,7 +413,6 @@ public class ScriptServiceTests extends ESTestCase {
         assertEquals(1L, scriptService.stats().getCompilations());
     }
 
-    @Test
     public void testCacheEvictionCountedInCacheEvictionsStats() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.builder();
@@ -528,16 +476,6 @@ public class ScriptServiceTests extends ESTestCase {
 
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public Object unwrap(Object value) {
             return null;
         }
 

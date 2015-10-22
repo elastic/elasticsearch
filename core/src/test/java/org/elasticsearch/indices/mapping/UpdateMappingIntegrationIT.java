@@ -22,7 +22,7 @@ package org.elasticsearch.indices.mapping;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -35,7 +35,6 @@ import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -44,16 +43,23 @@ import java.util.Map;
 import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.not;
 
 @ClusterScope(randomDynamicTemplates = false)
 public class UpdateMappingIntegrationIT extends ESIntegTestCase {
-
-    @Test
-    public void dynamicUpdates() throws Exception {
+    public void testDynamicUpdates() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         settingsBuilder()
@@ -75,8 +81,8 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("checking all the documents are there");
         RefreshResponse refreshResponse = client().admin().indices().prepareRefresh().execute().actionGet();
         assertThat(refreshResponse.getFailedShards(), equalTo(0));
-        CountResponse response = client().prepareCount("test").execute().actionGet();
-        assertThat(response.getCount(), equalTo((long) recCount));
+        SearchResponse response = client().prepareSearch("test").setSize(0).execute().actionGet();
+        assertThat(response.getHits().totalHits(), equalTo((long) recCount));
 
         logger.info("checking all the fields are in the mappings");
 
@@ -87,8 +93,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void updateMappingWithoutType() throws Exception {
+    public void testUpdateMappingWithoutType() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         settingsBuilder()
@@ -109,8 +114,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 equalTo("{\"doc\":{\"properties\":{\"body\":{\"type\":\"string\"},\"date\":{\"type\":\"integer\"}}}}"));
     }
 
-    @Test
-    public void updateMappingWithoutTypeMultiObjects() throws Exception {
+    public void testUpdateMappingWithoutTypeMultiObjects() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         settingsBuilder()
@@ -130,9 +134,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 equalTo("{\"doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
     }
 
-    @Test(expected = MergeMappingException.class)
-    public void updateMappingWithConflicts() throws Exception {
-
+    public void testUpdateMappingWithConflicts() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         settingsBuilder()
@@ -142,29 +144,33 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}")
-                .execute().actionGet();
-
-        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
+        try {
+            client().admin().indices().preparePutMapping("test").setType("type")
+                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}").execute().actionGet();
+            fail("Expected MergeMappingException");
+        } catch (MergeMappingException e) {
+            assertThat(e.getMessage(), containsString("mapper [body] of different type"));
+        }
     }
 
-    @Test(expected = MergeMappingException.class)
-    public void updateMappingWithNormsConflicts() throws Exception {
+    public void testUpdateMappingWithNormsConflicts() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": false }}}}}")
                 .execute().actionGet();
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": true }}}}}")
-                .execute().actionGet();
+        try {
+            client().admin().indices().preparePutMapping("test").setType("type")
+                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": true }}}}}").execute()
+                    .actionGet();
+            fail("Expected MergeMappingException");
+        } catch (MergeMappingException e) {
+            assertThat(e.getMessage(), containsString("mapper [body] has different [omit_norms]"));
+        }
     }
 
     /*
     Second regression test for https://github.com/elasticsearch/elasticsearch/issues/3381
      */
-    @Test
-    public void updateMappingNoChanges() throws Exception {
-
+    public void testUpdateMappingNoChanges() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(
                         settingsBuilder()
@@ -183,9 +189,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @Test
-    public void updateDefaultMappingSettings() throws Exception {
-
+    public void testUpdateDefaultMappingSettings() throws Exception {
         logger.info("Creating index with _default_ mappings");
         client().admin().indices().prepareCreate("test").addMapping(MapperService.DEFAULT_MAPPING,
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
@@ -245,8 +249,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void updateMappingConcurrently() throws Throwable {
+    public void testUpdateMappingConcurrently() throws Throwable {
         createIndex("test1", "test2");
 
         // This is important. The test assumes all nodes are aware of all indices. Due to initializing shard throttling
@@ -312,7 +315,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testPutMappingsWithBlocks() throws Exception {
         createIndex("test");
         ensureGreen();

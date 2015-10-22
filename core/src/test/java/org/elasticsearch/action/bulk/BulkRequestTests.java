@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.base.Charsets;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.delete.DeleteRequest;
@@ -31,8 +29,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -43,8 +41,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class BulkRequestTests extends ESTestCase {
-
-    @Test
     public void testSimpleBulk1() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
         // translate Windows line endings (\r\n) to standard ones (\n)
@@ -52,34 +48,31 @@ public class BulkRequestTests extends ESTestCase {
             bulkAction = Strings.replace(bulkAction, "\r\n", "\n");
         }
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
         assertThat(((IndexRequest) bulkRequest.requests().get(0)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value1\" }").toBytes()));
         assertThat(bulkRequest.requests().get(1), instanceOf(DeleteRequest.class));
         assertThat(((IndexRequest) bulkRequest.requests().get(2)).source().toBytes(), equalTo(new BytesArray("{ \"field1\" : \"value3\" }").toBytes()));
     }
 
-    @Test
     public void testSimpleBulk2() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk2.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
-    @Test
     public void testSimpleBulk3() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk3.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(3));
     }
 
-    @Test
     public void testSimpleBulk4() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk4.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(4));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).id(), equalTo("1"));
         assertThat(((UpdateRequest) bulkRequest.requests().get(0)).retryOnConflict(), equalTo(2));
@@ -98,21 +91,19 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(((UpdateRequest) bulkRequest.requests().get(1)).upsertRequest().source().toUtf8(), equalTo("{\"counter\":1}"));
     }
 
-    @Test
     public void testBulkAllowExplicitIndex() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk.json");
         try {
-            new BulkRequest().add(new BytesArray(bulkAction.getBytes(Charsets.UTF_8)), null, null, false);
+            new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), null, null, false);
             fail();
         } catch (Exception e) {
 
         }
 
         bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk5.json");
-        new BulkRequest().add(new BytesArray(bulkAction.getBytes(Charsets.UTF_8)), "test", null, false);
+        new BulkRequest().add(new BytesArray(bulkAction.getBytes(StandardCharsets.UTF_8)), "test", null, false);
     }
 
-    @Test
     public void testBulkAddIterable() {
         BulkRequest bulkRequest = Requests.bulkRequest();
         List<ActionRequest> requests = new ArrayList<>();
@@ -126,12 +117,11 @@ public class BulkRequestTests extends ESTestCase {
         assertThat(bulkRequest.requests().get(2), instanceOf(DeleteRequest.class));
     }
 
-    @Test
     public void testSimpleBulk6() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk6.json");
         BulkRequest bulkRequest = new BulkRequest();
         try {
-            bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
             fail("should have thrown an exception about the wrong format of line 1");
         } catch (IllegalArgumentException e) {
             assertThat("message contains error about the wrong format of line 1: " + e.getMessage(),
@@ -139,12 +129,11 @@ public class BulkRequestTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSimpleBulk7() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk7.json");
         BulkRequest bulkRequest = new BulkRequest();
         try {
-            bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
             fail("should have thrown an exception about the wrong format of line 5");
         } catch (IllegalArgumentException e) {
             assertThat("message contains error about the wrong format of line 5: " + e.getMessage(),
@@ -152,12 +141,11 @@ public class BulkRequestTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSimpleBulk8() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk8.json");
         BulkRequest bulkRequest = new BulkRequest();
         try {
-            bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
             fail("should have thrown an exception about the unknown paramater _foo");
         } catch (IllegalArgumentException e) {
             assertThat("message contains error about the unknown paramater _foo: " + e.getMessage(),
@@ -165,12 +153,11 @@ public class BulkRequestTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSimpleBulk9() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk9.json");
         BulkRequest bulkRequest = new BulkRequest();
         try {
-            bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+            bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
             fail("should have thrown an exception about the wrong format of line 3");
         } catch (IllegalArgumentException e) {
             assertThat("message contains error about the wrong format of line 3: " + e.getMessage(),
@@ -178,11 +165,10 @@ public class BulkRequestTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSimpleBulk10() throws Exception {
         String bulkAction = copyToStringFromClasspath("/org/elasticsearch/action/bulk/simple-bulk10.json");
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.add(bulkAction.getBytes(Charsets.UTF_8), 0, bulkAction.length(), null, null);
+        bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
     }
 }

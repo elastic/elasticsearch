@@ -25,10 +25,9 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.io.stream.StreamInput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Properties;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  * Settings loader that loads (parses) the settings in a properties format.
@@ -41,7 +40,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
         FastStringReader reader = new FastStringReader(source);
         try {
             props.load(reader);
-            Map<String, String> result = newHashMap();
+            Map<String, String> result = new HashMap<>();
             for (Map.Entry entry : props.entrySet()) {
                 result.put((String) entry.getKey(), (String) entry.getValue());
             }
@@ -57,7 +56,7 @@ public class PropertiesSettingsLoader implements SettingsLoader {
         StreamInput stream = StreamInput.wrap(source);
         try {
             props.load(stream);
-            Map<String, String> result = newHashMap();
+            Map<String, String> result = new HashMap<>();
             for (Map.Entry entry : props.entrySet()) {
                 result.put((String) entry.getKey(), (String) entry.getValue());
             }

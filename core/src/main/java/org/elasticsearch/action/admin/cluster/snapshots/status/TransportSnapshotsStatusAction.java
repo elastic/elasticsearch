@@ -19,17 +19,19 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.google.common.collect.ImmutableMap;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SnapshotId;
-import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,12 +45,11 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Maps.newHashMap;
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  */
@@ -63,7 +64,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                           ThreadPool threadPool, SnapshotsService snapshotsService,
                                           TransportNodesSnapshotsStatus transportNodesSnapshotsStatus,
                                           ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, SnapshotsStatusRequest.class);
+        super(settings, SnapshotsStatusAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, SnapshotsStatusRequest::new);
         this.snapshotsService = snapshotsService;
         this.transportNodesSnapshotsStatus = transportNodesSnapshotsStatus;
     }
@@ -94,11 +95,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             return;
         }
 
-        Set<String> nodesIds = newHashSet();
+        Set<String> nodesIds = new HashSet<>();
         for (SnapshotsInProgress.Entry entry : currentSnapshots) {
-            for (SnapshotsInProgress.ShardSnapshotStatus status : entry.shards().values()) {
-                if (status.nodeId() != null) {
-                    nodesIds.add(status.nodeId());
+            for (ObjectCursor<SnapshotsInProgress.ShardSnapshotStatus> status : entry.shards().values()) {
+                if (status.value.nodeId() != null) {
+                    nodesIds.add(status.value.nodeId());
                 }
             }
         }
@@ -140,27 +141,27 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                                                   TransportNodesSnapshotsStatus.NodesSnapshotStatus nodeSnapshotStatuses) throws IOException {
         // First process snapshot that are currently processed
         List<SnapshotStatus> builder = new ArrayList<>();
-        Set<SnapshotId> currentSnapshotIds = newHashSet();
+        Set<SnapshotId> currentSnapshotIds = new HashSet<>();
         if (!currentSnapshots.isEmpty()) {
             Map<String, TransportNodesSnapshotsStatus.NodeSnapshotStatus> nodeSnapshotStatusMap;
             if (nodeSnapshotStatuses != null) {
                 nodeSnapshotStatusMap = nodeSnapshotStatuses.getNodesMap();
             } else {
-                nodeSnapshotStatusMap = newHashMap();
+                nodeSnapshotStatusMap = new HashMap<>();
             }
 
             for (SnapshotsInProgress.Entry entry : currentSnapshots) {
                 currentSnapshotIds.add(entry.snapshotId());
                 List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
-                for (ImmutableMap.Entry<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards().entrySet()) {
-                    SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.getValue();
+                for (ObjectObjectCursor<ShardId, SnapshotsInProgress.ShardSnapshotStatus> shardEntry : entry.shards()) {
+                    SnapshotsInProgress.ShardSnapshotStatus status = shardEntry.value;
                     if (status.nodeId() != null) {
                         // We should have information about this shard from the shard:
                         TransportNodesSnapshotsStatus.NodeSnapshotStatus nodeStatus = nodeSnapshotStatusMap.get(status.nodeId());
                         if (nodeStatus != null) {
-                            ImmutableMap<ShardId, SnapshotIndexShardStatus> shardStatues = nodeStatus.status().get(entry.snapshotId());
+                            Map<ShardId, SnapshotIndexShardStatus> shardStatues = nodeStatus.status().get(entry.snapshotId());
                             if (shardStatues != null) {
-                                SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.getKey());
+                                SnapshotIndexShardStatus shardStatus = shardStatues.get(shardEntry.key);
                                 if (shardStatus != null) {
                                     // We have full information about this shard
                                     shardStatusBuilder.add(shardStatus);
@@ -170,7 +171,7 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                         }
                     }
                     final SnapshotIndexShardStage stage;
-                    switch (shardEntry.getValue().state()) {
+                    switch (shardEntry.value.state()) {
                         case FAILED:
                         case ABORTED:
                         case MISSING:
@@ -185,9 +186,9 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                             stage = SnapshotIndexShardStage.DONE;
                             break;
                         default:
-                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.getValue().state());
+                            throw new IllegalArgumentException("Unknown snapshot state " + shardEntry.value.state());
                     }
-                    SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.getKey(), stage);
+                    SnapshotIndexShardStatus shardStatus = new SnapshotIndexShardStatus(shardEntry.key, stage);
                     shardStatusBuilder.add(shardStatus);
                 }
                 builder.add(new SnapshotStatus(entry.snapshotId(), entry.state(), Collections.unmodifiableList(shardStatusBuilder)));
@@ -205,8 +206,8 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
                     Snapshot snapshot = snapshotsService.snapshot(snapshotId);
                     List<SnapshotIndexShardStatus> shardStatusBuilder = new ArrayList<>();
                     if (snapshot.state().completed()) {
-                        ImmutableMap<ShardId, IndexShardSnapshotStatus> shardStatues = snapshotsService.snapshotShards(snapshotId);
-                        for (ImmutableMap.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
+                        Map<ShardId, IndexShardSnapshotStatus> shardStatues = snapshotsService.snapshotShards(snapshotId);
+                        for (Map.Entry<ShardId, IndexShardSnapshotStatus> shardStatus : shardStatues.entrySet()) {
                             shardStatusBuilder.add(new SnapshotIndexShardStatus(shardStatus.getKey(), shardStatus.getValue()));
                         }
                         final SnapshotsInProgress.State state;

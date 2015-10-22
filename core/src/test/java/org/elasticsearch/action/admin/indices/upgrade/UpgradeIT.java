@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.upgrade;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.segments.IndexSegments;
@@ -43,6 +42,7 @@ import org.junit.BeforeClass;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -97,12 +97,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
             if (globalCompatibilityVersion().before(Version.V_1_4_0_Beta1)) {
                 // before 1.4 and the wait_if_ongoing flag, flushes could fail randomly, so we
                 // need to continue to try flushing until all shards succeed
-                assertTrue(awaitBusy(new Predicate<Object>() {
-                    @Override
-                    public boolean apply(Object o) {
-                        return flush(indexName).getFailedShards() == 0;
-                    }
-                }));
+                assertTrue(awaitBusy(() -> flush(indexName).getFailedShards() == 0));
             } else {
                 assertEquals(0, flush(indexName).getFailedShards());
             }
@@ -143,14 +138,11 @@ public class UpgradeIT extends ESBackcompatTestCase {
         
         logger.info("--> Running upgrade on index " + indexToUpgrade);
         assertNoFailures(client().admin().indices().prepareUpgrade(indexToUpgrade).get());
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                try {
-                    return isUpgraded(client(), indexToUpgrade);
-                } catch (Exception e) {
-                    throw ExceptionsHelper.convertToRuntime(e);
-                }
+        awaitBusy(() -> {
+            try {
+                return isUpgraded(client(), indexToUpgrade);
+            } catch (Exception e) {
+                throw ExceptionsHelper.convertToRuntime(e);
             }
         });
         logger.info("--> Single index upgrade complete");

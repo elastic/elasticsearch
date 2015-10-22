@@ -2,5 +2,4 @@
 === Azure Discovery
 
 Azure discovery allows to use the Azure APIs to perform automatic discovery (similar to multicast).
-Please check the https://github.com/elasticsearch/elasticsearch-cloud-azure[plugin website]
-to find the full documentation.
+It is available as a plugin. See {plugins}/discovery-azure.html[discovery-azure] for more information.

@@ -20,12 +20,11 @@
 package org.elasticsearch.search.internal;
 
 import org.elasticsearch.action.search.SearchType;
-import org.elasticsearch.common.HasContext;
 import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.HasHeaders;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
@@ -42,11 +41,9 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
 
     String[] types();
 
-    BytesReference source();
+    SearchSourceBuilder source();
 
-    void source(BytesReference source);
-
-    BytesReference extraSource();
+    void source(SearchSourceBuilder source);
 
     int numberOfShards();
 
@@ -57,8 +54,6 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
     long nowInMillis();
 
     Template template();
-
-    BytesReference templateSource();
 
     Boolean requestCache();
 

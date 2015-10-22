@@ -20,8 +20,8 @@
       <testScripts>*.bats</testScripts>
       <testCommand>sudo bats $BATS/${testScripts}</testCommand>
 
-      <allDebBoxes>precise, trusty, vivid, wheezy, jessie</allDebBoxes>
-      <allRpmBoxes>centos-6, centos-7, fedora-22, oel-7</allRpmBoxes>
+      <allDebBoxes>precise, trusty, vivid, jessie</allDebBoxes>
+      <allRpmBoxes>centos-6, centos-7, oel-7, fedora-22, opensuse-13, sles-12</allRpmBoxes>
 
       <defaultDebBoxes>trusty</defaultDebBoxes>
       <defaultRpmBoxes>centos-7</defaultRpmBoxes>
@@ -34,6 +34,11 @@
 
       <!-- rpmbuild location : default to /usr/bin/rpmbuild -->
       <packaging.rpm.rpmbuild>/usr/bin/rpmbuild</packaging.rpm.rpmbuild>
+
+      <!-- This version is consistently available in maven central so its useful
+           for now but it doesn't have any guarantee of compatibility so it
+           should be switched out with 2.0.0 once that is released. -->
+      <upgrade.from.version>2.0.0-beta1</upgrade.from.version>
     </properties>
 
     <build>
@@ -93,6 +98,14 @@
                                     <type>deb</type>
                                 </artifactItem>
                                 <artifactItem>
+                                    <!-- We also use an old version of elasticsearch for
+                                         testing upgrades -->
+                                    <groupId>org.elasticsearch.distribution.deb</groupId>
+                                    <artifactId>elasticsearch</artifactId>
+                                    <version>${upgrade.from.version}</version>
+                                    <type>deb</type>
+                                </artifactItem>
+                                <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>jvm-example</artifactId>
                                     <version>${elasticsearch.version}</version>
@@ -130,25 +143,43 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>cloud-aws</artifactId>
-                                    <version>${elasticsearch.version}</version>
-                                    <type>zip</type>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>cloud-azure</artifactId>
-                                    <version>${elasticsearch.version}</version>
-                                    <type>zip</type>
-                                </artifactItem>
-                                <artifactItem>
-                                    <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>cloud-gce</artifactId>
+                                    <artifactId>discovery-gce</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>delete-by-query</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>discovery-azure</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>discovery-ec2</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>discovery-multicast</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>lang-expression</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>lang-groovy</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>
@@ -166,13 +197,31 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>mapper-murmur3</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>mapper-size</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
-                                    <artifactId>mapper-murmur3</artifactId>
+                                    <artifactId>repository-azure</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>repository-s3</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>store-smb</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>
                                 </artifactItem>
@@ -216,6 +265,21 @@
                                     classpathref="maven.dependency.classpath" />
                                 <ant antfile="src/dev/ant/vagrant-integration-tests.xml"
                                     target="check-vagrant-version"/>
+                            </target>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>setup-version-files</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>run</goal>
+                        </goals>
+                        <configuration>
+                            <target>
+                                <echo message="${project.version}"
+                                    file="${project.build.directory}/testroot/version"/>
+                                <echo message="${upgrade.from.version}"
+                                    file="${project.build.directory}/testroot/upgrade_from_version"/>
                             </target>
                         </configuration>
                     </execution>
@@ -269,6 +333,14 @@
                                             <version>${elasticsearch.version}</version>
                                             <type>rpm</type>
                                         </artifactItem>
+                                        <artifactItem>
+                                            <!-- We also use an old version of elasticsearch for
+                                                 testing upgrades -->
+                                            <groupId>org.elasticsearch.distribution.rpm</groupId>
+                                            <artifactId>elasticsearch</artifactId>
+                                            <version>${upgrade.from.version}</version>
+                                            <type>rpm</type>
+                                        </artifactItem>
                                     </artifactItems>
                                 </configuration>
                             </execution>
@@ -307,6 +379,14 @@
                                             <groupId>org.elasticsearch.distribution.rpm</groupId>
                                             <artifactId>elasticsearch</artifactId>
                                             <version>${elasticsearch.version}</version>
+                                            <type>rpm</type>
+                                        </artifactItem>
+                                        <artifactItem>
+                                            <!-- We also use an old version of elasticsearch for
+                                                 testing upgrades -->
+                                            <groupId>org.elasticsearch.distribution.rpm</groupId>
+                                            <artifactId>elasticsearch</artifactId>
+                                            <version>${upgrade.from.version}</version>
                                             <type>rpm</type>
                                         </artifactItem>
                                     </artifactItems>

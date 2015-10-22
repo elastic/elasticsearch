@@ -23,7 +23,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 
 /**
- * Builder for the {@link Range} aggregation.
+ * Builder for the {@link org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder.Range} aggregation.
  */
 public class RangeBuilder extends AbstractRangeBuilder<RangeBuilder> {
 

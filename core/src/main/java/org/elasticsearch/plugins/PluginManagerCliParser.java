@@ -19,13 +19,11 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.base.Strings;
-
 import org.apache.commons.cli.CommandLine;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.log4j.LogConfigurator;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -35,11 +33,11 @@ import org.elasticsearch.plugins.PluginManager.OutputMode;
 
 import java.net.MalformedURLException;
 import java.net.URL;
+import java.net.URLDecoder;
 import java.util.Locale;
 
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
-import static org.elasticsearch.common.settings.Settings.EMPTY;
 
 public class PluginManagerCliParser extends CliTool {
 
@@ -51,8 +49,21 @@ public class PluginManagerCliParser extends CliTool {
             .build();
 
     public static void main(String[] args) {
-        Tuple<Settings, Environment> initialSettings = InternalSettingsPreparer.prepareSettings(EMPTY, true, Terminal.DEFAULT);
-        LogConfigurator.configure(initialSettings.v1());
+        // initialize default for es.logger.level because we will not read the logging.yml
+        String loggerLevel = System.getProperty("es.logger.level", "INFO");
+        // Set the appender for all potential log files to terminal so that other components that use the logger print out the
+        // same terminal.
+        // The reason for this is that the plugin cli cannot be configured with a file appender because when the plugin command is
+        // executed there is no way of knowing where the logfiles should be placed. For example, if elasticsearch
+        // is run as service then the logs should be at /var/log/elasticsearch but when started from the tar they should be at es.home/logs.
+        // Therefore we print to Terminal.
+        Environment env = InternalSettingsPreparer.prepareEnvironment(Settings.builder()
+                .put("appender.terminal.type", "terminal")
+                .put("rootLogger", "${es.logger.level}, terminal")
+                .put("es.logger.level", loggerLevel)
+                .build(), Terminal.DEFAULT);
+        // configure but do not read the logging conf file
+        LogConfigurator.configure(env.settings(), false);
         int status = new PluginManagerCliParser().execute(args).status();
         System.exit(status);
     }
@@ -154,7 +165,7 @@ public class PluginManagerCliParser extends CliTool {
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
 
             PluginManager pluginManager = new PluginManager(env, null, outputMode, DEFAULT_TIMEOUT);
-            terminal.println("-> Removing " + Strings.nullToEmpty(pluginName) + "...");
+            terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
             pluginManager.removePlugin(pluginName, terminal);
             return ExitStatus.OK;
         }
@@ -169,6 +180,7 @@ public class PluginManagerCliParser extends CliTool {
 
         private static final CliToolConfig.Cmd CMD = cmd(NAME, Install.class)
                 .options(option("t", "timeout").required(false).hasArg(false))
+                .options(option("b", "batch").required(false))
                 .build();
 
         static Command parse(Terminal terminal, CommandLine cli) {
@@ -199,32 +211,39 @@ public class PluginManagerCliParser extends CliTool {
             if (cli.hasOption("v")) {
                 outputMode = OutputMode.VERBOSE;
             }
+            
+            boolean batch = System.console() == null;
+            if (cli.hasOption("b")) {
+                batch = true;
+            }
 
-            return new Install(terminal, name, outputMode, optionalPluginUrl, timeout);
+            return new Install(terminal, name, outputMode, optionalPluginUrl, timeout, batch);
         }
 
         final String name;
         private OutputMode outputMode;
         final URL url;
         final TimeValue timeout;
+        final boolean batch;
 
-        Install(Terminal terminal, String name, OutputMode outputMode, URL url, TimeValue timeout) {
+        Install(Terminal terminal, String name, OutputMode outputMode, URL url, TimeValue timeout, boolean batch) {
             super(terminal);
             this.name = name;
             this.outputMode = outputMode;
             this.url = url;
             this.timeout = timeout;
+            this.batch = batch;
         }
 
         @Override
         public ExitStatus execute(Settings settings, Environment env) throws Exception {
             PluginManager pluginManager = new PluginManager(env, url, outputMode, timeout);
             if (name != null) {
-                terminal.println("-> Installing " + Strings.nullToEmpty(name) + "...");
+                terminal.println("-> Installing " + Strings.coalesceToEmpty(name) + "...");
             } else {
-                terminal.println("-> Installing from " + url + "...");
+                terminal.println("-> Installing from " + URLDecoder.decode(url.toString(), "UTF-8") + "...");
             }
-            pluginManager.downloadAndExtract(name, terminal);
+            pluginManager.downloadAndExtract(name, terminal, batch);
             return ExitStatus.OK;
         }
     }

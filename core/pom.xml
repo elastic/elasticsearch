@@ -15,6 +15,10 @@
     <name>Elasticsearch: Core</name>
     <description>Elasticsearch - Open Source, Distributed, RESTful Search Engine</description>
 
+    <properties>
+        <xlint.options>-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked</xlint.options>
+    </properties>
+
     <dependencies>
         <dependency>
             <groupId>org.hamcrest</groupId>
@@ -83,11 +87,6 @@
             <artifactId>lucene-spatial</artifactId>
         </dependency>
         <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-expressions</artifactId>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
             <optional>true</optional>
@@ -105,10 +104,6 @@
         </dependency>
         <!-- Lucene spatial -->
 
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
-        </dependency>
         <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
@@ -165,12 +160,6 @@
         </dependency>
 
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-all</artifactId>
-            <classifier>indy</classifier>
-            <optional>true</optional>
-        </dependency>
-        <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <optional>true</optional>
@@ -197,38 +186,21 @@
 
         <resources>
             <resource>
-                <directory>${project.basedir}/src/main/java</directory>
+                <directory>${project.basedir}/src/main/resources</directory>
                 <includes>
-                    <include>**/*.json</include>
-                    <include>**/*.yml</include>
+                    <include>es-build.properties</include>
                 </includes>
+                <filtering>true</filtering>
             </resource>
             <resource>
                 <directory>${project.basedir}/src/main/resources</directory>
                 <includes>
                     <include>**/*.*</include>
                 </includes>
-                <filtering>true</filtering>
             </resource>
         </resources>
 
         <testResources>
-            <testResource>
-                <directory>${project.basedir}/src/test/java</directory>
-                <includes>
-                    <include>**/*.json</include>
-                    <include>**/*.yml</include>
-                    <include>**/*.txt</include>
-                    <include>**/*.properties</include>
-                </includes>
-                <filtering>true</filtering>
-            </testResource>
-            <testResource>
-                <directory>${project.basedir}/src/test/java</directory>
-                <includes>
-                    <include>**/*.gz</include>
-                </includes>
-            </testResource>
             <testResource>
                 <directory>${project.basedir}/src/test/resources</directory>
                 <includes>
@@ -264,6 +236,7 @@
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
+                                <include>org/elasticsearch/bootstrap/MockPluginPolicy.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                             </includes>
@@ -292,19 +265,31 @@
                                 <include>rest-api-spec/**/*</include>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
+                                <include>org/elasticsearch/bootstrap/MockPluginPolicy.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                                 <include>org/elasticsearch/cluster/MockInternalClusterInfoService.class</include>
                                 <include>org/elasticsearch/cluster/MockInternalClusterInfoService$*.class</include>
-                                <include>org/elasticsearch/index/shard/MockEngineFactoryPlugin.class</include>
+                                <include>org/elasticsearch/cluster/routing/TestShardRouting.class</include>
+                                <include>org/elasticsearch/cluster/routing/TestShardRouting$*.class</include>
+                                <include>org/elasticsearch/index/MockEngineFactoryPlugin.class</include>
                                 <include>org/elasticsearch/search/MockSearchService.class</include>
                                 <include>org/elasticsearch/search/MockSearchService$*.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/AbstractTermsTestCase.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptNoParams.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptNoParams$*.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptWithParams.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptWithParams$*.class</include>
+                                <include>org/elasticsearch/search/aggregations/bucket/script/TestScript.class</include>
+                                <include>org/elasticsearch/search/aggregations/metrics/AbstractNumericTestCase.class</include>
+                                <include>org/elasticsearch/percolator/PercolatorTestUtil.class</include>
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler$*.class</include>
                                 <include>org/elasticsearch/common/util/MockBigArrays.class</include>
                                 <include>org/elasticsearch/common/util/MockBigArrays$*.class</include>
                                 <include>org/elasticsearch/node/NodeMocksPlugin.class</include>
                                 <include>org/elasticsearch/node/MockNode.class</include>
+                                <include>org/elasticsearch/common/io/PathUtilsForTesting.class</include>
                             </includes>
                             <excludes>
                                 <!-- unit tests for yaml suite parser & rest spec parser need to be excluded -->
@@ -346,12 +331,17 @@
                     <excludes>
                         <!-- Guice -->
                         <exclude>src/main/java/org/elasticsearch/common/inject/**</exclude>
-                        <exclude>src/main/java/org/elasticsearch/common/geo/GeoHashUtils.java</exclude>
+                        <!-- Forks of Lucene classes -->
                         <exclude>src/main/java/org/apache/lucene/**/X*.java</exclude>
-                        <!-- t-digest -->
-                        <exclude>src/main/java/org/elasticsearch/search/aggregations/metrics/percentiles/tdigest/TDigestState.java</exclude>
                         <!-- netty pipelining -->
                         <exclude>src/main/java/org/elasticsearch/http/netty/pipelining/**</exclude>
+                        <!-- Guava -->
+                        <exclude>src/main/java/org/elasticsearch/common/network/InetAddresses.java</exclude>
+                        <exclude>src/test/java/org/elasticsearch/common/network/InetAddressesTests.java</exclude>
+                        <exclude>src/test/java/org/elasticsearch/common/collect/EvictingQueueTests.java</exclude>
+                        <!-- Joda -->
+                        <exclude>src/main/java/org/joda/time/base/BaseDateTime.java</exclude>
+                        <exclude>src/main/java/org/joda/time/format/StrictISODateTimeFormat.java</exclude>
                     </excludes>
                 </configuration>
             </plugin>

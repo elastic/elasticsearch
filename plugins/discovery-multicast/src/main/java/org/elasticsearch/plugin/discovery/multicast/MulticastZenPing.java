@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plugin.discovery.multicast;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -44,7 +46,13 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.*;
+import org.elasticsearch.transport.EmptyTransportResponseHandler;
+import org.elasticsearch.transport.TransportChannel;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestHandler;
+import org.elasticsearch.transport.TransportResponse;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.net.SocketAddress;
@@ -111,7 +119,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
         logger.debug("using group [{}], with port [{}], ttl [{}], and address [{}]", group, port, ttl, address);
 
-        this.transportService.registerRequestHandler(ACTION_NAME, MulticastPingResponse.class, ThreadPool.Names.SAME, new MulticastPingResponseRequestHandler());
+        this.transportService.registerRequestHandler(ACTION_NAME, MulticastPingResponse::new, ThreadPool.Names.SAME, new MulticastPingResponseRequestHandler());
     }
 
     @Override
@@ -352,13 +360,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         }
     }
 
-    static class MulticastPingResponse extends TransportRequest {
+    public static class MulticastPingResponse extends TransportRequest {
 
         int id;
 
         PingResponse pingResponse;
 
-        MulticastPingResponse() {
+        public MulticastPingResponse() {
         }
 
         @Override
@@ -483,8 +491,8 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
                 }
 
                 builder.startObject("attributes");
-                for (Map.Entry<String, String> attr : localNode.attributes().entrySet()) {
-                    builder.field(attr.getKey(), attr.getValue());
+                for (ObjectObjectCursor<String, String> attr : localNode.attributes()) {
+                    builder.field(attr.key, attr.value);
                 }
                 builder.endObject();
 

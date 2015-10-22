@@ -19,20 +19,18 @@
 
 package org.elasticsearch.action.admin.indices.template.put;
 
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 
@@ -40,12 +38,11 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MetaDataIndexTemplateServiceTests extends ESTestCase {
-    @Test
     public void testIndexTemplateInvalidNumberOfShards() {
         PutRequest request = new PutRequest("test", "test_shards");
         request.template("test_shards*");
 
-        Map<String, Object> map = Maps.newHashMap();
+        Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
         request.settings(Settings.settingsBuilder().put(map).build());
 
@@ -55,12 +52,11 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
         assertThat(throwables.get(0).getMessage(), containsString("index must have 1 or more primary shards"));
     }
 
-    @Test
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.template("_test_shards*");
 
-        Map<String, Object> map = Maps.newHashMap();
+        Map<String, Object> map = new HashMap<>();
         map.put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "0");
         request.settings(Settings.settingsBuilder().put(map).build());
 
@@ -78,12 +74,9 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null,
-                null,
                 Version.CURRENT,
                 null,
-                Sets.<IndexTemplateFilter>newHashSet(),
-                null,
+                new HashSet<>(),
                 null
         );
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, null);

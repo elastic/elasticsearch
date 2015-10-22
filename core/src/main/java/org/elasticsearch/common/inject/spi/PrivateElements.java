@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -50,8 +50,8 @@ public interface PrivateElements extends Element {
     /**
      * Returns an arbitrary object containing information about the "place" where this key was
      * exposed. Used by Guice in the production of descriptive error messages.
-     * <p/>
-     * <p>Tools might specially handle types they know about; {@code StackTraceElement} is a good
+     * <p>
+     * Tools might specially handle types they know about; {@code StackTraceElement} is a good
      * example. Tools should simply call {@code toString()} on the source object if the type is
      * unfamiliar.
      *

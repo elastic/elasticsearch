@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,9 +50,7 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
     /**
      * Simple upgrade test for streaming significant terms buckets
      */
-    @Test
     public void testBucketStreaming() throws IOException, ExecutionException, InterruptedException {
-
         logger.debug("testBucketStreaming: indexing documents");
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";

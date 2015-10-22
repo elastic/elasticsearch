@@ -18,52 +18,56 @@
  */
 package org.elasticsearch.search.lookup;
 
-import com.google.common.collect.ImmutableMap.Builder;
-
 import org.apache.lucene.index.LeafReaderContext;
 
-public class IndexLookup {
+import java.util.HashMap;
+import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
+
+public class IndexLookup {
+    public static final Map<String, Object> NAMES;
+    static {
+        Map<String, Object> names = new HashMap<>();
+        names.put("_FREQUENCIES", IndexLookup.FLAG_FREQUENCIES);
+        names.put("_POSITIONS", IndexLookup.FLAG_POSITIONS);
+        names.put("_OFFSETS", IndexLookup.FLAG_OFFSETS);
+        names.put("_PAYLOADS", IndexLookup.FLAG_PAYLOADS);
+        names.put("_CACHE", IndexLookup.FLAG_CACHE);
+        NAMES = unmodifiableMap(names);
+    }
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * offsets in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_OFFSETS = 2;
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * payloads in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_PAYLOADS = 4;
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * frequencies in the returned {@link IndexFieldTerm}. Frequencies might be
      * returned anyway for some lucene codecs even if this flag is no set.
      */
     public static final int FLAG_FREQUENCIES = 8;
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * positions in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_POSITIONS = 16;
 
     /**
-     * Flag to pass to {@link IndexField#get(String, flags)} if you require
+     * Flag to pass to {@link IndexField#get(Object, int)} if you require
      * positions in the returned {@link IndexFieldTerm}.
      */
     public static final int FLAG_CACHE = 32;
 
-    public IndexLookup(Builder<String, Object> builder) {
-        builder.put("_FREQUENCIES", IndexLookup.FLAG_FREQUENCIES);
-        builder.put("_POSITIONS", IndexLookup.FLAG_POSITIONS);
-        builder.put("_OFFSETS", IndexLookup.FLAG_OFFSETS);
-        builder.put("_PAYLOADS", IndexLookup.FLAG_PAYLOADS);
-        builder.put("_CACHE", IndexLookup.FLAG_CACHE);
-    }
-
-    public LeafIndexLookup getLeafIndexLookup(LeafReaderContext context) {
+    public static LeafIndexLookup getLeafIndexLookup(LeafReaderContext context) {
         return new LeafIndexLookup(context);
     }
 

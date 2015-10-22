@@ -54,7 +54,7 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
     public TransportUpgradeStatusAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                         IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, UpgradeStatusAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                UpgradeStatusRequest.class, ThreadPool.Names.MANAGEMENT);
+                UpgradeStatusRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 
@@ -96,8 +96,8 @@ public class TransportUpgradeStatusAction extends TransportBroadcastByNodeAction
     @Override
     protected ShardUpgradeStatus shardOperation(UpgradeStatusRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardRouting.shardId().id());
-        List<Segment> segments = indexShard.engine().segments(false);
+        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
+        List<Segment> segments = indexShard.segments(false);
         long total_bytes = 0;
         long to_upgrade_bytes = 0;
         long to_upgrade_bytes_ancient = 0;

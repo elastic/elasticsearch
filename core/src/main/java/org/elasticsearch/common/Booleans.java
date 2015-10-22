@@ -80,7 +80,6 @@ public class Booleans {
 
     /***
      *
-     * @param value
      * @return true/false
      * throws exception if string cannot be parsed to boolean
      */

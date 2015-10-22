@@ -23,9 +23,9 @@ an example:
 ==== Scoring capabilities
 
 The `has_child` also has scoring support. The
-supported score types are `min`, `max`, `sum`, `avg` or `none`. The default is
+supported score modes are `min`, `max`, `total`, `avg` or `none`. The default is
 `none` and yields the same behaviour as in previous versions. If the
-score type is set to another value than `none`, the scores of all the
+score mode is set to another value than `none`, the scores of all the
 matching child documents are aggregated into the associated parent
 documents. The score type can be specified with the `score_mode` field
 inside the `has_child` query:

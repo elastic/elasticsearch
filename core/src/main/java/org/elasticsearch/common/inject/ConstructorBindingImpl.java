@@ -16,16 +16,20 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
-import org.elasticsearch.common.inject.internal.*;
+import org.elasticsearch.common.inject.internal.BindingImpl;
+import org.elasticsearch.common.inject.internal.Errors;
+import org.elasticsearch.common.inject.internal.ErrorsException;
+import org.elasticsearch.common.inject.internal.InternalContext;
+import org.elasticsearch.common.inject.internal.InternalFactory;
+import org.elasticsearch.common.inject.internal.Scoping;
+import org.elasticsearch.common.inject.internal.ToStringBuilder;
 import org.elasticsearch.common.inject.spi.BindingTargetVisitor;
 import org.elasticsearch.common.inject.spi.ConstructorBinding;
 import org.elasticsearch.common.inject.spi.Dependency;
 import org.elasticsearch.common.inject.spi.InjectionPoint;
 
+import java.util.HashSet;
 import java.util.Set;
-
-import static com.google.common.base.Preconditions.checkState;
 
 class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBinding<T> {
 
@@ -52,28 +56,34 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
 
     @Override
     public <V> V acceptTargetVisitor(BindingTargetVisitor<? super T, V> visitor) {
-        checkState(factory.constructorInjector != null, "not initialized");
+        if (factory.constructorInjector == null) {
+            throw new IllegalStateException("not initialized");
+        }
         return visitor.visit(this);
     }
 
     @Override
     public InjectionPoint getConstructor() {
-        checkState(factory.constructorInjector != null, "Binding is not ready");
+        if (factory.constructorInjector == null) {
+            throw new IllegalStateException("Binding is not ready");
+        }
         return factory.constructorInjector.getConstructionProxy().getInjectionPoint();
     }
 
     @Override
     public Set<InjectionPoint> getInjectableMembers() {
-        checkState(factory.constructorInjector != null, "Binding is not ready");
+        if (factory.constructorInjector == null) {
+            throw new IllegalStateException("Binding is not ready");
+        }
         return factory.constructorInjector.getInjectableMembers();
     }
 
     @Override
     public Set<Dependency<?>> getDependencies() {
-        return Dependency.forInjectionPoints(new ImmutableSet.Builder<InjectionPoint>()
-                .add(getConstructor())
-                .addAll(getInjectableMembers())
-                .build());
+        Set<InjectionPoint> dependencies = new HashSet<>();
+        dependencies.add(getConstructor());
+        dependencies.addAll(getInjectableMembers());
+        return Dependency.forInjectionPoints(dependencies);
     }
 
     @Override
@@ -97,7 +107,9 @@ class ConstructorBindingImpl<T> extends BindingImpl<T> implements ConstructorBin
         @SuppressWarnings("unchecked")
         public T get(Errors errors, InternalContext context, Dependency<?> dependency)
                 throws ErrorsException {
-            checkState(constructorInjector != null, "Constructor not ready");
+            if (constructorInjector == null) {
+                throw new IllegalStateException("Constructor not ready");
+            }
 
             // This may not actually be safe because it could return a super type of T (if that's all the
             // client needs), but it should be OK in practice thanks to the wonders of erasure.

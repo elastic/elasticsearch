@@ -19,13 +19,12 @@
 
 package org.elasticsearch.cluster.routing;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Sets;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -38,6 +37,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+
+import static java.util.Collections.emptyMap;
 
 /**
  * {@link IndexShardRoutingTable} encapsulates all instances of a single shard.
@@ -59,6 +60,10 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     final List<ShardRouting> assignedShards;
     final static List<ShardRouting> NO_SHARDS = Collections.emptyList();
     final boolean allShardsStarted;
+
+    private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = emptyMap();
+    private volatile Map<AttributesKey, AttributesRoutings> initializingShardsByAttributes = emptyMap();
+    private final Object shardsByAttributeMutex = new Object();
 
     /**
      * The initializing list, including ones that are initializing on a target node because of relocation.
@@ -379,9 +384,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     /**
      * Returns shards based on nodeAttributes given  such as node name , node attribute, node IP
      * Supports node specifications in cluster API
-     *
-     * @param nodeAttribute
-     * @param discoveryNodes
      */
     public ShardIterator onlyNodeSelectorActiveInitializingShardsIt(String nodeAttribute, DiscoveryNodes discoveryNodes) {
         ArrayList<ShardRouting> ordered = new ArrayList<>(activeShards.size() + allInitializingShards.size());
@@ -478,10 +480,6 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
             this.totalSize = withoutSameAttribute.size() + withSameAttribute.size();
         }
     }
-
-    private volatile Map<AttributesKey, AttributesRoutings> activeShardsByAttributes = ImmutableMap.of();
-    private volatile Map<AttributesKey, AttributesRoutings> initializingShardsByAttributes = ImmutableMap.of();
-    private final Object shardsByAttributeMutex = new Object();
 
     private AttributesRoutings getActiveAttribute(AttributesKey key, DiscoveryNodes nodes) {
         AttributesRoutings shardRoutings = activeShardsByAttributes.get(key);

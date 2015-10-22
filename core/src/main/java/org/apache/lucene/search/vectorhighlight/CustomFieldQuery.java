@@ -23,12 +23,9 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
@@ -58,28 +55,25 @@ public class CustomFieldQuery extends FieldQuery {
     }
 
     @Override
-    void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries) throws IOException {
+    void flatten(Query sourceQuery, IndexReader reader, Collection<Query> flatQueries, float boost) throws IOException {
         if (sourceQuery instanceof SpanTermQuery) {
-            super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), reader, flatQueries);
+            super.flatten(new TermQuery(((SpanTermQuery) sourceQuery).getTerm()), reader, flatQueries, boost);
         } else if (sourceQuery instanceof ConstantScoreQuery) {
-            flatten(((ConstantScoreQuery) sourceQuery).getQuery(), reader, flatQueries);
+            flatten(((ConstantScoreQuery) sourceQuery).getQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof FunctionScoreQuery) {
-            flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
-        } else if (sourceQuery instanceof FilteredQuery) {
-            flatten(((FilteredQuery) sourceQuery).getQuery(), reader, flatQueries);
-            flatten(((FilteredQuery) sourceQuery).getFilter(), reader, flatQueries);
+            flatten(((FunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhrasePrefixQuery) {
-            flatten(sourceQuery.rewrite(reader), reader, flatQueries);
+            flatten(sourceQuery.rewrite(reader), reader, flatQueries, boost);
         } else if (sourceQuery instanceof FiltersFunctionScoreQuery) {
-            flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries);
+            flatten(((FiltersFunctionScoreQuery) sourceQuery).getSubQuery(), reader, flatQueries, boost);
         } else if (sourceQuery instanceof MultiPhraseQuery) {
             MultiPhraseQuery q = ((MultiPhraseQuery) sourceQuery);
             convertMultiPhraseQuery(0, new int[q.getTermArrays().size()], q, q.getTermArrays(), q.getPositions(), reader, flatQueries);
         } else if (sourceQuery instanceof BlendedTermQuery) {
             final BlendedTermQuery blendedTermQuery = (BlendedTermQuery) sourceQuery;
-            flatten(blendedTermQuery.rewrite(reader), reader, flatQueries);
+            flatten(blendedTermQuery.rewrite(reader), reader, flatQueries, boost);
         } else {
-            super.flatten(sourceQuery, reader, flatQueries);
+            super.flatten(sourceQuery, reader, flatQueries, boost);
         }
     }
     
@@ -93,7 +87,7 @@ public class CustomFieldQuery extends FieldQuery {
             if (numTerms > 16) {
                 for (Term[] currentPosTerm : terms) {
                     for (Term term : currentPosTerm) {
-                        super.flatten(new TermQuery(term), reader, flatQueries);    
+                        super.flatten(new TermQuery(term), reader, flatQueries, orig.getBoost());    
                     }
                 }
                 return;
@@ -111,23 +105,13 @@ public class CustomFieldQuery extends FieldQuery {
             }
             PhraseQuery query = queryBuilder.build();
             query.setBoost(orig.getBoost());
-            this.flatten(query, reader, flatQueries);
+            this.flatten(query, reader, flatQueries, orig.getBoost());
         } else {
             Term[] t = terms.get(currentPos);
             for (int i = 0; i < t.length; i++) {
                 termsIdx[currentPos] = i;
                 convertMultiPhraseQuery(currentPos+1, termsIdx, orig, terms, pos, reader, flatQueries);
             }
-        }
-    }
-    
-    void flatten(Filter sourceFilter, IndexReader reader, Collection<Query> flatQueries) throws IOException {
-        Boolean highlight = highlightFilters.get();
-        if (highlight == null || highlight.equals(Boolean.FALSE)) {
-            return;
-        }
-        if (sourceFilter instanceof QueryWrapperFilter) {
-            flatten(((QueryWrapperFilter) sourceFilter).getQuery(), reader, flatQueries);
         }
     }
 }

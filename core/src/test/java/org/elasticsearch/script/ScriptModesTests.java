@@ -19,27 +19,33 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
-import org.elasticsearch.script.groovy.GroovyScriptEngineService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableMap;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
+import static org.hamcrest.Matchers.containsString;
 
+// TODO: this needs to be a base test class, and all scripting engines extend it
 public class ScriptModesTests extends ESTestCase {
-
-    private static final Set<String> ALL_LANGS = ImmutableSet.of(GroovyScriptEngineService.NAME, MustacheScriptEngineService.NAME, ExpressionScriptEngineService.NAME, "custom", "test");
+    private static final Set<String> ALL_LANGS = unmodifiableSet(
+            newHashSet(MustacheScriptEngineService.NAME, "custom", "test"));
 
     static final String[] ENABLE_VALUES = new String[]{"on", "true", "yes", "1"};
     static final String[] DISABLE_VALUES = new String[]{"off", "false", "no", "0"};
@@ -57,7 +63,7 @@ public class ScriptModesTests extends ESTestCase {
         //randomly register custom script contexts
         int randomInt = randomIntBetween(0, 3);
         //prevent duplicates using map
-        Map<String, ScriptContext.Plugin> contexts = Maps.newHashMap();
+        Map<String, ScriptContext.Plugin> contexts = new HashMap<>();
         for (int i = 0; i < randomInt; i++) {
             String plugin = randomAsciiOfLength(randomIntBetween(1, 10));
             String operation = randomAsciiOfLength(randomIntBetween(1, 30));
@@ -66,10 +72,8 @@ public class ScriptModesTests extends ESTestCase {
         }
         scriptContextRegistry = new ScriptContextRegistry(contexts.values());
         scriptContexts = scriptContextRegistry.scriptContexts().toArray(new ScriptContext[scriptContextRegistry.scriptContexts().size()]);
-        scriptEngines = buildScriptEnginesByLangMap(ImmutableSet.of(
-                new GroovyScriptEngineService(Settings.EMPTY),
+        scriptEngines = buildScriptEnginesByLangMap(newHashSet(
                 new MustacheScriptEngineService(Settings.EMPTY),
-                new ExpressionScriptEngineService(Settings.EMPTY),
                 //add the native engine just to make sure it gets filtered out
                 new NativeScriptEngineService(Settings.EMPTY, Collections.<String, NativeScriptFactory>emptyMap()),
                 new CustomScriptEngineService()));
@@ -89,8 +93,8 @@ public class ScriptModesTests extends ESTestCase {
     public void assertAllSettingsWereChecked() {
         if (assertScriptModesNonNull) {
             assertThat(scriptModes, notNullValue());
-            //4 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
-            int numberOfSettings = 5 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
+            //3 is the number of engines (native excluded), custom is counted twice though as it's associated with two different names
+            int numberOfSettings = 3 * ScriptType.values().length * scriptContextRegistry.scriptContexts().size();
             assertThat(scriptModes.scriptModes.size(), equalTo(numberOfSettings));
             if (assertAllSettingsWereChecked) {
                 assertThat(checkedSettings.size(), equalTo(numberOfSettings));
@@ -98,24 +102,26 @@ public class ScriptModesTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testDefaultSettings() {
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, Settings.EMPTY);
         assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
         assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED, ScriptType.INLINE);
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testMissingSetting() {
         assertAllSettingsWereChecked = false;
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, Settings.EMPTY);
-        scriptModes.getScriptMode("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
+        try {
+            scriptModes.getScriptMode("non_existing", randomFrom(ScriptType.values()), randomFrom(scriptContexts));
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("not found for lang [non_existing]"));
+        }
     }
 
-    @Test
     public void testScriptTypeGenericSettings() {
         int randomInt = randomIntBetween(1, ScriptType.values().length - 1);
-        Set<ScriptType> randomScriptTypesSet = Sets.newHashSet();
+        Set<ScriptType> randomScriptTypesSet = new HashSet<>();
         ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;
@@ -145,10 +151,9 @@ public class ScriptModesTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testScriptContextGenericSettings() {
         int randomInt = randomIntBetween(1, scriptContexts.length - 1);
-        Set<ScriptContext> randomScriptContextsSet = Sets.newHashSet();
+        Set<ScriptContext> randomScriptContextsSet = new HashSet<>();
         ScriptMode[] randomScriptModes = new ScriptMode[randomInt];
         for (int i = 0; i < randomInt; i++) {
             boolean added = false;
@@ -173,7 +178,6 @@ public class ScriptModesTests extends ESTestCase {
         assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INDEXED, ScriptType.INLINE}, complementOf);
     }
 
-    @Test
     public void testConflictingScriptTypeAndOpGenericSettings() {
         ScriptContext scriptContext = randomFrom(scriptContexts);
         Settings.Builder builder = Settings.builder().put(ScriptModes.SCRIPT_SETTINGS_PREFIX + scriptContext.getKey(), randomFrom(DISABLE_VALUES))
@@ -186,28 +190,11 @@ public class ScriptModesTests extends ESTestCase {
         assertScriptModes(ScriptMode.SANDBOX, ALL_LANGS, new ScriptType[]{ScriptType.INLINE}, complementOf);
     }
 
-    @Test
-    public void testEngineSpecificSettings() {
-        Settings.Builder builder = Settings.builder()
-                .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.MAPPING), randomFrom(DISABLE_VALUES))
-                .put(specificEngineOpSettings(GroovyScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.UPDATE), randomFrom(DISABLE_VALUES));
-        ImmutableSet<String> groovyLangSet = ImmutableSet.of(GroovyScriptEngineService.NAME);
-        Set<String> allButGroovyLangSet = new HashSet<>(ALL_LANGS);
-        allButGroovyLangSet.remove(GroovyScriptEngineService.NAME);
-        this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build());
-        assertScriptModes(ScriptMode.OFF, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, ScriptContext.Standard.MAPPING, ScriptContext.Standard.UPDATE);
-        assertScriptModes(ScriptMode.SANDBOX, groovyLangSet, new ScriptType[]{ScriptType.INLINE}, complementOf(ScriptContext.Standard.MAPPING, ScriptContext.Standard.UPDATE));
-        assertScriptModesAllOps(ScriptMode.SANDBOX, allButGroovyLangSet, ScriptType.INLINE);
-        assertScriptModesAllOps(ScriptMode.SANDBOX, ALL_LANGS, ScriptType.INDEXED);
-        assertScriptModesAllOps(ScriptMode.ON, ALL_LANGS, ScriptType.FILE);
-    }
-
-    @Test
     public void testInteractionBetweenGenericAndEngineSpecificSettings() {
         Settings.Builder builder = Settings.builder().put("script.inline", randomFrom(DISABLE_VALUES))
                 .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.AGGS), randomFrom(ENABLE_VALUES))
                 .put(specificEngineOpSettings(MustacheScriptEngineService.NAME, ScriptType.INLINE, ScriptContext.Standard.SEARCH), randomFrom(ENABLE_VALUES));
-        ImmutableSet<String> mustacheLangSet = ImmutableSet.of(MustacheScriptEngineService.NAME);
+        Set<String> mustacheLangSet = singleton(MustacheScriptEngineService.NAME);
         Set<String> allButMustacheLangSet = new HashSet<>(ALL_LANGS);
         allButMustacheLangSet.remove(MustacheScriptEngineService.NAME);
         this.scriptModes = new ScriptModes(scriptEngines, scriptContextRegistry, builder.build());
@@ -241,7 +228,7 @@ public class ScriptModesTests extends ESTestCase {
     }
 
     private ScriptContext[] complementOf(ScriptContext... scriptContexts) {
-        Map<String, ScriptContext> copy = Maps.newHashMap();
+        Map<String, ScriptContext> copy = new HashMap<>();
         for (ScriptContext scriptContext : scriptContextRegistry.scriptContexts()) {
             copy.put(scriptContext.getKey(), scriptContext);
         }
@@ -255,14 +242,14 @@ public class ScriptModesTests extends ESTestCase {
         return ScriptModes.ENGINE_SETTINGS_PREFIX + "." + lang + "." + scriptType + "." + scriptContext.getKey();
     }
 
-    static ImmutableMap<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {
-        ImmutableMap.Builder<String, ScriptEngineService> builder = ImmutableMap.builder();
+    static Map<String, ScriptEngineService> buildScriptEnginesByLangMap(Set<ScriptEngineService> scriptEngines) {
+        Map<String, ScriptEngineService> builder = new HashMap<>();
         for (ScriptEngineService scriptEngine : scriptEngines) {
             for (String type : scriptEngine.types()) {
                 builder.put(type, scriptEngine);
             }
         }
-        return builder.build();
+        return unmodifiableMap(builder);
     }
 
     private static class CustomScriptEngineService implements ScriptEngineService {
@@ -293,16 +280,6 @@ public class ScriptModesTests extends ESTestCase {
 
         @Override
         public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, @Nullable Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-            return null;
-        }
-
-        @Override
-        public Object unwrap(Object value) {
             return null;
         }
 

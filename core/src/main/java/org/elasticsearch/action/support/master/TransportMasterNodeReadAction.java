@@ -27,6 +27,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.function.Supplier;
+
 /**
  * A base class for read operations that needs to be performed on the master node.
  * Can also be executed on the local node if needed.
@@ -39,7 +41,7 @@ public abstract class TransportMasterNodeReadAction<Request extends MasterNodeRe
 
     protected TransportMasterNodeReadAction(Settings settings, String actionName, TransportService transportService,
                                             ClusterService clusterService, ThreadPool threadPool, ActionFilters actionFilters,
-                                            IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request) {
+                                            IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request) {
         super(settings, actionName, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver,request);
         this.forceLocal = settings.getAsBoolean(FORCE_LOCAL_SETTING, null);
     }

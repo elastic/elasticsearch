@@ -31,10 +31,13 @@
 
 # Load test utilities
 load packaging_test_utils
+load os_package
+load plugins
 
 # Cleans everything for the 1st execution
 setup() {
     skip_not_dpkg
+    export_elasticsearch_paths
 }
 
 ##################################
@@ -46,7 +49,7 @@ setup() {
 }
 
 @test "[DEB] package is available" {
-    count=$(find . -type f -name 'elastic*.deb' | wc -l)
+    count=$(ls elasticsearch-$(cat version).deb | wc -l)
     [ "$count" -eq 1 ]
 }
 
@@ -56,26 +59,35 @@ setup() {
 }
 
 @test "[DEB] install package" {
-    dpkg -i elasticsearch*.deb
+    dpkg -i elasticsearch-$(cat version).deb
 }
 
 @test "[DEB] package is installed" {
     dpkg -s 'elasticsearch'
 }
 
-##################################
-# Check that the package is correctly installed
-##################################
 @test "[DEB] verify package installation" {
     verify_package_installation
 }
 
-##################################
-# Check that Elasticsearch is working
-##################################
-@test "[DEB] test elasticsearch" {
-    start_elasticsearch_service
+@test "[DEB] elasticsearch isn't started by package install" {
+    # Wait a second to give Elasticsearch a change to start if it is going to.
+    # This isn't perfect by any means but its something.
+    sleep 1
+    ! ps aux | grep elasticsearch | grep java
+    # You might be tempted to use jps instead of the above but that'd have to
+    # look like:
+    # ! sudo -u elasticsearch jps | grep -i elasticsearch
+    # which isn't really easier to read than the above.
+}
 
+@test "[DEB] test elasticsearch" {
+    # Install scripts used to test script filters and search templates before
+    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
+    # them.
+    install_elasticsearch_test_scripts
+    ESPLUGIN_COMMAND_USER=root install_and_check_plugin lang groovy
+    start_elasticsearch_service
     run_elasticsearch_tests
 }
 
@@ -128,6 +140,8 @@ setup() {
 }
 
 @test "[DEB] purge package" {
+    # User installed scripts aren't removed so we'll just get them ourselves
+    rm -rf $ESSCRIPTS
     dpkg --purge 'elasticsearch'
 }
 
@@ -149,6 +163,27 @@ setup() {
 }
 
 @test "[DEB] package has been completly removed" {
+    run dpkg -s 'elasticsearch'
+    [ "$status" -eq 1 ]
+}
+
+@test "[DEB] reinstall package" {
+    dpkg -i elasticsearch-$(cat version).deb
+}
+
+@test "[DEB] package is installed by reinstall" {
+    dpkg -s 'elasticsearch'
+}
+
+@test "[DEB] verify package reinstallation" {
+    verify_package_installation
+}
+
+@test "[DEB] repurge package" {
+    dpkg --purge 'elasticsearch'
+}
+
+@test "[DEB] package has been completly removed again" {
     run dpkg -s 'elasticsearch'
     [ "$status" -eq 1 ]
 }

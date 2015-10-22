@@ -24,16 +24,14 @@ import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsReq
 import org.elasticsearch.action.admin.cluster.node.hotthreads.NodesHotThreadsResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.index.query.QueryBuilders.andQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.CoreMatchers.equalTo;
@@ -42,8 +40,6 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.lessThan;
 
 public class HotThreadsIT extends ESIntegTestCase {
-
-    @Test
     public void testHotThreadsDontFail() throws ExecutionException, InterruptedException {
         /**
          * This test just checks if nothing crashes or gets stuck etc.
@@ -119,11 +115,8 @@ public class HotThreadsIT extends ESIntegTestCase {
                 assertHitCount(
                         client().prepareSearch()
                                 .setQuery(matchAllQuery())
-                                .setPostFilter(
-                                        andQuery(
-                                                matchAllQuery(),
-                                                notQuery(andQuery(termQuery("field1", "value1"),
-                                                        termQuery("field1", "value2"))))).get(),
+                                .setPostFilter(boolQuery().must(matchAllQuery()).mustNot(boolQuery().must(termQuery("field1", "value1")).must(termQuery("field1", "value2"))))
+                                .get(),
                         3l);
             }
             latch.await();

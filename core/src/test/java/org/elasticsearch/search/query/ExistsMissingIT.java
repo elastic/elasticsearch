@@ -19,11 +19,8 @@
 
 package org.elasticsearch.search.query;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.action.explain.ExplainResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
@@ -33,11 +30,14 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
@@ -91,14 +91,17 @@ public class ExistsMissingIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", mapping));
         @SuppressWarnings("unchecked")
+        Map<String, Object> barObject = new HashMap<>();
+        barObject.put("foo", "bar");
+        barObject.put("bar", singletonMap("bar", "foo"));
         final Map<String, Object>[] sources = new Map[] {
                 // simple property
-                ImmutableMap.of("foo", "bar"),
+                singletonMap("foo", "bar"),
                 // object fields
-                ImmutableMap.of("bar", ImmutableMap.of("foo", "bar", "bar", ImmutableMap.of("bar", "foo"))),
-                ImmutableMap.of("bar", ImmutableMap.of("baz", 42)),
+                singletonMap("bar", barObject),
+                singletonMap("bar", singletonMap("baz", 42)),
                 // empty doc
-                ImmutableMap.of()
+                emptyMap()
         };
         List<IndexRequestBuilder> reqs = new ArrayList<IndexRequestBuilder>();
         for (Map<String, Object> source : sources) {
@@ -158,19 +161,19 @@ public class ExistsMissingIT extends ESIntegTestCase {
                 client().prepareIndex("idx", "type", "3").setSource("g", "bar"),
                 client().prepareIndex("idx", "type", "4").setSource("f", "bar"));
 
-        SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f").existence(true).nullValue(true)).get();
+        SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", true, true)).get();
         assertSearchHits(resp, "2", "3");
 
-        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f").existence(true).nullValue(false)).get();
+        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", false, true)).get();
         assertSearchHits(resp, "2", "3");
 
-        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f").existence(false).nullValue(true)).get();
+        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", true, false)).get();
         assertSearchHits(resp);
 
         try {
-            client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f").existence(false).nullValue(false)).get();
+            client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", false, false)).get();
             fail("both existence and null_value can't be false");
-        } catch (SearchPhaseExecutionException e) {
+        } catch (IllegalArgumentException e) {
             // expected
         }
     }
@@ -183,19 +186,19 @@ public class ExistsMissingIT extends ESIntegTestCase {
                 client().prepareIndex("idx", "type", "3").setSource("g", "bar"),
                 client().prepareIndex("idx", "type", "4").setSource("f", "bar"));
 
-        SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f").existence(true).nullValue(true)).get();
+        SearchResponse resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", true, true)).get();
         assertSearchHits(resp, "2", "3", "4");
 
-        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f").existence(true).nullValue(false)).get();
+        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", false, true)).get();
         assertSearchHits(resp, "3");
 
-        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f").existence(false).nullValue(true)).get();
+        resp = client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", true, false)).get();
         assertSearchHits(resp, "2", "4");
 
         try {
-            client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f").existence(false).nullValue(false)).get();
+            client().prepareSearch("idx").setQuery(QueryBuilders.missingQuery("f", false, false)).get();
             fail("both existence and null_value can't be false");
-        } catch (SearchPhaseExecutionException e) {
+        } catch (IllegalArgumentException e) {
             // expected
         }
     }

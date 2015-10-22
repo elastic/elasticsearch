@@ -40,19 +40,4 @@ public interface SimilarityProvider {
      * @return Provided {@link Similarity}
      */
     Similarity get();
-
-    /**
-     * Factory for creating {@link SimilarityProvider} instances
-     */
-    public static interface Factory {
-
-        /**
-         * Creates a new {@link SimilarityProvider} instance
-         *
-         * @param name Name of the provider
-         * @param settings Settings to be used by the Provider
-         * @return {@link SimilarityProvider} instance created by the Factory
-         */
-        SimilarityProvider create(String name, Settings settings);
-    }
 }

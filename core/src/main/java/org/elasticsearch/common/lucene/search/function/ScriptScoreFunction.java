@@ -29,6 +29,7 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.SearchScript;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class ScriptScoreFunction extends ScoreFunction {
 
@@ -110,9 +111,9 @@ public class ScriptScoreFunction extends ScoreFunction {
                     exp = ((ExplainableSearchScript) leafScript).explain(subQueryScore);
                 } else {
                     double score = score(docId, subQueryScore.getValue());
-                    String explanation = "script score function, computed with script:\"" + sScript;
+                    String explanation = "script score function, computed with script:\"" + sScript + "\"";
                     if (sScript.getParams() != null) {
-                        explanation += "\" and parameters: \n" + sScript.getParams().toString();
+                        explanation += " and parameters: \n" + sScript.getParams().toString();
                     }
                     Explanation scoreExp = Explanation.match(
                             subQueryScore.getValue(), "_score: ",
@@ -136,4 +137,9 @@ public class ScriptScoreFunction extends ScoreFunction {
         return "script" + sScript.toString();
     }
 
+    @Override
+    protected boolean doEquals(ScoreFunction other) {
+        ScriptScoreFunction scriptScoreFunction = (ScriptScoreFunction) other;
+        return Objects.equals(this.sScript, scriptScoreFunction.sScript);
+    }
 }

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.MatcherAndConverter;
@@ -26,6 +25,8 @@ import java.lang.annotation.Annotation;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.emptySet;
 
 /**
  * The inheritable data within an injector. This class is intended to allow parent and local
@@ -79,7 +80,7 @@ interface State {
 
         @Override
         public Iterable<MatcherAndConverter> getConvertersThisLevel() {
-            return ImmutableSet.of();
+            return emptySet();
         }
 
         @Override

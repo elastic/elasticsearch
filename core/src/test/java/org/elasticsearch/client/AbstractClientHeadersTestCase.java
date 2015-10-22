@@ -19,8 +19,7 @@
 
 package org.elasticsearch.client;
 
-import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.GenericAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteAction;
@@ -54,12 +53,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportMessage;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -71,7 +71,6 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
             .put(Headers.PREFIX + ".key2", "val 2")
             .build();
 
-    @SuppressWarnings("unchecked")
     private static final GenericAction[] ACTIONS = new GenericAction[] {
                 // client actions
                 GetAction.INSTANCE, SearchAction.INSTANCE, DeleteAction.INSTANCE, DeleteIndexedScriptAction.INSTANCE,
@@ -106,7 +105,6 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
     protected abstract Client buildClient(Settings headersSettings, GenericAction[] testedActions);
 
 
-    @Test
     public void testActions() {
 
         // TODO this is a really shitty way to test it, we need to figure out a way to test all the client methods
@@ -133,13 +131,11 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
         client.admin().indices().prepareFlush().execute().addListener(new AssertingActionListener<FlushResponse>(FlushAction.NAME));
     }
 
-    @Test
     public void testOverideHeader() throws Exception {
         String key1Val = randomAsciiOfLength(5);
-        Map<String, Object> expected = ImmutableMap.<String, Object>builder()
-                .put("key1", key1Val)
-                .put("key2", "val 2")
-                .build();
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("key1", key1Val);
+        expected.put("key2", "val 2");
 
         client.prepareGet("idx", "type", "id")
                 .putHeader("key1", key1Val)
@@ -228,7 +224,7 @@ public abstract class AbstractClientHeadersTestCase extends ESTestCase {
                 }
                 if (counter++ > 10) {
                     // dear god, if we got more than 10 levels down, WTF? just bail
-                    fail("Exception cause unwrapping ran for 10 levels: " + Throwables.getStackTraceAsString(t));
+                    fail("Exception cause unwrapping ran for 10 levels: " + ExceptionsHelper.stackTrace(t));
                     return null;
                 }
                 result = result.getCause();

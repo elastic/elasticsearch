@@ -55,6 +55,8 @@ import org.elasticsearch.search.aggregations.metrics.cardinality.Cardinality;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityBuilder;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBounds;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsBuilder;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroid;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidBuilder;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.max.MaxBuilder;
 import org.elasticsearch.search.aggregations.metrics.min.Min;
@@ -218,7 +220,7 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link DateHistogram} aggregation with the given name.
+     * Create a new {@link DateHistogramBuilder} aggregation with the given name.
      */
     public static DateHistogramBuilder dateHistogram(String name) {
         return new DateHistogramBuilder(name);
@@ -232,14 +234,14 @@ public class AggregationBuilders {
     }
 
     /**
-     * Create a new {@link DateRange} aggregation with the given name.
+     * Create a new {@link DateRangeBuilder} aggregation with the given name.
      */
     public static DateRangeBuilder dateRange(String name) {
         return new DateRangeBuilder(name);
     }
 
     /**
-     * Create a new {@link IPv4Range} aggregation with the given name.
+     * Create a new {@link IPv4RangeBuilder} aggregation with the given name.
      */
     public static IPv4RangeBuilder ipRange(String name) {
         return new IPv4RangeBuilder(name);
@@ -285,6 +287,13 @@ public class AggregationBuilders {
      */
     public static GeoBoundsBuilder geoBounds(String name) {
         return new GeoBoundsBuilder(name);
+    }
+
+    /**
+     * Create a new {@link GeoCentroid} aggregation with the given name.
+     */
+    public static GeoCentroidBuilder geoCentroid(String name) {
+        return new GeoCentroidBuilder(name);
     }
 
     /**

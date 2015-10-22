@@ -19,3 +19,8 @@ defaults to `10`.
     }
 }
 --------------------------------------------------
+
+Note that `from` + `size` can not be more than the `index.max_result_window`
+index setting which defaults to 10,000. See the
+{ref}/search-request-scroll.html[Scroll] api for more efficient ways to do deep
+scrolling.

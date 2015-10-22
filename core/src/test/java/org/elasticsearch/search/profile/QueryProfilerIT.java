@@ -407,10 +407,9 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         refresh();
 
-        QueryBuilder q = QueryBuilders.boostingQuery().boost(randomFloat())
-                .positive(QueryBuilders.matchQuery("field1", "one"))
-                .negativeBoost(randomFloat())
-                .negative(QueryBuilders.matchQuery("field1", "two"));
+        QueryBuilder q = QueryBuilders.boostingQuery(QueryBuilders.matchQuery("field1", "one"), QueryBuilders.matchQuery("field1", "two"))
+                .boost(randomFloat())
+                .negativeBoost(randomFloat());
         logger.info(q.toString());
 
         SearchResponse resp = client().prepareSearch()

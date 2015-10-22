@@ -64,8 +64,8 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 /**
  *
@@ -428,7 +428,9 @@ public class SearchPhaseController extends AbstractComponent {
         if (aggregations != null) {
             List<SiblingPipelineAggregator> pipelineAggregators = firstResult.pipelineAggregators();
             if (pipelineAggregators != null) {
-                List<InternalAggregation> newAggs = new ArrayList<>(eagerTransform(aggregations.asList(), PipelineAggregator.AGGREGATION_TRANFORM_FUNCTION));
+                List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false).map((p) -> {
+                    return (InternalAggregation) p;
+                }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
                     InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(
                             bigArrays, scriptService, headersContext));

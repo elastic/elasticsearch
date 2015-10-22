@@ -24,13 +24,12 @@ in the same manner as the `has_child` query.
 [float]
 ==== Scoring capabilities
 
-The `has_parent` also has scoring support. The
-supported score types are `score` or `none`. The default is `none` and
-this ignores the score from the parent document. The score is in this
+The `has_parent` also has scoring support. The default is `false` which
+ignores the score from the parent document. The score is in this
 case equal to the boost on the `has_parent` query (Defaults to 1). If
-the score type is set to `score`, then the score of the matching parent
+the score is set to `true`, then the score of the matching parent
 document is aggregated into the child documents belonging to the
-matching parent document. The score type can be specified with the
+matching parent document. The score mode can be specified with the
 `score_mode` field inside the `has_parent` query:
 
 [source,js]
@@ -38,7 +37,7 @@ matching parent document. The score type can be specified with the
 {
     "has_parent" : {
         "parent_type" : "blog",
-        "score_mode" : "score",
+        "score" : true,
         "query" : {
             "term" : {
                 "tag" : "something"

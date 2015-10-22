@@ -21,8 +21,7 @@ package org.elasticsearch.search.sort;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -51,9 +50,8 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -118,7 +116,7 @@ public class ScriptSortParser implements SortParser {
             ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
             if (scriptValue != null) {
                 if (params == null) {
-                    params = newHashMap();
+                    params = new HashMap<>();
                 }
                 script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), params);
             }
@@ -146,14 +144,14 @@ public class ScriptSortParser implements SortParser {
         final Nested nested;
         if (nestedHelper != null && nestedHelper.getPath() != null) {
             BitSetProducer rootDocumentsFilter = context.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter());
-            Filter innerDocumentsFilter;
+            Query innerDocumentsFilter;
             if (nestedHelper.filterFound()) {
                 // TODO: use queries instead
-                innerDocumentsFilter = new QueryWrapperFilter(nestedHelper.getInnerFilter());
+                innerDocumentsFilter = nestedHelper.getInnerFilter();
             } else {
                 innerDocumentsFilter = nestedHelper.getNestedObjectMapper().nestedTypeFilter();
             }
-            nested = new Nested(rootDocumentsFilter, innerDocumentsFilter);
+            nested = new Nested(rootDocumentsFilter, context.searcher().createNormalizedWeight(innerDocumentsFilter, false));
         } else {
             nested = null;
         }

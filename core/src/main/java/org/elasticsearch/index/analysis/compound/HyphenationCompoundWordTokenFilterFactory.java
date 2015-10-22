@@ -62,7 +62,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
         try {
             hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(Files.newInputStream(hyphenationPatternsFile)));
         } catch (Exception e) {
-            throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path: " + e.getMessage());
+            throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path.", e);
         }
     }
 

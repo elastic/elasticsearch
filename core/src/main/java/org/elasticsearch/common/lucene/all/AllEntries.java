@@ -25,11 +25,10 @@ import org.elasticsearch.common.io.FastStringReader;
 import java.io.IOException;
 import java.io.Reader;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  *
@@ -136,7 +135,7 @@ public class AllEntries extends Reader {
     }
 
     public Set<String> fields() {
-        Set<String> fields = newHashSet();
+        Set<String> fields = new HashSet<>();
         for (Entry entry : entries) {
             fields.add(entry.name());
         }

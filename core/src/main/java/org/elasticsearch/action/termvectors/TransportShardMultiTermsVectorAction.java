@@ -20,7 +20,6 @@
 package org.elasticsearch.action.termvectors;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
@@ -48,7 +47,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                MultiTermVectorsShardRequest.class, ThreadPool.Names.GET);
+                MultiTermVectorsShardRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
     }
 
@@ -80,8 +79,8 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
             TermVectorsRequest termVectorsRequest = request.requests.get(i);
             try {
                 IndexService indexService = indicesService.indexServiceSafe(request.index());
-                IndexShard indexShard = indexService.shardSafe(shardId.id());
-                TermVectorsResponse termVectorsResponse = indexShard.termVectorsService().getTermVectors(termVectorsRequest, shardId.getIndex());
+                IndexShard indexShard = indexService.getShard(shardId.id());
+                TermVectorsResponse termVectorsResponse = indexShard.getTermVectors(termVectorsRequest);
                 termVectorsResponse.updateTookInMillis(termVectorsRequest.startTime());
                 response.add(request.locations.get(i), termVectorsResponse);
             } catch (Throwable t) {
@@ -90,7 +89,7 @@ public class TransportShardMultiTermsVectorAction extends TransportSingleShardAc
                 } else {
                     logger.debug("{} failed to execute multi term vectors for [{}]/[{}]", t, shardId, termVectorsRequest.type(), termVectorsRequest.id());
                     response.add(request.locations.get(i),
-                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), ExceptionsHelper.detailedMessage(t)));
+                            new MultiTermVectorsResponse.Failure(request.index(), termVectorsRequest.type(), termVectorsRequest.id(), t));
                 }
             }
         }

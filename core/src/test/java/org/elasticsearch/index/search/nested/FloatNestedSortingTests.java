@@ -18,29 +18,26 @@
  */
 package org.elasticsearch.index.search.nested;
 
-import org.apache.lucene.document.Field;
-import org.apache.lucene.document.FloatField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FieldDoc;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.FilteredQuery;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocs;
-import org.apache.lucene.search.join.BitDocIdSetCachingWrapperFilter;
+import org.apache.lucene.search.join.QueryBitSetProducer;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.fieldcomparator.FloatValuesComparatorSource;
-import org.elasticsearch.index.fielddata.plain.FloatArrayIndexFieldData;
 import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
@@ -58,20 +55,20 @@ public class FloatNestedSortingTests extends DoubleNestedSortingTests {
 
     @Override
     protected IndexFieldData.XFieldComparatorSource createFieldComparator(String fieldName, MultiValueMode sortMode, Object missingValue, Nested nested) {
-        FloatArrayIndexFieldData fieldData = getForField(fieldName);
+        IndexNumericFieldData fieldData = getForField(fieldName);
         return new FloatValuesComparatorSource(fieldData, missingValue, sortMode, nested);
     }
 
     @Override
-    protected IndexableField createField(String name, int value, Field.Store store) {
-        return new FloatField(name, value, store);
+    protected IndexableField createField(String name, int value) {
+        return new SortedNumericDocValuesField(name, NumericUtils.floatToSortableInt(value));
     }
 
-    protected void assertAvgScoreMode(Filter parentFilter, IndexSearcher searcher, IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {
+    protected void assertAvgScoreMode(Query parentFilter, IndexSearcher searcher, IndexFieldData.XFieldComparatorSource innerFieldComparator) throws IOException {
         MultiValueMode sortMode = MultiValueMode.AVG;
-        Filter childFilter = new QueryWrapperFilter(Queries.not(parentFilter));
-        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(parentFilter, childFilter));
-        Query query = new ToParentBlockJoinQuery(new FilteredQuery(new MatchAllDocsQuery(), childFilter), new BitDocIdSetCachingWrapperFilter(parentFilter), ScoreMode.None);
+        Query childFilter = Queries.not(parentFilter);
+        XFieldComparatorSource nestedComparatorSource = createFieldComparator("field2", sortMode, -127, createNested(searcher, parentFilter, childFilter));
+        Query query = new ToParentBlockJoinQuery(new ConstantScoreQuery(childFilter), new QueryBitSetProducer(parentFilter), ScoreMode.None);
         Sort sort = new Sort(new SortField("field2", nestedComparatorSource));
         TopDocs topDocs = searcher.search(query, 5, sort);
         assertThat(topDocs.totalHits, equalTo(7));

@@ -2,8 +2,7 @@
 
 == Integrations
 
-Integrations are not plugins, instead they are external tools or modules which
-make it easier to work with Elasticsearch.
+Integrations are not plugins, but are external tools or modules that make it easier to work with Elasticsearch.
 
 [float]
 [[cms-integrations]]
@@ -29,13 +28,24 @@ make it easier to work with Elasticsearch.
   search (facets, etc), along with some Natural Language Processing features
   (ex.: More like this)
 
-
 [float]
 [[data-integrations]]
 === Data import/export and validation
 
-NOTE: Rivers were used to import data from external systems into
-Elasticsearch, but they are no longer supported in Elasticsearch 2.0.
+NOTE: Rivers were used to import data from external systems into Elasticsearch prior to the 2.0 release. Elasticsearch 
+releases 2.0 and later do not support rivers.
+
+[float]
+==== Supported by the community:
+
+* https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
+  The Logstash `elasticsearch` output plugin.
+* https://www.elastic.co/guide/en/logstash/current/plugins-inputs-elasticsearch.html[Elasticsearch input to Logstash]
+  The Logstash `elasticsearch` input plugin.
+* https://www.elastic.co/guide/en/logstash/current/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
+  The Logstash `elasticearch` filter plugin.
+* https://www.elastic.co/guide/en/logstash/current/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
+  The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events. 
 
 [float]
 ==== Supported by the community:
@@ -44,15 +54,14 @@ Elasticsearch, but they are no longer supported in Elasticsearch 2.0.
   The Java Database Connection (JDBC) importer allows to fetch data from JDBC sources for indexing into Elasticsearch (by Jörg Prante)
 
 * https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer[Kafka Standalone Consumer]:
-  Easily Scaleable & Extendable, Kafka Standalone Consumer that will read the messages from Kafka, processes and index them in ElasticSearch
+  Easily Scalable & Extendable Kafka Standalone Consumer that reads messages from Kafka, then processes and indexes the messages in ElasticSearch
 
 * https://github.com/ozlerhakan/mongolastic[Mongolastic]:
-  A tool that clone data from ElasticSearch to MongoDB and vice versa
+  A tool that clones data from ElasticSearch to MongoDB and vice versa
 
 * https://github.com/Aconex/scrutineer[Scrutineer]:
   A high performance consistency checker to compare what you've indexed
-  with your source of truth content (e.g. DB)
-
+  with your source of truth content
 
 [float]
 [[deployment]]
@@ -207,7 +216,7 @@ These projects appear to have been abandoned:
   Protocol dissection for Zen discovery, HTTP and the binary protocol
 
 
-These projects appears to have been abandoned:
+These projects appear to have been abandoned:
 
 * http://www.github.com/neogenix/daikon[daikon]:
   Daikon Elasticsearch CLI
@@ -216,5 +225,4 @@ These projects appears to have been abandoned:
   A set of AngularJS directives that provide common visualizations for elasticsearch based on
   D3.
 * https://github.com/OlegKunitsyn/eslogd[eslogd]:
-  Linux daemon that replicates events to a central Elasticsearch server in real-time
-
+  Linux daemon that replicates events to a central Elasticsearch server in realtime

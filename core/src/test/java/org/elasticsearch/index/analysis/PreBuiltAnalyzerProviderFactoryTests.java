@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltAnalyzers;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -32,8 +31,6 @@ import static org.hamcrest.Matchers.not;
  *
  */
 public class PreBuiltAnalyzerProviderFactoryTests extends ESTestCase {
-
-    @Test
     public void testVersioningInFactoryProvider() throws Exception {
         PreBuiltAnalyzerProviderFactory factory = new PreBuiltAnalyzerProviderFactory("default", AnalyzerScope.INDEX, PreBuiltAnalyzers.STANDARD.getAnalyzer(Version.CURRENT));
 

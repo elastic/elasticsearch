@@ -19,9 +19,7 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -30,17 +28,18 @@ import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData.NumericType;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /** {@link IndexFieldData} impl based on Lucene's doc values. Caching is done on the Lucene side. */
 public abstract class DocValuesIndexFieldData {
@@ -79,9 +78,7 @@ public abstract class DocValuesIndexFieldData {
     }
 
     public static class Builder implements IndexFieldData.Builder {
-
-        private static final Set<String> BINARY_INDEX_FIELD_NAMES = ImmutableSet.of(UidFieldMapper.NAME, IdFieldMapper.NAME);
-        private static final Set<String> NUMERIC_INDEX_FIELD_NAMES = ImmutableSet.of(TimestampFieldMapper.NAME);
+        private static final Set<String> BINARY_INDEX_FIELD_NAMES = unmodifiableSet(newHashSet(UidFieldMapper.NAME, IdFieldMapper.NAME));
 
         private NumericType numericType;
 
@@ -105,13 +102,7 @@ public abstract class DocValuesIndexFieldData {
                 assert numericType == null;
                 return new BinaryDVIndexFieldData(index, fieldNames, fieldType.fieldDataType());
             } else if (numericType != null) {
-                if (TimestampFieldMapper.NAME.equals(fieldNames.indexName())
-                        || Version.indexCreated(indexSettings).onOrAfter(Version.V_1_4_0_Beta1)) {
-                    return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
-                } else {
-                    // prior to ES 1.4: multi-valued numerics were boxed inside a byte[] as BINARY
-                    return new BinaryDVNumericIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
-                }
+                return new SortedNumericDVIndexFieldData(index, fieldNames, numericType, fieldType.fieldDataType());
             } else {
                 return new SortedSetDVOrdinalsIndexFieldData(index, cache, indexSettings, fieldNames, breakerService, fieldType.fieldDataType());
             }

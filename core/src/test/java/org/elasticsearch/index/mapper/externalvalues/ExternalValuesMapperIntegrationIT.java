@@ -22,26 +22,21 @@ package org.elasticsearch.index.mapper.externalvalues;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
-import java.util.Arrays;
 import java.util.Collection;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(ExternalMapperPlugin.class);
     }
 
-    @Test
     public void testExternalValues() throws Exception {
         prepareCreate("test-idx").addMapping("type",
                 XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -68,13 +63,13 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoDistanceRangeQuery("field.point").point(42.0, 51.0).to("1km"))
+                .setPostFilter(QueryBuilders.geoDistanceRangeQuery("field.point", 42.0, 51.0).to("1km"))
                 .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilder.newPoint(-100, 45), ShapeRelation.WITHIN))
+                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilder.newPoint(-100, 45)).relation(ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
@@ -86,7 +81,6 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
     }
 
-    @Test
     public void testExternalValuesWithMultifield() throws Exception {
         prepareCreate("test-idx").addMapping("doc",
                 XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")

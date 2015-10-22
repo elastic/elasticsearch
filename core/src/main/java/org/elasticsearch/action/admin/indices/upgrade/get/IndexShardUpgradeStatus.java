@@ -19,9 +19,9 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.get;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.index.shard.ShardId;
 
+import java.util.Arrays;
 import java.util.Iterator;
 
 public class IndexShardUpgradeStatus implements Iterable<ShardUpgradeStatus> {
@@ -49,7 +49,7 @@ public class IndexShardUpgradeStatus implements Iterable<ShardUpgradeStatus> {
 
     @Override
     public Iterator<ShardUpgradeStatus> iterator() {
-        return Iterators.forArray(shards);
+        return Arrays.stream(shards).iterator();
     }
 
     public long getTotalBytes() {

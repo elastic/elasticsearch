@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.carrotsearch.hppc.ObjectIntHashMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -40,40 +39,35 @@ import java.util.Map;
  * attributes like node or physical rack locations. Awareness attributes accept
  * arbitrary configuration keys like a rack data-center identifier. For example
  * the setting:
- * <p/>
  * <pre>
  * cluster.routing.allocation.awareness.attributes: rack_id
  * </pre>
- * <p/>
+ * <p>
  * will cause allocations to be distributed over different racks such that
  * ideally at least one replicas of the all shard is available on the same rack.
  * To enable allocation awareness in this example nodes should contain a value
  * for the <tt>rack_id</tt> key like:
- * <p/>
  * <pre>
  * node.rack_id:1
  * </pre>
- * <p/>
+ * <p>
  * Awareness can also be used to prevent over-allocation in the case of node or
  * even "zone" failure. For example in cloud-computing infrastructures like
  * Amazone AWS a cluster might span over multiple "zones". Awareness can be used
  * to distribute replicas to individual zones by setting:
- * <p/>
  * <pre>
  * cluster.routing.allocation.awareness.attributes: zone
  * </pre>
- * <p/>
+ * <p>
  * and forcing allocation to be aware of the following zone the data resides in:
- * <p/>
  * <pre>
  * cluster.routing.allocation.awareness.force.zone.values: zone1,zone2
  * </pre>
- * <p/>
+ * <p>
  * In contrast to regular awareness this setting will prevent over-allocation on
  * <tt>zone1</tt> even if <tt>zone2</tt> fails partially or becomes entirely
  * unavailable. Nodes that belong to a certain zone / group should be started
  * with the zone id configured on the node-level settings like:
- * <p/>
  * <pre>
  * node.zone: zone1
  * </pre>
@@ -135,7 +129,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         super(settings);
         this.awarenessAttributes = settings.getAsArray(CLUSTER_ROUTING_ALLOCATION_AWARENESS_ATTRIBUTES);
 
-        forcedAwarenessAttributes = Maps.newHashMap();
+        forcedAwarenessAttributes = new HashMap<>();
         Map<String, Settings> forceGroups = settings.getGroups(CLUSTER_ROUTING_ALLOCATION_AWARENESS_FORCE_GROUP);
         for (Map.Entry<String, Settings> entry : forceGroups.entrySet()) {
             String[] aValues = entry.getValue().getAsArray("values");
@@ -172,7 +166,7 @@ public class AwarenessAllocationDecider extends AllocationDecider {
         }
 
         IndexMetaData indexMetaData = allocation.metaData().index(shardRouting.index());
-        int shardCount = indexMetaData.numberOfReplicas() + 1; // 1 for primary
+        int shardCount = indexMetaData.getNumberOfReplicas() + 1; // 1 for primary
         for (String awarenessAttribute : awarenessAttributes) {
             // the node the shard exists on must be associated with an awareness attribute
             if (!node.node().attributes().containsKey(awarenessAttribute)) {
@@ -185,11 +179,9 @@ public class AwarenessAllocationDecider extends AllocationDecider {
             // build the count of shards per attribute value
             ObjectIntHashMap<String> shardPerAttribute = new ObjectIntHashMap<>();
             for (ShardRouting assignedShard : allocation.routingNodes().assignedShards(shardRouting)) {
-                // if the shard is relocating, then make sure we count it as part of the node it is relocating to
-                if (assignedShard.relocating()) {
-                    RoutingNode relocationNode = allocation.routingNodes().node(assignedShard.relocatingNodeId());
-                    shardPerAttribute.addTo(relocationNode.node().attributes().get(awarenessAttribute), 1);
-                } else if (assignedShard.started()) {
+                if (assignedShard.started() || assignedShard.initializing()) {
+                    // Note: this also counts relocation targets as that will be the new location of the shard.
+                    // Relocation sources should not be counted as the shard is moving away
                     RoutingNode routingNode = allocation.routingNodes().node(assignedShard.currentNodeId());
                     shardPerAttribute.addTo(routingNode.node().attributes().get(awarenessAttribute), 1);
                 }

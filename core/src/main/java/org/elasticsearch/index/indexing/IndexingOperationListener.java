@@ -28,45 +28,14 @@ public abstract class IndexingOperationListener {
     /**
      * Called before the indexing occurs.
      */
-    public Engine.Create preCreate(Engine.Create create) {
-        return create;
+    public Engine.Index preIndex(Engine.Index operation) {
+        return operation;
     }
 
     /**
      * Called after the indexing occurs, under a locking scheme to maintain
      * concurrent updates to the same doc.
-     * <p/>
-     * Note, long operations should not occur under this callback.
-     */
-    public void postCreateUnderLock(Engine.Create create) {
-
-    }
-
-    /**
-     * Called after create index operation occurred.
-     */
-    public void postCreate(Engine.Create create) {
-
-    }
-
-    /**
-     * Called after create index operation occurred with exception.
-     */
-    public void postCreate(Engine.Create create, Throwable ex) {
-
-    }
-
-    /**
-     * Called before the indexing occurs.
-     */
-    public Engine.Index preIndex(Engine.Index index) {
-        return index;
-    }
-
-    /**
-     * Called after the indexing occurs, under a locking scheme to maintain
-     * concurrent updates to the same doc.
-     * <p/>
+     * <p>
      * Note, long operations should not occur under this callback.
      */
     public void postIndexUnderLock(Engine.Index index) {
@@ -97,7 +66,7 @@ public abstract class IndexingOperationListener {
     /**
      * Called after the delete occurs, under a locking scheme to maintain
      * concurrent updates to the same doc.
-     * <p/>
+     * <p>
      * Note, long operations should not occur under this callback.
      */
     public void postDeleteUnderLock(Engine.Delete delete) {

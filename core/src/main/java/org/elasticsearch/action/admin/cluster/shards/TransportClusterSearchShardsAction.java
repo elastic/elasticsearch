@@ -36,10 +36,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-
-import static com.google.common.collect.Sets.newHashSet;
 
 /**
  */
@@ -48,7 +47,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
     @Inject
     public TransportClusterSearchShardsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                               ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterSearchShardsRequest.class);
+        super(settings, ClusterSearchShardsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterSearchShardsRequest::new);
     }
 
     @Override
@@ -72,7 +71,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         ClusterState clusterState = clusterService.state();
         String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterState, request);
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(state, request.routing(), request.indices());
-        Set<String> nodeIds = newHashSet();
+        Set<String> nodeIds = new HashSet<>();
         GroupShardsIterator groupShardsIterator = clusterService.operationRouting().searchShards(clusterState, concreteIndices, routingMap, request.preference());
         ShardRouting shard;
         ClusterSearchShardsGroup[] groupResponses = new ClusterSearchShardsGroup[groupShardsIterator.size()];

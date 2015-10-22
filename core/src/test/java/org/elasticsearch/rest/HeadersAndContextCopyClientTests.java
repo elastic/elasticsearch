@@ -19,8 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
@@ -38,7 +36,6 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashMap;
@@ -55,7 +52,6 @@ import static org.hamcrest.Matchers.is;
 
 public class HeadersAndContextCopyClientTests extends ESTestCase {
 
-    @Test
     public void testRegisterRelevantHeaders() throws InterruptedException {
 
         final RestController restController = new RestController(Settings.EMPTY);
@@ -93,7 +89,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         assertThat(relevantHeaders, equalTo(headersArray));
     }
 
-    @Test
     public void testCopyHeadersRequest() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -101,7 +96,7 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
         usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
         Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
-        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
+        Map<String, String> transportContext = onlyOnLeft(randomContext(randomIntBetween(0, 10)), restContext);
 
         Map<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(transportHeaders);
@@ -139,7 +134,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersClusterAdminRequest() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -147,7 +141,7 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
         usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
         Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
-        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
+        Map<String, String> transportContext = onlyOnLeft(randomContext(randomIntBetween(0, 10)), restContext);
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(transportHeaders);
@@ -185,7 +179,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersIndicesAdminRequest() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -193,7 +186,7 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
         usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
         Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
-        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
+        Map<String, String> transportContext = onlyOnLeft(randomContext(randomIntBetween(0, 10)), restContext);
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(transportHeaders);
@@ -231,7 +224,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersRequestBuilder() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -239,7 +231,7 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
         usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
         Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
-        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
+        Map<String, String> transportContext = onlyOnLeft(randomContext(randomIntBetween(0, 10)), restContext);
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(transportHeaders);
@@ -272,7 +264,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersClusterAdminRequestBuilder() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -280,7 +271,7 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
         usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
         Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
-        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
+        Map<String, String> transportContext = onlyOnLeft(randomContext(randomIntBetween(0, 10)), restContext);
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(transportHeaders);
@@ -312,7 +303,6 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCopyHeadersIndicesAdminRequestBuilder() {
         Map<String, String> transportHeaders = randomHeaders(randomIntBetween(0, 10));
         Map<String, String> restHeaders = randomHeaders(randomIntBetween(0, 10));
@@ -320,7 +310,7 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
         Set<String> usefulRestHeaders = new HashSet<>(copiedHeaders.keySet());
         usefulRestHeaders.addAll(randomMap(randomIntBetween(0, 10), "useful-").keySet());
         Map<String, String> restContext = randomContext(randomIntBetween(0, 10));
-        Map<String, String> transportContext = Maps.difference(randomContext(randomIntBetween(0, 10)), restContext).entriesOnlyOnLeft();
+        Map<String, String> transportContext = onlyOnLeft(randomContext(randomIntBetween(0, 10)), restContext);
 
         HashMap<String, String> expectedHeaders = new HashMap<>();
         expectedHeaders.putAll(transportHeaders);
@@ -422,5 +412,15 @@ public class HeadersAndContextCopyClientTests extends ESTestCase {
                 assertThat(context.get(key), equalTo(request.getFromContext(key)));
             }
         }
+    }
+
+    private static Map<String, String> onlyOnLeft(Map<String, String> left, Map<String, String> right) {
+        Map<String, String> map = new HashMap<>();
+        for (Map.Entry<String, String> entry : left.entrySet()) {
+            if (!right.containsKey(entry.getKey())) {
+                map.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return map;
     }
 }

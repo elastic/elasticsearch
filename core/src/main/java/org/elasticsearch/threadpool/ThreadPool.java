@@ -19,10 +19,6 @@
 
 package org.elasticsearch.threadpool;
 
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-import com.google.common.util.concurrent.MoreExecutors;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -44,12 +40,23 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Queue;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionHandler;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.ScheduledThreadPoolExecutor;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.unit.SizeValue.parseSizeValue;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
@@ -74,16 +81,16 @@ public class ThreadPool extends AbstractComponent {
         public static final String REFRESH = "refresh";
         public static final String WARMER = "warmer";
         public static final String SNAPSHOT = "snapshot";
-        public static final String OPTIMIZE = "optimize";
+        public static final String FORCE_MERGE = "force_merge";
         public static final String FETCH_SHARD_STARTED = "fetch_shard_started";
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
     }
 
     public static final String THREADPOOL_GROUP = "threadpool.";
 
-    private volatile ImmutableMap<String, ExecutorHolder> executors;
+    private volatile Map<String, ExecutorHolder> executors;
 
-    private final ImmutableMap<String, Settings> defaultExecutorTypeSettings;
+    private final Map<String, Settings> defaultExecutorTypeSettings;
 
     private final Queue<ExecutorHolder> retiredExecutors = new ConcurrentLinkedQueue<>();
 
@@ -92,6 +99,8 @@ public class ThreadPool extends AbstractComponent {
     private final EstimatedTimeThread estimatedTimeThread;
 
     private boolean settingsListenerIsSet = false;
+
+    static final Executor DIRECT_EXECUTOR = command -> command.run();
 
 
     public ThreadPool(String name) {
@@ -108,28 +117,40 @@ public class ThreadPool extends AbstractComponent {
         int availableProcessors = EsExecutors.boundedNumberOfProcessors(settings);
         int halfProcMaxAt5 = Math.min(((availableProcessors + 1) / 2), 5);
         int halfProcMaxAt10 = Math.min(((availableProcessors + 1) / 2), 10);
-        defaultExecutorTypeSettings = ImmutableMap.<String, Settings>builder()
-                .put(Names.GENERIC, settingsBuilder().put("type", "cached").put("keep_alive", "30s").build())
-                .put(Names.INDEX, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 200).build())
-                .put(Names.BULK, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 50).build())
-                .put(Names.GET, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
-                .put(Names.SEARCH, settingsBuilder().put("type", "fixed").put("size", ((availableProcessors * 3) / 2) + 1).put("queue_size", 1000).build())
-                .put(Names.SUGGEST, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
-                .put(Names.PERCOLATE, settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build())
-                .put(Names.MANAGEMENT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build())
-                // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
-                // the assumption here is that the listeners should be very lightweight on the listeners side
-                .put(Names.LISTENER, settingsBuilder().put("type", "fixed").put("size", halfProcMaxAt10).build())
-                .put(Names.FLUSH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
-                .put(Names.REFRESH, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt10).build())
-                .put(Names.WARMER, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
-                .put(Names.SNAPSHOT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build())
-                .put(Names.OPTIMIZE, settingsBuilder().put("type", "fixed").put("size", 1).build())
-                .put(Names.FETCH_SHARD_STARTED, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build())
-                .put(Names.FETCH_SHARD_STORE, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build())
-                .build();
+        Map<String, Settings> defaultExecutorTypeSettings = new HashMap<>();
+        defaultExecutorTypeSettings.put(Names.GENERIC, settingsBuilder().put("type", "cached").put("keep_alive", "30s").build());
+        defaultExecutorTypeSettings.put(Names.INDEX,
+                settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 200).build());
+        defaultExecutorTypeSettings.put(Names.BULK,
+                settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 50).build());
+        defaultExecutorTypeSettings.put(Names.GET,
+                settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build());
+        defaultExecutorTypeSettings.put(Names.SEARCH,
+                settingsBuilder().put("type", "fixed").put("size", ((availableProcessors * 3) / 2) + 1).put("queue_size", 1000).build());
+        defaultExecutorTypeSettings.put(Names.SUGGEST,
+                settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build());
+        defaultExecutorTypeSettings.put(Names.PERCOLATE,
+                settingsBuilder().put("type", "fixed").put("size", availableProcessors).put("queue_size", 1000).build());
+        defaultExecutorTypeSettings  .put(Names.MANAGEMENT, settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", 5).build());
+        // no queue as this means clients will need to handle rejections on listener queue even if the operation succeeded
+        // the assumption here is that the listeners should be very lightweight on the listeners side
+        defaultExecutorTypeSettings.put(Names.LISTENER, settingsBuilder().put("type", "fixed").put("size", halfProcMaxAt10).build());
+        defaultExecutorTypeSettings.put(Names.FLUSH,
+                settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build());
+        defaultExecutorTypeSettings.put(Names.REFRESH,
+                settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt10).build());
+        defaultExecutorTypeSettings.put(Names.WARMER,
+                settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build());
+        defaultExecutorTypeSettings.put(Names.SNAPSHOT,
+                settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", halfProcMaxAt5).build());
+        defaultExecutorTypeSettings.put(Names.FORCE_MERGE, settingsBuilder().put("type", "fixed").put("size", 1).build());
+        defaultExecutorTypeSettings.put(Names.FETCH_SHARD_STARTED,
+                settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build());
+        defaultExecutorTypeSettings.put(Names.FETCH_SHARD_STORE,
+                settingsBuilder().put("type", "scaling").put("keep_alive", "5m").put("size", availableProcessors * 2).build());
+        this.defaultExecutorTypeSettings = unmodifiableMap(defaultExecutorTypeSettings);
 
-        Map<String, ExecutorHolder> executors = Maps.newHashMap();
+        Map<String, ExecutorHolder> executors = new HashMap<>();
         for (Map.Entry<String, Settings> executor : defaultExecutorTypeSettings.entrySet()) {
             executors.put(executor.getKey(), build(executor.getKey(), groupSettings.get(executor.getKey()), executor.getValue()));
         }
@@ -142,11 +163,11 @@ public class ThreadPool extends AbstractComponent {
             executors.put(entry.getKey(), build(entry.getKey(), entry.getValue(), Settings.EMPTY));
         }
 
-        executors.put(Names.SAME, new ExecutorHolder(MoreExecutors.directExecutor(), new Info(Names.SAME, "same")));
+        executors.put(Names.SAME, new ExecutorHolder(DIRECT_EXECUTOR, new Info(Names.SAME, "same")));
         if (!executors.get(Names.GENERIC).info.getType().equals("cached")) {
             throw new IllegalArgumentException("generic thread pool must be of type cached");
         }
-        this.executors = ImmutableMap.copyOf(executors);
+        this.executors = unmodifiableMap(executors);
         this.scheduler = new ScheduledThreadPoolExecutor(1, EsExecutors.daemonThreadFactory(settings, "scheduler"), new EsAbortPolicy());
         this.scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
         this.scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
@@ -313,7 +334,7 @@ public class ThreadPool extends AbstractComponent {
             } else {
                 logger.debug("creating thread_pool [{}], type [{}]", name, type);
             }
-            return new ExecutorHolder(MoreExecutors.directExecutor(), new Info(name, type));
+            return new ExecutorHolder(DIRECT_EXECUTOR, new Info(name, type));
         } else if ("cached".equals(type)) {
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
             if (previousExecutorHolder != null) {
@@ -345,7 +366,7 @@ public class ThreadPool extends AbstractComponent {
             if (previousExecutorHolder != null) {
                 if ("fixed".equals(previousInfo.getType())) {
                     SizeValue updatedQueueSize = getAsSizeOrUnbounded(settings, "capacity", getAsSizeOrUnbounded(settings, "queue", getAsSizeOrUnbounded(settings, "queue_size", previousInfo.getQueueSize())));
-                    if (Objects.equal(previousInfo.getQueueSize(), updatedQueueSize)) {
+                    if (Objects.equals(previousInfo.getQueueSize(), updatedQueueSize)) {
                         int updatedSize = settings.getAsInt("size", previousInfo.getMax());
                         if (previousInfo.getMax() != updatedSize) {
                             logger.debug("updating thread_pool [{}], type [{}], size [{}], queue_size [{}]", name, type, updatedSize, updatedQueueSize);
@@ -436,7 +457,9 @@ public class ThreadPool extends AbstractComponent {
             ExecutorHolder oldExecutorHolder = executors.get(executor.getKey());
             ExecutorHolder newExecutorHolder = rebuild(executor.getKey(), oldExecutorHolder, updatedSettings, executor.getValue());
             if (!oldExecutorHolder.equals(newExecutorHolder)) {
-                executors = newMapBuilder(executors).put(executor.getKey(), newExecutorHolder).immutableMap();
+                Map<String, ExecutorHolder> newExecutors = new HashMap<>(executors);
+                newExecutors.put(executor.getKey(), newExecutorHolder);
+                executors = unmodifiableMap(newExecutors);
                 if (!oldExecutorHolder.executor().equals(newExecutorHolder.executor()) && oldExecutorHolder.executor() instanceof EsThreadPoolExecutor) {
                     retiredExecutors.add(oldExecutorHolder);
                     ((EsThreadPoolExecutor) oldExecutorHolder.executor()).shutdown(new ExecutorShutdownListener(oldExecutorHolder));
@@ -456,7 +479,9 @@ public class ThreadPool extends AbstractComponent {
             // case the settings contains a thread pool not defined in the initial settings in the constructor. The if
             // statement will then fail and so this prevents the addition of new thread groups at runtime, which is desired.
             if (!newExecutorHolder.equals(oldExecutorHolder)) {
-                executors = newMapBuilder(executors).put(entry.getKey(), newExecutorHolder).immutableMap();
+                Map<String, ExecutorHolder> newExecutors = new HashMap<>(executors);
+                newExecutors.put(entry.getKey(), newExecutorHolder);
+                executors = unmodifiableMap(newExecutors);
                 if (!oldExecutorHolder.executor().equals(newExecutorHolder.executor()) && oldExecutorHolder.executor() instanceof EsThreadPoolExecutor) {
                     retiredExecutors.add(oldExecutorHolder);
                     ((EsThreadPoolExecutor) oldExecutorHolder.executor()).shutdown(new ExecutorShutdownListener(oldExecutorHolder));
@@ -501,8 +526,8 @@ public class ThreadPool extends AbstractComponent {
         public void run() {
             try {
                 runnable.run();
-            } catch (Exception e) {
-                logger.warn("failed to run {}", e, runnable.toString());
+            } catch (Throwable t) {
+                logger.warn("failed to run {}", t, runnable.toString());
             }
         }
 
@@ -605,7 +630,7 @@ public class ThreadPool extends AbstractComponent {
         public final Info info;
 
         ExecutorHolder(Executor executor, Info info) {
-            assert executor instanceof EsThreadPoolExecutor || executor == MoreExecutors.directExecutor();
+            assert executor instanceof EsThreadPoolExecutor || executor == DIRECT_EXECUTOR;
             this.executor = executor;
             this.info = info;
         }

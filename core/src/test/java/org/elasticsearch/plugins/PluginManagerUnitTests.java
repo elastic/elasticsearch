@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugins;
 
-import com.google.common.io.Files;
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
@@ -27,12 +26,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.URL;
 import java.nio.charset.Charset;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.Locale;
 
@@ -44,13 +43,11 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class PluginManagerUnitTests extends ESTestCase {
-
     @After
     public void cleanSystemProperty() {
         System.clearProperty(PluginManager.PROPERTY_SUPPORT_STAGING_URLS);
     }
 
-    @Test
     public void testThatConfigDirectoryCanBeOutsideOfElasticsearchHomeDirectory() throws IOException {
         String pluginName = randomAsciiOfLength(10);
         Path homeFolder = createTempDir();
@@ -63,13 +60,11 @@ public class PluginManagerUnitTests extends ESTestCase {
         Environment environment = new Environment(settings);
 
         PluginManager.PluginHandle pluginHandle = new PluginManager.PluginHandle(pluginName, "version", "user");
-        String configDirPath = Files.simplifyPath(pluginHandle.configDir(environment).normalize().toString());
-        String expectedDirPath = Files.simplifyPath(genericConfigFolder.resolve(pluginName).normalize().toString());
-
-        assertThat(configDirPath, is(expectedDirPath));
+        Path configDirPath = pluginHandle.configDir(environment).normalize();
+        Path expectedDirPath = genericConfigFolder.resolve(pluginName).normalize();
+        assertEquals(configDirPath, expectedDirPath);
     }
 
-    @Test
     public void testSimplifiedNaming() throws IOException {
         String pluginName = randomAsciiOfLength(10);
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(pluginName);
@@ -94,9 +89,8 @@ public class PluginManagerUnitTests extends ESTestCase {
         assertThat(iterator.hasNext(), is(false));
     }
 
-    @Test
     public void testOfficialPluginName() throws IOException {
-        String randomPluginName = randomFrom(PluginManager.OFFICIAL_PLUGINS.asList());
+        String randomPluginName = randomFrom(new ArrayList<>(PluginManager.OFFICIAL_PLUGINS));
         PluginManager.PluginHandle handle = PluginManager.PluginHandle.parse(randomPluginName);
         assertThat(handle.name, is(randomPluginName));
 
@@ -120,7 +114,6 @@ public class PluginManagerUnitTests extends ESTestCase {
         assertThat(iterator.hasNext(), is(false));
     }
 
-    @Test
     public void testGithubPluginName() throws IOException {
         String user = randomAsciiOfLength(6);
         String pluginName = randomAsciiOfLength(10);
@@ -130,7 +123,6 @@ public class PluginManagerUnitTests extends ESTestCase {
         assertThat(handle.urls().get(0).toExternalForm(), is(new URL("https", "github.com", "/" + user + "/" + pluginName + "/" + "archive/master.zip").toExternalForm()));
     }
 
-    @Test
     public void testDownloadHelperChecksums() throws Exception {
         // Sanity check to make sure the checksum functions never change how they checksum things
         assertEquals("0beec7b5ea3f0fdbc95d0dd47f3c5bc275da8a33",

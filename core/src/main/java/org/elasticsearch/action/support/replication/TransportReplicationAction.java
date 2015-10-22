@@ -42,7 +42,10 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -53,7 +56,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
@@ -72,6 +74,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 /**
  */
@@ -93,8 +96,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                          ClusterService clusterService, IndicesService indicesService,
                                          ThreadPool threadPool, ShardStateAction shardStateAction,
                                          MappingUpdatedAction mappingUpdatedAction, ActionFilters actionFilters,
-                                         IndexNameExpressionResolver indexNameExpressionResolver, Class<Request> request,
-                                         Class<ReplicaRequest> replicaRequest, String executor) {
+                                         IndexNameExpressionResolver indexNameExpressionResolver, Supplier<Request> request,
+                                         Supplier<ReplicaRequest> replicaRequest, String executor) {
         super(settings, actionName, threadPool, actionFilters, indexNameExpressionResolver);
         this.transportService = transportService;
         this.clusterService = clusterService;
@@ -182,9 +185,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         // on version conflict or document missing, it means
         // that a new change has crept into the replica, and it's fine
         if (cause instanceof VersionConflictEngineException) {
-            return true;
-        }
-        if (cause instanceof DocumentAlreadyExistsException) {
             return true;
         }
         return false;
@@ -340,7 +340,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     /**
      * Responsible for performing all operations up to the point we start starting sending requests to replica shards.
      * Including forwarding the request to another node if the primary is not assigned locally.
-     * <p/>
+     * <p>
      * Note that as soon as we start sending request to replicas, state responsibility is transferred to {@link ReplicationPhase}
      */
     final class PrimaryPhase extends AbstractRunnable {
@@ -480,7 +480,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                             // if we got disconnected from the node, or the node / shard is not in the right state (being closed)
                             if (exp.unwrapCause() instanceof ConnectTransportException || exp.unwrapCause() instanceof NodeClosedException ||
                                     retryPrimaryException(exp)) {
-                                internalRequest.request().setCanHaveDuplicates();
                                 // we already marked it as started when we executed it (removed the listener) so pass false
                                 // to re-add to the cluster listener
                                 logger.trace("received an error from node the primary was assigned to ({}), scheduling a retry", exp.getMessage());
@@ -580,7 +579,6 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 logger.trace("operation completed on primary [{}]", primary);
                 replicationPhase = new ReplicationPhase(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener, indexShardReference);
             } catch (Throwable e) {
-                internalRequest.request.setCanHaveDuplicates();
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
                     logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
@@ -664,7 +662,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.index().getName());
-        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        IndexShard indexShard = indexService.getShard(shardId.id());
         return new IndexShardReference(indexShard);
     }
 
@@ -676,7 +674,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
                 return;
             }
-            IndexShard indexShard = indexService.shard(shardId);
+            IndexShard indexShard = indexService.getShardOrNull(shardId);
             if (indexShard == null) {
                 logger.debug("ignoring failed replica [{}][{}] because index was already removed.", index, shardId);
                 return;
@@ -742,7 +740,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         if (shard.relocating()) {
                             numberOfPendingShardInstances++;
                         }
-                    } else if (shouldExecuteReplication(indexMetaData.settings()) == false) {
+                    } else if (shouldExecuteReplication(indexMetaData.getSettings()) == false) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -761,14 +759,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         numberOfPendingShardInstances++;
                     }
                 }
-                internalRequest.request().setCanHaveDuplicates(); // safe side, cluster state changed, we might have dups
             } else {
                 shardIt = originalShardIt;
                 shardIt.reset();
                 while ((shard = shardIt.nextOrNull()) != null) {
-                    if (shard.state() != ShardRoutingState.STARTED) {
-                        replicaRequest.setCanHaveDuplicates();
-                    }
                     if (shard.unassigned()) {
                         numberOfUnassignedOrIgnoredReplicas++;
                     } else if (shard.primary()) {
@@ -776,7 +770,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                             // we have to replicate to the other copy
                             numberOfPendingShardInstances += 1;
                         }
-                    } else if (shouldExecuteReplication(indexMetaData.settings()) == false) {
+                    } else if (shouldExecuteReplication(indexMetaData.getSettings()) == false) {
                         // If the replicas use shadow replicas, there is no reason to
                         // perform the action on the replica, so skip it and
                         // immediately return
@@ -855,7 +849,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());
                     }
-                } else if (shouldExecuteReplication(indexMetaData.settings())) {
+                } else if (shouldExecuteReplication(indexMetaData.getSettings())) {
                     performOnReplica(shard, shard.currentNodeId());
                     if (shard.relocating()) {
                         performOnReplica(shard, shard.relocatingNodeId());
@@ -1038,26 +1032,17 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     /** Utility method to create either an index or a create operation depending
      *  on the {@link OpType} of the request. */
-    private final Engine.IndexingOperation prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
+    private final Engine.Index prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
-        boolean canHaveDuplicates = request.canHaveDuplicates();
-        if (shardRequest != null) {
-            canHaveDuplicates |= shardRequest.canHaveDuplicates();
-        }
-        if (request.opType() == IndexRequest.OpType.INDEX) {
-            return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, canHaveDuplicates);
-        } else {
-            assert request.opType() == IndexRequest.OpType.CREATE : request.opType();
-            return indexShard.prepareCreate(sourceToParse,
-                    request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY, canHaveDuplicates, canHaveDuplicates);
-        }
+            return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
+
     }
 
     /** Execute the given {@link IndexRequest} on a primary shard, throwing a
      *  {@link RetryOnPrimaryException} if the operation needs to be re-tried. */
     protected final WriteResult<IndexResponse> executeIndexRequestOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) throws Throwable {
-        Engine.IndexingOperation operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
+        Engine.Index operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = indexShard.shardId();
         if (update != null) {
@@ -1070,7 +1055,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         "Dynamics mappings are not available on the node that holds the primary yet");
             }
         }
-        final boolean created = operation.execute(indexShard);
+        final boolean created = indexShard.index(operation);
 
         // update the version on request so it will happen on the replicas
         final long version = operation.version();
@@ -1080,5 +1065,19 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         assert request.versionType().validateVersionForWrites(request.version());
 
         return new WriteResult(new IndexResponse(shardId.getIndex(), request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
+    }
+
+    protected final void processAfter(boolean refresh, IndexShard indexShard, Translog.Location location) {
+        if (refresh) {
+            try {
+                indexShard.refresh("refresh_flag_index");
+            } catch (Throwable e) {
+                // ignore
+            }
+        }
+        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
+            indexShard.sync(location);
+        }
+        indexShard.maybeFlush();
     }
 }

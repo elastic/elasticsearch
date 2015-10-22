@@ -20,14 +20,12 @@
 package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
+
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.CoreMatchers.is;
 
 public class AWSSignersTests extends ESTestCase {
-
-    @Test
     public void testSigners() {
         assertThat(signerTester(null), is(false));
         assertThat(signerTester("QueryStringSignerType"), is(true));
@@ -35,7 +33,32 @@ public class AWSSignersTests extends ESTestCase {
         assertThat(signerTester("AWS4SignerType"), is(true));
         assertThat(signerTester("NoOpSignerType"), is(true));
         assertThat(signerTester("UndefinedSigner"), is(false));
+        assertThat(signerTester("S3SignerType"), is(true));
+        assertThat(signerTester("AWSS3V4SignerType"), is(true));
+
+        ClientConfiguration configuration = new ClientConfiguration();
+        AwsSigner.configureSigner("AWS4SignerType", configuration, "any");
+        assertEquals(configuration.getSignerOverride(), "AWS4SignerType");
+        AwsSigner.configureSigner("S3SignerType", configuration, "any");
+        assertEquals(configuration.getSignerOverride(), "S3SignerType");
     }
+
+    public void testV2InInvalidRegion() {
+        try {
+            AwsSigner.validateSignerType("S3SignerType", "s3.cn-north-1.amazonaws.com.cn");
+            fail("S3SignerType should not be available for China region");
+        } catch (IllegalArgumentException e) {
+            assertEquals("[S3SignerType] may not be supported in aws Beijing and Frankfurt region", e.getMessage());
+        }
+
+        try {
+            AwsSigner.validateSignerType("S3SignerType", "s3.eu-central-1.amazonaws.com");
+            fail("S3SignerType should not be available for Frankfurt region");
+        } catch (IllegalArgumentException e) {
+            assertEquals("[S3SignerType] may not be supported in aws Beijing and Frankfurt region", e.getMessage());
+        }
+    }
+
 
     /**
      * Test a signer configuration
@@ -44,7 +67,7 @@ public class AWSSignersTests extends ESTestCase {
      */
     private boolean signerTester(String signer) {
         try {
-            AwsSigner.configureSigner(signer, new ClientConfiguration());
+            AwsSigner.validateSignerType(signer, "s3.amazonaws.com");
             return true;
         } catch (IllegalArgumentException e) {
             return false;

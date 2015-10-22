@@ -19,14 +19,12 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Sets;
 import org.elasticsearch.common.collect.CopyOnWriteHashMap;
 import org.elasticsearch.common.regex.Regex;
 
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -35,12 +33,6 @@ import java.util.Set;
  * An immutable container for looking up {@link MappedFieldType}s by their name.
  */
 class FieldTypeLookup implements Iterable<MappedFieldType> {
-    private static final Function<MappedFieldTypeReference, MappedFieldType> UNWRAPPER = new Function<MappedFieldTypeReference, MappedFieldType>() {
-        @Override
-        public MappedFieldType apply(MappedFieldTypeReference ref) {
-            return ref.get();
-        }
-    };
 
     /** Full field name to field type */
     private final CopyOnWriteHashMap<String, MappedFieldTypeReference> fullNameToFieldType;
@@ -152,7 +144,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Returns a list of the index names of a simple match regex like pattern against full name and index name.
      */
     public Collection<String> simpleMatchToIndexNames(String pattern) {
-        Set<String> fields = Sets.newHashSet();
+        Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.names().fullName())) {
                 fields.add(fieldType.names().indexName());
@@ -167,7 +159,7 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * Returns a list of the full names of a simple match regex like pattern against full name and index name.
      */
     public Collection<String> simpleMatchToFullName(String pattern) {
-        Set<String> fields = Sets.newHashSet();
+        Set<String> fields = new HashSet<>();
         for (MappedFieldType fieldType : this) {
             if (Regex.simpleMatch(pattern, fieldType.names().fullName())) {
                 fields.add(fieldType.names().fullName());
@@ -179,6 +171,6 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
     }
 
     public Iterator<MappedFieldType> iterator() {
-        return Iterators.transform(fullNameToFieldType.values().iterator(), UNWRAPPER);
+        return fullNameToFieldType.values().stream().map((p) -> p.get()).iterator();
     }
 }

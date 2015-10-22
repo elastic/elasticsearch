@@ -22,20 +22,20 @@ import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute; // ja
 /**
  * Provides support for converting byte sequences to Strings and back again.
  * The resulting Strings preserve the original byte sequences' sort order.
- * <p/>
+ * <p>
  * The Strings are constructed using a Base 8000h encoding of the original
  * binary data - each char of an encoded String represents a 15-bit chunk
  * from the byte sequence.  Base 8000h was chosen because it allows for all
  * lower 15 bits of char to be used without restriction; the surrogate range 
  * [U+D8000-U+DFFF] does not represent valid chars, and would require
  * complicated handling to avoid them and allow use of char's high bit.
- * <p/>
+ * <p>
  * Although unset bits are used as padding in the final char, the original
  * byte sequence could contain trailing bytes with no set bits (null bytes):
  * padding is indistinguishable from valid information.  To overcome this
  * problem, a char is appended, indicating the number of encoded bytes in the
  * final content char.
- * <p/>
+ * <p>
  *
  * @lucene.experimental
  * @deprecated Implement {@link TermToBytesRefAttribute} and store bytes directly

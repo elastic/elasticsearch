@@ -19,8 +19,7 @@
 
 package org.elasticsearch.search.aggregations.pipeline.movavg;
 
-import com.google.common.base.Function;
-import com.google.common.collect.EvictingQueue;
+import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -48,8 +47,9 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class MovAvgPipelineAggregator extends PipelineAggregator {
@@ -68,13 +68,6 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
     public static void registerStreams() {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
-
-    private static final Function<Aggregation, InternalAggregation> FUNCTION = new Function<Aggregation, InternalAggregation>() {
-        @Override
-        public InternalAggregation apply(Aggregation input) {
-            return (InternalAggregation) input;
-        }
-    };
 
     private ValueFormatter formatter;
     private GapPolicy gapPolicy;
@@ -109,7 +102,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
         InternalHistogram.Factory<? extends InternalHistogram.Bucket> factory = histo.getFactory();
 
         List newBuckets = new ArrayList<>();
-        EvictingQueue<Double> values = EvictingQueue.create(this.window);
+        EvictingQueue<Double> values = new EvictingQueue<>(this.window);
 
         long lastValidKey = 0;
         int lastValidPosition = 0;
@@ -134,7 +127,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                 if (model.hasValue(values.size())) {
                     double movavg = model.next(values);
 
-                    List<InternalAggregation> aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
+                    List<InternalAggregation> aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                        return (InternalAggregation) p;
+                    }).collect(Collectors.toList());
                     aggs.add(new InternalSimpleValue(name(), movavg, formatter, new ArrayList<PipelineAggregator>(), metaData()));
                     newBucket = factory.createBucket(bucket.getKey(), bucket.getDocCount(), new InternalAggregations(
                             aggs), bucket.getKeyed(), bucket.getFormatter());
@@ -175,7 +170,9 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
                     InternalHistogram.Bucket bucket = (InternalHistogram.Bucket) newBuckets.get(lastValidPosition + i + 1);
 
                     // Get the existing aggs in the bucket so we don't clobber data
-                    aggs = new ArrayList<>(eagerTransform(bucket.getAggregations().asList(), AGGREGATION_TRANFORM_FUNCTION));
+                    aggs = StreamSupport.stream(bucket.getAggregations().spliterator(), false).map((p) -> {
+                        return (InternalAggregation) p;
+                    }).collect(Collectors.toList());
                     aggs.add(new InternalSimpleValue(name(), predictions[i], formatter, new ArrayList<PipelineAggregator>(), metaData()));
 
                     InternalHistogram.Bucket newBucket = factory.createBucket(newKey, 0, new InternalAggregations(
@@ -205,7 +202,7 @@ public class MovAvgPipelineAggregator extends PipelineAggregator {
     private MovAvgModel minimize(List<? extends InternalHistogram.Bucket> buckets, InternalHistogram histo, MovAvgModel model) {
 
         int counter = 0;
-        EvictingQueue<Double> values = EvictingQueue.create(window);
+        EvictingQueue<Double> values = new EvictingQueue<>(this.window);
 
         double[] test = new double[window];
         ListIterator<? extends InternalHistogram.Bucket> iter = buckets.listIterator(buckets.size());

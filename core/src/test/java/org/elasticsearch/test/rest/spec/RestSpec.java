@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.test.rest.spec;
 
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.support.FileUtils;
@@ -30,13 +28,14 @@ import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
  * Holds the elasticsearch REST spec
  */
 public class RestSpec {
-    Map<String, RestApi> restApiMap = Maps.newHashMap();
+    Map<String, RestApi> restApiMap = new HashMap<>();
 
     private RestSpec() {
     }

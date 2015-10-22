@@ -82,6 +82,10 @@
           "type": "enum",
           "options": ["internal", "force"],
           "description": "Specific version type"
+        },
+        "detect_noop": {
+          "type": "boolean",
+          "description": "Specifying as true will cause Elasticsearch to check if there are changes and, if there aren’t, turn the update request into a noop."
         }
       }
     },

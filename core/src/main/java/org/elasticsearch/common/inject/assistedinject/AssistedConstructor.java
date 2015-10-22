@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2007 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -88,7 +88,6 @@ class AssistedConstructor<T> {
      * supplied arguments.
      */
     public T newInstance(Object[] args) throws Throwable {
-        constructor.setAccessible(true);
         try {
             return constructor.newInstance(args);
         } catch (InvocationTargetException e) {

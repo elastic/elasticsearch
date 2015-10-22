@@ -35,6 +35,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Arrays;
+
 /**
  *
  */
@@ -45,7 +47,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
     @Inject
     public TransportUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
                                          MetaDataUpdateSettingsService updateSettingsService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, UpdateSettingsRequest.class);
+        super(settings, UpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, UpdateSettingsRequest::new);
         this.updateSettingsService = updateSettingsService;
     }
 
@@ -90,7 +92,7 @@ public class TransportUpdateSettingsAction extends TransportMasterNodeAction<Upd
 
             @Override
             public void onFailure(Throwable t) {
-                logger.debug("failed to update settings on indices [{}]", t, concreteIndices);
+                logger.debug("failed to update settings on indices [{}]", t, (Object)concreteIndices);
                 listener.onFailure(t);
             }
         });

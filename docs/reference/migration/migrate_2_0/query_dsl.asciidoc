@@ -8,7 +8,7 @@ _filter context_:
 
 Query context::
 
-A query used in query context will caculated relevance scores and will not be
+A query used in query context will calculate relevance scores and will not be
 cacheable.  Query context is used whenever filter context does not apply.
 
 Filter context::
@@ -25,7 +25,7 @@ be cacheable. Filter context is introduced by:
   aggregations or index aliases
 --
 
-As a result of this change, he `execution` option of the `terms` filter is now
+As a result of this change, the `execution` option of the `terms` filter is now
 deprecated and ignored if provided.
 
 ==== `or` and `and` now implemented via `bool`
@@ -183,4 +183,3 @@ behaviour using the <<search-request-body,terminate_after>> parameter.
 Java plugins that register custom queries can do so by using the
 `IndicesQueriesModule#addQuery(Class<? extends QueryParser>)` method. Other
 ways to register custom queries are not supported anymore.
-

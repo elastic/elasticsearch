@@ -22,10 +22,8 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.junit.Assert;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
@@ -33,18 +31,14 @@ import java.io.StringReader;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
-
     private static final String RESOURCE = "/org/elasticsearch/index/analysis/keep_analysis.json";
 
-
-    @Test
     public void testLoadWithoutSettings() {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("keep");
         Assert.assertNull(tokenFilter);
     }
 
-    @Test
     public void testLoadOverConfiguredSettings() {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -60,7 +54,6 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
         }
     }
 
-    @Test
     public void testKeepWordsPathSettings() {
         Settings settings = Settings.settingsBuilder()
                 .put("path.home", createTempDir().toString())
@@ -88,7 +81,6 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
 
     }
 
-    @Test
     public void testCaseInsensitiveMapping() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_keep_filter");
@@ -100,7 +92,6 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected, new int[]{1, 2});
     }
 
-    @Test
     public void testCaseSensitiveMapping() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("my_case_sensitive_keep_filter");
@@ -111,5 +102,4 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
         tokenizer.setReader(new StringReader(source));
         assertTokenStreamContents(tokenFilter.create(tokenizer), expected, new int[]{1});
     }
-
 }

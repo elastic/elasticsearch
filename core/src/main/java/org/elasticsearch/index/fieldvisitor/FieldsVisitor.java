@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.index.fieldvisitor;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
-
 import org.apache.lucene.index.FieldInfo;
+import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -41,25 +39,26 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import static com.google.common.collect.Maps.newHashMap;
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
- * Base {@link StoredFieldsVisitor} that retrieves all non-redundant metadata.
+ * Base {@link StoredFieldVisitor} that retrieves all non-redundant metadata.
  */
 public class FieldsVisitor extends StoredFieldVisitor {
-
-    private static final Set<String> BASE_REQUIRED_FIELDS = ImmutableSet.of(
+    private static final Set<String> BASE_REQUIRED_FIELDS = unmodifiableSet(newHashSet(
             UidFieldMapper.NAME,
             TimestampFieldMapper.NAME,
             TTLFieldMapper.NAME,
             RoutingFieldMapper.NAME,
-            ParentFieldMapper.NAME
-   );
+            ParentFieldMapper.NAME));
 
     private final boolean loadSource;
     private final Set<String> requiredFields;
@@ -191,9 +190,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public Map<String, List<Object>> fields() {
-        return fieldsValues != null
-                ? fieldsValues
-                : ImmutableMap.<String, List<Object>>of();
+        return fieldsValues != null ? fieldsValues : emptyMap();
     }
 
     public void reset() {
@@ -209,7 +206,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
 
     void addValue(String name, Object value) {
         if (fieldsValues == null) {
-            fieldsValues = newHashMap();
+            fieldsValues = new HashMap<>();
         }
 
         List<Object> values = fieldsValues.get(name);

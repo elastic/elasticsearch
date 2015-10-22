@@ -12,7 +12,9 @@
         "index": {
           "type" : "list",
           "description" : "A comma-separated list of index names; use `_all` or empty string for all indices"
-        },
+        }
+      },
+      "params": {
         "ignore_unavailable": {
           "type": "boolean",
           "description": "Whether specified concrete indices should be ignored when unavailable (missing or closed)"

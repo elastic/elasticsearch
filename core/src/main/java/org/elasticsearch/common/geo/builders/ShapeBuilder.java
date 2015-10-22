@@ -27,7 +27,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
 import org.elasticsearch.ElasticsearchParseException;
-import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
@@ -35,7 +35,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
@@ -44,7 +43,7 @@ import java.util.*;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc 
  */
-public abstract class ShapeBuilder implements ToXContent {
+public abstract class ShapeBuilder extends ToXContentToBytes {
 
     protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
@@ -210,16 +209,6 @@ public abstract class ShapeBuilder implements ToXContent {
      */
     public static EnvelopeBuilder newEnvelope(Orientation orientation) { return new EnvelopeBuilder(orientation); }
 
-    @Override
-    public String toString() {
-        try {
-            XContentBuilder xcontent = JsonXContent.contentBuilder();
-            return toXContent(xcontent, EMPTY_PARAMS).prettyPrint().string();
-        } catch (IOException e) {
-            return super.toString();
-        }
-    }
-
     /**
      * Create a new Shape from this builder. Since calling this method could change the
      * defined shape. (by inserting new coordinates or change the position of points)
@@ -271,7 +260,7 @@ public abstract class ShapeBuilder implements ToXContent {
      * Create a new {@link ShapeBuilder} from {@link XContent}
      * @param parser parser to read the GeoShape from
      * @return {@link ShapeBuilder} read from the parser or null
-     *          if the parsers current token has been <code><null</code>
+     *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
     public static ShapeBuilder parse(XContentParser parser) throws IOException {
@@ -285,7 +274,7 @@ public abstract class ShapeBuilder implements ToXContent {
      *                     to the shape construction process (e.g., orientation)
      *                     todo: refactor to place build specific parameters in the SpatialContext
      * @return {@link ShapeBuilder} read from the parser or null
-     *          if the parsers current token has been <code><null</code>
+     *          if the parsers current token has been <code>null</code>
      * @throws IOException if the input could not be read
      */
     public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper geoDocMapper) throws IOException {
@@ -386,7 +375,7 @@ public abstract class ShapeBuilder implements ToXContent {
 
     /**
      * Node used to represent a tree of coordinates.
-     * <p/>
+     * <p>
      * Can either be a leaf node consisting of a Coordinate, or a parent with
      * children
      */
@@ -607,7 +596,6 @@ public abstract class ShapeBuilder implements ToXContent {
 
         /**
          * Transforms coordinates in the eastern hemisphere (-180:0) to a (180:360) range 
-         * @param points
          */
         protected static void translate(Coordinate[] points) {
             for (Coordinate c : points) {
@@ -715,7 +703,6 @@ public abstract class ShapeBuilder implements ToXContent {
          * @param parser - parse utility object including source document
          * @param shapeMapper - field mapper needed for index specific parameters
          * @return ShapeBuilder - a builder instance used to create the geometry
-         * @throws IOException
          */
         public static ShapeBuilder parse(XContentParser parser, GeoShapeFieldMapper shapeMapper) throws IOException {
             if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {

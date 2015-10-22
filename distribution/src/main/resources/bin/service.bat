@@ -5,6 +5,8 @@ TITLE Elasticsearch Service ${project.version}
 
 if NOT DEFINED JAVA_HOME goto err
 
+if not "%CONF_FILE%" == "" goto conffileset
+
 set SCRIPT_DIR=%~dp0
 for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 
@@ -147,9 +149,7 @@ if "%DATA_DIR%" == "" set DATA_DIR=%ES_HOME%\data
 
 if "%CONF_DIR%" == "" set CONF_DIR=%ES_HOME%\config
 
-if "%CONF_FILE%" == "" set CONF_FILE=%ES_HOME%\config\elasticsearch.yml
-
-set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.config="%CONF_FILE%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.conf="%CONF_DIR%"
+set ES_PARAMS=-Delasticsearch;-Des.path.home="%ES_HOME%";-Des.default.path.home="%ES_HOME%";-Des.default.path.logs="%LOG_DIR%";-Des.default.path.data="%DATA_DIR%";-Des.default.path.conf="%CONF_DIR%"
 
 set JVM_OPTS=%JAVA_OPTS: =;%
 
@@ -159,7 +159,7 @@ if not "%ES_JAVA_OPTS%" == "" set JVM_OPTS=%JVM_OPTS%;%JVM_ES_JAVA_OPTS%
 if "%ES_START_TYPE%" == "" set ES_START_TYPE=manual
 if "%ES_STOP_TIMEOUT%" == "" set ES_STOP_TIMEOUT=0
 
-"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StopClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%"
+"%EXECUTABLE%" //IS//%SERVICE_ID% --Startup %ES_START_TYPE% --StopTimeout %ES_STOP_TIMEOUT% --StartClass org.elasticsearch.bootstrap.Elasticsearch --StopClass org.elasticsearch.bootstrap.Elasticsearch --StartMethod main --StopMethod close --Classpath "%ES_CLASSPATH%" --JvmSs %JVM_SS% --JvmMs %JVM_XMS% --JvmMx %JVM_XMX% --JvmOptions %JVM_OPTS% ++JvmOptions %ES_PARAMS% %LOG_OPTS% --PidFile "%SERVICE_ID%.pid" --DisplayName "Elasticsearch %ES_VERSION% (%SERVICE_ID%)" --Description "Elasticsearch %ES_VERSION% Windows Service - http://elasticsearch.org" --Jvm "%JVM_DLL%" --StartMode jvm --StopMode jvm --StartPath "%ES_HOME%" ++StartParams start
 
 
 if not errorlevel 1 goto installed
@@ -205,6 +205,10 @@ rem convert to MB
 set /a conv=%conv% * 1024
 :mega
 set "%~2=%conv%"
+goto:eof
+
+:conffileset
+echo CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.
 goto:eof
 
 ENDLOCAL

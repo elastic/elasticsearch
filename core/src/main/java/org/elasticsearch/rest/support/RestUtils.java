@@ -19,12 +19,11 @@
 
 package org.elasticsearch.rest.support;
 
-import com.google.common.base.Charsets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.common.settings.Settings;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -39,7 +38,6 @@ public class RestUtils {
             return RestUtils.decodeComponent(value);
         }
     };
-    public static final String HTTP_CORS_ALLOW_ORIGIN_SETTING = "http.cors.allow-origin";
 
     public static boolean isBrowser(@Nullable String userAgent) {
         if (userAgent == null) {
@@ -59,12 +57,14 @@ public class RestUtils {
         if (fromIndex >= s.length()) {
             return;
         }
+        
+        int queryStringLength = s.contains("#") ? s.indexOf("#") : s.length();
 
         String name = null;
         int pos = fromIndex; // Beginning of the unprocessed region
         int i;       // End of the unprocessed region
         char c = 0;  // Current character
-        for (i = fromIndex; i < s.length(); i++) {
+        for (i = fromIndex; i < queryStringLength; i++) {
             c = s.charAt(i);
             if (c == '=' && name == null) {
                 if (pos != i) {
@@ -102,7 +102,7 @@ public class RestUtils {
 
     /**
      * Decodes a bit of an URL encoded by a browser.
-     * <p/>
+     * <p>
      * This is equivalent to calling {@link #decodeComponent(String, Charset)}
      * with the UTF-8 charset (recommended to comply with RFC 3986, Section 2).
      *
@@ -113,18 +113,18 @@ public class RestUtils {
      *                                  escape sequence.
      */
     public static String decodeComponent(final String s) {
-        return decodeComponent(s, Charsets.UTF_8);
+        return decodeComponent(s, StandardCharsets.UTF_8);
     }
 
     /**
      * Decodes a bit of an URL encoded by a browser.
-     * <p/>
+     * <p>
      * The string is expected to be encoded as per RFC 3986, Section 2.
      * This is the encoding used by JavaScript functions {@code encodeURI}
      * and {@code encodeURIComponent}, but not {@code escape}.  For example
      * in this encoding, &eacute; (in Unicode {@code U+00E9} or in UTF-8
      * {@code 0xC3 0xA9}) is encoded as {@code %C3%A9} or {@code %c3%a9}.
-     * <p/>
+     * <p>
      * This is essentially equivalent to calling
      * <code>{@link java.net.URLDecoder URLDecoder}.{@link
      * java.net.URLDecoder#decode(String, String)}</code>
@@ -134,7 +134,7 @@ public class RestUtils {
      *
      * @param s       The string to decode (can be empty).
      * @param charset The charset to use to decode the string (should really
-     *                be {@link Charsets#UTF_8}.
+     *                be {@link StandardCharsets#UTF_8}.
      * @return The decoded string, or {@code s} if there's nothing to decode.
      *         If the string to decode is {@code null}, returns an empty string.
      * @throws IllegalArgumentException if the string contains a malformed
@@ -222,9 +222,13 @@ public class RestUtils {
 
     /**
      * Determine if CORS setting is a regex
+     *
+     * @return a corresponding {@link Pattern} if so and o.w. null.
      */
-    public static Pattern getCorsSettingRegex(Settings settings) {
-        String corsSetting = settings.get(HTTP_CORS_ALLOW_ORIGIN_SETTING, "*");
+    public static Pattern checkCorsSettingForRegex(String corsSetting) {
+        if (corsSetting == null) {
+            return null;
+        }
         int len = corsSetting.length();
         boolean isRegex = len > 2 &&  corsSetting.startsWith("/") && corsSetting.endsWith("/");
 

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.common.util.concurrent;
 
+import java.util.Collections;
 import java.util.Deque;
 import java.util.Queue;
 import java.util.Set;
@@ -29,7 +30,6 @@ import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.LinkedTransferQueue;
 
-import com.google.common.collect.Sets;
 
 /**
  *
@@ -67,7 +67,7 @@ public abstract class ConcurrentCollections {
     }
 
     public static <V> Set<V> newConcurrentSet() {
-        return Sets.newSetFromMap(ConcurrentCollections.<V, Boolean>newConcurrentMap());
+        return Collections.newSetFromMap(ConcurrentCollections.<V, Boolean>newConcurrentMap());
     }
 
     public static <T> Queue<T> newQueue() {

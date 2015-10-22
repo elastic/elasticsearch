@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.index.mapper.geo;
 
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -28,19 +31,25 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
+import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.isIn;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
-    @Test
     public void testLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
@@ -62,7 +71,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testLatLonValuesWithGeohash() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true).endObject().endObject()
@@ -78,10 +86,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.rootDoc().get("point.geohash"), equalTo(XGeoHashUtils.stringEncode(1.3, 1.2)));
     }
 
-    @Test
     public void testLatLonInOneValueWithGeohash() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true).endObject().endObject()
@@ -97,10 +104,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.rootDoc().get("point.geohash"), equalTo(XGeoHashUtils.stringEncode(1.3, 1.2)));
     }
 
-    @Test
     public void testGeoHashIndexValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true).endObject().endObject()
@@ -110,16 +116,15 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("point", GeoHashUtils.encode(1.2, 1.3))
+                .field("point", XGeoHashUtils.stringEncode(1.3, 1.2))
                 .endObject()
                 .bytes());
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.encode(1.2, 1.3)));
+        assertThat(doc.rootDoc().get("point.geohash"), equalTo(XGeoHashUtils.stringEncode(1.3, 1.2)));
     }
 
-    @Test
     public void testGeoHashValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
@@ -129,7 +134,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
-                .field("point", GeoHashUtils.encode(1.2, 1.3))
+                .field("point", XGeoHashUtils.stringEncode(1.3, 1.2))
                 .endObject()
                 .bytes());
 
@@ -138,7 +143,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 
-    @Test
     public void testNormalizeLatLonValuesDefault() throws Exception {
         // default to normalize
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -173,7 +177,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), equalTo("-1.0,-179.0"));
     }
 
-    @Test
     public void testValidateLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("coerce", false)
@@ -234,7 +237,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testNoValidateLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("coerce", false)
@@ -275,7 +277,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .bytes());
     }
 
-    @Test
     public void testLatLonValuesStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
@@ -297,7 +298,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testArrayLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
@@ -324,7 +324,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 
-    @Test
     public void testLatLonInOneValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
@@ -343,7 +342,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testLatLonInOneValueStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
@@ -364,7 +362,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testLatLonInOneValueArray() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
@@ -391,7 +388,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
     }
 
-    @Test
     public void testLonLatArray() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
@@ -410,7 +406,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testLonLatArrayDynamic() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startArray("dynamic_templates").startObject()
@@ -431,7 +426,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testLonLatArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
@@ -452,7 +446,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
     }
 
-    @Test
     public void testLonLatArrayArrayStored() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("store", "yes").endObject().endObject()
@@ -483,7 +476,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     /**
      * Test that expected exceptions are thrown when creating a new index with deprecated options
      */
-    @Test
     public void testOptionDeprecation() throws Exception {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         // test deprecation exceptions on newly created indexes
@@ -558,7 +550,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
     /**
      * Test backward compatibility
      */
-    @Test
     public void testBackwardCompatibleOptions() throws Exception {
         // backward compatibility testing
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
@@ -610,7 +601,6 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(parser.parse(mapping).mapping().toString(), containsString("\"coerce\":true"));
     }
 
-    @Test
     public void testGeoPointMapperMerge() throws Exception {
         String stage1Mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true).field("geohash", true)
@@ -639,5 +629,53 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         stage2 = parser.parse(stage2Mapping);
         mergeResult = stage1.merge(stage2.mapping(), false, false);
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
+    }
+
+    public void testGeoHashSearch() throws Exception {
+        // create a geo_point mapping with geohash enabled and random (between 1 and 12) geohash precision
+        int precision = randomIntBetween(1, 12);
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("pin").startObject("properties").startObject("location")
+                .field("type", "geo_point").field("geohash", true).field("geohash_precision", precision).field("store", true).endObject()
+                .endObject().endObject().endObject().string();
+
+        // create index and add a test point (dr5regy6rc6z)
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test").addMapping("pin", mapping);
+        mappingRequest.execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "pin", "1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 40.7143528)
+                .field("lon", -74.0059731).endObject().endObject()).setRefresh(true).execute().actionGet();
+
+        // match all search with geohash field
+        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        Map<String, SearchHitField> m = searchResponse.getHits().getAt(0).getFields();
+
+        // ensure single geohash was indexed
+        assertEquals("dr5regy6rc6y".substring(0, precision), m.get("location.geohash").value());
+    }
+
+    public void testGeoHashSearchWithPrefix() throws Exception {
+        // create a geo_point mapping with geohash enabled and random (between 1 and 12) geohash precision
+        int precision = randomIntBetween(1, 12);
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("pin").startObject("properties").startObject("location")
+                .field("type", "geo_point").field("geohash_prefix", true).field("geohash_precision", precision).field("store", true)
+                .endObject().endObject().endObject().endObject().string();
+
+        // create index and add a test point (dr5regy6rc6z)
+        CreateIndexRequestBuilder mappingRequest = client().admin().indices().prepareCreate("test").addMapping("pin", mapping);
+        mappingRequest.execute().actionGet();
+        client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
+        client().prepareIndex("test", "pin", "1").setSource(jsonBuilder().startObject().startObject("location").field("lat", 40.7143528)
+                .field("lon", -74.0059731).endObject().endObject()).setRefresh(true).execute().actionGet();
+
+        // match all search with geohash field (includes prefixes)
+        SearchResponse searchResponse = client().prepareSearch().addField("location.geohash").setQuery(matchAllQuery()).execute().actionGet();
+        Map<String, SearchHitField> m = searchResponse.getHits().getAt(0).getFields();
+
+        List<Object> hashes = m.get("location.geohash").values();
+
+        final int numHashes = hashes.size();
+        for(int i=0; i<numHashes; ++i) {
+            assertEquals("dr5regy6rc6y".substring(0, numHashes-i), hashes.get(i));
+        }
     }
 }

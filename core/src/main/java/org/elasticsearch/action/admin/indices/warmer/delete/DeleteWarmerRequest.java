@@ -42,13 +42,13 @@ public class DeleteWarmerRequest extends AcknowledgedRequest<DeleteWarmerRequest
     private IndicesOptions indicesOptions = IndicesOptions.fromOptions(false, false, true, false);
     private String[] indices = Strings.EMPTY_ARRAY;
 
-    DeleteWarmerRequest() {
+    public DeleteWarmerRequest() {
     }
 
     /**
      * Constructs a new delete warmer request for the specified name.
      *
-     * @param names: the name (or wildcard expression) of the warmer to match, null to delete all.
+     * @param names the name (or wildcard expression) of the warmer to match, null to delete all.
      */
     public DeleteWarmerRequest(String... names) {
         names(names);

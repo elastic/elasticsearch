@@ -42,10 +42,10 @@
 # Be aware that you will be entirely responsible for populating the needed
 # environment variables.
 
-
 # Maven will replace the project.name with elasticsearch below. If that
 # hasn't been done, we assume that this is not a packaged version and the
 # user has forgotten to run Maven to create a package.
+
 IS_PACKAGED_VERSION='${project.parent.artifactId}'
 if [ "$IS_PACKAGED_VERSION" != "distributions" ]; then
     cat >&2 << EOF
@@ -113,6 +113,14 @@ if [ -z "$ES_CLASSPATH" ]; then
     exit 1
 fi
 
+# don't let JAVA_TOOL_OPTIONS slip in (e.g. crazy agents in ubuntu)
+# works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
+if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
+    echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+    echo "Please pass JVM parameters via JAVA_OPTS instead"
+    unset JAVA_TOOL_OPTIONS
+fi
+
 # Special-case path variables.
 case `uname` in
     CYGWIN*)
@@ -134,6 +142,16 @@ if [ -z "$daemonized" ] ; then
 else
     exec "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Des.path.home="$ES_HOME" -cp "$ES_CLASSPATH" \
           org.elasticsearch.bootstrap.Elasticsearch start "$@" <&- &
+    retval=$?
+    pid=$!
+    [ $retval -eq 0 ] || exit $retval
+    if [ ! -z "$ES_STARTUP_SLEEP_TIME" ]; then
+      sleep $ES_STARTUP_SLEEP_TIME
+    fi
+    if ! ps -p $pid > /dev/null ; then
+      exit 1
+    fi
+    exit 0
 fi
 
 exit $?

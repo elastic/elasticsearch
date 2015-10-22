@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.blobstore.support;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;

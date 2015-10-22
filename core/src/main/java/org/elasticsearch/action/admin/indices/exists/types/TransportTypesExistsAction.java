@@ -41,7 +41,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
     @Inject
     public TransportTypesExistsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, TypesExistsRequest.class);
+        super(settings, TypesExistsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, TypesExistsRequest::new);
     }
 
     @Override
@@ -74,7 +74,7 @@ public class TransportTypesExistsAction extends TransportMasterNodeReadAction<Ty
                 return;
             }
 
-            ImmutableOpenMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).mappings();
+            ImmutableOpenMap<String, MappingMetaData> mappings = state.metaData().getIndices().get(concreteIndex).getMappings();
             if (mappings.isEmpty()) {
                 listener.onResponse(new TypesExistsResponse(false));
                 return;

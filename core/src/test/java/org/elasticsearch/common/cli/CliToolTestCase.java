@@ -154,7 +154,7 @@ public abstract class CliToolTestCase extends ESTestCase {
         List<String> nonEmptyLines = new ArrayList<>();
         for (String line : terminal.getTerminalOutput()) {
             String originalPrintedLine = line.replaceAll(System.lineSeparator(), "");
-            if (com.google.common.base.Strings.isNullOrEmpty(originalPrintedLine)) {
+            if (Strings.isNullOrEmpty(originalPrintedLine)) {
                 nonEmptyLines.add(originalPrintedLine);
             }
         }

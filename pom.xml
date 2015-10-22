@@ -39,13 +39,17 @@
         <jvm.executable>${java.home}${file.separator}bin${file.separator}java</jvm.executable>
         <maven.compiler.source>1.8</maven.compiler.source>
         <maven.compiler.target>1.8</maven.compiler.target>
+        <!-- Path warnings must be ignored because maven doesnt create the classes output
+             dir when no source files exist (eg for distribution or qa modules) -->
+        <xlint.options>-Xlint:-path</xlint.options>
+        <doclint.options>-Xdoclint:-missing</doclint.options>
 
         <!-- libraries -->
         <lucene.version>5.4.0</lucene.version>
-        <lucene.snapshot.revision>1701068</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1708254</lucene.snapshot.revision>
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
-        <testframework.version>2.1.16</testframework.version>
-        <jackson.version>2.5.3</jackson.version>
+        <testframework.version>2.1.17</testframework.version>
+        <jackson.version>2.6.2</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
         <jacoco.version>0.7.5.201505241946</jacoco.version>
@@ -72,7 +76,7 @@
         <tests.timezone>random</tests.timezone>
         <es.logger.level>ERROR</es.logger.level>
         <tests.heap.size>512m</tests.heap.size>
-        <tests.heapdump.path>${basedir}/logs/</tests.heapdump.path>
+        <tests.heapdump.path>${project.build.directory}/heapdump/</tests.heapdump.path>
         <tests.topn>5</tests.topn>
         <execution.hint.file>.local-${elasticsearch.version}-execution-hints.log</execution.hint.file>
         <execution.hint.integ.file>.local-${elasticsearch.version}-integ-execution-hints.log</execution.hint.integ.file>
@@ -112,8 +116,8 @@
         <tests.ifNoTests>fail</tests.ifNoTests>
         <skip.unit.tests>${skipTests}</skip.unit.tests>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
-        <integ.scratch>${project.build.directory}/integ-tests</integ.scratch>
-        <integ.deps>${project.build.directory}/integ-deps</integ.deps>
+        <integ.scratch>${project.build.directory}/integ tests</integ.scratch>
+        <integ.deps>${project.build.directory}/integ deps</integ.deps>
         <integ.temp>${integ.scratch}/temp</integ.temp>
         <integ.http.port>9400</integ.http.port>
         <integ.transport.port>9500</integ.transport.port>
@@ -279,12 +283,6 @@
                 <version>${lucene.maven.version}</version>
             </dependency>
             <dependency>
-                <groupId>org.apache.lucene</groupId>
-                <artifactId>lucene-expressions</artifactId>
-                <version>${lucene.maven.version}</version>
-                <optional>true</optional>
-            </dependency>
-            <dependency>
                 <groupId>com.spatial4j</groupId>
                 <artifactId>spatial4j</artifactId>
                 <version>0.4.1</version>
@@ -304,7 +302,7 @@
             <dependency>
                 <groupId>com.github.spullara.mustache.java</groupId>
                 <artifactId>compiler</artifactId>
-                <version>0.8.13</version>
+                <version>0.9.1</version>
             </dependency>
 
             <!-- Used in plugins -->
@@ -332,12 +330,6 @@
                 <groupId>org.apache.lucene</groupId>
                 <artifactId>lucene-analyzers-smartcn</artifactId>
                 <version>${lucene.maven.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava</artifactId>
-                <version>18.0</version>
             </dependency>
 
             <dependency>
@@ -386,7 +378,7 @@
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty</artifactId>
-                <version>3.10.3.Final</version>
+                <version>3.10.5.Final</version>
             </dependency>
 
             <dependency>
@@ -411,13 +403,6 @@
                 <groupId>commons-cli</groupId>
                 <artifactId>commons-cli</artifactId>
                 <version>1.3.1</version>
-            </dependency>
-
-            <dependency>
-                <groupId>org.codehaus.groovy</groupId>
-                <artifactId>groovy-all</artifactId>
-                <version>2.4.4</version>
-                <classifier>indy</classifier>
             </dependency>
 
             <dependency>
@@ -459,6 +444,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
+                    <version>1.4.1</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -503,7 +489,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-assembly-plugin</artifactId>
-                    <version>2.5.5</version>
+                    <version>2.6</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -523,7 +509,6 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-enforcer-plugin</artifactId>
-                    <version>1.4.1</version>
                     <executions>
                         <execution>
                             <id>enforce-versions</id>
@@ -558,6 +543,21 @@
                                 <goal>display-info</goal>
                             </goals>
                         </execution>
+                        <execution>
+                            <id>enforce-java-home-is-set</id>
+                            <goals>
+                                <goal>enforce</goal>
+                            </goals>
+                            <configuration>
+                                <rules>
+                                    <requireEnvironmentVariable>
+                                        <variableName>JAVA_HOME</variableName>
+                                        <message>"JAVA_HOME must be set and point to the jdk to run the tests"</message>
+                                    </requireEnvironmentVariable>
+                                </rules>
+                                <fail>true</fail>
+                            </configuration>
+                        </execution>
                     </executions>
                 </plugin>
                 <plugin>
@@ -574,8 +574,14 @@
                              be fixed in version > 3.1
                          -->
                         <useIncrementalCompilation>false</useIncrementalCompilation>
+                        <showWarnings>true</showWarnings>
                         <compilerArgs>
                             <arg>-XDignore.symbol.file</arg>
+                            <arg>-Xlint:all</arg>
+                            <arg>${xlint.options}</arg>
+                            <arg>-Xdoclint:all/private</arg>
+                            <arg>${doclint.options}</arg>
+                            <arg>${javac.werror}</arg>
                         </compilerArgs>
                     </configuration>
                 </plugin>
@@ -626,6 +632,8 @@
                             <tests.cluster>${tests.cluster}</tests.cluster>
                             <tests.iters>${tests.iters}</tests.iters>
                             <tests.project>${project.groupId}:${project.artifactId}</tests.project>
+                            <!-- needed to know which project we are in for plugin permissions -->
+                            <tests.artifact>${project.artifactId}</tests.artifact>
                             <tests.maxfailures>${tests.maxfailures}</tests.maxfailures>
                             <tests.failfast>${tests.failfast}</tests.failfast>
                             <tests.class>${tests.class}</tests.class>
@@ -676,6 +684,7 @@
                                     showStatusFailure="true"
                                     showStatusIgnored="true"
                                     showSuiteSummary="true"
+                                    showNumFailures="30"
                                     timestamps="false">
                                 <filtertrace>
                                     <!-- custom filters: we carefully only omit test infra noise here -->
@@ -818,7 +827,7 @@
                 <plugin>
                     <groupId>de.thetaphi</groupId>
                     <artifactId>forbiddenapis</artifactId>
-                    <version>1.8</version>
+                    <version>2.0</version>
 
                     <executions>
                         <execution>
@@ -971,8 +980,7 @@
                             <headerDefinition>${elasticsearch.license.headerDefinition}</headerDefinition>
                         </headerDefinitions>
                         <includes>
-                            <include>src/main/java/org/elasticsearch/**/*.java</include>
-                            <include>src/test/java/org/elasticsearch/**/*.java</include>
+                            <include>src/**/*.java</include>
                         </includes>
                     </configuration>
                     <executions>
@@ -1010,10 +1018,8 @@ encoding/<project>=UTF-8
                                 <name>.settings/org.eclipse.jdt.core.prefs</name>
                                 <content>
                                <![CDATA[eclipse.preferences.version=1
-org.eclipse.jdt.core.compiler.annotation.inheritNullAnnotations=enabled
-org.eclipse.jdt.core.compiler.annotation.missingNonNullByDefaultAnnotation=ignore
-org.eclipse.jdt.core.compiler.annotation.nullable=org.elasticsearch.common.Nullable
-org.eclipse.jdt.core.compiler.annotation.nullanalysis=enabled
+# Shut down null analysis because we don't have all the required annotations (Nonnull and NonNullByDefault).
+org.eclipse.jdt.core.compiler.annotation.nullanalysis=disabled
 org.eclipse.jdt.core.compiler.codegen.targetPlatform=1.8
 org.eclipse.jdt.core.compiler.compliance=1.8
 org.eclipse.jdt.core.compiler.problem.forbiddenReference=warning
@@ -1106,6 +1112,23 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <artifactId>maven-antrun-plugin</artifactId>
                     <version>1.8</version>
                     <executions>
+                        <!-- remove this hack when maven works with java 9 properly -->
+                        <execution>
+                            <id>set-werror</id>
+                            <phase>validate</phase>
+                            <goals>
+                                <goal>run</goal>
+                            </goals>
+                            <configuration>
+                                <target>
+                                    <!-- if we are on java 1.9.* we turn off Werror or maven crushes! -->
+                                    <condition property="javac.werror" value="-Aboguskey=bogusvalue" else="-Werror" >
+                                        <matches pattern="1\.9\..+$" string="${java.runtime.version}" />
+                                    </condition>
+                                </target>
+                                <exportAntProperties>true</exportAntProperties>
+                            </configuration>
+                        </execution>
                         <execution>
                             <id>check-invalid-patterns</id>
                             <phase>validate</phase>
@@ -1223,10 +1246,14 @@ org.eclipse.jdt.ui.text.custom_code_templates=<?xml version\="1.0" encoding\="UT
                     <version>2.0.0</version>
                 </plugin>
                 <plugin>
-                    <!-- We just declare which plugin version to use. Each project can have then its own settings -->
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-javadoc-plugin</artifactId>
                     <version>2.10.3</version>
+                    <configuration>
+                        <!-- Doclint defaults to very strict. While it'd be great to have wonderful Javadocs we
+                             prefer working Javadocs over total failure. -->
+                        <additionalparam>-Xdoclint:none</additionalparam>
+                    </configuration>
                 </plugin>
                 <plugin>
                     <!-- We just declare which plugin version to use. Each project can have then its own settings -->

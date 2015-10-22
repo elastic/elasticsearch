@@ -20,13 +20,9 @@
 package org.elasticsearch.indices;
 
 import org.apache.lucene.analysis.hunspell.Dictionary;
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParser;
-import org.elasticsearch.index.query.QueryParsingException;
-import org.elasticsearch.index.query.TermQueryParser;
+import org.elasticsearch.index.query.*;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -39,20 +35,26 @@ public class IndicesModuleTests extends ModuleTestCase {
         public String[] names() {
             return new String[] {"fake-query-parser"};
         }
+
         @Override
-        public Query parse(QueryParseContext parseContext) throws IOException, QueryParsingException {
+        public QueryBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+            return null;
+        }
+
+        @Override
+        public QueryBuilder getBuilderPrototype() {
             return null;
         }
     }
 
     public void testRegisterQueryParser() {
-        IndicesModule module = new IndicesModule(Settings.EMPTY);
+        IndicesModule module = new IndicesModule();
         module.registerQueryParser(FakeQueryParser.class);
         assertSetMultiBinding(module, QueryParser.class, FakeQueryParser.class);
     }
 
     public void testRegisterQueryParserDuplicate() {
-        IndicesModule module = new IndicesModule(Settings.EMPTY);
+        IndicesModule module = new IndicesModule();
         try {
             module.registerQueryParser(TermQueryParser.class);
         } catch (IllegalArgumentException e) {
@@ -61,7 +63,7 @@ public class IndicesModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterHunspellDictionary() throws Exception {
-        IndicesModule module = new IndicesModule(Settings.EMPTY);
+        IndicesModule module = new IndicesModule();
         InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
         InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
         Dictionary dictionary = new Dictionary(aff, dic);
@@ -70,7 +72,7 @@ public class IndicesModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterHunspellDictionaryDuplicate() {
-        IndicesModule module = new IndicesModule(Settings.EMPTY);
+        IndicesModule module = new IndicesModule();
         try {
             module.registerQueryParser(TermQueryParser.class);
         } catch (IllegalArgumentException e) {

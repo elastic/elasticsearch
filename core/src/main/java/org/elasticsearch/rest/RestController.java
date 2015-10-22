@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -30,18 +29,21 @@ import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.elasticsearch.rest.RestStatus.*;
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
+import static org.elasticsearch.rest.RestStatus.OK;
 
 /**
  *
  */
 public class RestController extends AbstractLifecycleComponent<RestController> {
-
-    private ImmutableSet<String> relevantHeaders = ImmutableSet.of();
-
     private final PathTrie<RestHandler> getHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> postHandlers = new PathTrie<>(RestUtils.REST_DECODER);
     private final PathTrie<RestHandler> putHandlers = new PathTrie<>(RestUtils.REST_DECODER);
@@ -50,6 +52,8 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     private final PathTrie<RestHandler> optionsHandlers = new PathTrie<>(RestUtils.REST_DECODER);
 
     private final RestHandlerFilter handlerFilter = new RestHandlerFilter();
+
+    private Set<String> relevantHeaders = emptySet();
 
     // non volatile since the assumption is that pre processors are registered on startup
     private RestFilter[] filters = new RestFilter[0];
@@ -81,7 +85,10 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling this method.
      */
     public synchronized void registerRelevantHeaders(String... headers) {
-        relevantHeaders = new ImmutableSet.Builder<String>().addAll(relevantHeaders).add(headers).build();
+        Set<String> newRelevantHeaders = new HashSet<>(relevantHeaders.size() + headers.length);
+        newRelevantHeaders.addAll(relevantHeaders);
+        Collections.addAll(newRelevantHeaders, headers);
+        relevantHeaders = unmodifiableSet(newRelevantHeaders);
     }
 
     /**
@@ -89,7 +96,7 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
      * its corresponding {@link org.elasticsearch.transport.TransportRequest}(s).
      * By default no headers get copied but it is possible to extend this behaviour via plugins by calling {@link #registerRelevantHeaders(String...)}.
      */
-    public ImmutableSet<String> relevantHeaders() {
+    public Set<String> relevantHeaders() {
         return relevantHeaders;
     }
 
@@ -179,8 +186,6 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
 
     /**
      * Checks the request parameters against enabled settings for error trace support
-     * @param request
-     * @param channel
      * @return true if the request does not have any parameters that conflict with system settings
      */
     boolean checkRequestParameters(final RestRequest request, final RestChannel channel) {

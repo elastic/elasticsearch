@@ -35,7 +35,6 @@ import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.HashSet;
@@ -47,8 +46,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class StoredNumericValuesTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testBytesAndNumericRepresentation() throws Exception {
         IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
 

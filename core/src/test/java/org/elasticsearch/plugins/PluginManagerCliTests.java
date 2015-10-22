@@ -19,17 +19,20 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.net.MalformedURLException;
+import java.nio.file.Path;
 
+import static org.elasticsearch.common.cli.CliTool.ExitStatus.IO_ERROR;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK_AND_EXIT;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 
 public class PluginManagerCliTests extends CliToolTestCase {
-
-    @Test
     public void testHelpWorks() throws IOException {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
         assertThat(new PluginManagerCliParser(terminal).execute(args("--help")), is(OK_AND_EXIT));
@@ -49,5 +52,14 @@ public class PluginManagerCliTests extends CliToolTestCase {
         terminal.getTerminalOutput().clear();
         assertThat(new PluginManagerCliParser(terminal).execute(args("list -h")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-list.help");
+    }
+
+    public void testUrlSpacesInPath() throws MalformedURLException {
+        CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
+        Path tmpDir = createTempDir().resolve("foo deps");
+        String finalDir = tmpDir.toAbsolutePath().toUri().toURL().toString();
+        logger.warn(finalDir);
+        CliTool.ExitStatus execute = new PluginManagerCliParser(terminal).execute(args("install " + finalDir));
+        assertThat(execute.status(), is(IO_ERROR.status()));
     }
 }

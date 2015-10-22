@@ -19,8 +19,7 @@
 
 package org.elasticsearch.common.io;
 
-import com.google.common.base.Charsets;
-import com.google.common.base.Preconditions;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.util.Callback;
 
 import java.io.BufferedReader;
@@ -33,13 +32,14 @@ import java.io.StringWriter;
 import java.io.Writer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Simple utility methods for file and stream copying.
  * All copy methods use a block size of 4096 bytes,
  * and close all affected streams when done.
- * <p/>
- * <p>Mainly for use within the framework,
+ * <p>
+ * Mainly for use within the framework,
  * but also useful for application code.
  */
 public abstract class Streams {
@@ -66,8 +66,8 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static long copy(InputStream in, OutputStream out, byte[] buffer) throws IOException {
-        Preconditions.checkNotNull(in, "No InputStream specified");
-        Preconditions.checkNotNull(out, "No OutputStream specified");
+        Objects.requireNonNull(in, "No InputStream specified");
+        Objects.requireNonNull(out, "No OutputStream specified");
         try {
             long byteCount = 0;
             int bytesRead;
@@ -100,8 +100,8 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static void copy(byte[] in, OutputStream out) throws IOException {
-        Preconditions.checkNotNull(in, "No input byte array specified");
-        Preconditions.checkNotNull(out, "No OutputStream specified");
+        Objects.requireNonNull(in, "No input byte array specified");
+        Objects.requireNonNull(out, "No OutputStream specified");
         try {
             out.write(in);
         } finally {
@@ -128,8 +128,8 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static int copy(Reader in, Writer out) throws IOException {
-        Preconditions.checkNotNull(in, "No Reader specified");
-        Preconditions.checkNotNull(out, "No Writer specified");
+        Objects.requireNonNull(in, "No Reader specified");
+        Objects.requireNonNull(out, "No Writer specified");
         try {
             int byteCount = 0;
             char[] buffer = new char[BUFFER_SIZE];
@@ -163,8 +163,8 @@ public abstract class Streams {
      * @throws IOException in case of I/O errors
      */
     public static void copy(String in, Writer out) throws IOException {
-        Preconditions.checkNotNull(in, "No input String specified");
-        Preconditions.checkNotNull(out, "No Writer specified");
+        Objects.requireNonNull(in, "No input String specified");
+        Objects.requireNonNull(out, "No Writer specified");
         try {
             out.write(in);
         } finally {
@@ -234,7 +234,7 @@ public abstract class Streams {
     }
 
     public static void readAllLines(InputStream input, Callback<String> callback) throws IOException {
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, Charsets.UTF_8))) {
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(input, StandardCharsets.UTF_8))) {
             String line;
             while ((line = reader.readLine()) != null) {
                 callback.handle(line);

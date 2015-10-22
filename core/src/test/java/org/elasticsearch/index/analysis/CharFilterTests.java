@@ -31,15 +31,12 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  */
 public class CharFilterTests extends ESTokenStreamTestCase {
-
-    @Test
     public void testMappingCharFilter() throws Exception {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
@@ -60,14 +57,13 @@ public class CharFilterTests extends ESTokenStreamTestCase {
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
-        
+
         assertTokenStreamContents(analyzer1.tokenStream("test", "jeff quit phish"), new String[]{"jeff", "qit", "fish"});
 
         // Repeat one more time to make sure that char filter is reinitialized correctly
         assertTokenStreamContents(analyzer1.tokenStream("test", "jeff quit phish"), new String[]{"jeff", "qit", "fish"});
     }
 
-    @Test
     public void testHtmlStripCharFilter() throws Exception {
         Index index = new Index("test");
         Settings settings = settingsBuilder()

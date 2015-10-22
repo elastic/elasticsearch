@@ -19,7 +19,6 @@
 
 package org.elasticsearch.discovery;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -40,15 +39,14 @@ import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ZenFaultDetectionTests extends ESTestCase {
-
     protected ThreadPool threadPool;
 
     protected static final Version version0 = Version.fromId(/*0*/99);
@@ -65,9 +63,9 @@ public class ZenFaultDetectionTests extends ESTestCase {
         super.setUp();
         threadPool = new ThreadPool(getClass().getName());
         serviceA = build(Settings.builder().put("name", "TS_A").build(), version0);
-        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
+        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), version0);
         serviceB = build(Settings.builder().put("name", "TS_B").build(), version1);
-        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
+        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), version1);
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
@@ -129,7 +127,6 @@ public class ZenFaultDetectionTests extends ESTestCase {
         return builder.build();
     }
 
-    @Test
     public void testNodesFaultDetectionConnectOnDisconnect() throws InterruptedException {
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
@@ -178,9 +175,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
         assertThat(failureReason[0], matcher);
     }
 
-    @Test
     public void testMasterFaultDetectionConnectOnDisconnect() throws InterruptedException {
-
         Settings.Builder settings = Settings.builder();
         boolean shouldRetry = randomBoolean();
         // make sure we don't ping

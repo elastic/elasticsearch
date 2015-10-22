@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Sets;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,6 +29,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
@@ -211,7 +211,7 @@ public class HighlighterParseElement implements SearchParseElement {
                     }
                     fieldOptionsBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
                 } else if ("matched_fields".equals(fieldName) || "matchedFields".equals(fieldName)) {
-                    Set<String> matchedFields = Sets.newHashSet();
+                    Set<String> matchedFields = new HashSet<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         matchedFields.add(parser.text());
                     }

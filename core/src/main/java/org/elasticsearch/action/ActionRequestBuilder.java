@@ -19,11 +19,12 @@
 
 package org.elasticsearch.action;
 
-import com.google.common.base.Preconditions;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Objects;
 
 /**
  *
@@ -36,7 +37,7 @@ public abstract class ActionRequestBuilder<Request extends ActionRequest, Respon
     protected final ElasticsearchClient client;
 
     protected ActionRequestBuilder(ElasticsearchClient client, Action<Request, Response, RequestBuilder> action, Request request) {
-        Preconditions.checkNotNull(action, "action must not be null");
+        Objects.requireNonNull(action, "action must not be null");
         this.action = action;
         this.request = request;
         this.client = client;

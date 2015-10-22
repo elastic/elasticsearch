@@ -41,8 +41,6 @@ public class NativeMap implements Scriptable, Wrapper {
     /**
      * Construct
      *
-     * @param scope
-     * @param map
      * @return native map
      */
     public static NativeMap wrap(Scriptable scope, Map<Object, Object> map) {
@@ -51,9 +49,6 @@ public class NativeMap implements Scriptable, Wrapper {
 
     /**
      * Construct
-     *
-     * @param scope
-     * @param map
      */
     private NativeMap(Scriptable scope, Map<Object, Object> map) {
         this.parentScope = scope;

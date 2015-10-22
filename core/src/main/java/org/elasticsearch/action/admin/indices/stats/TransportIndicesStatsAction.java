@@ -53,7 +53,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
                                        TransportService transportService, IndicesService indicesService,
                                        ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, IndicesStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesStatsRequest.class, ThreadPool.Names.MANAGEMENT);
+                IndicesStatsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 
@@ -95,7 +95,7 @@ public class TransportIndicesStatsAction extends TransportBroadcastByNodeAction<
     @Override
     protected ShardStats shardOperation(IndicesStatsRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardRouting.shardId().id());
+        IndexShard indexShard = indexService.getShard(shardRouting.shardId().id());
         // if we don't have the routing entry yet, we need it stats wise, we treat it as if the shard is not ready yet
         if (indexShard.routingEntry() == null) {
             throw new ShardNotFoundException(indexShard.shardId());

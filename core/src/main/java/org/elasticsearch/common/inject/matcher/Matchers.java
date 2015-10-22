@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,9 +22,7 @@ import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Method;
-
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * Matcher implementations. Supports matching classes and methods.
@@ -73,7 +71,7 @@ public class Matchers {
         final Matcher<? super T> delegate;
 
         private Not(Matcher<? super T> delegate) {
-            this.delegate = checkNotNull(delegate, "delegate");
+            this.delegate = Objects.requireNonNull(delegate, "delegate");
         }
 
         @Override
@@ -103,8 +101,9 @@ public class Matchers {
     private static void checkForRuntimeRetention(
             Class<? extends Annotation> annotationType) {
         Retention retention = annotationType.getAnnotation(Retention.class);
-        checkArgument(retention != null && retention.value() == RetentionPolicy.RUNTIME,
-                "Annotation " + annotationType.getSimpleName() + " is missing RUNTIME retention");
+        if (retention == null || retention.value() != RetentionPolicy.RUNTIME) {
+            throw new IllegalArgumentException("Annotation " + annotationType.getSimpleName() + " is missing RUNTIME retention");
+        }
     }
 
     /**
@@ -121,7 +120,7 @@ public class Matchers {
         private final Class<? extends Annotation> annotationType;
 
         public AnnotatedWithType(Class<? extends Annotation> annotationType) {
-            this.annotationType = checkNotNull(annotationType, "annotation type");
+            this.annotationType = Objects.requireNonNull(annotationType, "annotation type");
             checkForRuntimeRetention(annotationType);
         }
 
@@ -163,7 +162,7 @@ public class Matchers {
         private final Annotation annotation;
 
         public AnnotatedWith(Annotation annotation) {
-            this.annotation = checkNotNull(annotation, "annotation");
+            this.annotation = Objects.requireNonNull(annotation, "annotation");
             checkForRuntimeRetention(annotation.annotationType());
         }
 
@@ -205,7 +204,7 @@ public class Matchers {
         private final Class<?> superclass;
 
         public SubclassesOf(Class<?> superclass) {
-            this.superclass = checkNotNull(superclass, "superclass");
+            this.superclass = Objects.requireNonNull(superclass, "superclass");
         }
 
         @Override
@@ -244,7 +243,7 @@ public class Matchers {
         private final Object value;
 
         public Only(Object value) {
-            this.value = checkNotNull(value, "value");
+            this.value = Objects.requireNonNull(value, "value");
         }
 
         @Override
@@ -283,7 +282,7 @@ public class Matchers {
         private final Object value;
 
         public IdenticalTo(Object value) {
-            this.value = checkNotNull(value, "value");
+            this.value = Objects.requireNonNull(value, "value");
         }
 
         @Override
@@ -323,7 +322,7 @@ public class Matchers {
         private final String packageName;
 
         public InPackage(Package targetPackage) {
-            this.targetPackage = checkNotNull(targetPackage, "package");
+            this.targetPackage = Objects.requireNonNull(targetPackage, "package");
             this.packageName = targetPackage.getName();
         }
 
@@ -410,7 +409,7 @@ public class Matchers {
         private final Matcher<? super Class<?>> returnType;
 
         public Returns(Matcher<? super Class<?>> returnType) {
-            this.returnType = checkNotNull(returnType, "return type matcher");
+            this.returnType = Objects.requireNonNull(returnType, "return type matcher");
         }
 
         @Override

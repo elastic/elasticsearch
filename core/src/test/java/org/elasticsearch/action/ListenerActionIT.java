@@ -25,7 +25,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicReference;
@@ -33,10 +32,7 @@ import java.util.concurrent.atomic.AtomicReference;
 /**
  */
 public class ListenerActionIT extends ESIntegTestCase {
-
-    @Test
-    public void verifyThreadedListeners() throws Throwable {
-
+    public void testThreadedListeners() throws Throwable {
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicReference<Throwable> failure = new AtomicReference<>();
         final AtomicReference<String> threadName = new AtomicReference<>();

@@ -32,15 +32,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchSourceCompressTests  extends ESSingleNodeTestCase {
-    
-    @Test
+public class SearchSourceCompressTests extends ESSingleNodeTestCase {
     public void testSourceCompressionLZF() throws IOException {
         final Compressor defaultCompressor = CompressorFactory.defaultCompressor();
         try {
@@ -84,7 +81,7 @@ public class SearchSourceCompressTests  extends ESSingleNodeTestCase {
         assertThat(getResponse.getSourceAsBytes(), equalTo(buildSource(10000).bytes().toBytes()));
 
         for (int i = 1; i < 100; i++) {
-            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.idsQuery("type1").ids(Integer.toString(i))).execute().actionGet();
+            SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.idsQuery("type1").addIds(Integer.toString(i))).execute().actionGet();
             assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
             assertThat(searchResponse.getHits().getAt(0).source(), equalTo(buildSource(i).bytes().toBytes()));
         }

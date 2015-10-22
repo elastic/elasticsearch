@@ -19,12 +19,13 @@
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.common.geo.GeoHashUtils;
+import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.search.aggregations.AggregationStreams;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -100,12 +101,12 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
 
         @Override
         public String getKeyAsString() {
-            return GeoHashUtils.toString(geohashAsLong);
+            return XGeoHashUtils.stringEncode(geohashAsLong);
         }
 
         @Override
         public GeoPoint getKey() {
-            return GeoHashUtils.decode(geohashAsLong);
+            return GeoPoint.fromGeohash(geohashAsLong);
         }
 
         @Override
@@ -283,5 +284,4 @@ public class InternalGeoHashGrid extends InternalMultiBucketAggregation<Internal
             return i > 0;
         }
     }
-
 }

@@ -22,7 +22,6 @@ package org.elasticsearch.search.indicesboost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
@@ -36,8 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class SimpleIndicesBoostSearchIT extends ESIntegTestCase {
-
-    @Test
     public void testIndicesBoost() throws Exception {
         assertHitCount(client().prepareSearch().setQuery(termQuery("test", "value")).get(), 0);
 

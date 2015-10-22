@@ -22,8 +22,6 @@ package org.elasticsearch.cluster.routing;
 import com.carrotsearch.hppc.IntSet;
 import com.carrotsearch.hppc.cursors.IntCursor;
 import com.carrotsearch.hppc.cursors.IntObjectCursor;
-import com.google.common.collect.Sets;
-import com.google.common.collect.UnmodifiableIterator;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -34,11 +32,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
 
 /**
@@ -136,9 +130,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         ArrayList<String> failures = new ArrayList<>();
 
         // check the number of shards
-        if (indexMetaData.numberOfShards() != shards().size()) {
-            Set<Integer> expected = Sets.newHashSet();
-            for (int i = 0; i < indexMetaData.numberOfShards(); i++) {
+        if (indexMetaData.getNumberOfShards() != shards().size()) {
+            Set<Integer> expected = new HashSet<>();
+            for (int i = 0; i < indexMetaData.getNumberOfShards(); i++) {
                 expected.add(i);
             }
             for (IndexShardRoutingTable indexShardRoutingTable : this) {
@@ -149,9 +143,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
         // check the replicas
         for (IndexShardRoutingTable indexShardRoutingTable : this) {
             int routingNumberOfReplicas = indexShardRoutingTable.size() - 1;
-            if (routingNumberOfReplicas != indexMetaData.numberOfReplicas()) {
+            if (routingNumberOfReplicas != indexMetaData.getNumberOfReplicas()) {
                 failures.add("Shard [" + indexShardRoutingTable.shardId().id()
-                        + "] routing table has wrong number of replicas, expected [" + indexMetaData.numberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
+                        + "] routing table has wrong number of replicas, expected [" + indexMetaData.getNumberOfReplicas() + "], got [" + routingNumberOfReplicas + "]");
             }
             for (ShardRouting shardRouting : indexShardRoutingTable) {
                 if (!shardRouting.index().equals(index())) {
@@ -163,7 +157,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     }
 
     @Override
-    public UnmodifiableIterator<IndexShardRoutingTable> iterator() {
+    public Iterator<IndexShardRoutingTable> iterator() {
         return shards.valuesIt();
     }
 
@@ -176,7 +170,7 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
      * @return number of distinct nodes this index has at least one shard allocated on
      */
     public int numberOfNodesShardsAreAllocatedOn(String... excludedNodes) {
-        Set<String> nodes = Sets.newHashSet();
+        Set<String> nodes = new HashSet<>();
         for (IndexShardRoutingTable shardRoutingTable : this) {
             for (ShardRouting shardRouting : shardRoutingTable) {
                 if (shardRouting.assignedToNode()) {
@@ -292,8 +286,8 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
     /**
      * A groups shards iterator where each groups is a single {@link ShardRouting} and a group
      * is created for each shard routing.
-     * <p/>
-     * <p>This basically means that components that use the {@link GroupShardsIterator} will iterate
+     * <p>
+     * This basically means that components that use the {@link GroupShardsIterator} will iterate
      * over *all* the shards (all the replicas) within the index.</p>
      */
     public GroupShardsIterator groupByAllIt() {
@@ -425,9 +419,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
-            for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId));
-                for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
+            for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.getIndex(), shardId));
+                for (int i = 0; i <= indexMetaData.getNumberOfReplicas(); i++) {
                     if (asNew && ignoreShards.contains(shardId)) {
                         // This shards wasn't completely snapshotted - restore it as new shard
                         indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(index, shardId, null, i == 0, unassignedInfo));
@@ -447,9 +441,9 @@ public class IndexRoutingTable extends AbstractDiffable<IndexRoutingTable> imple
             if (!shards.isEmpty()) {
                 throw new IllegalStateException("trying to initialize an index with fresh shards, but already has shards created");
             }
-            for (int shardId = 0; shardId < indexMetaData.numberOfShards(); shardId++) {
-                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.index(), shardId));
-                for (int i = 0; i <= indexMetaData.numberOfReplicas(); i++) {
+            for (int shardId = 0; shardId < indexMetaData.getNumberOfShards(); shardId++) {
+                IndexShardRoutingTable.Builder indexShardRoutingBuilder = new IndexShardRoutingTable.Builder(new ShardId(indexMetaData.getIndex(), shardId));
+                for (int i = 0; i <= indexMetaData.getNumberOfReplicas(); i++) {
                     indexShardRoutingBuilder.addShard(ShardRouting.newUnassigned(index, shardId, null, i == 0, unassignedInfo));
                 }
                 shards.put(shardId, indexShardRoutingBuilder.build());

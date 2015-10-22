@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.alias;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest.AliasActions;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,7 +37,11 @@ import org.elasticsearch.rest.action.admin.indices.alias.delete.AliasesNotFoundE
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 /**
  * Add/remove aliases action
@@ -51,7 +54,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
     public TransportIndicesAliasesAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                          ThreadPool threadPool, MetaDataIndexAliasesService indexAliasesService,
                                          ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesAliasesRequest.class);
+        super(settings, IndicesAliasesAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, IndicesAliasesRequest::new);
         this.indexAliasesService = indexAliasesService;
     }
 
@@ -68,7 +71,7 @@ public class TransportIndicesAliasesAction extends TransportMasterNodeAction<Ind
 
     @Override
     protected ClusterBlockException checkBlock(IndicesAliasesRequest request, ClusterState state) {
-        Set<String> indices = Sets.newHashSet();
+        Set<String> indices = new HashSet<>();
         for (AliasActions aliasAction : request.aliasActions()) {
             for (String index : aliasAction.indices()) {
                 indices.add(index);

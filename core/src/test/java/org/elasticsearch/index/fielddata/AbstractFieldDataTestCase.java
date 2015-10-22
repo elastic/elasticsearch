@@ -25,7 +25,10 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.RAMDirectory;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -35,10 +38,13 @@ import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperBuilders;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.After;
 import org.junit.Before;
+
+import java.io.IOException;
 
 import static org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import static org.hamcrest.Matchers.equalTo;
@@ -52,9 +58,8 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     protected MapperService mapperService;
     protected IndexWriter writer;
     protected LeafReaderContext readerContext;
-    protected IndexReader topLevelReader;
+    protected DirectoryReader topLevelReader;
     protected IndicesFieldDataCache indicesFieldDataCache;
-
     protected abstract FieldDataType getFieldDataType();
 
     protected boolean hasDocValues() {
@@ -89,7 +94,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else if (type.getType().equals("geo_point")) {
             fieldType = MapperBuilders.geoPointField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("_parent")) {
-            fieldType = new ParentFieldMapper.Builder().type(fieldName).build(context).fieldType();
+            fieldType = new ParentFieldMapper.Builder("_type").type(fieldName).build(context).fieldType();
         } else if (type.getType().equals("binary")) {
             fieldType = MapperBuilders.binaryField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else {
@@ -103,17 +108,18 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put("index.fielddata.cache", "none").build();
         indexService = createIndex("test", settings);
         mapperService = indexService.mapperService();
-        indicesFieldDataCache = indexService.injector().getInstance(IndicesFieldDataCache.class);
+        indicesFieldDataCache = getInstanceFromNode(IndicesFieldDataCache.class);
         ifdService = indexService.fieldData();
         // LogByteSizeMP to preserve doc ID order
         writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(new StandardAnalyzer()).setMergePolicy(new LogByteSizeMergePolicy()));
     }
 
-    protected LeafReaderContext refreshReader() throws Exception {
+    protected final LeafReaderContext refreshReader() throws Exception {
         if (readerContext != null) {
             readerContext.reader().close();
         }
-        LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader = DirectoryReader.open(writer, true));
+        topLevelReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(writer, true), new ShardId("foo", 1));
+        LeafReader reader = SlowCompositeReaderWrapper.wrap(topLevelReader);
         readerContext = reader.getContext();
         return readerContext;
     }
@@ -128,9 +134,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         writer.close();
     }
 
-    protected Nested createNested(Filter parentFilter, Filter childFilter) {
+    protected Nested createNested(IndexSearcher searcher, Query parentFilter, Query childFilter) throws IOException {
         BitsetFilterCache s = indexService.bitsetFilterCache();
-        return new Nested(s.getBitSetProducer(parentFilter), childFilter);
+        return new Nested(s.getBitSetProducer(parentFilter), searcher.createNormalizedWeight(childFilter, false));
     }
 
     public void testEmpty() throws Exception {
@@ -150,8 +156,5 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
             }
             previous = current;
         }
-
-
     }
-
 }

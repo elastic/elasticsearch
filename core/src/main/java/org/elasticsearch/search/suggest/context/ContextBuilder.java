@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.suggest.context;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -27,6 +26,7 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.SortedMap;
+import java.util.TreeMap;
 
 public abstract class ContextBuilder<E extends ContextMapping> {
 
@@ -57,14 +57,14 @@ public abstract class ContextBuilder<E extends ContextMapping> {
     }
 
     /**
-     * Create a new {@link CategoryMapping}
+     * Create a new {@link CategoryContextMapping.Builder}
      */
     public static CategoryContextMapping.Builder category(String name) {
         return new CategoryContextMapping.Builder(name, null);
     }
 
     /**
-     * Create a new {@link CategoryMapping} with default category
+     * Create a new {@link CategoryContextMapping.Builder} with default category
      * 
      * @param defaultCategory category to use, if it is not provided
      */
@@ -97,7 +97,7 @@ public abstract class ContextBuilder<E extends ContextMapping> {
             throws ElasticsearchParseException {
         if (configuration instanceof Map) {
             Map<String, Object> configurations = (Map<String, Object>)configuration;
-            SortedMap<String, ContextMapping> mappings = Maps.newTreeMap();
+            SortedMap<String, ContextMapping> mappings = new TreeMap<>();
             for (Entry<String,Object> config : configurations.entrySet()) {
                 String name = config.getKey();
                 mappings.put(name, loadMapping(name, (Map<String, Object>) config.getValue(), indexVersionCreated));

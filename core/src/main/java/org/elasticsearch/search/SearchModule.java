@@ -24,7 +24,6 @@ import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
-import org.elasticsearch.index.search.morelikethis.MoreLikeThisFetchService;
 import org.elasticsearch.search.action.SearchServiceTransportAction;
 import org.elasticsearch.search.aggregations.AggregationParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
@@ -67,17 +66,15 @@ import org.elasticsearch.search.aggregations.bucket.significant.UnmappedSignific
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
-import org.elasticsearch.search.aggregations.bucket.terms.DoubleTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.LongTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
-import org.elasticsearch.search.aggregations.bucket.terms.TermsParser;
-import org.elasticsearch.search.aggregations.bucket.terms.UnmappedTerms;
+import org.elasticsearch.search.aggregations.bucket.terms.*;
 import org.elasticsearch.search.aggregations.metrics.avg.AvgParser;
 import org.elasticsearch.search.aggregations.metrics.avg.InternalAvg;
 import org.elasticsearch.search.aggregations.metrics.cardinality.CardinalityParser;
 import org.elasticsearch.search.aggregations.metrics.cardinality.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.geobounds.GeoBoundsParser;
 import org.elasticsearch.search.aggregations.metrics.geobounds.InternalGeoBounds;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.GeoCentroidParser;
+import org.elasticsearch.search.aggregations.metrics.geocentroid.InternalGeoCentroid;
 import org.elasticsearch.search.aggregations.metrics.max.InternalMax;
 import org.elasticsearch.search.aggregations.metrics.max.MaxParser;
 import org.elasticsearch.search.aggregations.metrics.min.InternalMin;
@@ -111,6 +108,10 @@ import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucke
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.min.MinBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile.PercentilesBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.StatsBucketPipelineAggregator;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketParser;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended.ExtendedStatsBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketParser;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.sum.SumBucketPipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.bucketscript.BucketScriptParser;
@@ -147,7 +148,8 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.Suggesters;
 
-import java.util.*;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  *
@@ -251,7 +253,7 @@ public class SearchModule extends AbstractModule {
         for (Class<? extends ScoreFunctionParser> clazz : functionScoreParsers) {
             parserMapBinder.addBinding().to(clazz);
         }
-        bind(ScoreFunctionParserMapper.class);
+        bind(ScoreFunctionParserMapper.class).asEagerSingleton();
     }
 
     protected void configureHighlighters() {
@@ -288,6 +290,7 @@ public class SearchModule extends AbstractModule {
         multibinderAggParser.addBinding().to(ReverseNestedParser.class);
         multibinderAggParser.addBinding().to(TopHitsParser.class);
         multibinderAggParser.addBinding().to(GeoBoundsParser.class);
+        multibinderAggParser.addBinding().to(GeoCentroidParser.class);
         multibinderAggParser.addBinding().to(ScriptedMetricParser.class);
         multibinderAggParser.addBinding().to(ChildrenParser.class);
         for (Class<? extends Aggregator.Parser> parser : aggParsers) {
@@ -300,6 +303,8 @@ public class SearchModule extends AbstractModule {
         multibinderPipelineAggParser.addBinding().to(MinBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(AvgBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(SumBucketParser.class);
+        multibinderPipelineAggParser.addBinding().to(StatsBucketParser.class);
+        multibinderPipelineAggParser.addBinding().to(ExtendedStatsBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(PercentilesBucketParser.class);
         multibinderPipelineAggParser.addBinding().to(MovAvgParser.class);
         multibinderPipelineAggParser.addBinding().to(CumulativeSumParser.class);
@@ -333,8 +338,6 @@ public class SearchModule extends AbstractModule {
         bind(SearchPhaseController.class).asEagerSingleton();
         bind(FetchPhase.class).asEagerSingleton();
         bind(SearchServiceTransportAction.class).asEagerSingleton();
-        bind(MoreLikeThisFetchService.class).asEagerSingleton();
-
         if (searchServiceImpl == SearchService.class) {
             bind(SearchService.class).asEagerSingleton();
         } else {
@@ -357,6 +360,7 @@ public class SearchModule extends AbstractModule {
         InternalHDRPercentileRanks.registerStreams();
         InternalCardinality.registerStreams();
         InternalScriptedMetric.registerStreams();
+        InternalGeoCentroid.registerStreams();
 
         // buckets
         InternalGlobal.registerStreams();
@@ -393,7 +397,9 @@ public class SearchModule extends AbstractModule {
         MinBucketPipelineAggregator.registerStreams();
         AvgBucketPipelineAggregator.registerStreams();
         SumBucketPipelineAggregator.registerStreams();
-        PercentilesBucketPipelineAggregator.registerStreams();
+        StatsBucketPipelineAggregator.registerStreams();
+        ExtendedStatsBucketPipelineAggregator.registerStreams();
+        PercentilesBucketPipelineAggregator.registerStreams();        
         MovAvgPipelineAggregator.registerStreams();
         CumulativeSumPipelineAggregator.registerStreams();
         BucketScriptPipelineAggregator.registerStreams();

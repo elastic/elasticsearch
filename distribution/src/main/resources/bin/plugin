@@ -1,5 +1,6 @@
 #!/bin/sh
 
+
 CDPATH=""
 SCRIPT="$0"
 
@@ -21,17 +22,10 @@ ES_HOME=`dirname "$SCRIPT"`/..
 # make ELASTICSEARCH_HOME absolute
 ES_HOME=`cd "$ES_HOME"; pwd`
 
+
 # Sets the default values for elasticsearch variables used in this script
 if [ -z "$CONF_DIR" ]; then
   CONF_DIR="${packaging.plugin.default.config.dir}"
-
-  if [ -z "$CONF_FILE" ]; then
-    CONF_FILE="$CONF_DIR/elasticsearch.yml"
-  fi
-fi
-
-if [ -z "$CONF_FILE" ]; then
-  CONF_FILE="${packaging.plugin.default.config.file}"
 fi
 
 # The default env file is defined at building/packaging time.
@@ -59,10 +53,28 @@ if [ -n "$ES_ENV_FILE" ]; then
   fi
 fi
 
+# don't let JAVA_TOOL_OPTIONS slip in (e.g. crazy agents in ubuntu)
+# works around https://bugs.launchpad.net/ubuntu/+source/jayatana/+bug/1441487
+if [ "x$JAVA_TOOL_OPTIONS" != "x" ]; then
+    echo "Warning: Ignoring JAVA_TOOL_OPTIONS=$JAVA_TOOL_OPTIONS"
+    unset JAVA_TOOL_OPTIONS
+fi
+
+# CONF_FILE setting was removed
+if [ ! -z "$CONF_FILE" ]; then
+    echo "CONF_FILE setting is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed."
+    exit 1
+fi
+
 if [ -x "$JAVA_HOME/bin/java" ]; then
     JAVA=$JAVA_HOME/bin/java
 else
     JAVA=`which java`
+fi
+
+if [ ! -x "$JAVA" ]; then
+    echo "Could not find any executable java binary. Please install java in your PATH or set JAVA_HOME"
+    exit 1
 fi
 
 # real getopt cannot be used because we need to hand options over to the PluginManager
@@ -93,19 +105,9 @@ if [ -e "$CONF_DIR" ]; then
   esac
 fi
 
-if [ -e "$CONF_FILE" ]; then
-  case "$properties" in
-    *-Des.default.config=*|*-Des.config=*)
-    ;;
-    *)
-      properties="$properties -Des.default.config=\"$CONF_FILE\""
-    ;;
-  esac
-fi
-
 # full hostname passed through cut for portability on systems that do not support hostname -s
 # export on separate line for shells that do not support combining definition and export
 HOSTNAME=`hostname | cut -d. -f1`
 export HOSTNAME
 
-eval "$JAVA" $JAVA_OPTS $ES_JAVA_OPTS -Xmx64m -Xms16m -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args
+eval "$JAVA" -client -Delasticsearch -Des.path.home="\"$ES_HOME\"" $properties -cp "\"$ES_HOME/lib/*\"" org.elasticsearch.plugins.PluginManagerCliParser $args

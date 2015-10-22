@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -39,7 +38,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 /** Tests for the noop breakers, which are non-dynamic settings */
 @ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE, numDataNodes=0)
 public class CircuitBreakerNoopIT extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -52,7 +50,6 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testNoopRequestBreaker() throws Exception {
         assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();
@@ -70,7 +67,6 @@ public class CircuitBreakerNoopIT extends ESIntegTestCase {
         // no exception because the breaker is a noop
     }
 
-    @Test
     public void testNoopFielddataBreaker() throws Exception {
         assertAcked(prepareCreate("cb-test", 1, settingsBuilder().put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))));
         Client client = client();

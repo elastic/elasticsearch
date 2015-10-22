@@ -19,14 +19,11 @@
 
 package org.elasticsearch.index;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -36,14 +33,16 @@ import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static java.util.Collections.singleton;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -76,7 +75,6 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         return 1;
     }
 
-    @Test
     public void testNetworkPartitionDuringReplicaIndexOp() throws Exception {
         final String INDEX = "testidx";
 
@@ -118,12 +116,12 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         TransportService mockTransportService = internalCluster().getInstance(TransportService.class, primaryNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
                 internalCluster().getInstance(Discovery.class, replicaNode).localNode(),
-                ImmutableSet.of(IndexAction.NAME + "[r]")
+                singleton(IndexAction.NAME + "[r]")
         );
         mockTransportService = internalCluster().getInstance(TransportService.class, replicaNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
                 internalCluster().getInstance(Discovery.class, primaryNode).localNode(),
-                ImmutableSet.of(IndexAction.NAME + "[r]")
+                singleton(IndexAction.NAME + "[r]")
         );
 
         logger.info("--> indexing into primary");
@@ -142,12 +140,7 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         state = getNodeClusterState(randomFrom(nodes.toArray(Strings.EMPTY_ARRAY)));
         RoutingNodes rn = state.getRoutingNodes();
         logger.info("--> counts: total: {}, unassigned: {}, initializing: {}, relocating: {}, started: {}",
-                rn.shards(new Predicate<ShardRouting>() {
-                    @Override
-                    public boolean apply(ShardRouting input) {
-                        return true;
-                    }
-                }).size(),
+                rn.shards(input -> true).size(),
                 rn.shardsWithState(UNASSIGNED).size(),
                 rn.shardsWithState(INITIALIZING).size(),
                 rn.shardsWithState(RELOCATING).size(),

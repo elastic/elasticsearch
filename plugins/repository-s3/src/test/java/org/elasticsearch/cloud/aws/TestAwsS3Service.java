@@ -38,7 +38,7 @@ public class TestAwsS3Service extends InternalAwsS3Service {
             return "plugs in mock s3 service";
         }
         public void onModule(S3Module s3Module) {
-            s3Module.s3ServiceImpl = TestAwsS3Service.class;
+            S3Module.s3ServiceImpl = TestAwsS3Service.class;
         }
     }
 

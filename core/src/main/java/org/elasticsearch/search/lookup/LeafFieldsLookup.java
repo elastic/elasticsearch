@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.search.lookup;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.index.LeafReader;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
@@ -31,8 +28,11 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.singletonMap;
 
 /**
  *
@@ -48,7 +48,7 @@ public class LeafFieldsLookup implements Map {
 
     private int docId = -1;
 
-    private final Map<String, FieldLookup> cachedFieldData = Maps.newHashMap();
+    private final Map<String, FieldLookup> cachedFieldData = new HashMap<>();
 
     private final SingleFieldsVisitor fieldVisitor;
 
@@ -149,7 +149,7 @@ public class LeafFieldsLookup implements Map {
             try {
                 reader.document(docId, fieldVisitor);
                 fieldVisitor.postProcess(data.fieldType());
-                data.fields(ImmutableMap.of(name, fieldVisitor.fields().get(data.fieldType().names().indexName())));
+                data.fields(singletonMap(name, fieldVisitor.fields().get(data.fieldType().names().indexName())));
             } catch (IOException e) {
                 throw new ElasticsearchParseException("failed to load field [{}]", e, name);
             }

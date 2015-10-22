@@ -80,7 +80,7 @@ public class TransportBenchmark {
 
         final DiscoveryNode node = new DiscoveryNode("server", serverTransportService.boundAddress().publishAddress(), Version.CURRENT);
 
-        serverTransportService.registerRequestHandler("benchmark", BenchmarkMessageRequest.class, executor, new TransportRequestHandler<BenchmarkMessageRequest>() {
+        serverTransportService.registerRequestHandler("benchmark", BenchmarkMessageRequest::new, executor, new TransportRequestHandler<BenchmarkMessageRequest>() {
             @Override
             public void messageReceived(BenchmarkMessageRequest request, TransportChannel channel) throws Exception {
                 channel.sendResponse(new BenchmarkMessageResponse(request));

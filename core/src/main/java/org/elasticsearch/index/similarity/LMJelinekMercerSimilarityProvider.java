@@ -27,7 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 
 /**
  * {@link SimilarityProvider} for {@link LMJelinekMercerSimilarity}.
- * <p/>
+ * <p>
  * Configuration options available:
  * <ul>
  *     <li>lambda</li>
@@ -38,8 +38,7 @@ public class LMJelinekMercerSimilarityProvider extends AbstractSimilarityProvide
 
     private final LMJelinekMercerSimilarity similarity;
 
-    @Inject
-    public LMJelinekMercerSimilarityProvider(@Assisted String name, @Assisted Settings settings) {
+    public LMJelinekMercerSimilarityProvider(String name, Settings settings) {
         super(name);
         float lambda = settings.getAsFloat("lambda", 0.1f);
         this.similarity = new LMJelinekMercerSimilarity(lambda);

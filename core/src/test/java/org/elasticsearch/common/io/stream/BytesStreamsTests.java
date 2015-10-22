@@ -20,23 +20,22 @@
 package org.elasticsearch.common.io.stream;
 
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Tests for {@link BytesStreamOutput} paging behaviour.
  */
 public class BytesStreamsTests extends ESTestCase {
-
-    @Test
     public void testEmpty() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -47,7 +46,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSingleByte() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
         assertEquals(0, out.size());
@@ -63,7 +61,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSingleShortPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -81,7 +78,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testIllegalBulkWrite() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -97,7 +93,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSingleShortPageBulkWrite() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -118,7 +113,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSingleFullPageBulkWrite() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -134,7 +128,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSingleFullPageBulkWriteWithOffset() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -154,7 +147,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSingleFullPageBulkWriteWithOffsetCrossover() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -174,7 +166,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSingleFullPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -192,7 +183,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testOneFullOneShortPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -210,7 +200,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testTwoFullOneShortPage() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -228,7 +217,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSeek() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -245,7 +233,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSkip() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -259,7 +246,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testSimpleStreams() throws Exception {
         assumeTrue("requires a 64-bit JRE ... ?!", Constants.JRE_IS_64BIT);
         BytesStreamOutput out = new BytesStreamOutput();
@@ -274,8 +260,12 @@ public class BytesStreamsTests extends ESTestCase {
         out.writeDouble(2.2);
         int[] intArray = {1, 2, 3};
         out.writeGenericValue(intArray);
+        int[] vIntArray = {4, 5, 6};
+        out.writeVIntArray(vIntArray);
         long[] longArray = {1, 2, 3};
         out.writeGenericValue(longArray);
+        long[] vLongArray = {4, 5, 6};
+        out.writeVLongArray(vLongArray);
         float[] floatArray = {1.1f, 2.2f, 3.3f};
         out.writeGenericValue(floatArray);
         double[] doubleArray = {1.1, 2.2, 3.3};
@@ -294,7 +284,9 @@ public class BytesStreamsTests extends ESTestCase {
         assertThat((double)in.readFloat(), closeTo(1.1, 0.0001));
         assertThat(in.readDouble(), closeTo(2.2, 0.0001));
         assertThat(in.readGenericValue(), equalTo((Object) intArray));
+        assertThat(in.readVIntArray(), equalTo(vIntArray));
         assertThat(in.readGenericValue(), equalTo((Object)longArray));
+        assertThat(in.readVLongArray(), equalTo(vLongArray));
         assertThat(in.readGenericValue(), equalTo((Object)floatArray));
         assertThat(in.readGenericValue(), equalTo((Object)doubleArray));
         assertThat(in.readString(), equalTo("hello"));
@@ -304,7 +296,6 @@ public class BytesStreamsTests extends ESTestCase {
         out.close();
     }
 
-    @Test
     public void testNamedWriteable() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
@@ -316,7 +307,6 @@ public class BytesStreamsTests extends ESTestCase {
         assertEquals(namedWriteableOut, namedWriteableIn);
     }
 
-    @Test
     public void testNamedWriteableDuplicates() throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
@@ -329,7 +319,6 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testNamedWriteableUnknownCategory() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         out.writeNamedWriteable(new TestNamedWriteable("test1", "test2"));
@@ -343,7 +332,6 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testNamedWriteableUnknownNamedWriteable() throws IOException {
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
         namedWriteableRegistry.registerPrototype(BaseNamedWriteable.class, new TestNamedWriteable(null, null));
@@ -373,13 +361,17 @@ public class BytesStreamsTests extends ESTestCase {
         }
     }
 
-    @Test(expected = UnsupportedOperationException.class)
     public void testNamedWriteableNotSupportedWithoutWrapping() throws IOException {
         BytesStreamOutput out = new BytesStreamOutput();
         TestNamedWriteable testNamedWriteable = new TestNamedWriteable("test1", "test2");
         out.writeNamedWriteable(testNamedWriteable);
         StreamInput in = StreamInput.wrap(out.bytes().toBytes());
-        in.readNamedWriteable(BaseNamedWriteable.class);
+        try {
+            in.readNamedWriteable(BaseNamedWriteable.class);
+            fail("Expected UnsupportedOperationException");
+        } catch (UnsupportedOperationException e) {
+            assertThat(e.getMessage(), is("can't read named writeable from StreamInput"));
+        }
     }
 
     private static abstract class BaseNamedWriteable<T> implements NamedWriteable<T> {
@@ -432,7 +424,6 @@ public class BytesStreamsTests extends ESTestCase {
     // we ignore this test for now since all existing callers of BytesStreamOutput happily
     // call bytes() after close().
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/12620")
-    @Test
     public void testAccessAfterClose() throws Exception {
         BytesStreamOutput out = new BytesStreamOutput();
 
@@ -476,5 +467,24 @@ public class BytesStreamsTests extends ESTestCase {
         byte[] data = new byte[size];
         getRandom().nextBytes(data);
         return data;
+    }
+
+    public void testReadWriteGeoPoint() throws IOException {
+        {
+            BytesStreamOutput out = new BytesStreamOutput();
+            GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
+            out.writeGenericValue(geoPoint);
+            StreamInput wrap = StreamInput.wrap(out.bytes());
+            GeoPoint point = (GeoPoint) wrap.readGenericValue();
+            assertEquals(point, geoPoint);
+        }
+        {
+            BytesStreamOutput out = new BytesStreamOutput();
+            GeoPoint geoPoint = new GeoPoint(randomDouble(), randomDouble());
+            out.writeGeoPoint(geoPoint);
+            StreamInput wrap = StreamInput.wrap(out.bytes());
+            GeoPoint point = wrap.readGeoPoint();
+            assertEquals(point, geoPoint);
+        }
     }
 }

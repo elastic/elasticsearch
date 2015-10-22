@@ -70,8 +70,9 @@ Checking shards may take a lot of time on large indices.
 
 [[index-codec]] `index.codec`::
 
-    experimental[] The `default` value compresses stored data with LZ4
-    compression, but this can be set to `best_compression` for a higher
+    experimental[] The +default+ value compresses stored data with LZ4
+    compression, but this can be set to +best_compression+
+    which uses https://en.wikipedia.org/wiki/DEFLATE[DEFLATE] for a higher
     compression ratio, at the expense of slower stored fields performance.
 
 [float]
@@ -97,6 +98,14 @@ specific index module:
     How often to perform a refresh operation, which makes recent changes to the
     index visible to search.  Defaults to `1s`.  Can be set to `-1` to disable
     refresh.
+
+`index.max_result_window`::
+
+    The maximum value of `from + size` for searches to this index. Defaults to
+    `10000`. Search requests take heap memory and time proportional to
+    `from + size` and this limits that memory. See
+    {ref}/search-request-scroll.html[Scroll] for a more efficient alternative
+    to raising this.
 
 `index.blocks.read_only`::
 
@@ -184,5 +193,3 @@ include::index-modules/slowlog.asciidoc[]
 include::index-modules/store.asciidoc[]
 
 include::index-modules/translog.asciidoc[]
-
-

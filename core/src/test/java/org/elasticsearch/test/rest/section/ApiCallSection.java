@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.test.rest.section;
 
-import com.google.common.base.Joiner;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Represents a test fragment that contains the information needed to call an api
@@ -33,7 +32,7 @@ import java.util.Map;
 public class ApiCallSection {
 
     private final String api;
-    private final Map<String, String> params = Maps.newHashMap();
+    private final Map<String, String> params = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
 
     public ApiCallSection(String api) {
@@ -46,13 +45,13 @@ public class ApiCallSection {
 
     public Map<String, String> getParams() {
         //make sure we never modify the parameters once returned
-        return ImmutableMap.copyOf(params);
+        return unmodifiableMap(params);
     }
 
     public void addParam(String key, String value) {
         String existingValue = params.get(key);
         if (existingValue != null) {
-            value = Joiner.on(",").join(existingValue, value);
+            value = existingValue + "," + value;
         }
         this.params.put(key, value);
     }

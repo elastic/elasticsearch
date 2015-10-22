@@ -1,6 +1,8 @@
 [[indices-optimize]]
 == Optimize
 
+deprecated[2.1.0,Optimize API has been renamed to the force merge API]
+
 The optimize API allows to optimize one or more indices through an API.
 The optimize process basically optimizes the index for faster search
 operations (and relates to the number of segments a Lucene index holds
@@ -20,7 +22,7 @@ $ curl -XPOST 'http://localhost:9200/twitter/_optimize'
 [[optimize-parameters]]
 === Request Parameters
 
-The optimize API accepts the following request parameters:
+The optimize API accepts the following request parameters as query arguments:
 
 [horizontal]
 `max_num_segments`:: The number of segments to optimize to. To fully
@@ -48,5 +50,5 @@ call, or even on `_all` the indices.
 --------------------------------------------------
 $ curl -XPOST 'http://localhost:9200/kimchy,elasticsearch/_optimize'
 
-$ curl -XPOST 'http://localhost:9200/_optimize'
+$ curl -XPOST 'http://localhost:9200/_optimize?only_expunge_deletes=true'
 --------------------------------------------------

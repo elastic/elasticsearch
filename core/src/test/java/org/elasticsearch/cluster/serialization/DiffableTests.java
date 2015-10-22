@@ -19,49 +19,48 @@
 
 package org.elasticsearch.cluster.serialization;
 
-import com.google.common.collect.ImmutableMap;
+import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
-import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.io.stream.*;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.StreamableReader;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
+import static java.util.Collections.unmodifiableMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class DiffableTests extends ESTestCase {
-
-    @Test
-    public void testImmutableMapDiff() throws IOException {
-        ImmutableMap.Builder<String, TestDiffable> builder = ImmutableMap.builder();
-        builder.put("foo", new TestDiffable("1"));
-        builder.put("bar", new TestDiffable("2"));
-        builder.put("baz", new TestDiffable("3"));
-        ImmutableMap<String, TestDiffable> before = builder.build();
-        Map<String, TestDiffable> map = newHashMap();
+    public void testJdkMapDiff() throws IOException {
+        Map<String, TestDiffable> before = new HashMap<>();
+        before.put("foo", new TestDiffable("1"));
+        before.put("bar", new TestDiffable("2"));
+        before.put("baz", new TestDiffable("3"));
+        before = unmodifiableMap(before);
+        Map<String, TestDiffable> map = new HashMap<>();
         map.putAll(before);
         map.remove("bar");
         map.put("baz", new TestDiffable("4"));
         map.put("new", new TestDiffable("5"));
-        ImmutableMap<String, TestDiffable> after = ImmutableMap.copyOf(map);
+        Map<String, TestDiffable> after = unmodifiableMap(new HashMap<>(map));
         Diff diff = DiffableUtils.diff(before, after);
         BytesStreamOutput out = new BytesStreamOutput();
         diff.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes());
-        ImmutableMap<String, TestDiffable> serialized = DiffableUtils.readImmutableMapDiff(in, TestDiffable.PROTO).apply(before);
+        Map<String, TestDiffable> serialized = DiffableUtils.readJdkMapDiff(in, TestDiffable.PROTO).apply(before);
         assertThat(serialized.size(), equalTo(3));
         assertThat(serialized.get("foo").value(), equalTo("1"));
         assertThat(serialized.get("baz").value(), equalTo("4"));
         assertThat(serialized.get("new").value(), equalTo("5"));
     }
 
-    @Test
     public void testImmutableOpenMapDiff() throws IOException {
         ImmutableOpenMap.Builder<String, TestDiffable> builder = ImmutableOpenMap.builder();
         builder.put("foo", new TestDiffable("1"));

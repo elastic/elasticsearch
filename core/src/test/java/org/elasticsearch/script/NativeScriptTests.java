@@ -19,7 +19,6 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.ContextAndHeaderHolder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Injector;
@@ -33,7 +32,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.elasticsearch.watcher.ResourceWatcherService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,12 +39,11 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.singleton;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class NativeScriptTests extends ESTestCase {
-
-    @Test
     public void testNativeScript() throws InterruptedException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings settings = Settings.settingsBuilder()
@@ -69,7 +66,6 @@ public class NativeScriptTests extends ESTestCase {
         terminate(injector.getInstance(ThreadPool.class));
     }
 
-    @Test
     public void testFineGrainedSettingsDontAffectNativeScripts() throws IOException {
         ContextAndHeaderHolder contextAndHeaders = new ContextAndHeaderHolder();
         Settings.Builder builder = Settings.settingsBuilder();
@@ -85,7 +81,7 @@ public class NativeScriptTests extends ESTestCase {
         ResourceWatcherService resourceWatcherService = new ResourceWatcherService(settings, null);
         Map<String, NativeScriptFactory> nativeScriptFactoryMap = new HashMap<>();
         nativeScriptFactoryMap.put("my", new MyNativeScriptFactory());
-        Set<ScriptEngineService> scriptEngineServices = ImmutableSet.<ScriptEngineService>of(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
+        Set<ScriptEngineService> scriptEngineServices = singleton(new NativeScriptEngineService(settings, nativeScriptFactoryMap));
         ScriptContextRegistry scriptContextRegistry = new ScriptContextRegistry(new ArrayList<ScriptContext.Plugin>());
         ScriptService scriptService = new ScriptService(settings, environment, scriptEngineServices, resourceWatcherService, scriptContextRegistry);
 
@@ -95,7 +91,7 @@ public class NativeScriptTests extends ESTestCase {
         }
     }
 
-    static class MyNativeScriptFactory implements NativeScriptFactory {
+    public static class MyNativeScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new MyScript();

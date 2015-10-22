@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -31,7 +30,7 @@ import org.elasticsearch.cluster.routing.allocation.command.AllocateAllocationCo
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.CancelAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.decider.DisableAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -41,20 +40,20 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
 public class AllocationCommandsTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(AllocationCommandsTests.class);
 
-    @Test
-    public void moveShardCommand() {
+    public void testMoveShardCommand() {
         AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
         logger.info("creating an index with 1 shard, no replica");
@@ -97,11 +96,10 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node(toNodeId).get(0).state(), equalTo(ShardRoutingState.STARTED));
     }
 
-    @Test
-    public void allocateCommand() {
+    public void testAllocateCommand() {
         AllocationService allocation = createAllocationService(settingsBuilder()
-                .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
-                .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, "none")
                 .build());
 
         logger.info("--> building initial routing table");
@@ -118,7 +116,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
                 .put(newNode("node3"))
-                .put(newNode("node4", ImmutableMap.of("data", Boolean.FALSE.toString())))
+                .put(newNode("node4", singletonMap("data", Boolean.FALSE.toString())))
         ).build();
         RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState);
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
@@ -186,11 +184,10 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
-    public void cancelCommand() {
+    public void testCancelCommand() {
         AllocationService allocation = createAllocationService(settingsBuilder()
-                .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_NEW_ALLOCATION, true)
-                .put(DisableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_DISABLE_ALLOCATION, true)
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, "none")
                 .build());
 
         logger.info("--> building initial routing table");
@@ -336,8 +333,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node3").size(), equalTo(0));
     }
 
-    @Test
-    public void serialization() throws Exception {
+    public void testSerialization() throws Exception {
         AllocationCommands commands = new AllocationCommands(
                 new AllocateAllocationCommand(new ShardId("test", 1), "node1", true),
                 new MoveAllocationCommand(new ShardId("test", 3), "node2", "node3"),
@@ -361,8 +357,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
         assertThat(((CancelAllocationCommand) (sCommands.commands().get(2))).allowPrimary(), equalTo(true));
     }
 
-    @Test
-    public void xContent() throws Exception {
+    public void testXContent() throws Exception {
         String commands = "{\n" +
                 "    \"commands\" : [\n" +
                 "        {\"allocate\" : {\"index\" : \"test\", \"shard\" : 1, \"node\" : \"node1\", \"allow_primary\" : true}}\n" +

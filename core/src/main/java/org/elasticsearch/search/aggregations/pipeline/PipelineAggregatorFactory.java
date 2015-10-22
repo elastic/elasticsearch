@@ -56,10 +56,6 @@ public abstract class PipelineAggregatorFactory {
     /**
      * Validates the state of this factory (makes sure the factory is properly
      * configured)
-     *
-     * @param pipelineAggregatorFactories
-     * @param factories
-     * @param parent
      */
     public final void validate(AggregatorFactory parent, AggregatorFactory[] factories,
             List<PipelineAggregatorFactory> pipelineAggregatorFactories) {
@@ -70,17 +66,6 @@ public abstract class PipelineAggregatorFactory {
 
     /**
      * Creates the pipeline aggregator
-     *
-     * @param context
-     *            The aggregation context
-     * @param parent
-     *            The parent aggregator (if this is a top level factory, the
-     *            parent will be {@code null})
-     * @param collectsFromSingleBucket
-     *            If true then the created aggregator will only be collected
-     *            with <tt>0</tt> as a bucket ordinal. Some factories can take
-     *            advantage of this in order to return more optimized
-     *            implementations.
      *
      * @return The created aggregator
      */

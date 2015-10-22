@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.admin.cluster.node.info;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
@@ -27,8 +26,15 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.*;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.BytesRestResponse;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestController;
+import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.support.RestBuilderListener;
 
 import java.util.Set;
@@ -81,6 +87,7 @@ public class RestNodesInfoAction extends BaseRestHandler {
         }
 
         final NodesInfoRequest nodesInfoRequest = new NodesInfoRequest(nodeIds);
+        nodesInfoRequest.timeout(request.param("timeout"));
         // shortcut, dont do checks if only all is specified
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesInfoRequest.all();

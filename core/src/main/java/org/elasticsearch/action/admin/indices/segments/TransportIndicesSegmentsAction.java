@@ -52,7 +52,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
     public TransportIndicesSegmentsAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
                                           IndicesService indicesService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, IndicesSegmentsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                IndicesSegmentsRequest.class, ThreadPool.Names.MANAGEMENT);
+                IndicesSegmentsRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 
@@ -94,7 +94,7 @@ public class TransportIndicesSegmentsAction extends TransportBroadcastByNodeActi
     @Override
     protected ShardSegments shardOperation(IndicesSegmentsRequest request, ShardRouting shardRouting) {
         IndexService indexService = indicesService.indexServiceSafe(shardRouting.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardRouting.id());
-        return new ShardSegments(indexShard.routingEntry(), indexShard.engine().segments(request.verbose()));
+        IndexShard indexShard = indexService.getShard(shardRouting.id());
+        return new ShardSegments(indexShard.routingEntry(), indexShard.segments(request.verbose()));
     }
 }

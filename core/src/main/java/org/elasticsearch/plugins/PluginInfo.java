@@ -36,6 +36,7 @@ import java.util.Properties;
 public class PluginInfo implements Streamable, ToXContent {
 
     public static final String ES_PLUGIN_PROPERTIES = "plugin-descriptor.properties";
+    public static final String ES_PLUGIN_POLICY = "plugin-security.policy";
 
     static final class Fields {
         static final XContentBuilderString NAME = new XContentBuilderString("name");
@@ -114,7 +115,8 @@ public class PluginInfo implements Streamable, ToXContent {
             }
             Version esVersion = Version.fromString(esVersionString);
             if (esVersion.equals(Version.CURRENT) == false) {
-                throw new IllegalArgumentException("Elasticsearch version [" + esVersionString + "] is too old for plugin [" + name + "]");
+                throw new IllegalArgumentException("Plugin [" + name + "] is incompatible with Elasticsearch [" + Version.CURRENT.toString() +
+                        "]. Was designed for version [" + esVersionString + "]");
             }
             String javaVersionString = props.getProperty("java.version");
             if (javaVersionString == null) {
@@ -268,17 +270,19 @@ public class PluginInfo implements Streamable, ToXContent {
 
     @Override
     public String toString() {
-        final StringBuffer sb = new StringBuffer("PluginInfo{");
-        sb.append("name='").append(name).append('\'');
-        sb.append(", description='").append(description).append('\'');
-        sb.append(", site=").append(site);
-        sb.append(", jvm=").append(jvm);
+        final StringBuilder information = new StringBuilder()
+                .append("- Plugin information:\n")
+                .append("Name: ").append(name).append("\n")
+                .append("Description: ").append(description).append("\n")
+                .append("Site: ").append(site).append("\n")
+                .append("Version: ").append(version).append("\n")
+                .append("JVM: ").append(jvm).append("\n");
+
         if (jvm) {
-            sb.append(", classname=").append(classname);
-            sb.append(", isolated=").append(isolated);
+            information.append(" * Classname: ").append(classname).append("\n");
+            information.append(" * Isolated: ").append(isolated);
         }
-        sb.append(", version='").append(version).append('\'');
-        sb.append('}');
-        return sb.toString();
+
+        return information.toString();
     }
 }

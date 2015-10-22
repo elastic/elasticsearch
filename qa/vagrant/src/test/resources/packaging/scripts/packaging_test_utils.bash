@@ -150,7 +150,8 @@ assert_file() {
     local file="$1"
     local type=$2
     local user=$3
-    local privileges=$4
+    local group=$4
+    local privileges=$5
 
     assert_file_exist "$file"
 
@@ -163,8 +164,13 @@ assert_file() {
     fi
 
     if [ "x$user" != "x" ]; then
-        realuser=$(ls -ld "$file" | awk '{print $3}')
+        realuser=$(find "$file" -maxdepth 0 -printf "%u")
         [ "$realuser" = "$user" ]
+    fi
+
+    if [ "x$group" != "x" ]; then
+        realgroup=$(find "$file" -maxdepth 0 -printf "%g")
+        [ "$realgroup" = "$group" ]
     fi
 
     if [ "x$privileges" != "x" ]; then
@@ -175,89 +181,6 @@ assert_file() {
 
 assert_output() {
     echo "$output" | grep -E "$1"
-}
-
-# Checks that all directories & files are correctly installed
-# after a package (deb/rpm) install
-verify_package_installation() {
-
-    run id elasticsearch
-    [ "$status" -eq 0 ]
-
-    run getent group elasticsearch
-    [ "$status" -eq 0 ]
-
-    # Home dir
-    assert_file "/usr/share/elasticsearch" d root 755
-    # Bin dir
-    assert_file "/usr/share/elasticsearch/bin" d root 755
-    assert_file "/usr/share/elasticsearch/lib" d root 755
-    # Conf dir
-    assert_file "/etc/elasticsearch" d root 755
-    assert_file "/etc/elasticsearch/elasticsearch.yml" f root 644
-    assert_file "/etc/elasticsearch/logging.yml" f root 644
-    # Data dir
-    assert_file "/var/lib/elasticsearch" d elasticsearch 755
-    # Log dir
-    assert_file "/var/log/elasticsearch" d elasticsearch 755
-    # Plugins dir
-    assert_file "/usr/share/elasticsearch/plugins" d elasticsearch 755
-    # PID dir
-    assert_file "/var/run/elasticsearch" d elasticsearch 755
-    # Readme files
-    assert_file "/usr/share/elasticsearch/NOTICE.txt" f root 644
-    assert_file "/usr/share/elasticsearch/README.textile" f root 644
-
-    if is_dpkg; then
-        # Env file
-        assert_file "/etc/default/elasticsearch" f root 644
-
-        # Doc files
-        assert_file "/usr/share/doc/elasticsearch" d root 755
-        assert_file "/usr/share/doc/elasticsearch/copyright" f root 644
-
-    fi
-
-    if is_rpm; then
-        # Env file
-        assert_file "/etc/sysconfig/elasticsearch" f root 644
-        # License file
-        assert_file "/usr/share/elasticsearch/LICENSE.txt" f root 644
-    fi
-
-    if is_systemd; then
-        assert_file "/usr/lib/systemd/system/elasticsearch.service" f root 644
-        assert_file "/usr/lib/tmpfiles.d/elasticsearch.conf" f root 644
-        assert_file "/usr/lib/sysctl.d/elasticsearch.conf" f root 644
-    fi
-}
-
-# Install the rpm or deb package
-install_package() {
-    if is_rpm; then
-        rpm -i elasticsearch*.rpm
-    elif is_dpkg; then
-        dpkg -i elasticsearch*.deb
-    else
-        skip "Only rpm or deb supported"
-    fi
-}
-
-# Checks that all directories & files are correctly installed
-# after a archive (tar.gz/zip) install
-verify_archive_installation() {
-    assert_file "$ESHOME" d
-    assert_file "$ESHOME/bin" d
-    assert_file "$ESHOME/bin/elasticsearch" f
-    assert_file "$ESHOME/bin/elasticsearch.in.sh" f
-    assert_file "$ESHOME/bin/plugin" f
-    assert_file "$ESCONFIG" d
-    assert_file "$ESCONFIG/elasticsearch.yml" f
-    assert_file "$ESCONFIG/logging.yml" f
-    assert_file "$ESHOME/lib" d
-    assert_file "$ESHOME/NOTICE.txt" f
-    assert_file "$ESHOME/LICENSE.txt" f
-    assert_file "$ESHOME/README.textile" f
 }
 
 # Deletes everything before running a test file
@@ -317,37 +240,18 @@ clean_before_test() {
     done
 }
 
+# Start elasticsearch and wait for it to come up with a status.
+# $1 - expected status - defaults to green
 start_elasticsearch_service() {
-    if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
-        # su and the Elasticsearch init script work together to break bats.
-        # sudo isolates bats enough from the init script so everything continues
-        # to tick along
-        sudo -u elasticsearch /tmp/elasticsearch/bin/elasticsearch -d \
-            -p /tmp/elasticsearch/elasticsearch.pid
-    elif is_systemd; then
-        run systemctl daemon-reload
-        [ "$status" -eq 0 ]
+    local desiredStatus=${1:-green}
 
-        run systemctl enable elasticsearch.service
-        [ "$status" -eq 0 ]
+    run_elasticsearch_service 0
 
-        run systemctl is-enabled elasticsearch.service
-        [ "$status" -eq 0 ]
-
-        run systemctl start elasticsearch.service
-        [ "$status" -eq 0 ]
-
-    elif is_sysvinit; then
-        run service elasticsearch start
-        [ "$status" -eq 0 ]
-    fi
-
-    wait_for_elasticsearch_status
+    wait_for_elasticsearch_status $desiredStatus
 
     if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
         pid=$(cat /tmp/elasticsearch/elasticsearch.pid)
         [ "x$pid" != "x" ] && [ "$pid" -gt 0 ]
-
         echo "Looking for elasticsearch pid...."
         ps $pid
     elif is_systemd; then
@@ -360,6 +264,64 @@ start_elasticsearch_service() {
     elif is_sysvinit; then
         run service elasticsearch status
         [ "$status" -eq 0 ]
+    fi
+}
+
+# Start elasticsearch
+# $1 expected status code
+# $2 additional command line args
+run_elasticsearch_service() {
+    local expectedStatus=$1
+    local commandLineArgs=$2
+    # Set the CONF_DIR setting in case we start as a service
+    if [ ! -z "$CONF_DIR" ] ; then
+        if is_dpkg ; then
+            echo "CONF_DIR=$CONF_DIR" >> /etc/default/elasticsearch;
+        elif is_rpm; then
+            echo "CONF_DIR=$CONF_DIR" >> /etc/sysconfig/elasticsearch;
+        fi
+    fi
+
+    if [ -f "/tmp/elasticsearch/bin/elasticsearch" ]; then
+        if [ -z "$CONF_DIR" ]; then
+            local CONF_DIR=""
+        fi
+        # we must capture the exit code to compare so we don't want to start as background process in case we expect something other than 0
+        local background=""
+        local timeoutCommand=""
+        if [ "$expectedStatus" = 0 ]; then
+            background="-d"
+        else
+            timeoutCommand="timeout 60s "
+        fi
+        # su and the Elasticsearch init script work together to break bats.
+        # sudo isolates bats enough from the init script so everything continues
+        # to tick along
+        run sudo -u elasticsearch bash <<BASH
+# If jayatana is installed then we try to use it. Elasticsearch should ignore it even when we try.
+# If it doesn't ignore it then Elasticsearch will fail to start because of security errors.
+# This line is attempting to emulate the on login behavior of /usr/share/upstart/sessions/jayatana.conf
+[ -f /usr/share/java/jayatanaag.jar ] && export JAVA_TOOL_OPTIONS="-javaagent:/usr/share/java/jayatanaag.jar"
+# And now we can start Elasticsearch normally, in the background (-d) and with a pidfile (-p).
+$timeoutCommand/tmp/elasticsearch/bin/elasticsearch $background -p /tmp/elasticsearch/elasticsearch.pid -Des.path.conf=$CONF_DIR $commandLineArgs
+BASH
+        [ "$status" -eq "$expectedStatus" ]
+    elif is_systemd; then
+        run systemctl daemon-reload
+        [ "$status" -eq 0 ]
+
+        run systemctl enable elasticsearch.service
+        [ "$status" -eq 0 ]
+
+        run systemctl is-enabled elasticsearch.service
+        [ "$status" -eq 0 ]
+
+        run systemctl start elasticsearch.service
+        [ "$status" -eq "$expectedStatus" ]
+
+    elif is_sysvinit; then
+        run service elasticsearch start
+        [ "$status" -eq "$expectedStatus" ]
     fi
 }
 
@@ -387,31 +349,25 @@ stop_elasticsearch_service() {
     fi
 }
 
-# Waits for Elasticsearch to reach a given status (defaults to "green")
+# Waits for Elasticsearch to reach some status.
+# $1 - expected status - defaults to green
 wait_for_elasticsearch_status() {
-    local desired_status="green"
-    if [ "x$1" != "x" ]; then
-        status="$1"
-    fi
+    local desiredStatus=${1:-green}
 
     echo "Making sure elasticsearch is up..."
-    wget -O - --retry-connrefused --waitretry=1 --timeout=60 http://localhost:9200 || {
+    wget -O - --retry-connrefused --waitretry=1 --timeout=60 --tries 60 http://localhost:9200 || {
           echo "Looks like elasticsearch never started. Here is its log:"
-          if [ -r "/tmp/elasticsearch/elasticsearch.pid" ]; then
-              cat /tmp/elasticsearch/log/elasticsearch.log
+          if [ -e "$ESLOG/elasticsearch.log" ]; then
+              cat "$ESLOG/elasticsearch.log"
           else
-              if [ -e '/var/log/elasticsearch/elasticsearch.log' ]; then
-                  cat /var/log/elasticsearch/elasticsearch.log
-              else
-                  echo "The elasticsearch log doesn't exist. Maybe /vag/log/messages has something:"
-                  tail -n20 /var/log/messages
-              fi
+              echo "The elasticsearch log doesn't exist. Maybe /var/log/messages has something:"
+              tail -n20 /var/log/messages
           fi
           false
     }
 
     echo "Tring to connect to elasticsearch and wait for expected status..."
-    curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desired_status&timeout=60s&pretty"
+    curl -sS "http://localhost:9200/_cluster/health?wait_for_status=$desiredStatus&timeout=60s&pretty"
     if [ $? -eq 0 ]; then
         echo "Connected"
     else
@@ -426,13 +382,18 @@ wait_for_elasticsearch_status() {
         echo $output
         false
     fi
-    echo $output | grep $desired_status || {
-        echo "unexpected status:  '$output' wanted '$desired_status'"
+    echo $output | grep $desiredStatus || {
+        echo "unexpected status:  '$output' wanted '$desiredStatus'"
         false
     }
 }
 
-# Executes some very basic Elasticsearch tests
+install_elasticsearch_test_scripts() {
+    install_script is_guide.groovy
+    install_script is_guide.mustache
+}
+
+# Executes some basic Elasticsearch tests
 run_elasticsearch_tests() {
     # TODO this assertion is the same the one made when waiting for
     # elasticsearch to start
@@ -444,8 +405,22 @@ run_elasticsearch_tests() {
       "title": "Elasticsearch - The Definitive Guide"
     }'
 
-    curl -s -XGET 'http://localhost:9200/_cat/count?h=count&v=false&pretty' |
-      grep -w "1"
+    curl -s -XGET 'http://localhost:9200/_count?pretty' |
+      grep \"count\"\ :\ 1
+
+    curl -s -XPOST 'http://localhost:9200/library/book/_count?pretty' -d '{
+      "query": {
+        "script": {
+          "script_file": "is_guide"
+        }
+      }
+    }' | grep \"count\"\ :\ 1
+
+    curl -s -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
+      "template": {
+        "file": "is_guide"
+      }
+    }' | grep \"total\"\ :\ 1
 
     curl -s -XDELETE 'http://localhost:9200/_all'
 }
@@ -460,4 +435,14 @@ move_config() {
     mv "$oldConfig"/* "$ESCONFIG"
     chown -R elasticsearch:elasticsearch "$ESCONFIG"
     assert_file_exist "$ESCONFIG/elasticsearch.yml"
+    assert_file_exist "$ESCONFIG/logging.yml"
+}
+
+# Copies a script into the Elasticsearch install.
+install_script() {
+    local name=$1
+    mkdir -p $ESSCRIPTS
+    local script="$BATS_TEST_DIRNAME/example/scripts/$name"
+    echo "Installing $script to $ESSCRIPTS"
+    cp $script $ESSCRIPTS
 }

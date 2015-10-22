@@ -19,37 +19,43 @@
 
 package org.elasticsearch.indices.query;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.EmptyQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParser;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
-public class IndicesQueriesRegistry extends AbstractComponent {
+import static java.util.Collections.unmodifiableMap;
 
-    private ImmutableMap<String, QueryParser> queryParsers;
+public class IndicesQueriesRegistry extends AbstractComponent {
+    private Map<String, QueryParser<?>> queryParsers;
 
     @Inject
-    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers) {
+    public IndicesQueriesRegistry(Settings settings, Set<QueryParser> injectedQueryParsers, NamedWriteableRegistry namedWriteableRegistry) {
         super(settings);
-        Map<String, QueryParser> queryParsers = Maps.newHashMap();
-        for (QueryParser queryParser : injectedQueryParsers) {
+        Map<String, QueryParser<?>> queryParsers = new HashMap<>();
+        for (QueryParser<?> queryParser : injectedQueryParsers) {
             for (String name : queryParser.names()) {
                 queryParsers.put(name, queryParser);
             }
+            namedWriteableRegistry.registerPrototype(QueryBuilder.class, queryParser.getBuilderPrototype());
         }
-        this.queryParsers = ImmutableMap.copyOf(queryParsers);
+        // EmptyQueryBuilder is not registered as query parser but used internally.
+        // We need to register it with the NamedWriteableRegistry in order to serialize it
+        namedWriteableRegistry.registerPrototype(QueryBuilder.class, EmptyQueryBuilder.PROTOTYPE);
+        this.queryParsers = unmodifiableMap(queryParsers);
     }
 
     /**
      * Returns all the registered query parsers
      */
-    public ImmutableMap<String, QueryParser> queryParsers() {
+    public Map<String, QueryParser<?>> queryParsers() {
         return queryParsers;
     }
 }

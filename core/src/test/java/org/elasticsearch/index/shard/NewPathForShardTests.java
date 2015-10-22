@@ -18,15 +18,11 @@
  */
 package org.elasticsearch.index.shard;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 
-import org.apache.lucene.mockfile.FilterFileSystem;
 import org.apache.lucene.mockfile.FilterFileSystemProvider;
-import org.apache.lucene.mockfile.FilterPath;
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
@@ -34,76 +30,53 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
-import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.FileStore;
 import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.attribute.FileAttributeView;
 import java.nio.file.attribute.FileStoreAttributeView;
+import java.nio.file.spi.FileSystemProvider;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
-
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /** Separate test class from ShardPathTests because we need static (BeforeClass) setup to install mock filesystems... */
-@SuppressForbidden(reason = "ProviderMismatchException if I try to use PathUtils.getDefault instead")
 public class NewPathForShardTests extends ESTestCase {
 
     // Sneakiness to install mock file stores so we can pretend how much free space we have on each path.data:
     private static MockFileStore aFileStore = new MockFileStore("mocka");
     private static MockFileStore bFileStore = new MockFileStore("mockb");
-    private static FileSystem origFileSystem;
-    private static String aPathPart = File.separator + 'a' + File.separator;
-    private static String bPathPart = File.separator + 'b' + File.separator;
+    private static String aPathPart;
+    private static String bPathPart;
 
     @BeforeClass
     public static void installMockUsableSpaceFS() throws Exception {
-        // Necessary so when Environment.clinit runs, to gather all FileStores, it sees ours:
-        origFileSystem = FileSystems.getDefault();
-
-        Field field = PathUtils.class.getDeclaredField("DEFAULT");
-        field.setAccessible(true);
-        FileSystem mock = new MockUsableSpaceFileSystemProvider().getFileSystem(getBaseTempDirForTestClass().toUri());
-        field.set(null, mock);
-        assertEquals(mock, PathUtils.getDefaultFileSystem());
+        FileSystem current = PathUtils.getDefaultFileSystem();
+        aPathPart = current.getSeparator() + 'a' + current.getSeparator();
+        bPathPart = current.getSeparator() + 'b' + current.getSeparator();
+        FileSystemProvider mock = new MockUsableSpaceFileSystemProvider(current);
+        PathUtilsForTesting.installMock(mock.getFileSystem(null));
     }
 
     @AfterClass
     public static void removeMockUsableSpaceFS() throws Exception {
-        Field field = PathUtils.class.getDeclaredField("DEFAULT");
-        field.setAccessible(true);
-        field.set(null, origFileSystem);
-        origFileSystem = null;
+        PathUtilsForTesting.teardown();
         aFileStore = null;
         bFileStore = null;
     }
 
     /** Mock file system that fakes usable space for each FileStore */
-    @SuppressForbidden(reason = "ProviderMismatchException if I try to use PathUtils.getDefault instead")
     static class MockUsableSpaceFileSystemProvider extends FilterFileSystemProvider {
     
-        public MockUsableSpaceFileSystemProvider() {
-            super("mockusablespace://", FileSystems.getDefault());
+        public MockUsableSpaceFileSystemProvider(FileSystem inner) {
+            super("mockusablespace://", inner);
             final List<FileStore> fileStores = new ArrayList<>();
             fileStores.add(aFileStore);
             fileStores.add(bFileStore);
-            fileSystem = new FilterFileSystem(this, origFileSystem) {
-                    @Override
-                    public Iterable<FileStore> getFileStores() {
-                        return fileStores;
-                    }
-                };
         }
 
         @Override
@@ -183,7 +156,6 @@ public class NewPathForShardTests extends ESTestCase {
     }
 
     public void testSelectNewPathForShard() throws Exception {
-        assumeFalse("Consistenty fails on windows ('could not remove the following files')", Constants.WINDOWS);
         Path path = PathUtils.get(createTempDir().toString());
 
         // Use 2 data paths:
@@ -232,5 +204,7 @@ public class NewPathForShardTests extends ESTestCase {
         // had the most free space, never using the other drive unless new shards arrive
         // after the first shards started using storage:
         assertNotEquals(result1.getDataPath(), result2.getDataPath());
+        
+        nodeEnv.close();
     }
 }

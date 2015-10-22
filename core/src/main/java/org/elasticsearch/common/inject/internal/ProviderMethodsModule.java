@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.Module;
@@ -31,9 +30,12 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Member;
 import java.lang.reflect.Method;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
+import java.util.Set;
 
-import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.unmodifiableSet;
 
 /**
  * Creates bindings to methods annotated with {@literal @}{@link Provides}. Use the scope and
@@ -47,7 +49,7 @@ public final class ProviderMethodsModule implements Module {
     private final TypeLiteral<?> typeLiteral;
 
     private ProviderMethodsModule(Object delegate) {
-        this.delegate = checkNotNull(delegate, "delegate");
+        this.delegate = Objects.requireNonNull(delegate, "delegate");
         this.typeLiteral = TypeLiteral.get(this.delegate.getClass());
     }
 
@@ -95,7 +97,7 @@ public final class ProviderMethodsModule implements Module {
         Errors errors = new Errors(method);
 
         // prepare the parameter providers
-        List<Dependency<?>> dependencies = new ArrayList<>();
+        Set<Dependency<?>> dependencies = new HashSet<>();
         List<Provider<?>> parameterProviders = new ArrayList<>();
         List<TypeLiteral<?>> parameterTypes = typeLiteral.getParameterTypes(method);
         Annotation[][] parameterAnnotations = method.getParameterAnnotations();
@@ -116,7 +118,7 @@ public final class ProviderMethodsModule implements Module {
             binder.addError(message);
         }
 
-        return new ProviderMethod<>(key, method, delegate, ImmutableSet.copyOf(dependencies),
+        return new ProviderMethod<>(key, method, delegate, unmodifiableSet(dependencies),
                 parameterProviders, scopeAnnotation);
     }
 

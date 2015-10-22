@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.benchmark.search.child;
 
+import org.apache.lucene.search.join.ScoreMode;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -40,7 +41,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.filteredQuery;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.hasChildQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -122,7 +123,7 @@ public class ChildSearchShortCircuitBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("--> Number of docs in index: " + client.prepareCount(indexName).setQuery(matchAllQuery()).execute().actionGet().getCount());
+        System.out.println("--> Number of docs in index: " + client.prepareSearch(indexName).setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits());
 
         System.out.println("--> Running just child query");
         // run just the child query, warm up first
@@ -158,7 +159,7 @@ public class ChildSearchShortCircuitBenchmark {
         for (int i = 1; i < PARENT_COUNT; i *= 2) {
             for (int j = 0; j < QUERY_COUNT; j++) {
                 SearchResponse searchResponse = client.prepareSearch(indexName)
-                        .setQuery(filteredQuery(matchAllQuery(), hasChildQuery("child", matchQuery("field2", i))))
+                        .setQuery(boolQuery().must(matchAllQuery()).filter(hasChildQuery("child", matchQuery("field2", i))))
                         .execute().actionGet();
                 if (searchResponse.getHits().totalHits() != i) {
                     System.err.println("--> mismatch on hits");
@@ -178,7 +179,7 @@ public class ChildSearchShortCircuitBenchmark {
         for (int i = 1; i < PARENT_COUNT; i *= 2) {
             for (int j = 0; j < QUERY_COUNT; j++) {
                 SearchResponse searchResponse = client.prepareSearch(indexName)
-                        .setQuery(hasChildQuery("child", matchQuery("field2", i)).scoreType("max"))
+                        .setQuery(hasChildQuery("child", matchQuery("field2", i)).scoreMode(ScoreMode.Max))
                         .execute().actionGet();
                 if (searchResponse.getHits().totalHits() != i) {
                     System.err.println("--> mismatch on hits");

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,21 +17,29 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.base.Objects;
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.TypeLiteral;
 import org.elasticsearch.common.inject.spi.Message;
 
 import java.io.Serializable;
-import java.lang.reflect.*;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.GenericArrayType;
+import java.lang.reflect.GenericDeclaration;
+import java.lang.reflect.Member;
+import java.lang.reflect.Method;
+import java.lang.reflect.ParameterizedType;
+import java.lang.reflect.Type;
+import java.lang.reflect.TypeVariable;
+import java.lang.reflect.WildcardType;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
-import static com.google.common.base.Preconditions.checkArgument;
-import static com.google.common.base.Preconditions.checkNotNull;
+import static java.util.Collections.singleton;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Static methods for working with types that we aren't publishing in the
@@ -46,18 +54,20 @@ public class MoreTypes {
     private MoreTypes() {
     }
 
-    private static final Map<TypeLiteral<?>, TypeLiteral<?>> PRIMITIVE_TO_WRAPPER
-            = new ImmutableMap.Builder<TypeLiteral<?>, TypeLiteral<?>>()
-            .put(TypeLiteral.get(boolean.class), TypeLiteral.get(Boolean.class))
-            .put(TypeLiteral.get(byte.class), TypeLiteral.get(Byte.class))
-            .put(TypeLiteral.get(short.class), TypeLiteral.get(Short.class))
-            .put(TypeLiteral.get(int.class), TypeLiteral.get(Integer.class))
-            .put(TypeLiteral.get(long.class), TypeLiteral.get(Long.class))
-            .put(TypeLiteral.get(float.class), TypeLiteral.get(Float.class))
-            .put(TypeLiteral.get(double.class), TypeLiteral.get(Double.class))
-            .put(TypeLiteral.get(char.class), TypeLiteral.get(Character.class))
-            .put(TypeLiteral.get(void.class), TypeLiteral.get(Void.class))
-            .build();
+    private static final Map<TypeLiteral<?>, TypeLiteral<?>> PRIMITIVE_TO_WRAPPER;
+    static {
+        Map<TypeLiteral<?>, TypeLiteral<?>> primitiveToWrapper = new HashMap<>();
+        primitiveToWrapper.put(TypeLiteral.get(boolean.class), TypeLiteral.get(Boolean.class));
+        primitiveToWrapper.put(TypeLiteral.get(byte.class), TypeLiteral.get(Byte.class));
+        primitiveToWrapper.put(TypeLiteral.get(short.class), TypeLiteral.get(Short.class));
+        primitiveToWrapper.put(TypeLiteral.get(int.class), TypeLiteral.get(Integer.class));
+        primitiveToWrapper.put(TypeLiteral.get(long.class), TypeLiteral.get(Long.class));
+        primitiveToWrapper.put(TypeLiteral.get(float.class), TypeLiteral.get(Float.class));
+        primitiveToWrapper.put(TypeLiteral.get(double.class), TypeLiteral.get(Double.class));
+        primitiveToWrapper.put(TypeLiteral.get(char.class), TypeLiteral.get(Character.class));
+        primitiveToWrapper.put(TypeLiteral.get(void.class), TypeLiteral.get(Void.class));
+        PRIMITIVE_TO_WRAPPER = unmodifiableMap(primitiveToWrapper);
+    }
 
     /**
      * Returns an equivalent type that's safe for use in a key. The returned type will be free of
@@ -68,7 +78,7 @@ public class MoreTypes {
     public static <T> TypeLiteral<T> makeKeySafe(TypeLiteral<T> type) {
         if (!isFullySpecified(type.getType())) {
             String message = type + " cannot be used as a key; It is not fully specified.";
-            throw new ConfigurationException(ImmutableSet.of(new Message(message)));
+            throw new ConfigurationException(singleton(new Message(message)));
         }
 
         @SuppressWarnings("unchecked")
@@ -153,8 +163,11 @@ public class MoreTypes {
             // Neal isn't either but suspects some pathological case related
             // to nested classes exists.
             Type rawType = parameterizedType.getRawType();
-            checkArgument(rawType instanceof Class,
-                    "Expected a Class, but <%s> is of type %s", type, type.getClass().getName());
+            if (!(rawType instanceof Class)) {
+                throw new IllegalArgumentException(
+                        "Expected a Class, but <" + type +"> is of type " + type.getClass().getName()
+                );
+            }
             return (Class<?>) rawType;
 
         } else if (type instanceof GenericArrayType) {
@@ -192,7 +205,7 @@ public class MoreTypes {
             // TODO: save a .clone() call
             ParameterizedType pa = (ParameterizedType) a;
             ParameterizedType pb = (ParameterizedType) b;
-            return Objects.equal(pa.getOwnerType(), pb.getOwnerType())
+            return Objects.equals(pa.getOwnerType(), pb.getOwnerType())
                     && pa.getRawType().equals(pb.getRawType())
                     && Arrays.equals(pa.getActualTypeArguments(), pb.getActualTypeArguments());
 
@@ -316,7 +329,7 @@ public class MoreTypes {
      * Returns {@code Field.class}, {@code Method.class} or {@code Constructor.class}.
      */
     public static Class<? extends Member> memberType(Member member) {
-        checkNotNull(member, "member");
+        Objects.requireNonNull(member, "member");
 
         if (member instanceof MemberImpl) {
             return ((MemberImpl) member).memberType;
@@ -355,7 +368,7 @@ public class MoreTypes {
     }
 
     public static String memberKey(Member member) {
-        checkNotNull(member, "member");
+        Objects.requireNonNull(member, "member");
 
         return "<NO_MEMBER_KEY>";
     }
@@ -446,17 +459,20 @@ public class MoreTypes {
             // require an owner type if the raw type needs it
             if (rawType instanceof Class<?>) {
                 Class rawTypeAsClass = (Class) rawType;
-                checkArgument(ownerType != null || rawTypeAsClass.getEnclosingClass() == null,
-                        "No owner type for enclosed %s", rawType);
-                checkArgument(ownerType == null || rawTypeAsClass.getEnclosingClass() != null,
-                        "Owner type for unenclosed %s", rawType);
+                if (ownerType == null && rawTypeAsClass.getEnclosingClass() != null) {
+                    throw new IllegalArgumentException("No owner type for enclosed " + rawType);
+                }
+                if (ownerType != null && rawTypeAsClass.getEnclosingClass() == null) {
+                    throw new IllegalArgumentException("Owner type for unenclosed " + rawType);
+                }
+
             }
 
             this.ownerType = ownerType == null ? null : canonicalize(ownerType);
             this.rawType = canonicalize(rawType);
             this.typeArguments = typeArguments.clone();
             for (int t = 0; t < this.typeArguments.length; t++) {
-                checkNotNull(this.typeArguments[t], "type parameter");
+                Objects.requireNonNull(this.typeArguments[t], "type parameter");
                 checkNotPrimitive(this.typeArguments[t], "type parameters");
                 this.typeArguments[t] = canonicalize(this.typeArguments[t]);
             }
@@ -562,18 +578,23 @@ public class MoreTypes {
         private final Type lowerBound;
 
         public WildcardTypeImpl(Type[] upperBounds, Type[] lowerBounds) {
-            checkArgument(lowerBounds.length <= 1, "Must have at most one lower bound.");
-            checkArgument(upperBounds.length == 1, "Must have exactly one upper bound.");
-
+            if (lowerBounds.length > 1) {
+                throw new IllegalArgumentException("Must have at most one lower bound.");
+            }
+            if (upperBounds.length != 1) {
+                throw new IllegalArgumentException("Must have exactly one upper bound.");
+            }
             if (lowerBounds.length == 1) {
-                checkNotNull(lowerBounds[0], "lowerBound");
+                Objects.requireNonNull(lowerBounds[0], "lowerBound");
                 checkNotPrimitive(lowerBounds[0], "wildcard bounds");
-                checkArgument(upperBounds[0] == Object.class, "bounded both ways");
+                if (upperBounds[0] != Object.class) {
+                    throw new IllegalArgumentException("bounded both ways");
+                }
                 this.lowerBound = canonicalize(lowerBounds[0]);
                 this.upperBound = Object.class;
 
             } else {
-                checkNotNull(upperBounds[0], "upperBound");
+                Objects.requireNonNull(upperBounds[0], "upperBound");
                 checkNotPrimitive(upperBounds[0], "wildcard bounds");
                 this.lowerBound = null;
                 this.upperBound = canonicalize(upperBounds[0]);
@@ -616,8 +637,9 @@ public class MoreTypes {
     }
 
     private static void checkNotPrimitive(Type type, String use) {
-        checkArgument(!(type instanceof Class<?>) || !((Class) type).isPrimitive(),
-                "Primitive types are not allowed in %s: %s", use, type);
+        if (type instanceof Class<?> && ((Class) type).isPrimitive()) {
+            throw new IllegalArgumentException("Primitive types are not allowed in " + use + ": " + type);
+        }
     }
 
     /**

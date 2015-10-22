@@ -18,8 +18,7 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -28,6 +27,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,8 +39,16 @@ import java.io.BufferedWriter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.URISyntaxException;
-import java.nio.file.*;
-import java.util.*;
+import java.nio.file.DirectoryStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 
 /**
  */
@@ -68,14 +76,14 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
                 int numFiles = randomIntBetween(1, 10);
                 for (int i = 0; i < numFiles; i++, numIdxFiles++) {
                     String filename = Integer.toString(numIdxFiles);
-                    try (BufferedWriter w = Files.newBufferedWriter(idx.resolve(filename + ".tst"), Charsets.UTF_8)) {
+                    try (BufferedWriter w = Files.newBufferedWriter(idx.resolve(filename + ".tst"), StandardCharsets.UTF_8)) {
                         w.write(filename);
                     }
                 }
                 numFiles = randomIntBetween(1, 10);
                 for (int i = 0; i < numFiles; i++, numTranslogFiles++) {
                     String filename = Integer.toString(numTranslogFiles);
-                    try (BufferedWriter w = Files.newBufferedWriter(translog.resolve(filename + ".translog"), Charsets.UTF_8)) {
+                    try (BufferedWriter w = Files.newBufferedWriter(translog.resolve(filename + ".translog"), StandardCharsets.UTF_8)) {
                         w.write(filename);
                     }
                 }
@@ -116,14 +124,14 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
                 final String name = Integer.toString(i);
                 translogFiles.contains(translog.resolve(name + ".translog"));
                 byte[] content = Files.readAllBytes(translog.resolve(name + ".translog"));
-                assertEquals(name , new String(content, Charsets.UTF_8));
+                assertEquals(name , new String(content, StandardCharsets.UTF_8));
             }
             final HashSet<Path> idxFiles = Sets.newHashSet(FileSystemUtils.files(idx));
             for (int i = 0; i < numIdxFiles; i++) {
                 final String name = Integer.toString(i);
                 idxFiles.contains(idx.resolve(name + ".tst"));
                 byte[] content = Files.readAllBytes(idx.resolve(name + ".tst"));
-                assertEquals(name , new String(content, Charsets.UTF_8));
+                assertEquals(name , new String(content, StandardCharsets.UTF_8));
             }
         }
     }
@@ -133,8 +141,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
      */
     public void testUpgradeRealIndex() throws IOException, URISyntaxException {
         List<Path> indexes = new ArrayList<>();
-        Path dir = getDataPath("/" + OldIndexBackwardsCompatibilityIT.class.getPackage().getName().replace('.', '/')); // the files are in the same pkg as the OldIndexBackwardsCompatibilityTests test
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, "index-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), "index-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path);
             }
@@ -179,7 +186,7 @@ public class MultiDataPathUpgraderTests extends ESTestCase {
             OldIndexBackwardsCompatibilityIT.copyIndex(logger, src, indexName, multiDataPath);
             final ShardPath shardPath = new ShardPath(false, nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], nodeEnvironment.availableShardPaths(new ShardId(indexName, 0))[0], IndexMetaData.INDEX_UUID_NA_VALUE, new ShardId(indexName, 0));
 
-            logger.info("{}", FileSystemUtils.files(shardPath.resolveIndex()));
+            logger.info("{}", (Object)FileSystemUtils.files(shardPath.resolveIndex()));
 
             MultiDataPathUpgrader helper = new MultiDataPathUpgrader(nodeEnvironment);
             helper.upgrade(new ShardId(indexName, 0), shardPath);

@@ -19,14 +19,12 @@
 
 package org.elasticsearch.search.aggregations.pipeline;
 
-import com.google.common.base.Function;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -41,7 +39,7 @@ public abstract class PipelineAggregator implements Streamable {
      * Parses the pipeline aggregation request and creates the appropriate
      * pipeline aggregator factory for it.
      * 
-     * @see {@link PipelineAggregatorFactory}
+     * @see PipelineAggregatorFactory
      */
     public static interface Parser {
 
@@ -72,13 +70,6 @@ public abstract class PipelineAggregator implements Streamable {
         PipelineAggregatorFactory parse(String pipelineAggregatorName, XContentParser parser, SearchContext context) throws IOException;
 
     }
-
-    public static final Function<Aggregation, InternalAggregation> AGGREGATION_TRANFORM_FUNCTION = new Function<Aggregation, InternalAggregation>() {
-        @Override
-        public InternalAggregation apply(Aggregation input) {
-            return (InternalAggregation) input;
-        }
-    };
 
     private String name;
     private String[] bucketsPaths;

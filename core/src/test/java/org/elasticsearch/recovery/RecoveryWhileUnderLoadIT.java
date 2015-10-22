@@ -19,7 +19,6 @@
 
 package org.elasticsearch.recovery;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
@@ -33,7 +32,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.concurrent.TimeUnit;
@@ -46,14 +44,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.equalTo;
 
 public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
-
     private final ESLogger logger = Loggers.getLogger(RecoveryWhileUnderLoadIT.class);
 
-    @Test
-    public void recoverWhileUnderLoadAllocateReplicasTest() throws Exception {
+    public void testRecoverWhileUnderLoadAllocateReplicasTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
@@ -106,8 +101,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void recoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
+    public void testRecoverWhileUnderLoadAllocateReplicasRelocatePrimariesTest() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 1, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
@@ -158,8 +152,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void recoverWhileUnderLoadWithReducedAllowedNodes() throws Exception {
+    public void testRecoverWhileUnderLoadWithReducedAllowedNodes() throws Exception {
         logger.info("--> creating test index ...");
         int numberOfShards = numberOfShards();
         assertAcked(prepareCreate("test", 2, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numberOfShards).put(SETTING_NUMBER_OF_REPLICAS, 1).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
@@ -228,8 +221,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void recoverWhileRelocating() throws Exception {
+    public void testRecoverWhileRelocating() throws Exception {
         final int numShards = between(2, 10);
         final int numReplicas = 0;
         logger.info("--> creating test index ...");
@@ -289,19 +281,20 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
             //if there was an error we try to wait and see if at some point it'll get fixed
             logger.info("--> trying to wait");
-            assertThat(awaitBusy(new Predicate<Object>() {
-                @Override
-                public boolean apply(Object o) {
-                    boolean error = false;
-                    for (int i = 0; i < iterations; i++) {
-                        SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
-                        if (searchResponse.getHits().totalHits() != numberOfDocs) {
-                            error = true;
-                        }
-                    }
-                    return !error;
-                }
-            }, 5, TimeUnit.MINUTES), equalTo(true));
+            assertTrue(awaitBusy(() -> {
+                                boolean errorOccurred = false;
+                                for (int i = 0; i < iterations; i++) {
+                                    SearchResponse searchResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
+                                    if (searchResponse.getHits().totalHits() != numberOfDocs) {
+                                        errorOccurred = true;
+                                    }
+                                }
+                                return !errorOccurred;
+                            },
+                            5,
+                            TimeUnit.MINUTES
+                    )
+            );
         }
 
         //lets now make the test fail if it was supposed to fail

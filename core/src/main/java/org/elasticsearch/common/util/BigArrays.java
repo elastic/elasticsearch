@@ -19,7 +19,6 @@
 
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Preconditions;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
@@ -55,9 +54,15 @@ public class BigArrays {
     /** Return the next size to grow to that is &gt;= <code>minTargetSize</code>.
      *  Inspired from {@link ArrayUtil#oversize(int, int)} and adapted to play nicely with paging. */
     public static long overSize(long minTargetSize, int pageSize, int bytesPerElement) {
-        Preconditions.checkArgument(minTargetSize >= 0, "minTargetSize must be >= 0");
-        Preconditions.checkArgument(pageSize >= 0, "pageSize must be > 0");
-        Preconditions.checkArgument(bytesPerElement > 0, "bytesPerElement must be > 0");
+        if (minTargetSize < 0) {
+            throw new IllegalArgumentException("minTargetSize must be >= 0");
+        }
+        if (pageSize < 0) {
+            throw new IllegalArgumentException("pageSize must be > 0");
+        }
+        if (bytesPerElement <= 0) {
+            throw new IllegalArgumentException("bytesPerElement must be > 0");
+        }
 
         long newSize;
         if (minTargetSize < pageSize) {
@@ -489,7 +494,7 @@ public class BigArrays {
         return resize(array, newSize);
     }
 
-    /** @see Arrays.hashCode(byte[]) */
+    /** @see Arrays#hashCode(byte[]) */
     public int hashCode(ByteArray array) {
         if (array == null) {
             return 0;
@@ -503,7 +508,7 @@ public class BigArrays {
         return hash;
     }
 
-    /** @see Arrays.equals(byte[], byte[]) */
+    /** @see Arrays#equals(byte[], byte[]) */
     public boolean equals(ByteArray array, ByteArray other) {
         if (array == other) {
             return true;

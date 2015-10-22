@@ -21,17 +21,17 @@ package org.elasticsearch.test.store;
 
 import com.carrotsearch.randomizedtesting.SeedUtils;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexSettings;
@@ -40,7 +40,6 @@ import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
@@ -49,24 +48,17 @@ import org.junit.Assert;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.PrintStream;
-import java.lang.reflect.Field;
 import java.nio.file.Path;
 import java.util.*;
 
 public class MockFSDirectoryService extends FsDirectoryService {
 
-    public static final String CHECK_INDEX_ON_CLOSE = "index.store.mock.check_index_on_close";
     public static final String RANDOM_IO_EXCEPTION_RATE_ON_OPEN = "index.store.mock.random.io_exception_rate_on_open";
     public static final String RANDOM_PREVENT_DOUBLE_WRITE = "index.store.mock.random.prevent_double_write";
     public static final String RANDOM_NO_DELETE_OPEN_FILE = "index.store.mock.random.no_delete_open_file";
     public static final String CRASH_INDEX = "index.store.mock.random.crash_index";
 
-    private static final EnumSet<IndexShardState> validCheckIndexStates = EnumSet.of(
-            IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY
-    );
-
     private final FsDirectoryService delegateService;
-    private final boolean checkIndexOnClose;
     private final Random random;
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
@@ -81,7 +73,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         super(indexSettings, indexStore, path);
         final long seed = indexSettings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
         this.random = new Random(seed);
-        checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
+
         randomIOExceptionRate = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE, 0.0d);
         randomIOExceptionRateOnOpen = indexSettings.getAsDouble(RANDOM_IO_EXCEPTION_RATE_ON_OPEN, 0.0d);
         preventDoubleWrite = indexSettings.getAsBoolean(RANDOM_PREVENT_DOUBLE_WRITE, true); // true is default in MDW
@@ -96,33 +88,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
         }
         this.indexSettings = indexSettings;
         delegateService = randomDirectorService(indexStore, path);
-        if (checkIndexOnClose) {
-            final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
-
-                boolean canRun = false;
-
-                @Override
-                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
-                                                   @IndexSettings Settings indexSettings) {
-                    if (indexShard != null && shardId.equals(sid)) {
-                        if (validCheckIndexStates.contains(indexShard.state()) && IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
-                            canRun = true;
-                        }
-                    }
-                }
-
-                @Override
-                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
-                                                  @IndexSettings Settings indexSettings) {
-                    if (shardId.equals(sid) && indexShard != null && canRun) {
-                        assert indexShard.state() == IndexShardState.CLOSED : "Current state must be closed";
-                        checkIndex(indexShard.store(), sid);
-                    }
-                    service.indicesLifecycle().removeListener(this);
-                }
-            };
-            service.indicesLifecycle().addListener(listener);
-        }
     }
 
 
@@ -136,7 +101,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
         throw new UnsupportedOperationException();
     }
 
-    public void checkIndex(Store store, ShardId shardId) {
+    public static void checkIndex(ESLogger logger, Store store, ShardId shardId) {
         if (store.tryIncRef()) {
             logger.info("start check index");
             try {
@@ -150,7 +115,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 }
                 try (CheckIndex checkIndex = new CheckIndex(dir)) {
                     BytesStreamOutput os = new BytesStreamOutput();
-                    PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+                    PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
                     checkIndex.setInfoStream(out);
                     out.flush();
                     CheckIndex.Status status = checkIndex.checkIndex();
@@ -158,11 +123,11 @@ public class MockFSDirectoryService extends FsDirectoryService {
                         ESTestCase.checkIndexFailed = true;
                         logger.warn("check index [failure] index files={}\n{}",
                                 Arrays.toString(dir.listAll()),
-                                new String(os.bytes().toBytes(), Charsets.UTF_8));
+                                new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                         throw new IOException("index check failure");
                     } else {
                         if (logger.isDebugEnabled()) {
-                            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                            logger.debug("check index [success]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                         }
                     }
                 }
@@ -217,52 +182,10 @@ public class MockFSDirectoryService extends FsDirectoryService {
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {
 
         private final boolean crash;
-        private final Set<String> superUnSyncedFiles;
-        private final Random superRandomState;
 
         public ElasticsearchMockDirectoryWrapper(Random random, Directory delegate, boolean crash) {
             super(random, delegate);
             this.crash = crash;
-
-            // TODO: remove all this and cutover to MockFS (DisableFsyncFS) instead
-            try {
-                Field field = MockDirectoryWrapper.class.getDeclaredField("unSyncedFiles");
-                field.setAccessible(true);
-                superUnSyncedFiles = (Set<String>) field.get(this);
-
-                field = MockDirectoryWrapper.class.getDeclaredField("randomState");
-                field.setAccessible(true);
-                superRandomState = (Random) field.get(this);
-            } catch (ReflectiveOperationException roe) {
-                throw new RuntimeException(roe);
-            }
-        }
-
-        /**
-         * Returns true if {@link #in} must sync its files.
-         * Currently, only {@link org.apache.lucene.store.NRTCachingDirectory} requires sync'ing its files
-         * because otherwise they are cached in an internal {@link org.apache.lucene.store.RAMDirectory}. If
-         * other directories require that too, they should be added to this method.
-         */
-        private boolean mustSync() {
-            Directory delegate = in;
-            while (delegate instanceof FilterDirectory) {
-                if (delegate instanceof NRTCachingDirectory) {
-                    return true;
-                }
-                delegate = ((FilterDirectory) delegate).getDelegate();
-            }
-            return delegate instanceof NRTCachingDirectory;
-        }
-
-        @Override
-        public synchronized void sync(Collection<String> names) throws IOException {
-            // don't wear out our hardware so much in tests.
-            if (superRandomState.nextInt(100) == 0 || mustSync()) {
-                super.sync(names);
-            } else {
-                superUnSyncedFiles.removeAll(names);
-            }
         }
 
         @Override
@@ -279,13 +202,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
         public CloseableDirectory(BaseDirectoryWrapper dir) {
             this.dir = dir;
-            try {
-                final Field suiteFailureMarker = LuceneTestCase.class.getDeclaredField("suiteFailureMarker");
-                suiteFailureMarker.setAccessible(true);
-                this.failureMarker = (TestRuleMarkFailure) suiteFailureMarker.get(LuceneTestCase.class);
-            } catch (Throwable e) {
-                throw new ElasticsearchException("foo", e);
-            }
+            this.failureMarker = ESTestCase.getSuiteFailureMarker();
         }
 
         @Override

@@ -21,7 +21,7 @@ package org.elasticsearch.cluster;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.collect.ImmutableSet;
+
 import org.elasticsearch.cluster.DiffableUtils.KeyedReader;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -31,7 +31,12 @@ import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.service.InternalClusterService;
 import org.elasticsearch.common.Nullable;
@@ -56,6 +61,7 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Represents the current state of the cluster.
@@ -256,7 +262,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
     }
 
     // Used for testing and logging to determine how this cluster state was send over the wire
-    boolean wasReadFromDiff() {
+    public boolean wasReadFromDiff() {
         return wasReadFromDiff;
     }
 
@@ -294,6 +300,16 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         } catch (IOException e) {
             return "{ \"error\" : \"" + e.getMessage() + "\"}";
         }
+    }
+
+    /**
+     * a cluster state supersedes another state iff they are from the same master and the version this state is higher thant the other state.
+     * <p>
+     * In essence that means that all the changes from the other cluster state are also reflected by the current one
+     */
+    public boolean supersedes(ClusterState other) {
+        return this.nodes().masterNodeId() != null && this.nodes().masterNodeId().equals(other.nodes().masterNodeId()) && this.version() > other.version();
+
     }
 
     public enum Metric {
@@ -373,9 +389,9 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             if (!blocks().indices().isEmpty()) {
                 builder.startObject("indices");
-                for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : blocks().indices().entrySet()) {
-                    builder.startObject(entry.getKey());
-                    for (ClusterBlock block : entry.getValue()) {
+                for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks().indices()) {
+                    builder.startObject(entry.key);
+                    for (ClusterBlock block : entry.value) {
                         block.toXContent(builder, params);
                     }
                     builder.endObject();
@@ -433,17 +449,17 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
             builder.startObject("indices");
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+                builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-                builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
+                builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
                 builder.startObject("settings");
-                Settings settings = indexMetaData.settings();
+                Settings settings = indexMetaData.getSettings();
                 settings.toXContent(builder, params);
                 builder.endObject();
 
                 builder.startObject("mappings");
-                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+                for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                     byte[] mappingSource = cursor.value.source().uncompressed();
                     XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource);
                     Map<String, Object> mapping = parser.map();
@@ -457,7 +473,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 builder.endObject();
 
                 builder.startArray("aliases");
-                for (ObjectCursor<String> cursor : indexMetaData.aliases().keys()) {
+                for (ObjectCursor<String> cursor : indexMetaData.getAliases().keys()) {
                     builder.value(cursor.value);
                 }
                 builder.endArray();
@@ -573,10 +589,6 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         public Builder nodes(DiscoveryNodes nodes) {
             this.nodes = nodes;
             return this;
-        }
-
-        public Builder routingTable(RoutingTable.Builder routingTable) {
-            return routingTable(routingTable.build());
         }
 
         public Builder routingResult(RoutingAllocation.Result routingResult) {
@@ -814,6 +826,7 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.fromDiff(true);
             return builder.build();
         }
+
     }
 
 }

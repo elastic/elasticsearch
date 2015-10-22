@@ -19,9 +19,6 @@
 
 package org.elasticsearch.bwcompat;
 
-import com.google.common.base.Predicate;
-import com.google.common.util.concurrent.ListenableFuture;
-
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
@@ -51,12 +48,12 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -99,8 +96,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
     private List<String> loadIndexesList(String prefix) throws IOException {
         List<String> indexes = new ArrayList<>();
-        Path dir = getDataPath(".");
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir, prefix + "-*.zip")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(getBwcIndicesPath(), prefix + "-*.zip")) {
             for (Path path : stream) {
                 indexes.add(path.getFileName().toString());
             }
@@ -124,20 +120,20 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     }
 
     void setupCluster() throws Exception {
-        ListenableFuture<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
+        InternalTestCluster.Async<List<String>> replicas = internalCluster().startNodesAsync(1); // for replicas
 
         Path baseTempDir = createTempDir();
         // start single data path node
         Settings.Builder nodeSettings = Settings.builder()
             .put("path.data", baseTempDir.resolve("single-path").toAbsolutePath())
             .put("node.master", false); // workaround for dangling index loading issue when node is master
-        ListenableFuture<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+        InternalTestCluster.Async<String> singleDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
         // start multi data path node
         nodeSettings = Settings.builder()
             .put("path.data", baseTempDir.resolve("multi-path1").toAbsolutePath() + "," + baseTempDir.resolve("multi-path2").toAbsolutePath())
             .put("node.master", false); // workaround for dangling index loading issue when node is master
-        ListenableFuture<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
+        InternalTestCluster.Async<String> multiDataPathNode = internalCluster().startNodeAsync(nodeSettings.build());
 
         // find single data path dir
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, singleDataPathNode.get()).nodeDataPaths();
@@ -167,7 +163,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         String indexName = indexFile.replace(".zip", "").toLowerCase(Locale.ROOT).replace("unsupported-", "index-");
 
         // decompress the index
-        Path backwardsIndex = getDataPath(indexFile);
+        Path backwardsIndex = getBwcIndicesPath().resolve(indexFile);
         try (InputStream stream = Files.newInputStream(backwardsIndex)) {
             TestUtil.unzip(stream, unzipDir);
         }
@@ -248,7 +244,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         SortedSet<String> expectedVersions = new TreeSet<>();
         for (Version v : VersionUtils.allVersions()) {
             if (v.snapshot()) continue;  // snapshots are unreleased, so there is no backcompat yet
-            if (v.onOrBefore(Version.V_0_20_6)) continue; // we can only test back one major lucene version
+            if (v.onOrBefore(Version.V_2_0_0_beta1)) continue; // we can only test back one major lucene version
             if (v.equals(Version.CURRENT)) continue; // the current version is always compatible with itself
             expectedVersions.add("index-" + v.toString() + ".zip");
         }
@@ -279,7 +275,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testHandlingOfUnsupportedDanglingIndexes() throws Exception {
         setupCluster();
         Collections.shuffle(unsupportedIndexes, getRandom());
@@ -292,13 +287,12 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
      * Waits for the index to show up in the cluster state in closed state
      */
     void ensureClosed(final String index) throws InterruptedException {
-        assertTrue(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object o) {
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
-            }
-        }));
+        assertTrue(awaitBusy(() -> {
+                            ClusterState state = client().admin().cluster().prepareState().get().getState();
+                            return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
+                        }
+                )
+        );
     }
 
     /**
@@ -315,7 +309,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
             client().admin().indices().prepareOpen(indexName).get();
             fail("Shouldn't be able to open an old index");
         } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), containsString("was created before v0.90.0 and wasn't upgraded"));
+            assertThat(ex.getMessage(), containsString("was created before v2.0.0.beta1 and wasn't upgraded"));
         }
         unloadIndex(indexName);
         logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");

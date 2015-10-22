@@ -19,8 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation.decider;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterInfo;
@@ -28,24 +26,22 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.MockInternalClusterInfoService;
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.DummyTransportAddress;
-import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
-import java.util.Collection;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
-import static com.google.common.collect.Maps.newHashMap;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MockDiskUsagesIT extends ESIntegTestCase {
@@ -65,7 +61,6 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         return pluginList(MockInternalClusterInfoService.TestPlugin.class);
     }
 
-    @Test
     //@TestLogging("org.elasticsearch.cluster:TRACE,org.elasticsearch.cluster.routing.allocation.decider:TRACE")
     public void testRerouteOccursOnDiskPassingHighWatermark() throws Exception {
         List<String> nodes = internalCluster().startNodesAsync(3).get();
@@ -124,7 +119,7 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
         cis.setN3Usage(realNodeNames.get(2), new DiskUsage(nodes.get(2), "n3", "_na_", 100, 0)); // nothing free on node3
 
         // Retrieve the count of shards on each node
-        final Map<String, Integer> nodesToShardCount = newHashMap();
+        final Map<String, Integer> nodesToShardCount = new HashMap<>();
 
         assertBusy(new Runnable() {
             @Override
@@ -168,20 +163,4 @@ public class MockDiskUsagesIT extends ESIntegTestCase {
             }
         });
     }
-
-    /** Create a fake NodeStats for the given node and usage */
-    public static NodeStats makeStats(String nodeName, DiskUsage usage) {
-        FsInfo.Path[] paths = new FsInfo.Path[1];
-        FsInfo.Path path = new FsInfo.Path("/dev/null", null,
-                usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
-        paths[0] = path;
-        FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
-        return new NodeStats(new DiscoveryNode(nodeName, DummyTransportAddress.INSTANCE, Version.CURRENT),
-                System.currentTimeMillis(),
-                null, null, null, null, null,
-                fsInfo,
-                null, null, null,
-                null);
-    }
-
 }

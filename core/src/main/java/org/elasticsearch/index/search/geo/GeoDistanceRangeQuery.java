@@ -204,13 +204,13 @@ public class GeoDistanceRangeQuery extends Query {
         int result = super.hashCode();
         long temp;
         temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         temp = inclusiveLowerPoint != +0.0d ? Double.doubleToLongBits(inclusiveLowerPoint) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         temp = inclusiveUpperPoint != +0.0d ? Double.doubleToLongBits(inclusiveUpperPoint) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         result = 31 * result + (geoDistance != null ? geoDistance.hashCode() : 0);
         result = 31 * result + indexFieldData.getFieldNames().indexName().hashCode();
         return result;

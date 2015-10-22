@@ -43,12 +43,12 @@ public class Queries {
         return new BooleanQuery.Builder().build();
     }
 
-    public static Filter newNestedFilter() {
-        return new QueryWrapperFilter(new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__"))));
+    public static Query newNestedFilter() {
+        return new PrefixQuery(new Term(TypeFieldMapper.NAME, new BytesRef("__")));
     }
 
-    public static Filter newNonNestedFilter() {
-        return new QueryWrapperFilter(not(newNestedFilter()));
+    public static Query newNonNestedFilter() {
+        return not(newNestedFilter());
     }
 
     public static BooleanQuery filtered(@Nullable Query query, @Nullable Query filter) {
@@ -101,8 +101,6 @@ public class Queries {
     public static boolean isConstantMatchAllQuery(Query query) {
         if (query instanceof ConstantScoreQuery) {
             return isConstantMatchAllQuery(((ConstantScoreQuery) query).getQuery());
-        } else if (query instanceof QueryWrapperFilter) {
-            return isConstantMatchAllQuery(((QueryWrapperFilter) query).getQuery());
         } else if (query instanceof MatchAllDocsQuery) {
             return true;
         }

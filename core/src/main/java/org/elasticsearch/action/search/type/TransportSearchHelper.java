@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.search.type;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.action.search.SearchRequest;
@@ -36,7 +34,10 @@ import org.elasticsearch.search.internal.InternalScrollSearchRequest;
 import org.elasticsearch.search.internal.ShardSearchTransportRequest;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
 
 /**
  *
@@ -56,8 +57,6 @@ public abstract class TransportSearchHelper {
             return buildScrollId(ParsedScrollId.QUERY_THEN_FETCH_TYPE, searchPhaseResults, attributes);
         } else if (searchType == SearchType.QUERY_AND_FETCH || searchType == SearchType.DFS_QUERY_AND_FETCH) {
             return buildScrollId(ParsedScrollId.QUERY_AND_FETCH_TYPE, searchPhaseResults, attributes);
-        } else if (searchType == SearchType.SCAN) {
-            return buildScrollId(ParsedScrollId.SCAN, searchPhaseResults, attributes);
         } else {
             throw new IllegalStateException("search_type [" + searchType + "] not supported");
         }
@@ -114,9 +113,9 @@ public abstract class TransportSearchHelper {
         Map<String, String> attributes;
         int attributesSize = Integer.parseInt(elements[index++]);
         if (attributesSize == 0) {
-            attributes = ImmutableMap.of();
+            attributes = emptyMap();
         } else {
-            attributes = Maps.newHashMapWithExpectedSize(attributesSize);
+            attributes = new HashMap<>(attributesSize);
             for (int i = 0; i < attributesSize; i++) {
                 String element = elements[index++];
                 int sep = element.indexOf(':');

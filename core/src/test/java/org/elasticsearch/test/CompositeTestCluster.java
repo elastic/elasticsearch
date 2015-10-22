@@ -19,9 +19,6 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -33,10 +30,8 @@ import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.Random;
+import java.util.*;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
 import static org.hamcrest.Matchers.equalTo;
@@ -90,12 +85,10 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     private Collection<ExternalNode> runningNodes() {
-        return Collections2.filter(Arrays.asList(externalNodes), new Predicate<ExternalNode>() {
-            @Override
-            public boolean apply(ExternalNode input) {
-                return input.running();
-            }
-        });
+        return Arrays
+                .stream(externalNodes)
+                .filter(input -> input.running())
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     /**
@@ -249,7 +242,7 @@ public class CompositeTestCluster extends TestCluster {
 
     @Override
     public synchronized Iterator<Client> iterator() {
-        return Iterators.singletonIterator(client());
+        return Collections.singleton(client()).iterator();
     }
 
     /**

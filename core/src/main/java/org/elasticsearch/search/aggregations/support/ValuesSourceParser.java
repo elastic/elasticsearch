@@ -43,9 +43,8 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
-
-import static com.google.common.collect.Maps.newHashMap;
 
 /**
  *
@@ -163,7 +162,7 @@ public class ValuesSourceParser<VS extends ValuesSource> {
             ScriptParameterValue scriptValue = scriptParameterParser.getDefaultScriptParameterValue();
             if (scriptValue != null) {
                 if (input.params == null) {
-                    input.params = newHashMap();
+                    input.params = new HashMap<>();
                 }
                 input.script = new Script(scriptValue.script(), scriptValue.scriptType(), scriptParameterParser.lang(), input.params);
             }

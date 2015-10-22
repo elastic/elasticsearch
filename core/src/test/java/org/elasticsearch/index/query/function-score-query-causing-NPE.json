@@ -1,9 +1,0 @@
-{
-    "function_score": {
-      "script_score": {
-        "script": "_index['text']['foo'].tf()"
-      },
-      "weight": 2
-    }
-}
-

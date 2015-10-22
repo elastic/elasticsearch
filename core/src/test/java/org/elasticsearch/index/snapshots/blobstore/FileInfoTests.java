@@ -22,11 +22,14 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.Fields;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot.FileInfo.Fields;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -37,8 +40,6 @@ import static org.hamcrest.Matchers.is;
 /**
  */
 public class FileInfoTests extends ESTestCase {
-
-    @Test
     public void testToFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);
         for (int iter = 0; iter < iters; iter++) {
@@ -63,7 +64,7 @@ public class FileInfoTests extends ESTestCase {
             assertThat(info.physicalName(), equalTo(parsedInfo.physicalName()));
             assertThat(info.length(), equalTo(parsedInfo.length()));
             assertThat(info.checksum(), equalTo(parsedInfo.checksum()));
-            assertThat(info.partBytes(), equalTo(parsedInfo.partBytes()));
+            assertThat(info.partSize(), equalTo(parsedInfo.partSize()));
             assertThat(parsedInfo.metadata().hash().length, equalTo(hash.length));
             assertThat(parsedInfo.metadata().hash(), equalTo(hash));
             assertThat(parsedInfo.metadata().writtenBy(), equalTo(Version.LATEST));
@@ -71,7 +72,6 @@ public class FileInfoTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testInvalidFieldsInFromXContent() throws IOException {
         final int iters = scaledRandomIntBetween(1, 10);
         for (int iter = 0; iter < iters; iter++) {
@@ -83,7 +83,7 @@ public class FileInfoTests extends ESTestCase {
             String name = "foobar";
             String physicalName = "_foobar";
             String failure = null;
-            long length = Math.max(0,Math.abs(randomLong()));
+            long length = Math.max(0, Math.abs(randomLong()));
             // random corruption
             switch (randomIntBetween(0, 3)) {
                 case 0:
@@ -136,5 +136,32 @@ public class FileInfoTests extends ESTestCase {
 
             }
         }
+    }
+
+    public void testGetPartSize() {
+        BlobStoreIndexShardSnapshot.FileInfo info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 36), new ByteSizeValue(6));
+        int numBytes = 0;
+        for (int i = 0; i < info.numberOfParts(); i++) {
+            numBytes += info.partBytes(i);
+        }
+        assertEquals(numBytes, 36);
+
+        info = new BlobStoreIndexShardSnapshot.FileInfo("foo", new StoreFileMetaData("foo", 35), new ByteSizeValue(6));
+        numBytes = 0;
+        for (int i = 0; i < info.numberOfParts(); i++) {
+            numBytes += info.partBytes(i);
+        }
+        assertEquals(numBytes, 35);
+        final int numIters = randomIntBetween(10, 100);
+        for (int j = 0; j < numIters; j++) {
+            StoreFileMetaData metaData = new StoreFileMetaData("foo", randomIntBetween(0, 1000));
+            info = new BlobStoreIndexShardSnapshot.FileInfo("foo", metaData, new ByteSizeValue(randomIntBetween(1, 1000)));
+            numBytes = 0;
+            for (int i = 0; i < info.numberOfParts(); i++) {
+                numBytes += info.partBytes(i);
+            }
+            assertEquals(numBytes, metaData.length());
+        }
+
     }
 }

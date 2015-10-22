@@ -19,11 +19,16 @@
 
 package org.elasticsearch.common.geo.builders;
 
-import com.google.common.collect.Sets;
 import com.spatial4j.core.exception.InvalidShapeException;
 import com.spatial4j.core.shape.Shape;
-import com.vividsolutions.jts.geom.*;
+import com.vividsolutions.jts.geom.Coordinate;
+import com.vividsolutions.jts.geom.Geometry;
+import com.vividsolutions.jts.geom.GeometryFactory;
+import com.vividsolutions.jts.geom.LinearRing;
+import com.vividsolutions.jts.geom.MultiPolygon;
+import com.vividsolutions.jts.geom.Polygon;
 import org.elasticsearch.common.collect.Tuple;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;

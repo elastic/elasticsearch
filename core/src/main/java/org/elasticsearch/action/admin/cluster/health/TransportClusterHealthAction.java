@@ -48,7 +48,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     public TransportClusterHealthAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         ThreadPool threadPool, ClusterName clusterName, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver, GatewayAllocator gatewayAllocator) {
-        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterHealthRequest.class);
+        super(settings, ClusterHealthAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterHealthRequest::new);
         this.clusterName = clusterName;
         this.gatewayAllocator = gatewayAllocator;
     }
@@ -73,7 +73,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
     protected void masterOperation(final ClusterHealthRequest request, final ClusterState unusedState, final ActionListener<ClusterHealthResponse> listener) {
         if (request.waitForEvents() != null) {
             final long endTimeMS = TimeValue.nsecToMSec(System.nanoTime()) + request.timeout().millis();
-            clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("cluster_health (wait_for_events [" + request.waitForEvents() + "])", request.waitForEvents(), new ClusterStateUpdateTask() {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     return currentState;
@@ -124,7 +124,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForNodes().isEmpty()) {
             waitFor--;
         }
-        if (request.indices().length == 0) { // check that they actually exists in the meta data
+        if (request.indices() == null || request.indices().length == 0) { // check that they actually exists in the meta data
             waitFor--;
         }
 
@@ -199,7 +199,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         if (request.waitForActiveShards() != -1 && response.getActiveShards() >= request.waitForActiveShards()) {
             waitForCounter++;
         }
-        if (request.indices().length > 0) {
+        if (request.indices() != null && request.indices().length > 0) {
             try {
                 indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.strictExpand(), request.indices());
                 waitForCounter++;

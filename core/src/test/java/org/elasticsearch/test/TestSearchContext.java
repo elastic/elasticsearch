@@ -21,7 +21,6 @@ package org.elasticsearch.test;
 import com.carrotsearch.hppc.ObjectObjectAssociativeContainer;
 
 import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.util.Counter;
@@ -36,6 +35,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -64,7 +64,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.InternalProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -86,6 +85,7 @@ public class TestSearchContext extends SearchContext {
     final IndexShard indexShard;
     final Counter timeEstimateCounter = Counter.newCounter();
     final QuerySearchResult queryResult = new QuerySearchResult();
+    ScriptService scriptService;
     ParsedQuery originalQuery;
     ParsedQuery postFilter;
     Query query;
@@ -100,7 +100,7 @@ public class TestSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
 
-    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, IndexService indexService) {
+    public TestSearchContext(ThreadPool threadPool,PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, ScriptService scriptService, IndexService indexService) {
         super(ParseFieldMatcher.STRICT, null);
         this.pageCacheRecycler = pageCacheRecycler;
         this.bigArrays = bigArrays.withCircuitBreaking();
@@ -108,7 +108,8 @@ public class TestSearchContext extends SearchContext {
         this.indexFieldDataService = indexService.fieldData();
         this.fixedBitSetFilterCache = indexService.bitsetFilterCache();
         this.threadPool = threadPool;
-        this.indexShard = indexService.shard(0);
+        this.indexShard = indexService.getShardOrNull(0);
+        this.scriptService = scriptService;
     }
 
     public TestSearchContext() {
@@ -120,6 +121,7 @@ public class TestSearchContext extends SearchContext {
         this.threadPool = null;
         this.fixedBitSetFilterCache = null;
         this.indexShard = null;
+        scriptService = null;
     }
 
     public void setTypes(String... types) {
@@ -131,7 +133,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Filter searchFilter(String[] types) {
+    public Query searchFilter(String[] types) {
         return null;
     }
 
@@ -326,7 +328,7 @@ public class TestSearchContext extends SearchContext {
 
     @Override
     public ScriptService scriptService() {
-        return indexService.injector().getInstance(ScriptService.class);
+        return scriptService;
     }
 
     @Override
@@ -411,7 +413,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public Filter aliasFilter() {
+    public Query aliasFilter() {
         return null;
     }
 
@@ -557,11 +559,6 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public ScanContext scanContext() {
-        return null;
-    }
-
-    @Override
     public MappedFieldType smartNameFieldType(String name) {
         if (mapperService() != null) {
             return mapperService().smartNameFieldType(name, types());
@@ -672,11 +669,6 @@ public class TestSearchContext extends SearchContext {
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {}
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return queryCollectors;
-    }
-
-    @Override
     public void profile(boolean profile) {
 
     }
@@ -690,4 +682,10 @@ public class TestSearchContext extends SearchContext {
     public InternalProfiler queryProfiler() {
         return null;
     }
+
+    @Override
+    public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}
+
+    @Override
+    public QueryCache getQueryCache() { return indexService.cache().query();}
 }

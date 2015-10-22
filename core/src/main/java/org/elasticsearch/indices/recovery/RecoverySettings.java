@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.base.Objects;
 import org.apache.lucene.store.RateLimiter;
 import org.apache.lucene.store.RateLimiter.SimpleRateLimiter;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -33,6 +32,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
+import java.util.Objects;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -207,7 +207,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
         @Override
         public void onRefreshSettings(Settings settings) {
             ByteSizeValue maxSizePerSec = settings.getAsBytesSize(INDICES_RECOVERY_MAX_BYTES_PER_SEC, settings.getAsBytesSize(INDICES_RECOVERY_MAX_SIZE_PER_SEC, RecoverySettings.this.maxBytesPerSec));
-            if (!Objects.equal(maxSizePerSec, RecoverySettings.this.maxBytesPerSec)) {
+            if (!Objects.equals(maxSizePerSec, RecoverySettings.this.maxBytesPerSec)) {
                 logger.info("updating [{}] from [{}] to [{}]", INDICES_RECOVERY_MAX_BYTES_PER_SEC, RecoverySettings.this.maxBytesPerSec, maxSizePerSec);
                 RecoverySettings.this.maxBytesPerSec = maxSizePerSec;
                 if (maxSizePerSec.bytes() <= 0) {

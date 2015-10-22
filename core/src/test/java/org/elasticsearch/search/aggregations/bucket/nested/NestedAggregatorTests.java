@@ -45,7 +45,6 @@ import org.elasticsearch.search.aggregations.SearchContextAggregations;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -56,8 +55,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class NestedAggregatorTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testResetRootDocId() throws Exception {
         Directory directory = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
@@ -113,7 +110,7 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         indexWriter.commit();
         indexWriter.close();
 
-        DirectoryReader directoryReader = DirectoryReader.open(directory);
+        DirectoryReader directoryReader =  DirectoryReader.open(directory);
         IndexSearcher searcher = new IndexSearcher(directoryReader);
 
         IndexService indexService = createIndex("test");

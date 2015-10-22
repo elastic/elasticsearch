@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.snapshots.mockstore;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.util.Collection;
 import java.util.Map;
 
@@ -50,13 +49,18 @@ public class BlobContainerWrapper implements BlobContainer {
     }
 
     @Override
-    public InputStream openInput(String name) throws IOException {
-        return delegate.openInput(name);
+    public InputStream readBlob(String name) throws IOException {
+        return delegate.readBlob(name);
     }
 
     @Override
-    public OutputStream createOutput(String blobName) throws IOException {
-        return delegate.createOutput(blobName);
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        delegate.writeBlob(blobName, inputStream, blobSize);
+    }
+
+    @Override
+    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
+        delegate.writeBlob(blobName, bytes);
     }
 
     @Override

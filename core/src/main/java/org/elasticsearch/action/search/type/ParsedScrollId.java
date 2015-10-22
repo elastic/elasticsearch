@@ -30,8 +30,6 @@ public class ParsedScrollId {
 
     public static final String QUERY_AND_FETCH_TYPE = "queryAndFetch";
 
-    public static final String SCAN = "scan";
-
     private final String source;
 
     private final String type;

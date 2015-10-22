@@ -31,10 +31,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -55,6 +55,7 @@ public class RoutingTableTests extends ESAllocationTestCase {
             .build());
     private ClusterState clusterState;
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -107,7 +108,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 .numberOfShards(this.numberOfShards);
     }
 
-    @Test
     public void testAllShards() {
         assertThat(this.emptyRoutingTable.allShards().size(), is(0));
         assertThat(this.testRoutingTable.allShards().size(), is(this.totalNumberOfShards));
@@ -121,26 +121,22 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testHasIndex() {
         assertThat(this.testRoutingTable.hasIndex(TEST_INDEX_1), is(true));
         assertThat(this.testRoutingTable.hasIndex("foobar"), is(false));
     }
 
-    @Test
     public void testIndex() {
         assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex(), is(TEST_INDEX_1));
         assertThat(this.testRoutingTable.index("foobar"), is(nullValue()));
     }
 
-    @Test
     public void testIndicesRouting() {
         assertThat(this.testRoutingTable.indicesRouting().size(), is(2));
         assertThat(this.testRoutingTable.getIndicesRouting().size(), is(2));
         assertSame(this.testRoutingTable.getIndicesRouting(), this.testRoutingTable.indicesRouting());
     }
 
-    @Test
     public void testShardsWithState() {
         assertThat(this.testRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED).size(), is(this.totalNumberOfShards));
 
@@ -166,7 +162,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         assertThat(this.testRoutingTable.shardsWithState(ShardRoutingState.STARTED).size(), is(this.totalNumberOfShards));
     }
 
-    @Test
     public void testActivePrimaryShardsGrouped() {
         assertThat(this.emptyRoutingTable.activePrimaryShardsGrouped(new String[0], true).size(), is(0));
         assertThat(this.emptyRoutingTable.activePrimaryShardsGrouped(new String[0], false).size(), is(0));
@@ -196,7 +191,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testAllActiveShardsGrouped() {
         assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], true).size(), is(0));
         assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], false).size(), is(0));
@@ -225,7 +219,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testAllAssignedShardsGrouped() {
         assertThat(this.testRoutingTable.allAssignedShardsGrouped(new String[]{TEST_INDEX_1}, false).size(), is(0));
         assertThat(this.testRoutingTable.allAssignedShardsGrouped(new String[]{TEST_INDEX_1}, true).size(), is(this.shardsPerIndex));
@@ -263,5 +256,35 @@ public class RoutingTableTests extends ESAllocationTestCase {
         } catch (IndexNotFoundException e) {
             fail("Calling with non-existing index should be ignored at the moment");
         }
+    }
+
+    public void testRoutingTableBuiltMoreThanOnce() {
+        RoutingTable.Builder b = RoutingTable.builder();
+        b.build(); // Ok the first time
+        try {
+            b.build();
+            fail("expected exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cannot be reused"));
+        }
+        try {
+            b.add((IndexRoutingTable) null);
+            fail("expected exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cannot be reused"));
+        }
+        try {
+            b.updateNumberOfReplicas(1, "foo");
+            fail("expected exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cannot be reused"));
+        }
+        try {
+            b.remove("foo");
+            fail("expected exception");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("cannot be reused"));
+        }
+
     }
 }

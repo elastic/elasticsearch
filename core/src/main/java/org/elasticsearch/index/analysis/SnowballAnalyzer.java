@@ -28,6 +28,7 @@ import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.snowball.SnowballFilter;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
+import org.apache.lucene.analysis.standard.StandardFilter;
 import org.apache.lucene.analysis.standard.std40.StandardTokenizer40;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;

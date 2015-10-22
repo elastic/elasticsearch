@@ -31,7 +31,7 @@ import java.util.List;
 /**
  *
  */
-class RecoveryFilesInfoRequest extends TransportRequest {
+public class RecoveryFilesInfoRequest extends TransportRequest {
 
     private long recoveryId;
     private ShardId shardId;
@@ -43,7 +43,7 @@ class RecoveryFilesInfoRequest extends TransportRequest {
 
     int totalTranslogOps;
 
-    RecoveryFilesInfoRequest() {
+    public RecoveryFilesInfoRequest() {
     }
 
     RecoveryFilesInfoRequest(long recoveryId, ShardId shardId, List<String> phase1FileNames, List<Long> phase1FileSizes,

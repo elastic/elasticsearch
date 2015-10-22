@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,16 +16,16 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Key;
 import org.elasticsearch.common.inject.binder.AnnotatedConstantBindingBuilder;
 import org.elasticsearch.common.inject.binder.ConstantBindingBuilder;
 import org.elasticsearch.common.inject.spi.Element;
-import org.elasticsearch.common.inject.spi.InjectionPoint;
 
 import java.lang.annotation.Annotation;
 import java.util.List;
+
+import static java.util.Collections.emptySet;
 
 /**
  * Bind a constant.
@@ -130,7 +130,7 @@ public final class ConstantBindingBuilderImpl<T>
         }
 
         setBinding(new InstanceBindingImpl<>(
-                base.getSource(), key, base.getScoping(), ImmutableSet.<InjectionPoint>of(), instanceAsT));
+                base.getSource(), key, base.getScoping(), emptySet(), instanceAsT));
     }
 
     @Override

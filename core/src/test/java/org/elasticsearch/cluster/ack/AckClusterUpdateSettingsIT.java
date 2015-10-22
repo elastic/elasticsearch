@@ -33,10 +33,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,7 +70,6 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
     }
 
-    @Test
     public void testClusterUpdateSettingsAcknowledgement() {
         createIndex("test");
         ensureGreen();
@@ -112,7 +110,6 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -143,7 +140,6 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         return client.admin().cluster().prepareState().setLocal(true).get().getState();
     }
 
-    @Test
     public void testOpenIndexNoAcknowledgement() {
         createIndex("test");
         ensureGreen();

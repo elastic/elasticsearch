@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import com.google.common.collect.Maps;
+import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.suggest.Lookup;
@@ -30,7 +29,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
@@ -39,6 +37,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion.Entry.Op
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -61,7 +60,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         completionSuggestion.addTerm(completionSuggestEntry);
 
         String fieldName = suggestionContext.getField();
-        Map<String, CompletionSuggestion.Entry.Option> results = Maps.newHashMapWithExpectedSize(indexReader.leaves().size() * suggestionContext.getSize());
+        Map<String, CompletionSuggestion.Entry.Option> results = new HashMap<>(indexReader.leaves().size() * suggestionContext.getSize());
         for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
             LeafReader atomicReader = atomicReaderContext.reader();
             Terms terms = atomicReader.fields().terms(fieldName);

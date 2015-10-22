@@ -25,6 +25,7 @@ import org.apache.lucene.index.ReaderUtil;
 import org.apache.lucene.index.memory.ExtendedMemoryIndex;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -65,15 +66,13 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
-import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.percolator.stats.ShardPercolateService;
+import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -88,7 +87,6 @@ import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.highlight.HighlightField;
 import org.elasticsearch.search.highlight.HighlightPhase;
@@ -99,8 +97,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.common.util.CollectionUtils.eagerTransform;
 import static org.elasticsearch.index.mapper.SourceToParse.source;
 import static org.elasticsearch.percolator.QueryCollector.count;
 import static org.elasticsearch.percolator.QueryCollector.match;
@@ -178,11 +177,10 @@ public class PercolatorService extends AbstractComponent {
 
     public PercolateShardResponse percolate(PercolateShardRequest request) {
         IndexService percolateIndexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = percolateIndexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = percolateIndexService.getShard(request.shardId().id());
         indexShard.readAllowed(); // check if we can read the shard...
-
-        ShardPercolateService shardPercolateService = indexShard.shardPercolateService();
-        shardPercolateService.prePercolate();
+        PercolatorQueriesRegistry percolateQueryRegistry = indexShard.percolateRegistry();
+        percolateQueryRegistry.prePercolate();
         long startTime = System.nanoTime();
 
         // TODO: The filteringAliases should be looked up at the coordinating node and serialized with all shard request,
@@ -192,7 +190,7 @@ public class PercolatorService extends AbstractComponent {
                 indexShard.shardId().index().name(),
                 request.indices()
         );
-        Query aliasFilter = percolateIndexService.aliasesService().aliasFilter(filteringAliases);
+        Query aliasFilter = percolateIndexService.aliasFilter(filteringAliases);
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
@@ -256,7 +254,7 @@ public class PercolatorService extends AbstractComponent {
         } finally {
             SearchContext.removeCurrent();
             context.close();
-            shardPercolateService.postPercolate(System.nanoTime() - startTime);
+            percolateQueryRegistry.postPercolate(System.nanoTime() - startTime);
         }
     }
 
@@ -460,21 +458,21 @@ public class PercolatorService extends AbstractComponent {
         @Override
         public PercolateShardResponse doPercolate(PercolateShardRequest request, PercolateContext context, boolean isNested) {
             long count = 0;
-            Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
             for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 try {
+                    Query existsQuery = entry.getValue();
                     if (isNested) {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), Queries.newNonNestedFilter(), collector);
-                    } else {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), collector);
+                        existsQuery = new BooleanQuery.Builder()
+                            .add(existsQuery, Occur.MUST)
+                            .add(Queries.newNonNestedFilter(), Occur.FILTER)
+                            .build();
+                    }
+                    if (Lucene.exists(context.docSearcher(), existsQuery)) {
+                        count ++;
                     }
                 } catch (Throwable e) {
                     logger.debug("[" + entry.getKey() + "] failed to execute query", e);
                     throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
-                }
-
-                if (collector.exists()) {
-                    count++;
                 }
             }
             return new PercolateShardResponse(count, context, request.shardId());
@@ -555,7 +553,6 @@ public class PercolatorService extends AbstractComponent {
             long count = 0;
             List<BytesRef> matches = new ArrayList<>();
             List<Map<String, HighlightField>> hls = new ArrayList<>();
-            Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
 
             for (Map.Entry<BytesRef, Query> entry : context.percolateQueries().entrySet()) {
                 if (context.highlight() != null) {
@@ -563,25 +560,26 @@ public class PercolatorService extends AbstractComponent {
                     context.hitContext().cache().clear();
                 }
                 try {
+                    Query existsQuery = entry.getValue();
                     if (isNested) {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), Queries.newNonNestedFilter(), collector);
-                    } else {
-                        Lucene.exists(context.docSearcher(), entry.getValue(), collector);
+                        existsQuery = new BooleanQuery.Builder()
+                            .add(existsQuery, Occur.MUST)
+                            .add(Queries.newNonNestedFilter(), Occur.FILTER)
+                            .build();
+                    }
+                    if (Lucene.exists(context.docSearcher(), existsQuery)) {
+                        if (!context.limit || count < context.size()) {
+                            matches.add(entry.getKey());
+                            if (context.highlight() != null) {
+                                highlightPhase.hitExecute(context, context.hitContext());
+                                hls.add(context.hitContext().hit().getHighlightFields());
+                            }
+                        }
+                        count++;
                     }
                 } catch (Throwable e) {
                     logger.debug("[" + entry.getKey() + "] failed to execute query", e);
                     throw new PercolateException(context.indexShard().shardId(), "failed to execute", e);
-                }
-
-                if (collector.exists()) {
-                    if (!context.limit || count < context.size()) {
-                        matches.add(entry.getKey());
-                        if (context.highlight() != null) {
-                            highlightPhase.hitExecute(context, context.hitContext());
-                            hls.add(context.hitContext().hit().getHighlightFields());
-                        }
-                    }
-                    count++;
                 }
             }
 
@@ -866,7 +864,9 @@ public class PercolatorService extends AbstractComponent {
         if (aggregations != null) {
             List<SiblingPipelineAggregator> pipelineAggregators = shardResults.get(0).pipelineAggregators();
             if (pipelineAggregators != null) {
-                List<InternalAggregation> newAggs = new ArrayList<>(eagerTransform(aggregations.asList(), PipelineAggregator.AGGREGATION_TRANFORM_FUNCTION));
+                List<InternalAggregation> newAggs = StreamSupport.stream(aggregations.spliterator(), false).map((p) -> {
+                    return (InternalAggregation) p;
+                }).collect(Collectors.toList());
                 for (SiblingPipelineAggregator pipelineAggregator : pipelineAggregators) {
                     InternalAggregation newAgg = pipelineAggregator.doReduce(new InternalAggregations(newAggs), new ReduceContext(
                             bigArrays, scriptService, headersContext));

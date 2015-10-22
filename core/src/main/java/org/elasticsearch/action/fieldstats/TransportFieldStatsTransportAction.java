@@ -59,7 +59,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
     public TransportFieldStatsTransportAction(Settings settings, ThreadPool threadPool, ClusterService clusterService,
                                               TransportService transportService, ActionFilters actionFilters,
                                               IndexNameExpressionResolver indexNameExpressionResolver, IndicesService indicesService) {
-        super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, FieldStatsRequest.class, FieldStatsShardRequest.class, ThreadPool.Names.MANAGEMENT);
+        super(settings, FieldStatsAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, FieldStatsRequest::new, FieldStatsShardRequest::new, ThreadPool.Names.MANAGEMENT);
         this.indicesService = indicesService;
     }
 
@@ -152,7 +152,7 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
         Map<String, FieldStats> fieldStats = new HashMap<>();
         IndexService indexServices = indicesService.indexServiceSafe(shardId.getIndex());
         MapperService mapperService = indexServices.mapperService();
-        IndexShard shard = indexServices.shardSafe(shardId.id());
+        IndexShard shard = indexServices.getShard(shardId.id());
         try (Engine.Searcher searcher = shard.acquireSearcher("fieldstats")) {
             for (String field : request.getFields()) {
                 MappedFieldType fieldType = mapperService.fullName(field);

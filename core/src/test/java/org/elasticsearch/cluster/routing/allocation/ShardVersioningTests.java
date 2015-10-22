@@ -30,18 +30,17 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ShardVersioningTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(ShardVersioningTests.class);
 
-    @Test
-    public void simple() {
+    public void testSimple() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
@@ -59,7 +58,6 @@ public class ShardVersioningTests extends ESAllocationTestCase {
 
         logger.info("start two nodes");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        RoutingTable prevRoutingTable = routingTable;
         routingTable = strategy.reroute(clusterState).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
@@ -79,7 +77,6 @@ public class ShardVersioningTests extends ESAllocationTestCase {
 
         logger.info("start all the primary shards for test1, replicas will start initializing");
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
-        prevRoutingTable = routingTable;
         routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState("test1", INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();

@@ -60,7 +60,6 @@ public class ClusterStateObserver {
     }
 
     /**
-     * @param clusterService
      * @param timeout        a global timeout for this observer. After it has expired the observer
      *                       will fail any existing or new #waitForNextChange calls. Set to null
      *                       to wait indefinitely
@@ -157,8 +156,6 @@ public class ClusterStateObserver {
 
     /**
      * reset this observer to the give cluster state. Any pending waits will be canceled.
-     *
-     * @param toState
      */
     public void reset(ClusterState toState) {
         if (observingContext.getAndSet(null) != null) {

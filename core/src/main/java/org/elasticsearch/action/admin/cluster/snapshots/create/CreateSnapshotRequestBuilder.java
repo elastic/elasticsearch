@@ -69,12 +69,11 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
 
     /**
      * Sets a list of indices that should be included into the snapshot
-     * <p/>
+     * <p>
      * The list of indices supports multi-index syntax. For example: "+test*" ,"-test42" will index all indices with
      * prefix "test" except index "test42". Aliases are supported. An empty list or {"_all"} will snapshot all open
      * indices in the cluster.
      *
-     * @param indices
      * @return this builder
      */
     public CreateSnapshotRequestBuilder setIndices(String... indices) {
@@ -117,7 +116,7 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
 
     /**
      * Sets repository-specific snapshot settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings
@@ -130,7 +129,7 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
 
     /**
      * Sets repository-specific snapshot settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings
@@ -143,7 +142,7 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
 
     /**
      * Sets repository-specific snapshot settings in YAML, JSON or properties format
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param source repository-specific snapshot settings
@@ -156,7 +155,7 @@ public class CreateSnapshotRequestBuilder extends MasterNodeOperationRequestBuil
 
     /**
      * Sets repository-specific snapshot settings.
-     * <p/>
+     * <p>
      * See repository documentation for more information.
      *
      * @param settings repository-specific snapshot settings

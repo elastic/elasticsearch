@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableSet;
 import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.inject.ConfigurationException;
 import org.elasticsearch.common.inject.CreationException;
@@ -49,15 +48,18 @@ import java.util.Formatter;
 import java.util.List;
 import java.util.Locale;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableList;
+
 /**
  * A collection of error messages. If this type is passed as a method parameter, the method is
  * considered to have executed successfully only if new errors were not added to this collection.
- * <p/>
- * <p>Errors can be chained to provide additional context. To add context, call {@link #withSource}
+ * <p>
+ * Errors can be chained to provide additional context. To add context, call {@link #withSource}
  * to create a new Errors instance that contains additional context. All messages added to the
  * returned instance will contain full context.
- * <p/>
- * <p>To avoid messages with redundant context, {@link #withSource} should be added sparingly. A
+ * <p>
+ * To avoid messages with redundant context, {@link #withSource} should be added sparingly. A
  * good rule of thumb is to assume a ethod's caller has already specified enough context to
  * identify that method. When calling a method that's defined in a different context, call that
  * method with an errors object that includes its context.
@@ -316,7 +318,7 @@ public final class Errors implements Serializable {
         } else if (throwable instanceof CreationException) {
             return ((CreationException) throwable).getErrorMessages();
         } else {
-            return ImmutableSet.of();
+            return emptySet();
         }
     }
 
@@ -463,7 +465,7 @@ public final class Errors implements Serializable {
             }
         });
 
-        return result;
+        return unmodifiableList(result);
     }
 
     /**

@@ -19,18 +19,14 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.Maps;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
-import java.util.Map;
 
 /**
  *
@@ -51,17 +47,14 @@ public class StartRecoveryRequest extends TransportRequest {
 
     private RecoveryState.Type recoveryType;
 
-    StartRecoveryRequest() {
+    public StartRecoveryRequest() {
     }
 
     /**
      * Start recovery request.
      *
-     * @param shardId
      * @param sourceNode       The node to recover from
      * @param targetNode       The node to recover to
-     * @param markAsRelocated
-     * @param metadataSnapshot
      */
     public StartRecoveryRequest(ShardId shardId, DiscoveryNode sourceNode, DiscoveryNode targetNode, boolean markAsRelocated, Store.MetadataSnapshot metadataSnapshot, RecoveryState.Type recoveryType, long recoveryId) {
         this.recoveryId = recoveryId;

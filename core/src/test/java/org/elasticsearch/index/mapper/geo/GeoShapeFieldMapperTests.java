@@ -30,7 +30,6 @@ import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -41,8 +40,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isIn;
 
 public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testDefaultConfiguration() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -65,7 +62,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     /**
      * Test that orientation parameter correctly parses
-     * @throws IOException
      */
     public void testOrientationParsing() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -104,7 +100,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
     /**
      * Test that orientation parameter correctly parses
-     * @throws IOException
      */
     public void testCoerceParsing() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
@@ -137,7 +132,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(coerce, equalTo(false));
     }
 
-    @Test
     public void testGeohashConfiguration() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -160,7 +154,6 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(4));
     }
 
-    @Test
     public void testQuadtreeConfiguration() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -168,6 +161,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .field("tree", "quadtree")
                     .field("tree_levels", "6")
                     .field("distance_error_pct", "0.5")
+                    .field("points_only", true)
                 .endObject().endObject()
                 .endObject().endObject().string();
 
@@ -181,9 +175,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(strategy.getDistErrPct(), equalTo(0.5));
         assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
         assertThat(strategy.getGrid().getMaxLevels(), equalTo(6));
+        assertThat(strategy.isPointsOnly(), equalTo(true));
     }
-    
-    @Test
+
     public void testLevelPrecisionConfiguration() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
 
@@ -198,7 +192,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            
+
             DocumentMapper defaultMapper = parser.parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
@@ -209,7 +203,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
             // 70m is more precise so it wins
-            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d))); 
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d)));
         }
 
         {
@@ -237,7 +231,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             // 70m is less precise so it loses
             assertThat(strategy.getGrid().getMaxLevels(), equalTo(26));
         }
-        
+
         {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
@@ -259,9 +253,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
             // 70m is more precise so it wins
-            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(70d))); 
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(70d)));
         }
-        
+
         {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
@@ -282,9 +276,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
-            assertThat(strategy.getGrid().getMaxLevels(),  equalTo(GeoUtils.geoHashLevelsForPrecision(70d)+1)); 
+            assertThat(strategy.getGrid().getMaxLevels(),  equalTo(GeoUtils.geoHashLevelsForPrecision(70d)+1));
         }
-        
+
         {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
@@ -305,11 +299,30 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
 
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
-            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d)+1)); 
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(70d)+1));
         }
     }
-    
-    @Test
+
+    public void testPointsOnlyOption() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("location")
+                .field("type", "geo_shape")
+                .field("tree", "geohash")
+                .field("points_only", true)
+                .endObject().endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
+        assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
+
+        GeoShapeFieldMapper geoShapeFieldMapper = (GeoShapeFieldMapper) fieldMapper;
+        PrefixTreeStrategy strategy = geoShapeFieldMapper.fieldType().defaultStrategy();
+
+        assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
+        assertThat(strategy.isPointsOnly(), equalTo(true));
+    }
+
     public void testLevelDefaults() throws IOException {
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         {
@@ -321,7 +334,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                     .endObject().endObject()
                     .endObject().endObject().string();
 
-            
+
             DocumentMapper defaultMapper = parser.parse(mapping);
             FieldMapper fieldMapper = defaultMapper.mappers().getMapper("location");
             assertThat(fieldMapper, instanceOf(GeoShapeFieldMapper.class));
@@ -332,9 +345,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(QuadPrefixTree.class));
             /* 50m is default */
-            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(50d))); 
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.quadTreeLevelsForPrecision(50d)));
         }
-        
+
         {
             String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                     .startObject("properties").startObject("location")
@@ -354,11 +367,10 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
             assertThat(strategy.getDistErrPct(), equalTo(0.5));
             assertThat(strategy.getGrid(), instanceOf(GeohashPrefixTree.class));
             /* 50m is default */
-            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(50d))); 
+            assertThat(strategy.getGrid().getMaxLevels(), equalTo(GeoUtils.geoHashLevelsForPrecision(50d)));
         }
     }
 
-    @Test
     public void testGeoShapeMapperMerge() throws Exception {
         String stage1Mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("shape").field("type", "geo_shape").field("tree", "geohash").field("strategy", "recursive")
@@ -376,7 +388,7 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
         // check correct conflicts
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.buildConflicts().length, equalTo(4));
-        ArrayList conflicts = new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()));
+        ArrayList<String> conflicts = new ArrayList<>(Arrays.asList(mergeResult.buildConflicts()));
         assertThat("mapper [shape] has different [strategy]", isIn(conflicts));
         assertThat("mapper [shape] has different [tree]", isIn(conflicts));
         assertThat("mapper [shape] has different [tree_levels]", isIn(conflicts));

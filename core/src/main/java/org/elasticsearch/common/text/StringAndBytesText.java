@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.common.text;
 
-import com.google.common.base.Charsets;
+import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 
@@ -61,7 +61,7 @@ public class StringAndBytesText implements Text {
     @Override
     public BytesReference bytes() {
         if (bytes == null) {
-            bytes = new BytesArray(text.getBytes(Charsets.UTF_8));
+            bytes = new BytesArray(text.getBytes(StandardCharsets.UTF_8));
         }
         return bytes;
     }
@@ -78,7 +78,7 @@ public class StringAndBytesText implements Text {
             if (!bytes.hasArray()) {
                 bytes = bytes.toBytesArray();
             }
-            text = new String(bytes.array(), bytes.arrayOffset(), bytes.length(), Charsets.UTF_8);
+            text = new String(bytes.array(), bytes.arrayOffset(), bytes.length(), StandardCharsets.UTF_8);
         }
         return text;
     }

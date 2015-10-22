@@ -18,9 +18,8 @@
  */
 package org.elasticsearch.indices.flush;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Iterables;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -29,6 +28,8 @@ import org.elasticsearch.rest.RestStatus;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * The result of performing a sync flush operation on all shards of multiple indices
@@ -40,8 +41,11 @@ public class IndicesSyncedFlushResult implements ToXContent {
 
 
     public IndicesSyncedFlushResult(Map<String, List<ShardsSyncedFlushResult>> shardsResultPerIndex) {
-        this.shardsResultPerIndex = ImmutableMap.copyOf(shardsResultPerIndex);
-        this.shardCounts = calculateShardCounts(Iterables.concat(shardsResultPerIndex.values()));
+        // shardsResultPerIndex is never modified after it is passed to this
+        // constructor so this is safe even though shardsResultPerIndex is a
+        // ConcurrentHashMap
+        this.shardsResultPerIndex = unmodifiableMap(shardsResultPerIndex);
+        this.shardCounts = calculateShardCounts(Iterables.flatten(shardsResultPerIndex.values()));
     }
 
     /** total number shards, including replicas, both assigned and unassigned */

@@ -65,8 +65,8 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 /**
  * The transport client allows to create a client that is not part of the cluster, but simply connects to one
  * or more nodes directly by adding their respective addresses using {@link #addTransportAddress(org.elasticsearch.common.transport.TransportAddress)}.
- * <p/>
- * <p>The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
+ * <p>
+ * The transport client important modules used is the {@link org.elasticsearch.transport.TransportModule} which is
  * started in client mode (only connects, no bind).
  */
 public class TransportClient extends AbstractClient {
@@ -85,7 +85,6 @@ public class TransportClient extends AbstractClient {
 
         private Settings settings = Settings.EMPTY;
         private List<Class<? extends Plugin>> pluginClasses = new ArrayList<>();
-        private boolean loadConfigSettings = true;
 
         /**
          * The settings to configure the transport client with.
@@ -103,15 +102,6 @@ public class TransportClient extends AbstractClient {
         }
 
         /**
-         * Should the transport client load file based configuration automatically or not (and rely
-         * only on the provided settings), defaults to true.
-         */
-        public Builder loadConfigSettings(boolean loadConfigSettings) {
-            this.loadConfigSettings = loadConfigSettings;
-            return this;
-        }
-
-        /**
          * Add the given plugin to the client when it is created.
          */
         public Builder addPlugin(Class<? extends Plugin> pluginClass) {
@@ -123,17 +113,16 @@ public class TransportClient extends AbstractClient {
          * Builds a new instance of the transport client.
          */
         public TransportClient build() {
-            Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(settings, loadConfigSettings);
-            Settings settings = settingsBuilder()
+            Settings settings = InternalSettingsPreparer.prepareSettings(this.settings);
+            settings = settingsBuilder()
                     .put(NettyTransport.PING_SCHEDULE, "5s") // enable by default the transport schedule ping interval
-                    .put(tuple.v1())
+                    .put(settings)
                     .put("network.server", false)
                     .put("node.client", true)
                     .put(CLIENT_TYPE_SETTING, CLIENT_TYPE)
                     .build();
-            Environment environment = tuple.v2();
 
-            PluginsService pluginsService = new PluginsService(settings, tuple.v2(), pluginClasses);
+            PluginsService pluginsService = new PluginsService(settings, null, pluginClasses);
             this.settings = pluginsService.updatedSettings();
 
             Version version = Version.CURRENT;
@@ -149,7 +138,6 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new EnvironmentModule(environment));
                 modules.add(new SettingsModule(this.settings));
                 modules.add(new NetworkModule());
                 modules.add(new ClusterNameModule(this.settings));
@@ -208,8 +196,8 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Returns the current connected transport nodes that this client will use.
-     * <p/>
-     * <p>The nodes include all the nodes that are currently alive based on the transport
+     * <p>
+     * The nodes include all the nodes that are currently alive based on the transport
      * addresses provided.
      */
     public List<DiscoveryNode> connectedNodes() {
@@ -233,11 +221,11 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Adds a transport address that will be used to connect to.
-     * <p/>
-     * <p>The Node this transport address represents will be used if its possible to connect to it.
+     * <p>
+     * The Node this transport address represents will be used if its possible to connect to it.
      * If it is unavailable, it will be automatically connected to once it is up.
-     * <p/>
-     * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
+     * <p>
+     * In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
     public TransportClient addTransportAddress(TransportAddress transportAddress) {
         nodesService.addTransportAddresses(transportAddress);
@@ -246,11 +234,11 @@ public class TransportClient extends AbstractClient {
 
     /**
      * Adds a list of transport addresses that will be used to connect to.
-     * <p/>
-     * <p>The Node this transport address represents will be used if its possible to connect to it.
+     * <p>
+     * The Node this transport address represents will be used if its possible to connect to it.
      * If it is unavailable, it will be automatically connected to once it is up.
-     * <p/>
-     * <p>In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
+     * <p>
+     * In order to get the list of all the current connected nodes, please see {@link #connectedNodes()}.
      */
     public TransportClient addTransportAddresses(TransportAddress... transportAddress) {
         nodesService.addTransportAddresses(transportAddress);

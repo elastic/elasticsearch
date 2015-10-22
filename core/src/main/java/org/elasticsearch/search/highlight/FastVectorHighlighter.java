@@ -18,10 +18,20 @@
  */
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.Maps;
 import org.apache.lucene.search.highlight.Encoder;
-import org.apache.lucene.search.vectorhighlight.*;
+import org.apache.lucene.search.vectorhighlight.BaseFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.BoundaryScanner;
+import org.apache.lucene.search.vectorhighlight.CustomFieldQuery;
+import org.apache.lucene.search.vectorhighlight.FieldFragList;
 import org.apache.lucene.search.vectorhighlight.FieldPhraseList.WeightedPhraseInfo;
+import org.apache.lucene.search.vectorhighlight.FieldQuery;
+import org.apache.lucene.search.vectorhighlight.FragListBuilder;
+import org.apache.lucene.search.vectorhighlight.FragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.ScoreOrderFragmentsBuilder;
+import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
+import org.apache.lucene.search.vectorhighlight.SimpleFieldFragList;
+import org.apache.lucene.search.vectorhighlight.SimpleFragListBuilder;
+import org.apache.lucene.search.vectorhighlight.SingleFragListBuilder;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -33,6 +43,7 @@ import org.elasticsearch.search.highlight.vectorhighlight.SourceSimpleFragmentsB
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 /**
@@ -186,6 +197,6 @@ public class FastVectorHighlighter implements Highlighter {
         public org.apache.lucene.search.vectorhighlight.FastVectorHighlighter fvh;
         public FieldQuery noFieldMatchFieldQuery;
         public FieldQuery fieldMatchFieldQuery;
-        public Map<FieldMapper, MapperHighlightEntry> mappers = Maps.newHashMap();
+        public Map<FieldMapper, MapperHighlightEntry> mappers = new HashMap<>();
     }
 }

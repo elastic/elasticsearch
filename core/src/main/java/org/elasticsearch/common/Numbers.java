@@ -171,4 +171,11 @@ public final class Numbers {
         return longToBytes(Double.doubleToRawLongBits(val));
     }
 
+    /** Returns true if value is neither NaN nor infinite. */
+    public static boolean isValidDouble(double value) {
+        if (Double.isNaN(value) || Double.isInfinite(value)) {
+            return false;
+        }
+        return true;
+    }
 }

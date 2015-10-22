@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.support.nodes;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.cluster.ClusterName;
@@ -28,6 +27,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
 
@@ -79,7 +79,7 @@ public abstract class BaseNodesResponse<TNodeResponse extends BaseNodeResponse> 
 
     public Map<String, TNodeResponse> getNodesMap() {
         if (nodesMap == null) {
-            nodesMap = Maps.newHashMap();
+            nodesMap = new HashMap<>();
             for (TNodeResponse nodeResponse : nodes) {
                 nodesMap.put(nodeResponse.getNode().id(), nodeResponse);
             }

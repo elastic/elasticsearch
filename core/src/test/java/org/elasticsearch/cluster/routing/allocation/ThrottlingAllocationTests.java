@@ -28,9 +28,10 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -38,10 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class ThrottlingAllocationTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(ThrottlingAllocationTests.class);
 
-    @Test
     public void testPrimaryRecoveryThrottling() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 3)
@@ -102,7 +101,6 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
         assertThat(routingTable.shardsWithState(UNASSIGNED).size(), equalTo(10));
     }
 
-    @Test
     public void testReplicaAndPrimaryRecoveryThrottling() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 3)

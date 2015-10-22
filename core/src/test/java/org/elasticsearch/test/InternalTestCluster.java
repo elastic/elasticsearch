@@ -24,16 +24,6 @@ import com.carrotsearch.randomizedtesting.SysGlobals;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Iterators;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
-import com.google.common.util.concurrent.Futures;
-import com.google.common.util.concurrent.ListenableFuture;
-import com.google.common.util.concurrent.SettableFuture;
 import org.apache.lucene.store.StoreRateLimiting;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -78,7 +68,7 @@ import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.MockEngineFactoryPlugin;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -123,17 +113,23 @@ import java.util.NavigableMap;
 import java.util.Random;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.*;
+import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
+import static org.apache.lucene.util.LuceneTestCase.rarely;
+import static org.apache.lucene.util.LuceneTestCase.usually;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -413,7 +409,7 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) {
             // change threadpool types to make sure we don't have components that rely on the type of thread pools
             for (String name : Arrays.asList(ThreadPool.Names.BULK, ThreadPool.Names.FLUSH, ThreadPool.Names.GET,
-                    ThreadPool.Names.INDEX, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.OPTIMIZE,
+                    ThreadPool.Names.INDEX, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.FORCE_MERGE,
                     ThreadPool.Names.PERCOLATE, ThreadPool.Names.REFRESH, ThreadPool.Names.SEARCH, ThreadPool.Names.SNAPSHOT,
                     ThreadPool.Names.SUGGEST, ThreadPool.Names.WARMER)) {
                 if (random.nextBoolean()) {
@@ -483,10 +479,6 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndicesRequestCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
-            builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
-        }
-        if (random.nextBoolean()) {
             builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }
 
@@ -532,14 +524,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized NodeAndClient getRandomNodeAndClient() {
-        Predicate<NodeAndClient> all = Predicates.alwaysTrue();
-        return getRandomNodeAndClient(all);
+        return getRandomNodeAndClient(nc -> true);
     }
 
 
     private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         ensureOpen();
-        Collection<NodeAndClient> values = Collections2.filter(nodes.values(), predicate);
+        Collection<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toCollection(ArrayList::new));
         if (!values.isEmpty()) {
             int whichOne = random.nextInt(values.size());
             for (NodeAndClient nodeAndClient : values) {
@@ -557,20 +548,22 @@ public final class InternalTestCluster extends TestCluster {
      * stop any of the running nodes.
      */
     public void ensureAtLeastNumDataNodes(int n) {
-        List<ListenableFuture<String>> futures = new ArrayList<>();
+        final List<Async<String>> asyncs = new ArrayList<>();
         synchronized (this) {
             int size = numDataNodes();
             for (int i = size; i < n; i++) {
                 logger.info("increasing cluster size from {} to {}", size, n);
-                futures.add(startNodeAsync());
+                asyncs.add(startNodeAsync());
             }
         }
         try {
-            Futures.allAsList(futures).get();
+            for (Async<String> async : asyncs) {
+                async.get();
+            }
         } catch (Exception e) {
             throw new ElasticsearchException("failed to start nodes", e);
         }
-        if (!futures.isEmpty()) {
+        if (!asyncs.isEmpty()) {
             synchronized (this) {
                 assertNoTimeout(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodes.size())).get());
             }
@@ -588,14 +581,15 @@ public final class InternalTestCluster extends TestCluster {
             return;
         }
         // prevent killing the master if possible and client nodes
-        final Iterator<NodeAndClient> values = n == 0 ? nodes.values().iterator() : Iterators.filter(nodes.values().iterator(),
-                Predicates.and(new DataNodePredicate(), Predicates.not(new MasterNodePredicate(getMasterName()))));
+        final Stream<NodeAndClient> collection =
+                n == 0 ? nodes.values().stream() : nodes.values().stream().filter(new DataNodePredicate().and(new MasterNodePredicate(getMasterName()).negate()));
+        final Iterator<NodeAndClient> values = collection.iterator();
 
-        final Iterator<NodeAndClient> limit = Iterators.limit(values, size - n);
         logger.info("changing cluster size from {} to {}, {} data nodes", size(), n + numSharedClientNodes, n);
         Set<NodeAndClient> nodesToRemove = new HashSet<>();
-        while (limit.hasNext()) {
-            NodeAndClient next = limit.next();
+        int numNodesAndClients = 0;
+        while (values.hasNext() && numNodesAndClients++ < size-n) {
+            NodeAndClient next = values.next();
             nodesToRemove.add(next);
             removeDisruptionSchemeFromNode(next);
             next.close();
@@ -631,7 +625,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("name", name)
                 .put("discovery.id.seed", seed)
                 .build();
-        MockNode node = new MockNode(finalSettings, true, version, plugins);
+        MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
     }
 
@@ -682,7 +676,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client nonMasterClient() {
         ensureOpen();
-        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
+        NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.nodeClient(); // ensure node client non-master is requested
         }
@@ -758,12 +752,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized Client client(final Predicate<Settings> filterPredicate) {
         ensureOpen();
-        final NodeAndClient randomNodeAndClient = getRandomNodeAndClient(new Predicate<NodeAndClient>() {
-            @Override
-            public boolean apply(NodeAndClient nodeAndClient) {
-                return filterPredicate.apply(nodeAndClient.node.settings());
-            }
-        });
+        final NodeAndClient randomNodeAndClient = getRandomNodeAndClient(nodeAndClient -> filterPredicate.test(nodeAndClient.node.settings()));
         if (randomNodeAndClient != null) {
             return randomNodeAndClient.client(random);
         }
@@ -884,7 +873,7 @@ public final class InternalTestCluster extends TestCluster {
             Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
             Version version = node.getVersion();
-            node = new MockNode(finalSettings, true, version, plugins);
+            node = new MockNode(finalSettings, version, plugins);
             node.start();
         }
 
@@ -1054,8 +1043,8 @@ public final class InternalTestCluster extends TestCluster {
             IndicesService indexServices = getInstance(IndicesService.class, nodeAndClient.name);
             for (IndexService indexService : indexServices) {
                 for (IndexShard indexShard : indexService) {
-                    try {
-                        CommitStats commitStats = indexShard.engine().commitStats();
+                    CommitStats commitStats = indexShard.commitStats();
+                    if (commitStats != null) { // null if the engine is closed or if the shard is recovering
                         String syncId = commitStats.getUserData().get(Engine.SYNC_COMMIT_ID);
                         if (syncId != null) {
                             long liveDocsOnShard = commitStats.getNumDocs();
@@ -1065,8 +1054,6 @@ public final class InternalTestCluster extends TestCluster {
                                 docsOnShards.put(syncId, liveDocsOnShard);
                             }
                         }
-                    } catch (EngineClosedException e) {
-                        // nothing to do, shard is closed
                     }
                 }
             }
@@ -1145,7 +1132,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized <T> Iterable<T> getInstances(Class<T> clazz, Predicate<NodeAndClient> predicate) {
-        Iterable<NodeAndClient> filteredNodes = Iterables.filter(nodes.values(), predicate);
+        Iterable<NodeAndClient> filteredNodes = nodes.values().stream().filter(predicate)::iterator;
         List<T> instances = new ArrayList<>();
         for (NodeAndClient nodeAndClient : filteredNodes) {
             instances.add(getInstanceFromNode(clazz, nodeAndClient.node));
@@ -1157,18 +1144,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to the given nodes instances of the given class &gt;T&lt;
      */
     public synchronized <T> T getInstance(Class<T> clazz, final String node) {
-        final Predicate<InternalTestCluster.NodeAndClient> predicate;
-        if (node != null) {
-            predicate = new Predicate<InternalTestCluster.NodeAndClient>() {
-                @Override
-                public boolean apply(NodeAndClient nodeAndClient) {
-                    return node.equals(nodeAndClient.name);
-                }
-            };
-        } else {
-            predicate = Predicates.alwaysTrue();
-        }
-        return getInstance(clazz, predicate);
+        return getInstance(clazz, nc -> node == null || node.equals(nc.name));
     }
 
     public synchronized <T> T getDataNodeInstance(Class<T> clazz) {
@@ -1185,7 +1161,7 @@ public final class InternalTestCluster extends TestCluster {
      * Returns a reference to a random nodes instances of the given class &gt;T&lt;
      */
     public synchronized <T> T getInstance(Class<T> clazz) {
-        return getInstance(clazz, Predicates.<NodeAndClient>alwaysTrue());
+        return getInstance(clazz, nc -> true);
     }
 
     private synchronized <T> T getInstanceFromNode(Class<T> clazz, Node node) {
@@ -1228,12 +1204,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public synchronized void stopRandomNode(final Predicate<Settings> filter) throws IOException {
         ensureOpen();
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(new Predicate<InternalTestCluster.NodeAndClient>() {
-            @Override
-            public boolean apply(NodeAndClient nodeAndClient) {
-                return filter.apply(nodeAndClient.node.settings());
-            }
-        });
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(nc -> filter.test(nc.node.settings()));
         if (nodeAndClient != null) {
             logger.info("Closing filtered random node [{}] ", nodeAndClient.name);
             removeDisruptionSchemeFromNode(nodeAndClient);
@@ -1260,7 +1231,7 @@ public final class InternalTestCluster extends TestCluster {
      * Stops the any of the current nodes but not the master node.
      */
     public void stopRandomNonMasterNode() throws IOException {
-        NodeAndClient nodeAndClient = getRandomNodeAndClient(Predicates.not(new MasterNodePredicate(getMasterName())));
+        NodeAndClient nodeAndClient = getRandomNodeAndClient(new MasterNodePredicate(getMasterName()).negate());
         if (nodeAndClient != null) {
             logger.info("Closing random non master node [{}] current master [{}] ", nodeAndClient.name, getMasterName());
             removeDisruptionSchemeFromNode(nodeAndClient);
@@ -1280,7 +1251,7 @@ public final class InternalTestCluster extends TestCluster {
      * Restarts a random node in the cluster and calls the callback during restart.
      */
     public void restartRandomNode(RestartCallback callback) throws Exception {
-        restartRandomNode(Predicates.<NodeAndClient>alwaysTrue(), callback);
+        restartRandomNode(nc -> true, callback);
     }
 
     /**
@@ -1442,8 +1413,19 @@ public final class InternalTestCluster extends TestCluster {
 
     private synchronized Set<String> nRandomDataNodes(int numNodes) {
         assert size() >= numNodes;
-        NavigableMap<String, NodeAndClient> dataNodes = Maps.filterEntries(nodes, new EntryNodePredicate(new DataNodePredicate()));
-        return Sets.newHashSet(Iterators.limit(dataNodes.keySet().iterator(), numNodes));
+        Map<String, NodeAndClient> dataNodes =
+                nodes
+                        .entrySet()
+                        .stream()
+                        .filter(new EntryNodePredicate(new DataNodePredicate()))
+                        .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        final HashSet<String> set = new HashSet<>();
+        final Iterator<String> iterator = dataNodes.keySet().iterator();
+        for (int i = 0; i < numNodes; i++) {
+            assert iterator.hasNext();
+            set.add(iterator.next());
+        }
+        return set;
     }
 
     /**
@@ -1503,29 +1485,29 @@ public final class InternalTestCluster extends TestCluster {
         return buildNode.name;
     }
 
-    public synchronized ListenableFuture<List<String>> startMasterOnlyNodesAsync(int numNodes) {
+    public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes) {
         return startMasterOnlyNodesAsync(numNodes, Settings.EMPTY);
     }
 
-    public synchronized ListenableFuture<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
+    public synchronized Async<List<String>> startMasterOnlyNodesAsync(int numNodes, Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
         return startNodesAsync(numNodes, settings1, Version.CURRENT);
     }
 
-    public synchronized ListenableFuture<List<String>> startDataOnlyNodesAsync(int numNodes) {
+    public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes) {
         return startDataOnlyNodesAsync(numNodes, Settings.EMPTY);
     }
 
-    public synchronized ListenableFuture<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
+    public synchronized Async<List<String>> startDataOnlyNodesAsync(int numNodes, Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
         return startNodesAsync(numNodes, settings1, Version.CURRENT);
     }
 
-    public synchronized ListenableFuture<String> startMasterOnlyNodeAsync() {
+    public synchronized Async<String> startMasterOnlyNodeAsync() {
         return startMasterOnlyNodeAsync(Settings.EMPTY);
     }
 
-    public synchronized ListenableFuture<String> startMasterOnlyNodeAsync(Settings settings) {
+    public synchronized Async<String> startMasterOnlyNodeAsync(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put("node.master", true).put("node.data", false).build();
         return startNodeAsync(settings1, Version.CURRENT);
     }
@@ -1535,11 +1517,11 @@ public final class InternalTestCluster extends TestCluster {
         return startNode(settings1, Version.CURRENT);
     }
 
-    public synchronized ListenableFuture<String> startDataOnlyNodeAsync() {
+    public synchronized Async<String> startDataOnlyNodeAsync() {
         return startDataOnlyNodeAsync(Settings.EMPTY);
     }
 
-    public synchronized ListenableFuture<String> startDataOnlyNodeAsync(Settings settings) {
+    public synchronized Async<String> startDataOnlyNodeAsync(Settings settings) {
         Settings settings1 = Settings.builder().put(settings).put("node.master", false).put("node.data", true).build();
         return startNodeAsync(settings1, Version.CURRENT);
     }
@@ -1552,74 +1534,78 @@ public final class InternalTestCluster extends TestCluster {
     /**
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
-    public synchronized ListenableFuture<String> startNodeAsync() {
+    public synchronized Async<String> startNodeAsync() {
         return startNodeAsync(Settings.EMPTY, Version.CURRENT);
     }
 
     /**
      * Starts a node in an async manner with the given settings and returns future with its name.
      */
-    public synchronized ListenableFuture<String> startNodeAsync(final Settings settings) {
+    public synchronized Async<String> startNodeAsync(final Settings settings) {
         return startNodeAsync(settings, Version.CURRENT);
     }
 
     /**
      * Starts a node in an async manner with the given settings and version and returns future with its name.
      */
-    public synchronized ListenableFuture<String> startNodeAsync(final Settings settings, final Version version) {
-        final SettableFuture<String> future = SettableFuture.create();
+    public synchronized Async<String> startNodeAsync(final Settings settings, final Version version) {
         final NodeAndClient buildNode = buildNode(settings, version);
-        Runnable startNode = new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    buildNode.node().start();
-                    publishNode(buildNode);
-                    future.set(buildNode.name);
-                } catch (Throwable t) {
-                    future.setException(t);
-                }
-            }
-        };
-        executor.execute(startNode);
-        return future;
+        final Future<String> submit = executor.submit(() -> {
+            buildNode.node().start();
+            publishNode(buildNode);
+            return buildNode.name;
+        });
+        return () -> submit.get();
     }
 
     /**
      * Starts multiple nodes in an async manner and returns future with its name.
      */
-    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes) {
+    public synchronized Async<List<String>> startNodesAsync(final int numNodes) {
         return startNodesAsync(numNodes, Settings.EMPTY, Version.CURRENT);
     }
 
     /**
      * Starts multiple nodes in an async manner with the given settings and returns future with its name.
      */
-    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
+    public synchronized Async<List<String>> startNodesAsync(final int numNodes, final Settings settings) {
         return startNodesAsync(numNodes, settings, Version.CURRENT);
     }
 
     /**
      * Starts multiple nodes in an async manner with the given settings and version and returns future with its name.
      */
-    public synchronized ListenableFuture<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
-        List<ListenableFuture<String>> futures = new ArrayList<>();
+    public synchronized Async<List<String>> startNodesAsync(final int numNodes, final Settings settings, final Version version) {
+        final List<Async<String>> asyncs = new ArrayList<>();
         for (int i = 0; i < numNodes; i++) {
-            futures.add(startNodeAsync(settings, version));
+            asyncs.add(startNodeAsync(settings, version));
         }
-        return Futures.allAsList(futures);
+        
+        return () -> {
+            List<String> ids = new ArrayList<>();
+            for (Async<String> async : asyncs) {
+                ids.add(async.get());
+            }
+            return ids;
+        };
     }
 
     /**
      * Starts multiple nodes (based on the number of settings provided) in an async manner, with explicit settings for each node.
      * The order of the node names returned matches the order of the settings provided.
      */
-    public synchronized ListenableFuture<List<String>> startNodesAsync(final Settings... settings) {
-        List<ListenableFuture<String>> futures = new ArrayList<>();
+    public synchronized Async<List<String>> startNodesAsync(final Settings... settings) {
+        List<Async<String>> asyncs = new ArrayList<>();
         for (Settings setting : settings) {
-            futures.add(startNodeAsync(setting, Version.CURRENT));
+            asyncs.add(startNodeAsync(setting, Version.CURRENT));
         }
-        return Futures.allAsList(futures);
+        return () -> {
+            List<String> ids = new ArrayList<>();
+            for (Async<String> async : asyncs) {
+                ids.add(async.get());
+            }
+            return ids;
+        };
     }
 
     private synchronized void publishNode(NodeAndClient nodeAndClient) {
@@ -1676,23 +1662,31 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private synchronized Collection<NodeAndClient> dataNodeAndClients() {
-        return Collections2.filter(nodes.values(), new DataNodePredicate());
+        return filterNodes(nodes, new DataNodePredicate());
     }
 
     private synchronized Collection<NodeAndClient> dataAndMasterNodes() {
-        return Collections2.filter(nodes.values(), new DataOrMasterNodePredicate());
+        return filterNodes(nodes, new DataOrMasterNodePredicate());
+    }
+
+    private synchronized Collection<NodeAndClient> filterNodes(Map<String, InternalTestCluster.NodeAndClient> map, Predicate<NodeAndClient> predicate) {
+        return map
+                .values()
+                .stream()
+                .filter(predicate)
+                .collect(Collectors.toCollection(ArrayList::new));
     }
 
     private static final class DataNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.dataNode(nodeAndClient.node.settings());
         }
     }
 
     private static final class DataOrMasterNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.dataNode(nodeAndClient.node.settings()) ||
                     DiscoveryNode.masterNode(nodeAndClient.node.settings());
         }
@@ -1706,14 +1700,14 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return masterNodeName.equals(nodeAndClient.name);
         }
     }
 
     private static final class ClientNodePredicate implements Predicate<NodeAndClient> {
         @Override
-        public boolean apply(NodeAndClient nodeAndClient) {
+        public boolean test(NodeAndClient nodeAndClient) {
             return DiscoveryNode.clientNode(nodeAndClient.node.settings());
         }
     }
@@ -1726,8 +1720,8 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(Map.Entry<String, NodeAndClient> entry) {
-            return delegateNodePredicate.apply(entry.getValue());
+        public boolean test(Map.Entry<String, NodeAndClient> entry) {
+            return delegateNodePredicate.test(entry.getValue());
         }
     }
 
@@ -1741,7 +1735,7 @@ public final class InternalTestCluster extends TestCluster {
             IndexService indexService = indicesService.indexService(index);
             if (indexService != null) {
                 assertThat(indexService.settingsService().getSettings().getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, -1), greaterThan(shard));
-                OperationRouting operationRouting = indexService.injector().getInstance(OperationRouting.class);
+                OperationRouting operationRouting = getInstanceFromNode(OperationRouting.class, node);
                 while (true) {
                     String routing = RandomStrings.randomAsciiOfLength(random, 10);
                     final int targetShard = operationRouting.indexShards(clusterService.state(), index, type, null, routing).shardId().getId();
@@ -1795,7 +1789,7 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         @Override
-        public boolean apply(Settings settings) {
+        public boolean test(Settings settings) {
             return nodeNames.contains(settings.get("name"));
 
         }
@@ -1854,7 +1848,7 @@ public final class InternalTestCluster extends TestCluster {
             for (NodeAndClient nodeAndClient : nodes.values()) {
                 final IndicesFieldDataCache fdCache = getInstanceFromNode(IndicesFieldDataCache.class, nodeAndClient.node);
                 // Clean up the cache, ensuring that entries' listeners have been called
-                fdCache.getCache().cleanUp();
+                fdCache.getCache().refresh();
 
                 final String name = nodeAndClient.name;
                 final CircuitBreakerService breakerService = getInstanceFromNode(CircuitBreakerService.class, nodeAndClient.node);
@@ -1902,6 +1896,14 @@ public final class InternalTestCluster extends TestCluster {
                 }
             }
         }
+    }
+
+    /**
+     * Simple interface that allows to wait for an async operation to finish
+     * @param <T> the result of the async execution
+     */
+    public interface Async<T> {
+        T get() throws ExecutionException, InterruptedException;
     }
 
 }

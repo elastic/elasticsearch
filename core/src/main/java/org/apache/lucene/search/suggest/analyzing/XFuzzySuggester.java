@@ -115,7 +115,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
     }
 
     /**
-     * Creates a {@link FuzzySuggester} instance with an index & a query analyzer initialized with default values.
+     * Creates a {@link FuzzySuggester} instance with an index &amp; a query analyzer initialized with default values.
      *
      * @param indexAnalyzer
      *           Analyzer that will be used for analyzing suggestions while building the index.
@@ -143,7 +143,7 @@ public final class XFuzzySuggester extends XAnalyzingSuggester {
      * @param maxGraphExpansions Maximum number of graph paths
      *        to expand from the analyzed form.  Set this to -1 for
      *        no limit.
-     * @param maxEdits must be >= 0 and <= {@link org.apache.lucene.util.automaton.LevenshteinAutomata#MAXIMUM_SUPPORTED_DISTANCE} .
+     * @param maxEdits must be &gt;= 0 and &lt;= {@link org.apache.lucene.util.automaton.LevenshteinAutomata#MAXIMUM_SUPPORTED_DISTANCE} .
      * @param transpositions <code>true</code> if transpositions should be treated as a primitive
      *        edit operation. If this is false, comparisons will implement the classic
      *        Levenshtein algorithm.

@@ -97,10 +97,8 @@ existing sort options:
 
 ===== Nested sorting example
 
-In the below example `offer` is a field of type `nested`. Because
-`offer` is the closest inherited nested field, it is picked as
-`nested_path`. Only the inner objects that have color blue will
-participate in sorting.
+In the below example `offer` is a field of type `nested`.
+The `nested_path` needs to be specified other elasticsearch doesn't on what nested level sort values need to be captured.
 
 [source,js]
 --------------------------------------------------
@@ -113,6 +111,7 @@ curl -XPOST 'localhost:9200/_search' -d '{
           "offer.price" : {
              "mode" :  "avg",
              "order" : "asc",
+             "nested_path" : "offer",
              "nested_filter" : {
                 "term" : { "offer.color" : "blue" }
              }

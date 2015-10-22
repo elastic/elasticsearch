@@ -23,16 +23,15 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class YamlSettingsLoaderTests extends ESTestCase {
-    @Test
     public void testSimpleYamlSettings() throws Exception {
         String yaml = "/org/elasticsearch/common/settings/loader/test-settings.yml";
         Settings settings = settingsBuilder()
@@ -51,20 +50,28 @@ public class YamlSettingsLoaderTests extends ESTestCase {
         assertThat(settings.getAsArray("test1.test3")[1], equalTo("test3-2"));
     }
 
-    @Test(expected = SettingsException.class)
     public void testIndentation() {
         String yaml = "/org/elasticsearch/common/settings/loader/indentation-settings.yml";
-        settingsBuilder()
-            .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
-            .build();
-    }
-
-    @Test(expected = SettingsException.class)
-    public void testIndentationWithExplicitDocumentStart() {
-        String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
-        settingsBuilder()
+        try {
+            settingsBuilder()
                 .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
                 .build();
+            fail("Expected SettingsException");
+        } catch(SettingsException e ) {
+            assertThat(e.getMessage(), containsString("Failed to load settings"));
+        }
+    }
+
+    public void testIndentationWithExplicitDocumentStart() {
+        String yaml = "/org/elasticsearch/common/settings/loader/indentation-with-explicit-document-start-settings.yml";
+        try {
+            settingsBuilder()
+                    .loadFromStream(yaml, getClass().getResourceAsStream(yaml))
+                    .build();
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertThat(e.getMessage(), containsString("Failed to load settings"));
+        }
     }
 
     public void testDuplicateKeysThrowsException() {

@@ -19,12 +19,25 @@
 
 package org.elasticsearch.index.query.functionscore.lin;
 
+import org.apache.lucene.search.Explanation;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 
-public class LinearDecayFunctionBuilder extends DecayFunctionBuilder {
+public class LinearDecayFunctionBuilder extends DecayFunctionBuilder<LinearDecayFunctionBuilder> {
 
-    public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale) {
-        super(fieldName, origin, scale);
+    public static final DecayFunction LINEAR_DECAY_FUNCTION = new LinearDecayScoreFunction();
+
+    public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset) {
+        super(fieldName, origin, scale, offset);
+    }
+
+    public LinearDecayFunctionBuilder(String fieldName, Object origin, Object scale, Object offset, double decay) {
+        super(fieldName, origin, scale, offset, decay);
+    }
+
+    private LinearDecayFunctionBuilder(String fieldName, BytesReference functionBytes) {
+        super(fieldName, functionBytes);
     }
 
     @Override
@@ -32,4 +45,46 @@ public class LinearDecayFunctionBuilder extends DecayFunctionBuilder {
         return LinearDecayFunctionParser.NAMES[0];
     }
 
+    @Override
+    protected LinearDecayFunctionBuilder createFunctionBuilder(String fieldName, BytesReference functionBytes) {
+        return new LinearDecayFunctionBuilder(fieldName, functionBytes);
+    }
+
+    @Override
+    public DecayFunction getDecayFunction() {
+        return LINEAR_DECAY_FUNCTION;
+    }
+
+    private static final class LinearDecayScoreFunction implements DecayFunction {
+
+        @Override
+        public double evaluate(double value, double scale) {
+            return Math.max(0.0, (scale - value) / scale);
+        }
+
+        @Override
+        public Explanation explainFunction(String valueExpl, double value, double scale) {
+            return Explanation.match(
+                    (float) evaluate(value, scale),
+                    "max(0.0, ((" + scale + " - " + valueExpl + ")/" + scale + ")");
+        }
+
+        @Override
+        public double processScale(double scale, double decay) {
+            return scale / (1.0 - decay);
+        }
+
+        @Override
+        public int hashCode() {
+            return this.getClass().hashCode();
+        }
+
+        @Override
+        public boolean equals(Object obj) {
+            if (super.equals(obj)) {
+                return true;
+            }
+            return obj != null && getClass() != obj.getClass();
+        }
+    }
 }

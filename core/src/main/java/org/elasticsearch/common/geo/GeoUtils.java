@@ -23,6 +23,7 @@ import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
@@ -34,10 +35,19 @@ import java.io.IOException;
  */
 public class GeoUtils {
 
+    /** Maximum valid latitude in degrees. */
+    public static final double MAX_LAT = 90.0;
+    /** Minimum valid latitude in degrees. */
+    public static final double MIN_LAT = -90.0;
+    /** Maximum valid longitude in degrees. */
+    public static final double MAX_LON = 180.0;
+    /** Minimum valid longitude in degrees. */
+    public static final double MIN_LON = -180.0;
+
     public static final String LATITUDE = GeoPointFieldMapper.Names.LAT;
     public static final String LONGITUDE = GeoPointFieldMapper.Names.LON;
     public static final String GEOHASH = GeoPointFieldMapper.Names.GEOHASH;
-    
+
     /** Earth ellipsoid major axis defined by WGS 84 in meters */
     public static final double EARTH_SEMI_MAJOR_AXIS = 6378137.0;      // meters (WGS 84)
 
@@ -55,6 +65,22 @@ public class GeoUtils {
 
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
+
+    /** Returns true if latitude is actually a valid latitude value.*/
+    public static boolean isValidLatitude(double latitude) {
+        if (Double.isNaN(latitude) || Double.isInfinite(latitude) || latitude < GeoUtils.MIN_LAT || latitude > GeoUtils.MAX_LAT) {
+            return false;
+        }
+        return true;
+    }
+
+    /** Returns true if longitude is actually a valid longitude value. */
+    public static boolean isValidLongitude(double longitude) {
+        if (Double.isNaN(longitude) || Double.isNaN(longitude) || longitude < GeoUtils.MIN_LON || longitude > GeoUtils.MAX_LON) {
+            return false;
+        }
+        return true;
+    }
 
     /**
      * Return an approximate value of the diameter of the earth (in meters) at the given latitude (in radians).
@@ -207,7 +233,7 @@ public class GeoUtils {
 
     /**
      * Normalize latitude to lie within the -90 to 90 (both inclusive) range.
-     * <p/>
+     * <p>
      * Note: You should not normalize longitude and latitude separately,
      * because when normalizing latitude it may be necessary to
      * add a shift of 180&deg; in the longitude.
@@ -231,7 +257,7 @@ public class GeoUtils {
     /**
      * Normalize the geo {@code Point} for its coordinates to lie within their
      * respective normalized ranges.
-     * <p/>
+     * <p>
      * Note: A shift of 180&deg; is applied in the longitude if necessary,
      * in order to normalize properly the latitude.
      *
@@ -244,9 +270,9 @@ public class GeoUtils {
     /**
      * Normalize the geo {@code Point} for the given coordinates to lie within
      * their respective normalized ranges.
-     * <p/>
+     * <p>
      * You can control which coordinate gets normalized with the two flags.
-     * <p/>
+     * <p>
      * Note: A shift of 180&deg; is applied in the longitude if necessary,
      * in order to normalize properly the latitude.
      * If normalizing latitude but not longitude, it is assumed that
@@ -259,38 +285,46 @@ public class GeoUtils {
      * @param normLon Whether to normalize longitude.
      */
     public static void normalizePoint(GeoPoint point, boolean normLat, boolean normLon) {
-        double lat = point.lat();
-        double lon = point.lon();
-        
-        normLat = normLat && (lat>90 || lat <= -90);
-        normLon = normLon && (lon>180 || lon <= -180);
-        
+        double[] pt = {point.lon(), point.lat()};
+        normalizePoint(pt, normLon, normLat);
+        point.reset(pt[1], pt[0]);
+    }
+
+    public static void normalizePoint(double[] lonLat) {
+        normalizePoint(lonLat, true, true);
+    }
+
+    public static void normalizePoint(double[] lonLat, boolean normLon, boolean normLat) {
+        assert lonLat != null && lonLat.length == 2;
+
+        normLat = normLat && (lonLat[1] > 90 || lonLat[1] <= -90);
+        normLon = normLon && (lonLat[0] > 180 || lonLat[0] <= -180);
+
         if (normLat) {
-            lat = centeredModulus(lat, 360);
+            lonLat[1] = centeredModulus(lonLat[1], 360);
             boolean shift = true;
-            if (lat < -90) {
-                lat = -180 - lat;
-            } else if (lat > 90) {
-                lat = 180 - lat;
+            if (lonLat[1] < -90) {
+                lonLat[1] = -180 - lonLat[1];
+            } else if (lonLat[1] > 90) {
+                lonLat[1] = 180 - lonLat[1];
             } else {
                 // No need to shift the longitude, and the latitude is normalized
                 shift = false;
             }
             if (shift) {
                 if (normLon) {
-                    lon += 180;
+                    lonLat[0] += 180;
                 } else {
                     // Longitude won't be normalized,
                     // keep it in the form x+k*360 (with x in ]-180;180])
                     // by only changing x, assuming k is meaningful for the user application.
-                    lon += normalizeLon(lon) > 0 ? -180 : 180;
+                    lonLat[0] += normalizeLon(lonLat[0]) > 0 ? -180 : 180;
                 }
             }
         }
         if (normLon) {
-            lon = centeredModulus(lon, 360);
+            lonLat[0] = centeredModulus(lonLat[0], 360);
         }
-        point.reset(lat, lon);
     }
 
     private static double centeredModulus(double dividend, double divisor) {
@@ -308,9 +342,6 @@ public class GeoUtils {
      * 
      * @param parser {@link XContentParser} to parse the value from
      * @return new {@link GeoPoint} parsed from the parse
-     * 
-     * @throws IOException
-     * @throws org.elasticsearch.ElasticsearchParseException
      */
     public static GeoPoint parseGeoPoint(XContentParser parser) throws IOException, ElasticsearchParseException {
         return parseGeoPoint(parser, new GeoPoint());
@@ -329,9 +360,6 @@ public class GeoUtils {
      * @param parser {@link XContentParser} to parse the value from
      * @param point A {@link GeoPoint} that will be reset by the values parsed
      * @return new {@link GeoPoint} parsed from the parse
-     * 
-     * @throws IOException
-     * @throws org.elasticsearch.ElasticsearchParseException
      */
     public static GeoPoint parseGeoPoint(XContentParser parser, GeoPoint point) throws IOException, ElasticsearchParseException {
         double lat = Double.NaN;

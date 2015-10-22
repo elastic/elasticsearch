@@ -19,14 +19,18 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.analysis.MockTokenizer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.TokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.SimpleAnalyzer;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.SynonymMap.Builder;
-import org.apache.lucene.analysis.tokenattributes.*;
+import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
+import org.apache.lucene.analysis.tokenattributes.PayloadAttribute;
+import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
+import org.apache.lucene.analysis.tokenattributes.TermToBytesRefAttribute;
+import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRef;
@@ -34,19 +38,17 @@ import org.apache.lucene.util.IntsRef;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream;
 import org.elasticsearch.search.suggest.completion.CompletionTokenStream.ByteTermAttribute;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.StringReader;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
-
     final XAnalyzingSuggester suggester = new XAnalyzingSuggester(new SimpleAnalyzer());
 
-    @Test
     public void testSuggestTokenFilter() throws Exception {
         Tokenizer tokenStream = new MockTokenizer(MockTokenizer.WHITESPACE, true);
         tokenStream.setReader(new StringReader("mykeyword"));
@@ -60,7 +62,6 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(suggestTokenStream, new String[] {"mykeyword"}, null, null, new String[] {"Surface keyword|friggin payload|10"}, new int[] { 1 }, null, null);
     }
 
-    @Test
     public void testSuggestTokenFilterWithSynonym() throws Exception {
         Builder builder = new SynonymMap.Builder(true);
         builder.add(new CharsRef("mykeyword"), new CharsRef("mysynonym"), true);
@@ -79,7 +80,6 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
         assertTokenStreamContents(suggestTokenStream, new String[] {"mysynonym", "mykeyword"}, null, null, new String[] {"Surface keyword|friggin payload|10", "Surface keyword|friggin payload|10"}, new int[] { 2, 0 }, null, null);
     }
 
-    @Test
     public void testValidNumberOfExpansions() throws IOException {
         Builder builder = new SynonymMap.Builder(true);
         for (int i = 0; i < 256; i++) {
@@ -93,7 +93,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
         MockTokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
         tokenizer.setReader(new StringReader(valueBuilder.toString()));
         SynonymFilter filter = new SynonymFilter(tokenizer, builder.build(), true);
-       
+
         TokenStream suggestTokenStream = new CompletionTokenStream(filter, new BytesRef("Surface keyword|friggin payload|10"), new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
@@ -101,7 +101,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
                 return finiteStrings;
             }
         });
-        
+
         suggestTokenStream.reset();
         ByteTermAttribute attr = suggestTokenStream.addAttribute(ByteTermAttribute.class);
         PositionIncrementAttribute posAttr = suggestTokenStream.addAttribute(PositionIncrementAttribute.class);
@@ -118,8 +118,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
         assertEquals(count, maxPos);
 
     }
-    
-    @Test(expected = IllegalArgumentException.class)
+
     public void testInValidNumberOfExpansions() throws IOException {
         Builder builder = new SynonymMap.Builder(true);
         for (int i = 0; i < 256; i++) {
@@ -133,7 +132,7 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
         MockTokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
         tokenizer.setReader(new StringReader(valueBuilder.toString()));
         SynonymFilter filter = new SynonymFilter(tokenizer, builder.build(), true);
-       
+
         TokenStream suggestTokenStream = new CompletionTokenStream(filter, new BytesRef("Surface keyword|friggin payload|10"), new CompletionTokenStream.ToFiniteStrings() {
             @Override
             public Set<IntsRef> toFiniteStrings(TokenStream stream) throws IOException {
@@ -141,14 +140,18 @@ public class CompletionTokenStreamTests extends ESTokenStreamTestCase {
                 return finiteStrings;
             }
         });
-        
-        suggestTokenStream.reset();
-        suggestTokenStream.incrementToken();
-        suggestTokenStream.close();
 
+        suggestTokenStream.reset();
+        try {
+            suggestTokenStream.incrementToken();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Only <= 256 finite strings are supported"));
+        } finally {
+            suggestTokenStream.close();
+        }
     }
 
-    @Test
     public void testSuggestTokenFilterProperlyDelegateInputStream() throws Exception {
         Tokenizer tokenizer = new MockTokenizer(MockTokenizer.WHITESPACE, true);
         tokenizer.setReader(new StringReader("mykeyword"));

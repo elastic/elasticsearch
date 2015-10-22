@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.bulk;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
@@ -81,7 +80,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                                TransportShardBulkAction shardBulkAction, TransportCreateIndexAction createIndexAction,
                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver,
                                AutoCreateIndex autoCreateIndex) {
-        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest.class);
+        super(settings, BulkAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, BulkRequest::new);
         this.clusterService = clusterService;
         this.shardBulkAction = shardBulkAction;
         this.createIndexAction = createIndexAction;
@@ -246,7 +245,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         }
 
         // first, go over all the requests and create a ShardId -> Operations mapping
-        Map<ShardId, List<BulkItemRequest>> requestsByShard = Maps.newHashMap();
+        Map<ShardId, List<BulkItemRequest>> requestsByShard = new HashMap<>();
 
         for (int i = 0; i < bulkRequest.requests.size(); i++) {
             ActionRequest request = bulkRequest.requests.get(i);

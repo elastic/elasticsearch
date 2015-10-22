@@ -18,11 +18,11 @@
  */
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.collect.Sets;
 import org.apache.lucene.store.IndexOutput;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.store.StoreFileMetaData;
@@ -39,7 +39,7 @@ public class RecoveryStatusTests extends ESSingleNodeTestCase {
     public void testRenameTempFiles() throws IOException {
         IndexService service = createIndex("foo");
 
-        IndexShard indexShard = service.shard(0);
+        IndexShard indexShard = service.getShardOrNull(0);
         DiscoveryNode node = new DiscoveryNode("foo", new LocalTransportAddress("bar"), Version.CURRENT);
         RecoveryStatus status = new RecoveryStatus(indexShard, node, new RecoveryTarget.RecoveryListener() {
             @Override

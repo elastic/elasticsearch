@@ -41,7 +41,6 @@ import java.util.Locale;
  *     <li> <code>PRIMARIES</code> - only primary shards are allowed to be allocated
  *     <li> <code>ALL</code> - all shards are allowed to be allocated
  * </ul>
- * </p>
  *
  * <p>
  * Rebalancing settings can have the following values (non-casesensitive):
@@ -51,7 +50,6 @@ import java.util.Locale;
  *     <li> <code>PRIMARIES</code> - only primary shards are allowed to be balanced
  *     <li> <code>ALL</code> - all shards are allowed to be balanced
  * </ul>
- * </p>
  *
  * @see Rebalance
  * @see Allocation
@@ -84,7 +82,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
             return allocation.decision(Decision.YES, NAME, "allocation disabling is ignored");
         }
 
-        Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
+        Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).getSettings();
         String enableIndexValue = indexSettings.get(INDEX_ROUTING_ALLOCATION_ENABLE);
         final Allocation enable;
         if (enableIndexValue != null) {
@@ -120,7 +118,7 @@ public class EnableAllocationDecider extends AllocationDecider implements NodeSe
             return allocation.decision(Decision.YES, NAME, "rebalance disabling is ignored");
         }
 
-        Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).settings();
+        Settings indexSettings = allocation.routingNodes().metaData().index(shardRouting.index()).getSettings();
         String enableIndexValue = indexSettings.get(INDEX_ROUTING_REBALANCE_ENABLE);
         final Rebalance enable;
         if (enableIndexValue != null) {

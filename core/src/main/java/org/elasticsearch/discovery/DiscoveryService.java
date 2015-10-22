@@ -112,14 +112,6 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
         return discovery.localNode();
     }
 
-    /**
-     * Returns <tt>true</tt> if the initial state was received within the timeout waiting for it
-     * on {@link #doStart()}.
-     */
-    public boolean initialStateReceived() {
-        return initialStateListener.initialStateReceived;
-    }
-
     public String nodeDescription() {
         return discovery.nodeDescription();
     }
@@ -127,7 +119,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     /**
      * Publish all the changes to the cluster from the master (can be called just by the master). The publish
      * process should not publish this state to the master as well! (the master is sending it...).
-     * <p/>
+     * <p>
      * The {@link org.elasticsearch.discovery.Discovery.AckListener} allows to acknowledge the publish
      * event based on the response gotten from all nodes
      */

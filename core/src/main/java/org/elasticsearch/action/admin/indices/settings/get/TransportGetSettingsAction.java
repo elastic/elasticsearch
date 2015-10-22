@@ -49,7 +49,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
     public TransportGetSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, SettingsFilter settingsFilter, ActionFilters actionFilters,
                                       IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetSettingsRequest.class);
+        super(settings, GetSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, GetSettingsRequest::new);
         this.settingsFilter = settingsFilter;
     }
 
@@ -80,7 +80,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
                 continue;
             }
 
-            Settings settings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), indexMetaData.settings());
+            Settings settings = SettingsFilter.filterSettings(settingsFilter.getPatterns(), indexMetaData.getSettings());
             if (request.humanReadable()) {
                 settings = IndexMetaData.addHumanReadableSettings(settings);
             }

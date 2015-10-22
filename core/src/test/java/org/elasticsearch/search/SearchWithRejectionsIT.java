@@ -19,13 +19,11 @@
 
 package org.elasticsearch.search;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -45,7 +43,6 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testOpenContextsAfterRejections() throws InterruptedException {
         createIndex("test");
         ensureGreen("test");
@@ -73,14 +70,7 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
             } catch (Throwable t) {
             }
         }
-        awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                // we must wait here because the requests to release search contexts might still be in flight
-                // although the search request has already returned
-                return client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0;
-            }
-        }, 1, TimeUnit.SECONDS);
+        awaitBusy(() -> client().admin().indices().prepareStats().execute().actionGet().getTotal().getSearch().getOpenContexts() == 0, 1, TimeUnit.SECONDS);
         indicesStats = client().admin().indices().prepareStats().execute().actionGet();
         assertThat(indicesStats.getTotal().getSearch().getOpenContexts(), equalTo(0l));
     }

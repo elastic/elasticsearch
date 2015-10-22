@@ -68,7 +68,7 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
                                   IndicesService indicesService, SuggestPhase suggestPhase, ActionFilters actionFilters,
                                   IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, SuggestAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                SuggestRequest.class, ShardSuggestRequest.class, ThreadPool.Names.SUGGEST);
+                SuggestRequest::new, ShardSuggestRequest::new, ThreadPool.Names.SUGGEST);
         this.indicesService = indicesService;
         this.suggestPhase = suggestPhase;
     }
@@ -130,7 +130,7 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
     @Override
     protected ShardSuggestResponse shardOperation(ShardSuggestRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
+        IndexShard indexShard = indexService.getShard(request.shardId().id());
         ShardSuggestMetric suggestMetric = indexShard.getSuggestMetric();
         suggestMetric.preSuggest();
         long startTime = System.nanoTime();

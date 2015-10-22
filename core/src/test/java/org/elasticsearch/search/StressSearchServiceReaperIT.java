@@ -25,7 +25,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.concurrent.ExecutionException;
 
@@ -44,7 +43,7 @@ public class StressSearchServiceReaperIT extends ESIntegTestCase {
                 .put(SearchService.KEEPALIVE_INTERVAL_KEY, TimeValue.timeValueMillis(1)).build();
     }
 
-    @Test // see issue #5165 - this test fails each time without the fix in pull #5170
+    // see issue #5165 - this test fails each time without the fix in pull #5170
     public void testStressReaper() throws ExecutionException, InterruptedException {
         int num = randomIntBetween(100, 150);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];

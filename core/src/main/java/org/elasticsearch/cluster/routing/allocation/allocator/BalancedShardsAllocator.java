@@ -19,13 +19,14 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
-import com.google.common.base.Predicate;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.FailedRerouteAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
@@ -37,9 +38,20 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.IdentityHashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
@@ -47,7 +59,6 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
  * The {@link BalancedShardsAllocator} re-balances the nodes allocations
  * within an cluster based on a {@link WeightFunction}. The clusters balance is defined by four parameters which can be set
  * in the cluster update API that allows changes in real-time:
- * <p/>
  * <ul><li><code>cluster.routing.allocation.balance.shard</code> - The <b>shard balance</b> defines the weight factor
  * for shards allocated on a {@link RoutingNode}</li>
  * <li><code>cluster.routing.allocation.balance.index</code> - The <b>index balance</b> defines a factor to the number
@@ -55,7 +66,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
  * <li><code>cluster.routing.allocation.balance.threshold</code> - A <b>threshold</b> to set the minimal optimization
  * value of operations that should be performed</li>
  * </ul>
- * <p/>
+ * <p>
  * These parameters are combined in a {@link WeightFunction} that allows calculation of node weights which
  * are used to re-balance shards based on global as well as per-index factors.
  */
@@ -226,13 +237,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         private final float threshold;
         private final MetaData metaData;
 
-        private final Predicate<ShardRouting> assignedFilter = new Predicate<ShardRouting>() {
-            @Override
-            public boolean apply(ShardRouting input) {
-                return input.assignedToNode();
-            }
-        };
-
+        private final Predicate<ShardRouting> assignedFilter = shard -> shard.assignedToNode();
 
         public Balancer(ESLogger logger, RoutingAllocation allocation, WeightFunction weight, float threshold) {
             this.logger = logger;
@@ -257,7 +262,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          * Returns the average of shards per node for the given index
          */
         public float avgShardsPerNode(String index) {
-            return ((float) metaData.index(index).totalNumberOfShards()) / nodes.size();
+            return ((float) metaData.index(index).getTotalNumberOfShards()) / nodes.size();
         }
 
         /**
@@ -289,7 +294,9 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (logger.isTraceEnabled()) {
                 logger.trace("Start distributing Shards");
             }
-            indices.addAll(allocation.routingTable().indicesRouting().keySet());
+            for (ObjectCursor<String> index : allocation.routingTable().indicesRouting().keys()) {
+                indices.add(index.value);
+            }
             buildModelFromAssigned(routing.shards(assignedFilter));
             return allocateUnassigned(unassigned);
         }
@@ -433,7 +440,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 deltas[i] = sorter.delta();
             }
             new IntroSorter() {
-                
+
                 float pivotWeight;
 
                 @Override
@@ -559,12 +566,13 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 return false;
             }
             boolean changed = false;
-          
+
             /*
              * TODO: We could be smarter here and group the shards by index and then
-             * use the sorter to save some iterations. 
+             * use the sorter to save some iterations.
              */
             final AllocationDeciders deciders = allocation.deciders();
+            final PriorityComparator secondaryComparator = PriorityComparator.getAllocationComparator(allocation);
             final Comparator<ShardRouting> comparator = new Comparator<ShardRouting>() {
                 @Override
                 public int compare(ShardRouting o1,
@@ -576,7 +584,12 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     if ((indexCmp = o1.index().compareTo(o2.index())) == 0) {
                         return o1.getId() - o2.getId();
                     }
-                    return indexCmp;
+                    // this comparator is more expensive than all the others up there
+                    // that's why it's added last even though it could be easier to read
+                    // if we'd apply it earlier. this comparator will only differentiate across
+                    // indices all shards of the same index is treated equally.
+                    final int secondary = secondaryComparator.compare(o1, o2);
+                    return secondary == 0 ? indexCmp : secondary;
                 }
             };
             /*
@@ -767,7 +780,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                 }
 
                 if (candidate != null) {
-                  
+
                     /* allocate on the model even if not throttled */
                     maxNode.removeShard(candidate);
                     minNode.addShard(candidate, decision);

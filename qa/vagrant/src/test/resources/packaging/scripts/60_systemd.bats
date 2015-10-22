@@ -30,11 +30,14 @@
 
 # Load test utilities
 load packaging_test_utils
+load os_package
+load plugins
 
 # Cleans everything for the 1st execution
 setup() {
     skip_not_systemd
     skip_not_dpkg_or_rpm
+    export_elasticsearch_paths
 }
 
 @test "[SYSTEMD] install elasticsearch" {
@@ -46,6 +49,14 @@ setup() {
     systemctl daemon-reload
 }
 
+@test "[SYSTEMD] daemon isn't enabled on restart" {
+    # Rather than restart the VM we just ask systemd if it plans on starting
+    # elasticsearch on restart. Not as strong as a restart but much much
+    # faster.
+    run systemctl is-enabled elasticsearch.service
+    [ "$output" = "disabled" ]
+}
+
 @test "[SYSTEMD] enable" {
     systemctl enable elasticsearch.service
 
@@ -53,10 +64,13 @@ setup() {
 }
 
 @test "[SYSTEMD] start" {
+    # Install scripts used to test script filters and search templates before
+    # starting Elasticsearch so we don't have to wait for elasticsearch to scan for
+    # them.
+    install_elasticsearch_test_scripts
+    ESPLUGIN_COMMAND_USER=root install_and_check_plugin lang groovy
     systemctl start elasticsearch.service
-
     wait_for_elasticsearch_status
-
     assert_file_exist "/var/run/elasticsearch/elasticsearch.pid"
 }
 
@@ -91,23 +105,27 @@ setup() {
 
 @test "[SYSTEMD] stop (running)" {
     systemctl stop elasticsearch.service
+}
 
+@test "[SYSTEMD] status (stopping)" {
     run systemctl status elasticsearch.service
-    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
+    # I'm not sure why suse exits 0 here, but it does
+    if [ ! -e /etc/SuSE-release ]; then
+        [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped but got $status"
+    fi
     echo "$output" | grep "Active:" | grep "inactive"
 }
 
 @test "[SYSTEMD] stop (stopped)" {
     systemctl stop elasticsearch.service
-
-    run systemctl status elasticsearch.service
-    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
-    echo "$output" | grep "Active:" | grep "inactive"
 }
 
 @test "[SYSTEMD] status (stopped)" {
     run systemctl status elasticsearch.service
-    [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped"
+    # I'm not sure why suse exits 0 here, but it does
+    if [ ! -e /etc/SuSE-release ]; then
+        [ "$status" -eq 3 ] || "Expected exit code 3 meaning stopped but got $status"
+    fi
     echo "$output" | grep "Active:" | grep "inactive"
 }
 

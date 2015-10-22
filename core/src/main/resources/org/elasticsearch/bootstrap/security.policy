@@ -34,19 +34,50 @@ grant codeBase "file:${{java.ext.dirs}}/*" {
 grant codeBase "${es.security.jar.lucene.core}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
+//// test framework permissions.
+//// These are mock objects and test management that we allow test framework libs
+//// to provide on our behalf. But tests themselves cannot do this stuff!
+
 grant codeBase "${es.security.jar.elasticsearch.securemock}" {
+  // needed to access ReflectionFactory (see below)
+  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
   // needed to support creation of mocks
   permission java.lang.RuntimePermission "reflectionFactoryAccess";
+  // needed for spy interception, etc
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.jar.lucene.testframework}" {
+  // needed by RamUsageTester
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};
+
+grant codeBase "${es.security.jar.randomizedtesting.runner}" {
+  // optionally needed for access to private test methods (e.g. beforeClass)
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // needed for top threads handling
+  permission java.lang.RuntimePermission "modifyThreadGroup";
+};
+
+grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
+  // needed for gson serialization
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+
+  // needed for stream redirection
+  permission java.lang.RuntimePermission "setIO";
 };
 
 //// Everything else:
 
 grant {
 
-  // Allow executing groovy scripts with codesource of /groovy/script
-  permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
+  // checked by scripting engines, and before hacks and other issues in
+  // third party code, to safeguard these against unprivileged code like scripts.
+  permission org.elasticsearch.SpecialPermission;
 
   // Allow connecting to the internet anywhere
   permission java.net.SocketPermission "*", "accept,listen,connect,resolve";
@@ -54,51 +85,37 @@ grant {
   // Allow read/write to all system properties
   permission java.util.PropertyPermission "*", "read,write";
 
-  // needed by junit4's gson usage 
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-  // needed by scripting engines, etc
-  permission java.lang.RuntimePermission "createClassLoader";
-
   // needed by lucene SPI currently 
   permission java.lang.RuntimePermission "getClassLoader";
-
-  // needed by GroovyScriptEngineService
-  permission java.lang.RuntimePermission "closeClassLoader";
 
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 
-  // needed by LuceneTestCase/TestRuleLimitSysouts
-  permission java.lang.RuntimePermission "setIO";
-
-  // needed by junit4 ThreadLeakControl
+  // needed by ES threadpool termination... clean this up
+  // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "modifyThread";
-  permission java.lang.RuntimePermission "modifyThreadGroup";
 
-  // needed by groovy scripting
+  // needed by ExceptionSerializationTests and RestTestCase for
+  // some hackish things they do. otherwise only needed by groovy 
+  // (TODO: clean this up?)
   permission java.lang.RuntimePermission "getProtectionDomain";
-
-  // reflection hacks:
-  // needed for mock filesystems in tests (to capture implCloseChannel)
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.nio.ch";
-  // needed by groovy engine
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed by aws core sdk (TODO: look into this)
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.security.ssl";
   
-  // needed by RandomizedRunner
+  // likely not low hanging fruit...
   permission java.lang.RuntimePermission "accessDeclaredMembers";
-  // needed by RandomizedRunner
+
+  // needed by HotThreads and potentially more
+  // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "getStackTrace";
 
-  // needed by RandomizedRunner
+  // needed by ESTestCase for leniency of thread exceptions (?!)
+  // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
 
   // needed by JMX instead of getFileSystemAttributes, seems like a bug...
   permission java.lang.RuntimePermission "getFileStoreAttributes";
 
-  // needed by lucene mockfilesystems
+  // needed for jimfs and NewPathForShardsTests
+  // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "fileSystemProvider";
 
   // needed by plugin manager to set unix permissions

@@ -38,16 +38,20 @@ OFFICIAL PLUGINS
     - analysis-phonetic
     - analysis-smartcn
     - analysis-stempel
-    - cloud-azure
-    - cloud-gce
     - delete-by-query
+    - discovery-azure
     - discovery-ec2
+    - discovery-gce
     - discovery-multicast
+    - lang-expression
+    - lang-groovy
     - lang-javascript
     - lang-python
     - mapper-murmur3
     - mapper-size
+    - repository-azure
     - repository-s3
+    - store-smb
 
 
 OPTIONS
@@ -57,3 +61,5 @@ OPTIONS
     -v,--verbose                 Verbose output
 
     -h,--help                    Shows this message
+    
+    -b,--batch                   Enable batch mode explicitly, automatic confirmation of security permissions

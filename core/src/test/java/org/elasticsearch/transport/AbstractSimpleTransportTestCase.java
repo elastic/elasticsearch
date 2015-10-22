@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -34,7 +33,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.CountDownLatch;
@@ -42,8 +40,12 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.transport.TransportRequestOptions.options;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.endsWith;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -71,12 +73,12 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 Settings.builder().put("name", "TS_A", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
                 version0, new NamedWriteableRegistry()
         );
-        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version0);
+        nodeA = new DiscoveryNode("TS_A", "TS_A", serviceA.boundAddress().publishAddress(), emptyMap(), version0);
         serviceB = build(
                 Settings.builder().put("name", "TS_B", TransportService.SETTING_TRACE_LOG_INCLUDE, "", TransportService.SETTING_TRACE_LOG_EXCLUDE, "NOTHING").build(),
                 version1, new NamedWriteableRegistry()
         );
-        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), ImmutableMap.<String, String>of(), version1);
+        nodeB = new DiscoveryNode("TS_B", "TS_B", serviceB.boundAddress().publishAddress(), emptyMap(), version1);
 
         // wait till all nodes are properly connected and the event has been sent, so tests in this class
         // will not get this callback called on the connections done in this setup
@@ -123,9 +125,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testHelloWorld() {
-        serviceA.registerRequestHandler("sayHello", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
@@ -203,7 +204,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHello");
     }
 
-    @Test
     public void testLocalNodeConnection() throws InterruptedException {
         assertTrue("serviceA is not connected to nodeA", serviceA.nodeConnected(nodeA));
         if (((TransportService) serviceA).getLocalNode() != null) {
@@ -211,7 +211,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             serviceA.disconnectFromNode(nodeA);
         }
         final AtomicReference<Exception> exception = new AtomicReference<>();
-        serviceA.registerRequestHandler("localNode", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("localNode", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 try {
@@ -251,9 +251,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(responseString.get(), equalTo("test"));
     }
 
-    @Test
     public void testVoidMessageCompressed() {
-        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<TransportRequest.Empty>() {
+        serviceA.registerRequestHandler("sayHello", TransportRequest.Empty::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<TransportRequest.Empty>() {
             @Override
             public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
                 try {
@@ -298,9 +297,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHello");
     }
 
-    @Test
     public void testHelloWorldCompressed() {
-        serviceA.registerRequestHandler("sayHello", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
@@ -347,9 +345,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHello");
     }
 
-    @Test
     public void testErrorMessage() {
-        serviceA.registerRequestHandler("sayHelloException", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("sayHelloException", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
                 assertThat("moshe", equalTo(request.message));
@@ -390,7 +387,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloException");
     }
 
-    @Test
     public void testDisconnectListener() throws Exception {
         final CountDownLatch latch = new CountDownLatch(1);
         TransportConnectionListener disconnectListener = new TransportConnectionListener() {
@@ -409,11 +405,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(latch.await(5, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @Test
     public void testNotifyOnShutdown() throws Exception {
         final CountDownLatch latch2 = new CountDownLatch(1);
 
-        serviceA.registerRequestHandler("foobar", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("foobar", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 try {
@@ -437,9 +432,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
-    @Test
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
-        serviceA.registerRequestHandler("sayHelloTimeoutNoResponse", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("sayHelloTimeoutNoResponse", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
@@ -486,9 +480,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloTimeoutNoResponse");
     }
 
-    @Test
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
-        serviceA.registerRequestHandler("sayHelloTimeoutDelayedResponse", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("sayHelloTimeoutDelayedResponse", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 TimeValue sleep = TimeValue.parseTimeValue(request.message, null, "sleep");
@@ -573,8 +566,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
-
-    @Test
     @TestLogging(value = "test. transport.tracer:TRACE")
     public void testTracerLog() throws InterruptedException {
         TransportRequestHandler handler = new TransportRequestHandler<StringMessageRequest>() {
@@ -619,10 +610,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         };
 
-        serviceA.registerRequestHandler("test", StringMessageRequest.class, ThreadPool.Names.SAME, handler);
-        serviceA.registerRequestHandler("testError", StringMessageRequest.class, ThreadPool.Names.SAME, handlerWithError);
-        serviceB.registerRequestHandler("test", StringMessageRequest.class, ThreadPool.Names.SAME, handler);
-        serviceB.registerRequestHandler("testError", StringMessageRequest.class, ThreadPool.Names.SAME, handlerWithError);
+        serviceA.registerRequestHandler("test", StringMessageRequest::new, ThreadPool.Names.SAME, handler);
+        serviceA.registerRequestHandler("testError", StringMessageRequest::new, ThreadPool.Names.SAME, handlerWithError);
+        serviceB.registerRequestHandler("test", StringMessageRequest::new, ThreadPool.Names.SAME, handler);
+        serviceB.registerRequestHandler("testError", StringMessageRequest::new, ThreadPool.Names.SAME, handlerWithError);
 
         final Tracer tracer = new Tracer();
         serviceA.addTracer(tracer);
@@ -742,7 +733,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
 
-    static class StringMessageRequest extends TransportRequest {
+    public static class StringMessageRequest extends TransportRequest {
 
         private String message;
         private long timeout;
@@ -752,7 +743,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             this.timeout = timeout;
         }
 
-        StringMessageRequest() {
+        public StringMessageRequest() {
         }
 
         public StringMessageRequest(String message) {
@@ -803,7 +794,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
 
-    static class Version0Request extends TransportRequest {
+    public static class Version0Request extends TransportRequest {
 
         int value1;
 
@@ -821,7 +812,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    static class Version1Request extends Version0Request {
+    public static class Version1Request extends Version0Request {
 
         int value2;
 
@@ -880,9 +871,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
     }
 
-    @Test
-    public void testVersion_from0to1() throws Exception {
-        serviceB.registerRequestHandler("/version", Version1Request.class, ThreadPool.Names.SAME, new TransportRequestHandler<Version1Request>() {
+    public void testVersionFrom0to1() throws Exception {
+        serviceB.registerRequestHandler("/version", Version1Request::new, ThreadPool.Names.SAME, new TransportRequestHandler<Version1Request>() {
             @Override
             public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
                 assertThat(request.value1, equalTo(1));
@@ -922,9 +912,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version0Response.value1, equalTo(1));
     }
 
-    @Test
-    public void testVersion_from1to0() throws Exception {
-        serviceA.registerRequestHandler("/version", Version0Request.class, ThreadPool.Names.SAME, new TransportRequestHandler<Version0Request>() {
+    public void testVersionFrom1to0() throws Exception {
+        serviceA.registerRequestHandler("/version", Version0Request::new, ThreadPool.Names.SAME, new TransportRequestHandler<Version0Request>() {
             @Override
             public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
                 assertThat(request.value1, equalTo(1));
@@ -965,9 +954,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version1Response.value2, equalTo(0));
     }
 
-    @Test
-    public void testVersion_from1to1() throws Exception {
-        serviceB.registerRequestHandler("/version", Version1Request.class, ThreadPool.Names.SAME, new TransportRequestHandler<Version1Request>() {
+    public void testVersionFrom1to1() throws Exception {
+        serviceB.registerRequestHandler("/version", Version1Request::new, ThreadPool.Names.SAME, new TransportRequestHandler<Version1Request>() {
             @Override
             public void messageReceived(Version1Request request, TransportChannel channel) throws Exception {
                 assertThat(request.value1, equalTo(1));
@@ -1010,9 +998,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version1Response.value2, equalTo(2));
     }
 
-    @Test
-    public void testVersion_from0to0() throws Exception {
-        serviceA.registerRequestHandler("/version", Version0Request.class, ThreadPool.Names.SAME, new TransportRequestHandler<Version0Request>() {
+    public void testVersionFrom0to0() throws Exception {
+        serviceA.registerRequestHandler("/version", Version0Request::new, ThreadPool.Names.SAME, new TransportRequestHandler<Version0Request>() {
             @Override
             public void messageReceived(Version0Request request, TransportChannel channel) throws Exception {
                 assertThat(request.value1, equalTo(1));
@@ -1050,9 +1037,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertThat(version0Response.value1, equalTo(1));
     }
 
-    @Test
     public void testMockFailToSendNoConnectRule() {
-        serviceA.registerRequestHandler("sayHello", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
                 assertThat("moshe", equalTo(request.message));
@@ -1109,9 +1095,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceA.removeHandler("sayHello");
     }
 
-    @Test
     public void testMockUnresponsiveRule() {
-        serviceA.registerRequestHandler("sayHello", StringMessageRequest.class, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
+        serviceA.registerRequestHandler("sayHello", StringMessageRequest::new, ThreadPool.Names.GENERIC, new TransportRequestHandler<StringMessageRequest>() {
             @Override
             public void messageReceived(StringMessageRequest request, TransportChannel channel) throws Exception {
                 assertThat("moshe", equalTo(request.message));
@@ -1169,12 +1154,11 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
     }
 
 
-    @Test
     public void testHostOnMessages() throws InterruptedException {
         final CountDownLatch latch = new CountDownLatch(2);
         final AtomicReference<TransportAddress> addressA = new AtomicReference<>();
         final AtomicReference<TransportAddress> addressB = new AtomicReference<>();
-        serviceB.registerRequestHandler("action1", TestRequest.class, ThreadPool.Names.SAME, new TransportRequestHandler<TestRequest>() {
+        serviceB.registerRequestHandler("action1", TestRequest::new, ThreadPool.Names.SAME, new TransportRequestHandler<TestRequest>() {
             @Override
             public void messageReceived(TestRequest request, TransportChannel channel) throws Exception {
                 addressA.set(request.remoteAddress());
@@ -1213,7 +1197,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertTrue(nodeB.address().sameHost(addressB.get()));
     }
 
-    private static class TestRequest extends TransportRequest {
+    public static class TestRequest extends TransportRequest {
     }
 
     private static class TestResponse extends TransportResponse {

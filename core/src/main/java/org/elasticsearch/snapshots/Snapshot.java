@@ -164,7 +164,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
 
     /**
      * Returns time when snapshot ended
-     * <p/>
+     * <p>
      * Can be 0L if snapshot is still running
      *
      * @return snapshot end time
@@ -227,7 +227,7 @@ public class Snapshot implements Comparable<Snapshot>, ToXContent, FromXContentB
     @Override
     public int hashCode() {
         int result = name.hashCode();
-        result = 31 * result + (int) (startTime ^ (startTime >>> 32));
+        result = 31 * result + Long.hashCode(startTime);
         return result;
     }
 

@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.indexing;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
@@ -35,6 +34,8 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static java.util.Collections.emptyMap;
+
 /**
  */
 public class ShardIndexingService extends AbstractIndexShardComponent {
@@ -45,7 +46,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     private final CopyOnWriteArrayList<IndexingOperationListener> listeners = new CopyOnWriteArrayList<>();
 
-    private volatile Map<String, StatsHolder> typesStats = ImmutableMap.of();
+    private volatile Map<String, StatsHolder> typesStats = emptyMap();
 
     public ShardIndexingService(ShardId shardId, Settings indexSettings) {
         super(shardId, indexSettings);
@@ -85,25 +86,6 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         listeners.remove(listener);
     }
 
-    public Engine.Create preCreate(Engine.Create create) {
-        totalStats.indexCurrent.inc();
-        typeStats(create.type()).indexCurrent.inc();
-        for (IndexingOperationListener listener : listeners) {
-            create = listener.preCreate(create);
-        }
-        return create;
-    }
-
-    public void postCreateUnderLock(Engine.Create create) {
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postCreateUnderLock(create);
-            } catch (Exception e) {
-                logger.warn("postCreateUnderLock listener [{}] failed", e, listener);
-            }
-        }
-    }
-
     public void throttlingActivated() {
         totalStats.setThrottled(true);
     }
@@ -112,40 +94,13 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         totalStats.setThrottled(false);
     }
 
-    public void postCreate(Engine.Create create) {
-        long took = create.endTime() - create.startTime();
-        totalStats.indexMetric.inc(took);
-        totalStats.indexCurrent.dec();
-        StatsHolder typeStats = typeStats(create.type());
-        typeStats.indexMetric.inc(took);
-        typeStats.indexCurrent.dec();
-        slowLog.postCreate(create, took);
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postCreate(create);
-            } catch (Exception e) {
-                logger.warn("postCreate listener [{}] failed", e, listener);
-            }
-        }
-    }
-
-    public void postCreate(Engine.Create create, Throwable ex) {
-        for (IndexingOperationListener listener : listeners) {
-            try {
-                listener.postCreate(create, ex);
-            } catch (Throwable t) {
-                logger.warn("postCreate listener [{}] failed", t, listener);
-            }
-        }
-    }
-
-    public Engine.Index preIndex(Engine.Index index) {
+    public Engine.Index preIndex(Engine.Index operation) {
         totalStats.indexCurrent.inc();
-        typeStats(index.type()).indexCurrent.inc();
+        typeStats(operation.type()).indexCurrent.inc();
         for (IndexingOperationListener listener : listeners) {
-            index = listener.preIndex(index);
+            operation = listener.preIndex(operation);
         }
-        return index;
+        return operation;
     }
 
     public void postIndexUnderLock(Engine.Index index) {
@@ -178,6 +133,8 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
     public void postIndex(Engine.Index index, Throwable ex) {
         totalStats.indexCurrent.dec();
         typeStats(index.type()).indexCurrent.dec();
+        totalStats.indexFailed.inc();
+        typeStats(index.type()).indexFailed.inc();
         for (IndexingOperationListener listener : listeners) {
             try {
                 listener.postIndex(index, ex);
@@ -277,6 +234,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
         public final MeanMetric indexMetric = new MeanMetric();
         public final MeanMetric deleteMetric = new MeanMetric();
         public final CounterMetric indexCurrent = new CounterMetric();
+        public final CounterMetric indexFailed = new CounterMetric();
         public final CounterMetric deleteCurrent = new CounterMetric();
         public final CounterMetric noopUpdates = new CounterMetric();
         public final CounterMetric throttleTimeMillisMetric = new CounterMetric();
@@ -293,7 +251,7 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
                 }
             }
             return new IndexingStats.Stats(
-                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(),
+                    indexMetric.count(), TimeUnit.NANOSECONDS.toMillis(indexMetric.sum()), indexCurrent.count(), indexFailed.count(),
                     deleteMetric.count(), TimeUnit.NANOSECONDS.toMillis(deleteMetric.sum()), deleteCurrent.count(),
                     noopUpdates.count(), isThrottled, TimeUnit.MILLISECONDS.toMillis(throttleTimeMillisMetric.count() + TimeValue.nsecToMSec(currentThrottleNS)));
         }

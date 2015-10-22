@@ -19,7 +19,6 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,6 +27,7 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -52,7 +52,7 @@ public class AllocationExplanation implements Streamable {
         /**
          * Creates a new {@link NodeExplanation}
          *  
-         * @param node node referenced by {@link This} {@link NodeExplanation}
+         * @param node node referenced by this {@link NodeExplanation}
          * @param description a message associated with the given node 
          */
         public NodeExplanation(DiscoveryNode node, String description) {
@@ -77,7 +77,7 @@ public class AllocationExplanation implements Streamable {
         }
     }
 
-    private final Map<ShardId, List<NodeExplanation>> explanations = Maps.newHashMap();
+    private final Map<ShardId, List<NodeExplanation>> explanations = new HashMap<>();
 
     /**
      * Create and add a node explanation to this explanation referencing a shard  

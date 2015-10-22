@@ -29,7 +29,7 @@ import java.util.Collections;
 
 /**
  * An extension point allowing to plug in custom functionality.
- * <p/>
+ * <p>
  * A plugin can be register custom extensions to builtin behavior by implementing <tt>onModule(AnyModule)</tt>,
  * and registering the extension with the given module.
  */
@@ -70,20 +70,6 @@ public abstract class Plugin {
      * Per index services that will be automatically closed.
      */
     public Collection<Class<? extends Closeable>> indexServices() {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Per index shard module.
-     */
-    public Collection<Module> shardModules(Settings indexSettings) {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Per index shard service that will be automatically closed.
-     */
-    public Collection<Class<? extends Closeable>> shardServices() {
         return Collections.emptyList();
     }
 

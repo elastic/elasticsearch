@@ -31,21 +31,44 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.*;
+import java.io.ByteArrayInputStream;
+import java.io.EOFException;
+import java.io.FileNotFoundException;
+import java.io.FilterInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.NoSuchFileException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Date;
+import java.util.HashMap;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
 
 public abstract class StreamInput extends InputStream {
 
+    private final NamedWriteableRegistry namedWriteableRegistry;
+
     private Version version = Version.CURRENT;
+
+    protected StreamInput() {
+        this.namedWriteableRegistry = new NamedWriteableRegistry();
+    }
+
+    protected StreamInput(NamedWriteableRegistry namedWriteableRegistry) {
+        this.namedWriteableRegistry = namedWriteableRegistry;
+    }
 
     public Version getVersion() {
         return this.version;
@@ -314,19 +337,6 @@ public abstract class StreamInput extends InputStream {
     @Override
     public abstract void close() throws IOException;
 
-//    // IS
-//
-//    @Override public int read() throws IOException {
-//        return readByte();
-//    }
-//
-//    // Here, we assume that we always can read the full byte array
-//
-//    @Override public int read(byte[] b, int off, int len) throws IOException {
-//        readBytes(b, off, len);
-//        return len;
-//    }
-
     public String[] readStringArray() throws IOException {
         int size = readVInt();
         if (size == 0) {
@@ -337,6 +347,13 @@ public abstract class StreamInput extends InputStream {
             ret[i] = readString();
         }
         return ret;
+    }
+
+    public String[] readOptionalStringArray() throws IOException {
+        if (readBoolean()) {
+            return readStringArray();
+        }
+        return null;
     }
 
     @Nullable
@@ -420,9 +437,18 @@ public abstract class StreamInput extends InputStream {
                 return readDoubleArray();
             case 21:
                 return readBytesRef();
+            case 22:
+                return readGeoPoint();
             default:
                 throw new IOException("Can't read unknown type [" + type + "]");
         }
+    }
+
+    /**
+     * Reads a {@link GeoPoint} from this stream input
+     */
+    public GeoPoint readGeoPoint() throws IOException {
+        return new GeoPoint(readDouble(), readDouble());
     }
 
     public int[] readIntArray() throws IOException {
@@ -434,11 +460,29 @@ public abstract class StreamInput extends InputStream {
         return values;
     }
 
+    public int[] readVIntArray() throws IOException {
+        int length = readVInt();
+        int[] values = new int[length];
+        for (int i = 0; i < length; i++) {
+            values[i] = readVInt();
+        }
+        return values;
+    }
+
     public long[] readLongArray() throws IOException {
         int length = readVInt();
         long[] values = new long[length];
         for (int i = 0; i < length; i++) {
             values[i] = readLong();
+        }
+        return values;
+    }
+
+    public long[] readVLongArray() throws IOException {
+        int length = readVInt();
+        long[] values = new long[length];
+        for (int i = 0; i < length; i++) {
+            values[i] = readVLong();
         }
         return values;
     }
@@ -487,8 +531,8 @@ public abstract class StreamInput extends InputStream {
             int key = readVInt();
             switch (key) {
                 case 0:
-                    final String name = readString();
-                    return (T) readException(this, name);
+                    final int ord = readVInt();
+                    return (T) readException(this, ord);
                 case 1:
                     String msg1 = readOptionalString();
                     String resource1 = readOptionalString();
@@ -558,7 +602,21 @@ public abstract class StreamInput extends InputStream {
      * Use {@link FilterInputStream} instead which wraps a stream and supports a {@link NamedWriteableRegistry} too.
      */
     <C> C readNamedWriteable(@SuppressWarnings("unused") Class<C> categoryClass) throws IOException {
-        throw new UnsupportedOperationException();
+        throw new UnsupportedOperationException("can't read named writeable from StreamInput");
+    }
+
+    /**
+     * Reads a {@link QueryBuilder} from the current stream
+     */
+    public QueryBuilder readQuery() throws IOException {
+        return readNamedWriteable(QueryBuilder.class);
+    }
+
+    /**
+     * Reads a {@link org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder} from the current stream
+     */
+    public ScoreFunctionBuilder<?> readScoreFunction() throws IOException {
+        return readNamedWriteable(ScoreFunctionBuilder.class);
     }
 
     public static StreamInput wrap(BytesReference reference) {

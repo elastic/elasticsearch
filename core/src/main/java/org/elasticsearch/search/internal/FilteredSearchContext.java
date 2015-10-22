@@ -29,6 +29,7 @@ import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -52,7 +53,6 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.InternalProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.util.List;
@@ -499,11 +499,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public ScanContext scanContext() {
-        return in.scanContext();
-    }
-
-    @Override
     public MappedFieldType smartNameFieldType(String name) {
         return in.smartNameFieldType(name);
     }
@@ -529,11 +524,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Map<Class<?>, Collector> queryCollectors() {
-        return in.queryCollectors();
-    }
-
-    @Override
     public InternalProfiler queryProfiler() {
         throw new UnsupportedOperationException();
     }
@@ -547,4 +537,10 @@ public abstract class FilteredSearchContext extends SearchContext {
     public boolean profile() {
         throw new UnsupportedOperationException();
     }
+
+    @Override
+    public Map<Class<?>, Collector> queryCollectors() { return in.queryCollectors();}
+
+    @Override
+    public QueryCache getQueryCache() { return in.getQueryCache();}
 }

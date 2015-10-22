@@ -69,6 +69,11 @@ cluster.routing.allocation.awareness.attributes: rack_id,zone
 NOTE: When using awareness attributes, shards will not be allocated to
 nodes that don't have values set for those attributes.
 
+NOTE: Number of primary/replica of a shard allocated on a specific group
+of nodes with the same awareness attribute value is determined by the number
+of attribute values. When the number of nodes in groups is unbalanced and
+there are many replicas, replica shards may be left unassigned.
+
 [float]
 [[forced-awareness]]
 === Forced Awareness

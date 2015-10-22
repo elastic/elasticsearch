@@ -39,15 +39,16 @@ import org.elasticsearch.common.geo.builders.ShapeBuilder;
 
 [source,java]
 --------------------------------------------------
-QueryBuilder qb = geoShapeQuery(
-    "pin.location",                     <1>
-    ShapeBuilder.newMultiPoint()        <2>
-        .point(0, 0)
-        .point(0, 10)
-        .point(10, 10)
-        .point(10, 0)
-        .point(0, 0),
-    ShapeRelation.WITHIN);              <3>
+GeoShapeQueryBuilder qb = geoShapeQuery(
+        "pin.location",                 <1>
+        ShapeBuilder.newMultiPoint()    <2>
+             .point(0, 0)
+             .point(0, 10)
+             .point(10, 10)
+             .point(10, 0)
+             .point(0, 0));
+qb.relation(ShapeRelation.WITHIN);      <3>
+
 --------------------------------------------------
 <1> field
 <2> shape
@@ -56,11 +57,11 @@ QueryBuilder qb = geoShapeQuery(
 [source,java]
 --------------------------------------------------
 // Using pre-indexed shapes
-QueryBuilder qb = geoShapeQuery(
+GeoShapeQueryBuilder qb = geoShapeQuery(
         "pin.location",             <1>
         "DEU",                      <2>
-        "countries",                <3>
-        ShapeRelation.WITHIN)       <4>
+        "countries");               <3>
+qb.relation(ShapeRelation.WITHIN))  <4>
     .indexedShapeIndex("shapes")    <5>
     .indexedShapePath("location");  <6>
 --------------------------------------------------

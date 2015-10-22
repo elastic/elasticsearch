@@ -1,8 +1,0 @@
-{
-    "prefix":{
-        "name.first":{
-            "value":"sh",
-            "boost":1.2
-        }
-    }
-}

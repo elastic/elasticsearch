@@ -45,7 +45,7 @@ public class TransportPutRepositoryAction extends TransportMasterNodeAction<PutR
     public TransportPutRepositoryAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                         RepositoriesService repositoriesService, ThreadPool threadPool, ActionFilters actionFilters,
                                         IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutRepositoryRequest.class);
+        super(settings, PutRepositoryAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, PutRepositoryRequest::new);
         this.repositoriesService = repositoriesService;
     }
 

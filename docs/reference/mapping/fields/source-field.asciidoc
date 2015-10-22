@@ -15,10 +15,11 @@ within the index. For this reason, it can be disabled as follows:
 --------------------------------------------------
 PUT tweets
 {
-  "mappings": {},
-  "tweet": {
-    "_source": {
-      "enabled": false
+  "mappings": {
+    "tweet": {
+      "_source": {
+        "enabled": false
+      }
     }
   }
 }

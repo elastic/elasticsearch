@@ -42,6 +42,7 @@ public class IndexingStats implements Streamable, ToXContent {
         private long indexCount;
         private long indexTimeInMillis;
         private long indexCurrent;
+        private long indexFailedCount;
 
         private long deleteCount;
         private long deleteTimeInMillis;
@@ -56,10 +57,11 @@ public class IndexingStats implements Streamable, ToXContent {
 
         }
 
-        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long deleteCount, long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount, boolean isThrottled, long throttleTimeInMillis) {
+        public Stats(long indexCount, long indexTimeInMillis, long indexCurrent, long indexFailedCount, long deleteCount, long deleteTimeInMillis, long deleteCurrent, long noopUpdateCount, boolean isThrottled, long throttleTimeInMillis) {
             this.indexCount = indexCount;
             this.indexTimeInMillis = indexTimeInMillis;
             this.indexCurrent = indexCurrent;
+            this.indexFailedCount = indexFailedCount;
             this.deleteCount = deleteCount;
             this.deleteTimeInMillis = deleteTimeInMillis;
             this.deleteCurrent = deleteCurrent;
@@ -72,6 +74,7 @@ public class IndexingStats implements Streamable, ToXContent {
             indexCount += stats.indexCount;
             indexTimeInMillis += stats.indexTimeInMillis;
             indexCurrent += stats.indexCurrent;
+            indexFailedCount += stats.indexFailedCount;
 
             deleteCount += stats.deleteCount;
             deleteTimeInMillis += stats.deleteTimeInMillis;
@@ -86,6 +89,10 @@ public class IndexingStats implements Streamable, ToXContent {
 
         public long getIndexCount() {
             return indexCount;
+        }
+
+        public long getIndexFailedCount() {
+            return indexFailedCount;
         }
 
         public TimeValue getIndexTime() {
@@ -106,7 +113,6 @@ public class IndexingStats implements Streamable, ToXContent {
 
         /**
          * Returns if the index is under merge throttling control
-         * @return
          */
         public boolean isThrottled() {
             return isThrottled;
@@ -114,7 +120,6 @@ public class IndexingStats implements Streamable, ToXContent {
 
         /**
          * Gets the amount of time in milliseconds that the index has been under merge throttling control
-         * @return
          */
         public long getThrottleTimeInMillis() {
             return throttleTimeInMillis;
@@ -122,7 +127,6 @@ public class IndexingStats implements Streamable, ToXContent {
 
         /**
          * Gets the amount of time in a TimeValue that the index has been under merge throttling control
-         * @return
          */
         public TimeValue getThrottleTime() {
             return new TimeValue(throttleTimeInMillis);
@@ -156,6 +160,10 @@ public class IndexingStats implements Streamable, ToXContent {
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
 
+            if(in.getVersion().onOrAfter(Version.V_2_1_0)){
+                indexFailedCount = in.readVLong();
+            }
+
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
@@ -169,6 +177,10 @@ public class IndexingStats implements Streamable, ToXContent {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
+
+            if(out.getVersion().onOrAfter(Version.V_2_1_0)) {
+                out.writeVLong(indexFailedCount);
+            }
 
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
@@ -184,6 +196,7 @@ public class IndexingStats implements Streamable, ToXContent {
             builder.field(Fields.INDEX_TOTAL, indexCount);
             builder.timeValueField(Fields.INDEX_TIME_IN_MILLIS, Fields.INDEX_TIME, indexTimeInMillis);
             builder.field(Fields.INDEX_CURRENT, indexCurrent);
+            builder.field(Fields.INDEX_FAILED, indexFailedCount);
 
             builder.field(Fields.DELETE_TOTAL, deleteCount);
             builder.timeValueField(Fields.DELETE_TIME_IN_MILLIS, Fields.DELETE_TIME, deleteTimeInMillis);
@@ -219,7 +232,7 @@ public class IndexingStats implements Streamable, ToXContent {
         if (indexingStats == null) {
             return;
         }
-        totalStats.add(indexingStats.totalStats);
+        addTotals(indexingStats);
         if (includeTypes && indexingStats.typeStats != null && !indexingStats.typeStats.isEmpty()) {
             if (typeStats == null) {
                 typeStats = new HashMap<>(indexingStats.typeStats.size());
@@ -233,6 +246,13 @@ public class IndexingStats implements Streamable, ToXContent {
                 }
             }
         }
+    }
+
+    public void addTotals(IndexingStats indexingStats) {
+        if (indexingStats == null) {
+            return;
+        }
+        totalStats.add(indexingStats.totalStats);
     }
 
     public Stats getTotal() {
@@ -268,6 +288,7 @@ public class IndexingStats implements Streamable, ToXContent {
         static final XContentBuilderString INDEX_TIME = new XContentBuilderString("index_time");
         static final XContentBuilderString INDEX_TIME_IN_MILLIS = new XContentBuilderString("index_time_in_millis");
         static final XContentBuilderString INDEX_CURRENT = new XContentBuilderString("index_current");
+        static final XContentBuilderString INDEX_FAILED = new XContentBuilderString("index_failed");
         static final XContentBuilderString DELETE_TOTAL = new XContentBuilderString("delete_total");
         static final XContentBuilderString DELETE_TIME = new XContentBuilderString("delete_time");
         static final XContentBuilderString DELETE_TIME_IN_MILLIS = new XContentBuilderString("delete_time_in_millis");

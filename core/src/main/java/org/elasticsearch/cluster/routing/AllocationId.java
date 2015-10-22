@@ -30,7 +30,7 @@ import java.io.IOException;
 /**
  * Uniquely identifies an allocation. An allocation is a shard moving from unassigned to initializing,
  * or relocation.
- * <p/>
+ * <p>
  * Relocation is a special case, where the origin shard is relocating with a relocationId and same id, and
  * the target shard (only materialized in RoutingNodes) is initializing with the id set to the origin shard
  * relocationId. Once relocation is done, the new allocation id is set to the relocationId. This is similar
@@ -83,7 +83,7 @@ public class AllocationId implements ToXContent {
 
     /**
      * Creates a new allocation id representing a cancelled relocation.
-     * <p/>
+     * <p>
      * Note that this is expected to be called on the allocation id
      * of the *source* shard
      */
@@ -94,7 +94,7 @@ public class AllocationId implements ToXContent {
 
     /**
      * Creates a new allocation id finalizing a relocation.
-     * <p/>
+     * <p>
      * Note that this is expected to be called on the allocation id
      * of the *target* shard and thus it only needs to clear the relocating id.
      */

@@ -19,13 +19,13 @@
 
 package org.elasticsearch.common.xcontent.support;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.unit.TimeValue;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -135,7 +135,7 @@ public class XContentMapValues {
     }
 
     public static Map<String, Object> filter(Map<String, Object> map, String[] includes, String[] excludes) {
-        Map<String, Object> result = Maps.newHashMap();
+        Map<String, Object> result = new HashMap<>();
         filter(map, result, includes == null ? Strings.EMPTY_ARRAY : includes, excludes == null ? Strings.EMPTY_ARRAY : excludes, new StringBuilder());
         return result;
     }
@@ -201,7 +201,7 @@ public class XContentMapValues {
 
 
             if (entry.getValue() instanceof Map) {
-                Map<String, Object> innerInto = Maps.newHashMap();
+                Map<String, Object> innerInto = new HashMap<>();
                 // if we had an exact match, we want give deeper excludes their chance
                 filter((Map<String, Object>) entry.getValue(), innerInto, exactIncludeMatch ? Strings.EMPTY_ARRAY : includes, excludes, sb);
                 if (exactIncludeMatch || !innerInto.isEmpty()) {
@@ -228,7 +228,7 @@ public class XContentMapValues {
 
         for (Object o : from) {
             if (o instanceof Map) {
-                Map<String, Object> innerInto = Maps.newHashMap();
+                Map<String, Object> innerInto = new HashMap<>();
                 filter((Map<String, Object>) o, innerInto, includes, excludes, sb);
                 if (!innerInto.isEmpty()) {
                     to.add(innerInto);

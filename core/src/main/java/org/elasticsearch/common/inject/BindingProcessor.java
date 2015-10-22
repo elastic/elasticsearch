@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject;
 
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.common.inject.internal.Annotations;
 import org.elasticsearch.common.inject.internal.BindingImpl;
 import org.elasticsearch.common.inject.internal.Errors;
@@ -46,6 +45,9 @@ import org.elasticsearch.common.inject.spi.UntargettedBinding;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableSet;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
 /**
  * Handles {@link Binder#bind} and {@link Binder#bindConstant} elements.
@@ -282,7 +284,7 @@ class BindingProcessor extends AbstractProcessor {
     // It's unfortunate that we have to maintain a blacklist of specific
     // classes, but we can't easily block the whole package because of
     // all our unit tests.
-    private static final Set<Class<?>> FORBIDDEN_TYPES = ImmutableSet.of(
+    private static final Set<Class<?>> FORBIDDEN_TYPES = unmodifiableSet(newHashSet(
             AbstractModule.class,
             Binder.class,
             Binding.class,
@@ -292,7 +294,7 @@ class BindingProcessor extends AbstractProcessor {
             Module.class,
             Provider.class,
             Scope.class,
-            TypeLiteral.class);
+            TypeLiteral.class));
     // TODO(jessewilson): fix BuiltInModule, then add Stage
 
     interface CreationListener {

@@ -21,7 +21,6 @@ package org.elasticsearch.script;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService.ScriptType;
@@ -34,7 +33,6 @@ import java.util.Collection;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 3)
@@ -77,7 +75,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class IntArrayScriptFactory implements NativeScriptFactory {
+    public static class IntArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new IntScript();
@@ -96,7 +94,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class LongArrayScriptFactory implements NativeScriptFactory {
+    public static class LongArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new LongScript();
@@ -115,7 +113,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class FloatArrayScriptFactory implements NativeScriptFactory {
+    public static class FloatArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new FloatScript();
@@ -134,7 +132,7 @@ public class ScriptFieldIT extends ESIntegTestCase {
         }
     }
 
-    static class DoubleArrayScriptFactory implements NativeScriptFactory {
+    public static class DoubleArrayScriptFactory implements NativeScriptFactory {
         @Override
         public ExecutableScript newScript(@Nullable Map<String, Object> params) {
             return new DoubleScript();

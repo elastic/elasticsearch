@@ -21,8 +21,7 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -68,9 +67,9 @@ public class NodeJoinController extends AbstractComponent {
 
     /**
      * waits for enough incoming joins from master eligible nodes to complete the master election
-     * <p/>
+     * <p>
      * You must start accumulating joins before calling this method. See {@link #startAccumulatingJoins()}
-     * <p/>
+     * <p>
      * The method will return once the local node has been elected as master or some failure/timeout has happened.
      * The exact outcome is communicated via the callback parameter, which is guaranteed to be called.
      *
@@ -133,7 +132,13 @@ public class NodeJoinController extends AbstractComponent {
 
     /** utility method to fail the given election context under the cluster state thread */
     private void failContext(final ElectionContext context, final String reason, final Throwable throwable) {
-        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", Priority.IMMEDIATE, new ClusterStateNonMasterUpdateTask() {
+        clusterService.submitStateUpdateTask("zen-disco-join(failure [" + reason + "])", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+
+            @Override
+            public boolean runOnlyOnMaster() {
+                return false;
+            }
+
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 context.onFailure(throwable);
@@ -175,7 +180,7 @@ public class NodeJoinController extends AbstractComponent {
 
     /**
      * processes or queues an incoming join request.
-     * <p/>
+     * <p>
      * Note: doesn't do any validation. This should have been done before.
      */
     public void handleJoinRequest(final DiscoveryNode node, final MembershipAction.JoinCallback callback) {
@@ -343,7 +348,7 @@ public class NodeJoinController extends AbstractComponent {
      * Processes any pending joins via a ClusterState update task.
      * Note: this task automatically fails (and fails all pending joins) if the current node is not marked as master
      */
-    class ProcessJoinsTask extends ProcessedClusterStateUpdateTask {
+    class ProcessJoinsTask extends ClusterStateUpdateTask {
 
         private final List<MembershipAction.JoinCallback> joinCallbacksToRespondTo = new ArrayList<>();
         private boolean nodeAdded = false;

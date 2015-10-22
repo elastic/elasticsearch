@@ -38,7 +38,7 @@ public class NodesHotThreadsRequest extends BaseNodesRequest<NodesHotThreadsRequ
     boolean ignoreIdleThreads = true;
 
     // for serialization
-    NodesHotThreadsRequest() {
+    public NodesHotThreadsRequest() {
 
     }
 

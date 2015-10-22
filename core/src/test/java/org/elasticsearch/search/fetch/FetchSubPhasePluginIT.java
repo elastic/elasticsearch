@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.fetch;
 
-import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.PostingsEnum;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.util.BytesRef;
@@ -27,19 +27,19 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchParseElement;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHitField;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -47,24 +47,22 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.client.Requests.indexRequest;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.CoreMatchers.equalTo;
 
 /**
  *
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class FetchSubPhasePluginIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(FetchTermVectorsPlugin.class);
     }
 
-    @Test
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()
@@ -87,14 +85,16 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        String searchSource = jsonBuilder().startObject()
+        XContentBuilder extSource = jsonBuilder().startObject()
                 .field("term_vectors_fetch", "test")
-                .endObject().string();
-        SearchResponse response = client().prepareSearch().setSource(searchSource).get();
+                .endObject();
+         SearchResponse response = client().prepareSearch().setSource(new SearchSourceBuilder().ext(extSource)).get();
         assertSearchResponse(response);
         assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("i"), equalTo(2));
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"), equalTo(2));
-        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"), equalTo(1));
+        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("am"),
+                equalTo(2));
+        assertThat(((Map<String, Integer>) response.getHits().getAt(0).field("term_vectors_fetch").getValues().get(0)).get("sam"),
+                equalTo(1));
     }
 
     public static class FetchTermVectorsPlugin extends Plugin {
@@ -136,7 +136,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
 
         @Override
         public Map<String, ? extends SearchParseElement> parseElements() {
-            return ImmutableMap.of("term_vectors_fetch", new TermVectorsFetchParseElement());
+            return singletonMap("term_vectors_fetch", new TermVectorsFetchParseElement());
         }
 
         @Override
@@ -165,7 +165,7 @@ public class FetchSubPhasePluginIT extends ESIntegTestCase {
                 hitField = new InternalSearchHitField(NAMES[0], new ArrayList<>(1));
                 hitContext.hit().fields().put(NAMES[0], hitField);
             }
-            TermVectorsResponse termVector = context.indexShard().termVectorsService().getTermVectors(new TermVectorsRequest(context.indexShard().indexService().index().getName(), hitContext.hit().type(), hitContext.hit().id()), context.indexShard().indexService().index().getName());
+            TermVectorsResponse termVector = context.indexShard().getTermVectors(new TermVectorsRequest(context.indexShard().shardId().index().getName(), hitContext.hit().type(), hitContext.hit().id()));
             try {
                 Map<String, Integer> tv = new HashMap<>();
                 TermsEnum terms = termVector.getFields().terms(field).iterator();

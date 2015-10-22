@@ -41,7 +41,7 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
 
     private String[] snapshots = Strings.EMPTY_ARRAY;
 
-    GetSnapshotsRequest() {
+    public GetSnapshotsRequest() {
     }
 
     /**
@@ -105,7 +105,6 @@ public class GetSnapshotsRequest extends MasterNodeRequest<GetSnapshotsRequest> 
     /**
      * Sets the list of snapshots to be returned
      *
-     * @param snapshots
      * @return this request
      */
     public GetSnapshotsRequest snapshots(String[] snapshots) {

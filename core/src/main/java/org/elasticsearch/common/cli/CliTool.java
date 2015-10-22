@@ -19,11 +19,9 @@
 
 package org.elasticsearch.common.cli;
 
-import com.google.common.base.Preconditions;
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.CommandLineParser;
 import org.apache.commons.cli.DefaultParser;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -101,12 +99,13 @@ public abstract class CliTool {
     }
 
     protected CliTool(CliToolConfig config, Terminal terminal) {
-        Preconditions.checkArgument(config.cmds().size() != 0, "At least one command must be configured");
+        if (config.cmds().size() == 0) {
+            throw new IllegalArgumentException("At least one command must be configured");
+        }
         this.config = config;
         this.terminal = terminal;
-        Tuple<Settings, Environment> tuple = InternalSettingsPreparer.prepareSettings(EMPTY_SETTINGS, true, terminal);
-        settings = tuple.v1();
-        env = tuple.v2();
+        env = InternalSettingsPreparer.prepareEnvironment(EMPTY_SETTINGS, terminal);
+        settings = env.settings();
     }
 
     public final ExitStatus execute(String... args) {

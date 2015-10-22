@@ -19,16 +19,16 @@
 
 package org.elasticsearch.common.blobstore.url;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.OutputStream;
 import java.net.URL;
+import java.util.Map;
 
 /**
  * URL blob implementation of {@link org.elasticsearch.common.blobstore.BlobContainer}
@@ -65,7 +65,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobs() throws IOException {
+    public Map<String, BlobMetaData> listBlobs() throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
@@ -73,7 +73,7 @@ public class URLBlobContainer extends AbstractBlobContainer {
      * This operation is not supported by URLBlobContainer
      */
     @Override
-    public ImmutableMap<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
+    public Map<String, BlobMetaData> listBlobsByPrefix(String blobNamePrefix) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 
@@ -99,12 +99,17 @@ public class URLBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
-    public InputStream openInput(String name) throws IOException {
+    public InputStream readBlob(String name) throws IOException {
         return new BufferedInputStream(new URL(path, name).openStream(), blobStore.bufferSizeInBytes());
     }
 
     @Override
-    public OutputStream createOutput(String blobName) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        throw new UnsupportedOperationException("URL repository doesn't support this operation");
+    }
+
+    @Override
+    public void writeBlob(String blobName, BytesReference data) throws IOException {
         throw new UnsupportedOperationException("URL repository doesn't support this operation");
     }
 }

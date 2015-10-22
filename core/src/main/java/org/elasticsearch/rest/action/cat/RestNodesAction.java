@@ -43,7 +43,7 @@ import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.percolator.stats.PercolateStats;
+import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.suggest.stats.SuggestStats;
@@ -166,6 +166,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("indexing.index_current", "alias:iic,indexingIndexCurrent;default:false;text-align:right;desc:number of current indexing ops");
         table.addCell("indexing.index_time", "alias:iiti,indexingIndexTime;default:false;text-align:right;desc:time spent in indexing");
         table.addCell("indexing.index_total", "alias:iito,indexingIndexTotal;default:false;text-align:right;desc:number of indexing ops");
+        table.addCell("indexing.index_failed", "alias:iif,indexingIndexFailed;default:false;text-align:right;desc:number of failed indexing ops");
 
         table.addCell("merges.current", "alias:mc,mergesCurrent;default:false;text-align:right;desc:number of current merges");
         table.addCell("merges.current_docs", "alias:mcd,mergesCurrentDocs;default:false;text-align:right;desc:number of current merging docs");
@@ -300,6 +301,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCurrent());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexTime());
             table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexCount());
+            table.addCell(indexingStats == null ? null : indexingStats.getTotal().getIndexFailedCount());
 
             MergeStats mergeStats = indicesStats == null ? null : indicesStats.getMerge();
             table.addCell(mergeStats == null ? null : mergeStats.getCurrent());
@@ -360,7 +362,7 @@ public class RestNodesAction extends AbstractCatAction {
      * Calculate the percentage of {@code used} from the {@code max} number.
      * @param used The currently used number.
      * @param max The maximum number.
-     * @return 0 if {@code max} is <= 0. Otherwise 100 * {@code used} / {@code max}.
+     * @return 0 if {@code max} is &lt;= 0. Otherwise 100 * {@code used} / {@code max}.
      */
     private short calculatePercentage(long used, long max) {
         return max <= 0 ? 0 : (short)((100d * used) / max);

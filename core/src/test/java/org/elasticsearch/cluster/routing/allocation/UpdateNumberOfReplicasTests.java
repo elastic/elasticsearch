@@ -29,20 +29,22 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(UpdateNumberOfReplicasTests.class);
 
-    @Test
     public void testUpdateNumberOfReplicas() {
         AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
@@ -106,7 +108,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(2).build();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
-        assertThat(clusterState.metaData().index("test").numberOfReplicas(), equalTo(2));
+        assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(2));
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));
@@ -157,7 +159,7 @@ public class UpdateNumberOfReplicasTests extends ESAllocationTestCase {
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
-        assertThat(clusterState.metaData().index("test").numberOfReplicas(), equalTo(1));
+        assertThat(clusterState.metaData().index("test").getNumberOfReplicas(), equalTo(1));
 
         assertThat(prevRoutingTable != routingTable, equalTo(true));
         assertThat(routingTable.index("test").shards().size(), equalTo(1));

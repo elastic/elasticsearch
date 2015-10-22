@@ -145,7 +145,11 @@ public abstract class ExtensionPoint {
             if (instance == null) {
                 throw new IllegalArgumentException("Unknown [" + this.name + "] type [" + type + "]");
             }
-            binder.bind(extensionClass).to(instance).asEagerSingleton();
+            if (extensionClass == instance) {
+                binder.bind(extensionClass).asEagerSingleton();
+            } else {
+                binder.bind(extensionClass).to(instance).asEagerSingleton();
+            }
             return type;
         }
 
@@ -187,7 +191,8 @@ public abstract class ExtensionPoint {
         protected final void bindExtensions(Binder binder) {
             Multibinder<T> allocationMultibinder = Multibinder.newSetBinder(binder, extensionClass);
             for (Class<? extends T> clazz : extensions) {
-                allocationMultibinder.addBinding().to(clazz).asEagerSingleton();
+                binder.bind(clazz).asEagerSingleton();
+                allocationMultibinder.addBinding().to(clazz);
             }
         }
     }
@@ -214,7 +219,7 @@ public abstract class ExtensionPoint {
         }
 
         /**
-         * Registers a mapping from {@param key} to {@param value}
+         * Registers a mapping from {@code key} to {@code value}
          *
          * @throws IllegalArgumentException iff the key is already registered
          */

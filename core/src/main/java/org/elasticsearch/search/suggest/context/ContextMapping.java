@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.suggest.context;
 
-import com.google.common.collect.Iterables;
-import com.google.common.collect.Maps;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.search.suggest.analyzing.XAnalyzingSuggester;
 import org.apache.lucene.util.automaton.Automata;
@@ -37,12 +35,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
+import java.util.*;
 
 /**
  * A {@link ContextMapping} is used t define a context that may used
@@ -57,10 +50,10 @@ public abstract class ContextMapping implements ToXContent {
     public static final char SEPARATOR = '\u001D';
 
     /** Dummy Context Mapping that should be used if no context is used*/
-    public static final SortedMap<String, ContextMapping> EMPTY_MAPPING = Maps.newTreeMap();
+    public static final SortedMap<String, ContextMapping> EMPTY_MAPPING = new TreeMap<>();
 
     /** Dummy Context Config matching the Dummy Mapping by providing an empty context*/
-    public static final SortedMap<String, ContextConfig> EMPTY_CONFIG = Maps.newTreeMap();
+    public static final SortedMap<String, ContextConfig> EMPTY_CONFIG = new TreeMap<>();
     
     /** Dummy Context matching the Dummy Mapping by not wrapping a {@link TokenStream} */
     public static final Context EMPTY_CONTEXT = new Context(EMPTY_CONFIG, null);
@@ -114,9 +107,6 @@ public abstract class ContextMapping implements ToXContent {
      * @param parseContext context of parsing phase 
      * @param parser {@link XContentParser} used to read and setup the configuration
      * @return A {@link ContextConfig} related to <b>this</b> mapping
-     * 
-     * @throws IOException
-     * @throws ElasticsearchParseException
      */
     public abstract ContextConfig parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException;
 
@@ -129,9 +119,6 @@ public abstract class ContextMapping implements ToXContent {
      * @param parser {@link XContentParser} providing the data of the query
      * 
      * @return {@link ContextQuery} according to this mapping
-     * 
-     * @throws IOException
-     * @throws ElasticsearchParseException
      */
     public abstract ContextQuery parseQuery(String name, XContentParser parser) throws IOException, ElasticsearchParseException;
 
@@ -143,8 +130,6 @@ public abstract class ContextMapping implements ToXContent {
      * @param params parameters passed to the builder
      * 
      * @return the builder used
-     * 
-     * @throws IOException
      */
     protected abstract XContentBuilder toInnerXContent(XContentBuilder builder, Params params) throws IOException;
 
@@ -157,7 +142,7 @@ public abstract class ContextMapping implements ToXContent {
      * @return true if both arguments are equal
      */
     public static boolean mappingsAreEqual(SortedMap<String, ? extends ContextMapping> thisMappings, SortedMap<String, ? extends ContextMapping> otherMappings) {
-        return Iterables.elementsEqual(thisMappings.entrySet(), otherMappings.entrySet());
+        return thisMappings.entrySet().equals(otherMappings.entrySet());
     }
 
     @Override

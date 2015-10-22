@@ -120,14 +120,7 @@ public class GatewayAllocator extends AbstractComponent {
         boolean changed = false;
 
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
-        unassigned.sort(new PriorityComparator() {
-
-            @Override
-            protected Settings getIndexSettings(String index) {
-                IndexMetaData indexMetaData = allocation.metaData().index(index);
-                return indexMetaData.getSettings();
-            }
-        }); // sort for priority ordering
+        unassigned.sort(PriorityComparator.getAllocationComparator(allocation)); // sort for priority ordering
 
         changed |= primaryShardAllocator.allocateUnassigned(allocation);
         changed |= replicaShardAllocator.processExistingRecoveries(allocation);

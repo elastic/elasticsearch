@@ -79,16 +79,12 @@ curl -XPUT localhost:9200/tweets/tweet/1 -d '{
 # search on all the tweets that match the followers of user 2
 curl -XGET localhost:9200/tweets/_search -d '{
   "query" : {
-    "filtered" : {
-      "filter" : {
-        "terms" : {
-          "user" : {
-            "index" : "users",
-            "type" : "user",
-            "id" : "2",
-            "path" : "followers"
-          }
-        }
+    "terms" : {
+      "user" : {
+        "index" : "users",
+        "type" : "user",
+        "id" : "2",
+        "path" : "followers"
       }
     }
   }

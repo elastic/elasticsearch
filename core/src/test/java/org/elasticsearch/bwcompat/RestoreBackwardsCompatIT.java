@@ -34,7 +34,6 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotRestoreException;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Modifier;
@@ -51,7 +50,10 @@ import java.util.TreeSet;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(scope = Scope.TEST)
 public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
@@ -62,12 +64,12 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             // Configure using path.repo
             return settingsBuilder()
                     .put(super.nodeSettings(nodeOrdinal))
-                    .put("path.repo", reposRoot())
+                    .put("path.repo", getBwcIndicesPath())
                     .build();
         } else {
             // Configure using url white list
             try {
-                URI repoJarPatternUri = new URI("jar:" + reposRoot().toUri().toString() + "*.zip!/repo/");
+                URI repoJarPatternUri = new URI("jar:" + getBwcIndicesPath().toUri().toString() + "*.zip!/repo/");
                 return settingsBuilder()
                         .put(super.nodeSettings(nodeOrdinal))
                         .putArray("repositories.url.allowed_urls", repoJarPatternUri.toString())
@@ -79,8 +81,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @Test
-    public void restoreOldSnapshots() throws Exception {
+    public void testRestoreOldSnapshots() throws Exception {
         String repo = "test_repo";
         String snapshot = "test_1";
         List<String> repoVersions = repoVersions();
@@ -95,9 +96,8 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             if (Modifier.isStatic(field.getModifiers()) && field.getType() == Version.class) {
                 Version v = (Version) field.get(Version.class);
                 if (v.snapshot()) continue;
-                if (v.onOrBefore(Version.V_1_0_0_Beta1)) continue;
+                if (v.onOrBefore(Version.V_2_0_0_beta1)) continue;
                 if (v.equals(Version.CURRENT)) continue;
-
                 expectedVersions.add(v.toString());
             }
         }
@@ -116,7 +116,6 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
-    @Test
     public void testRestoreUnsupportedSnapshots() throws Exception {
         String repo = "test_repo";
         String snapshot = "test_1";
@@ -126,10 +125,6 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
             createRepo("unsupportedrepo", version, repo);
             assertUnsupportedIndexFailsToRestore(repo, snapshot);
         }
-    }
-
-    private Path reposRoot() {
-        return getDataPath(".");
     }
 
     private List<String> repoVersions() throws Exception {
@@ -142,7 +137,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
 
     private List<String> listRepoVersions(String prefix) throws Exception {
         List<String> repoVersions = new ArrayList<>();
-        Path repoFiles = reposRoot();
+        Path repoFiles = getBwcIndicesPath();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(repoFiles, prefix + "-*.zip")) {
             for (Path entry : stream) {
                 String fileName = entry.getFileName().toString();
@@ -155,8 +150,8 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void createRepo(String prefix, String version, String repo) throws Exception {
-        String repoFile = prefix + "-" + version + ".zip";
-        URI repoFileUri = getDataPath(repoFile).toUri();
+        Path repoFile = getBwcIndicesPath().resolve(prefix + "-" + version + ".zip");
+        URI repoFileUri = repoFile.toUri();
         URI repoJarUri = new URI("jar:" + repoFileUri.toString() + "!/repo/");
         logger.info("-->  creating repository [{}] for version [{}]", repo, version);
         assertAcked(client().admin().cluster().preparePutRepository(repo)

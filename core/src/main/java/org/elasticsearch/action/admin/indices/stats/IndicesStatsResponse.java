@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -34,9 +31,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  */
@@ -44,7 +45,7 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
 
     private ShardStats[] shards;
 
-    private ImmutableMap<ShardRouting, CommonStats> shardStatsMap;
+    private Map<ShardRouting, CommonStats> shardStatsMap;
 
     IndicesStatsResponse() {
 
@@ -55,16 +56,15 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         this.shards = shards;
     }
 
-    public ImmutableMap<ShardRouting, CommonStats> asMap() {
-        if (shardStatsMap == null) {
-            ImmutableMap.Builder<ShardRouting, CommonStats> mb = ImmutableMap.builder();
+    public Map<ShardRouting, CommonStats> asMap() {
+        if (this.shardStatsMap == null) {
+            Map<ShardRouting, CommonStats> shardStatsMap = new HashMap<>();
             for (ShardStats ss : shards) {
-                mb.put(ss.getShardRouting(), ss.getStats());
+                shardStatsMap.put(ss.getShardRouting(), ss.getStats());
             }
-
-            shardStatsMap = mb.build();
+            this.shardStatsMap = unmodifiableMap(shardStatsMap);
         }
-        return shardStatsMap;
+        return this.shardStatsMap;
     }
 
     public ShardStats[] getShards() {
@@ -85,9 +85,9 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         if (indicesStats != null) {
             return indicesStats;
         }
-        Map<String, IndexStats> indicesStats = Maps.newHashMap();
+        Map<String, IndexStats> indicesStats = new HashMap<>();
 
-        Set<String> indices = Sets.newHashSet();
+        Set<String> indices = new HashSet<>();
         for (ShardStats shard : shards) {
             indices.add(shard.getShardRouting().getIndex());
         }

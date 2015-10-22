@@ -19,9 +19,8 @@
 
 package org.elasticsearch.action.admin.indices.upgrade.get;
 
-import com.google.common.collect.Maps;
-
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -35,7 +34,7 @@ public class IndexUpgradeStatus implements Iterable<IndexShardUpgradeStatus> {
     IndexUpgradeStatus(String index, ShardUpgradeStatus[] shards) {
         this.index = index;
 
-        Map<Integer, List<ShardUpgradeStatus>> tmpIndexShards = Maps.newHashMap();
+        Map<Integer, List<ShardUpgradeStatus>> tmpIndexShards = new HashMap<>();
         for (ShardUpgradeStatus shard : shards) {
             List<ShardUpgradeStatus> lst = tmpIndexShards.get(shard.getShardRouting().id());
             if (lst == null) {
@@ -44,7 +43,7 @@ public class IndexUpgradeStatus implements Iterable<IndexShardUpgradeStatus> {
             }
             lst.add(shard);
         }
-        indexShards = Maps.newHashMap();
+        indexShards = new HashMap<>();
         for (Map.Entry<Integer, List<ShardUpgradeStatus>> entry : tmpIndexShards.entrySet()) {
             indexShards.put(entry.getKey(), new IndexShardUpgradeStatus(entry.getValue().get(0).getShardRouting().shardId(), entry.getValue().toArray(new ShardUpgradeStatus[entry.getValue().size()])));
         }

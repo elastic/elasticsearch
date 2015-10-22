@@ -19,8 +19,6 @@
 
 package org.elasticsearch.plugin.discovery.multicast;
 
-import com.google.common.collect.Maps;
-
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -30,7 +28,13 @@ import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
-import java.net.*;
+import java.net.DatagramPacket;
+import java.net.InetAddress;
+import java.net.InetSocketAddress;
+import java.net.MulticastSocket;
+import java.net.SocketAddress;
+import java.net.SocketTimeoutException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -159,13 +163,13 @@ public abstract class MulticastChannel implements Closeable {
 
     public static final String SHARED_CHANNEL_NAME = "#shared#";
     /**
-     * A shared channel that keeps a static map of Config -> Shared channels, and closes shared
+     * A shared channel that keeps a static map of Config -&gt; Shared channels, and closes shared
      * channel once their reference count has reached 0. It also handles de-registering relevant
      * listener from the shared list of listeners.
      */
     private final static class Shared extends MulticastChannel {
 
-        private static final Map<Config, Shared> sharedChannels = Maps.newHashMap();
+        private static final Map<Config, Shared> sharedChannels = new HashMap<>();
         private static final Object mutex = new Object(); // global mutex so we don't sync on static methods (.class)
 
         static MulticastChannel getSharedChannel(Listener listener, Config config) throws Exception {

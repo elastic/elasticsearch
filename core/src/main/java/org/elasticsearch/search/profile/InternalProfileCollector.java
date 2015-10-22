@@ -21,6 +21,7 @@ package org.elasticsearch.search.profile;
 
 import com.google.common.base.Function;
 import com.google.common.collect.Lists;
+
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
@@ -37,8 +38,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
-
-import static org.elasticsearch.common.lucene.search.NoopCollector.NOOP_COLLECTOR;
+import java.util.Objects;
 
 /**
  * This class wraps a Lucene Collector and times the execution of:
@@ -101,7 +101,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     private List<InternalProfileCollector> children = new ArrayList<>(5);
 
     public InternalProfileCollector(Collector collector, CollectorReason reason) {
-        this.collector = (collector == null) ? NOOP_COLLECTOR : collector;
+        this.collector = Objects.requireNonNull(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(this.collector);
     }

@@ -18,10 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
-import com.google.common.collect.ArrayListMultimap;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Multimap;
-
 import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -35,7 +31,7 @@ import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -147,7 +143,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
     @Override
     public Terms.Bucket getBucketByKey(String term) {
         if (bucketMap == null) {
-            bucketMap = Maps.newHashMapWithExpectedSize(buckets.size());
+            bucketMap = new HashMap<>(buckets.size());
             for (Bucket bucket : buckets) {
                 bucketMap.put(bucket.getKeyAsString(), bucket);
             }
@@ -168,7 +164,7 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
     @Override
     public InternalAggregation doReduce(List<InternalAggregation> aggregations, ReduceContext reduceContext) {
 
-        Multimap<Object, InternalTerms.Bucket> buckets = ArrayListMultimap.create();
+        Map<Object, List<InternalTerms.Bucket>> buckets = new HashMap<>();
         long sumDocCountError = 0;
         long otherDocCount = 0;
         InternalTerms<A, B> referenceTerms = null;
@@ -209,14 +205,18 @@ public abstract class InternalTerms<A extends InternalTerms, B extends InternalT
             terms.docCountError = thisAggDocCountError;
             for (Bucket bucket : terms.buckets) {
                 bucket.docCountError = thisAggDocCountError;
-                buckets.put(bucket.getKey(), bucket);
+                List<Bucket> bucketList = buckets.get(bucket.getKey());
+                if (bucketList == null) {
+                    bucketList = new ArrayList<>();
+                    buckets.put(bucket.getKey(), bucketList);
+                }
+                bucketList.add(bucket);
             }
         }
 
         final int size = Math.min(requiredSize, buckets.size());
         BucketPriorityQueue ordered = new BucketPriorityQueue(size, order.comparator(null));
-        for (Collection<Bucket> l : buckets.asMap().values()) {
-            List<Bucket> sameTermBuckets = (List<Bucket>) l; // cast is ok according to javadocs
+        for (List<Bucket> sameTermBuckets : buckets.values()) {
             final Bucket b = sameTermBuckets.get(0).reduce(sameTermBuckets, reduceContext);
             if (b.docCountError != -1) {
                 if (sumDocCountError == -1) {

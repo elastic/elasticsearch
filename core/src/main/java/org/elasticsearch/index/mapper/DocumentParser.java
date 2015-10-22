@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.Sets;
-
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
@@ -34,20 +32,20 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
 import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -124,7 +122,7 @@ class DocumentParser implements Closeable {
                 // entire type is disabled
                 parser.skipChildren();
             } else if (emptyDoc == false) {
-                Mapper update = parseObject(context, mapping.root);
+                Mapper update = parseObject(context, mapping.root, true);
                 if (update != null) {
                     context.addDynamicMappingsUpdate(update);
                 }
@@ -169,7 +167,7 @@ class DocumentParser implements Closeable {
         }
         // apply doc boost
         if (context.docBoost() != 1.0f) {
-            Set<String> encounteredFields = Sets.newHashSet();
+            Set<String> encounteredFields = new HashSet<>();
             for (ParseContext.Document doc : context.docs()) {
                 encounteredFields.clear();
                 for (IndexableField field : doc) {
@@ -196,7 +194,7 @@ class DocumentParser implements Closeable {
         return doc;
     }
 
-    static ObjectMapper parseObject(ParseContext context, ObjectMapper mapper) throws IOException {
+    static ObjectMapper parseObject(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {
         if (mapper.isEnabled() == false) {
             context.parser().skipChildren();
             return null;
@@ -204,6 +202,10 @@ class DocumentParser implements Closeable {
         XContentParser parser = context.parser();
 
         String currentFieldName = parser.currentName();
+        if (atRoot && MapperService.isMetadataField(currentFieldName) &&
+            Version.indexCreated(context.indexSettings()).onOrAfter(Version.V_2_0_0_beta1)) {
+            throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
+        }
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
@@ -304,7 +306,7 @@ class DocumentParser implements Closeable {
 
     private static Mapper parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
-            return parseObject(context, (ObjectMapper) mapper);
+            return parseObject(context, (ObjectMapper) mapper, false);
         } else {
             FieldMapper fieldMapper = (FieldMapper)mapper;
             Mapper update = fieldMapper.parse(context);
@@ -764,7 +766,7 @@ class DocumentParser implements Closeable {
 
     private static XContentParser transform(Mapping mapping, XContentParser parser) throws IOException {
         Map<String, Object> transformed;
-        try (XContentParser _ = parser) {
+        try (XContentParser autoCloses = parser) {
             transformed = transformSourceAsMap(mapping, parser.mapOrdered());
         }
         XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).value(transformed);

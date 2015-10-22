@@ -42,7 +42,6 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -57,8 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class BlendedTermQueryTests extends ESTestCase {
-
-    @Test
     public void testBooleanQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
@@ -112,7 +109,6 @@ public class BlendedTermQueryTests extends ESTestCase {
 
     }
 
-    @Test
     public void testDismaxQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
@@ -186,7 +182,6 @@ public class BlendedTermQueryTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testBasics() {
         final int iters = scaledRandomIntBetween(5, 25);
         for (int j = 0; j < iters; j++) {
@@ -224,7 +219,6 @@ public class BlendedTermQueryTests extends ESTestCase {
         return searcher;
     }
 
-    @Test
     public void testExtractTerms() throws IOException {
         Set<Term> terms = new HashSet<>();
         int num = scaledRandomIntBetween(1, 10);

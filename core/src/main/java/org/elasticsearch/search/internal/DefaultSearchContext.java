@@ -20,12 +20,7 @@
 package org.elasticsearch.search.internal;
 
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.Collector;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.ScoreDoc;
-import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
@@ -33,13 +28,15 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.lucene.search.function.BoostScoreFunction;
 import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
+import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.*;
+import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -65,20 +62,29 @@ import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.profile.InternalProfiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
-import org.elasticsearch.search.scan.ScanContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
  */
 public class DefaultSearchContext extends SearchContext {
+    /**
+     * Index setting describing the maximum value of from + size on a query.
+     */
+    public static final String MAX_RESULT_WINDOW = "index.max_result_window";
+    public static class Defaults {
+        /**
+         * Default maximum value of from + size on a query. 10,000 was chosen as
+         * a conservative default as it is sure to not cause trouble. Users can
+         * certainly profile their cluster and decide to set it to 100,000
+         * safely. 1,000,000 is probably way to high for any cluster to set
+         * safely.
+         */
+        public static final int MAX_RESULT_WINDOW = 10000;
+    }
 
     private final long id;
     private final ShardSearchRequest request;
@@ -95,8 +101,6 @@ public class DefaultSearchContext extends SearchContext {
     private final DfsSearchResult dfsResult;
     private final QuerySearchResult queryResult;
     private final FetchSearchResult fetchResult;
-    // lazy initialized only if needed
-    private ScanContext scanContext;
     private float queryBoost = 1.0f;
     // timeout in millis
     private long timeoutInMillis;
@@ -164,7 +168,6 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public void doClose() {
-        scanContext = null;
         // clear and scope phase we  have
         Releasables.close(searcher, engineSearcher);
     }
@@ -174,23 +177,31 @@ public class DefaultSearchContext extends SearchContext {
      */
     @Override
     public void preProcess() {
-        if (!(from() == -1 && size() == -1)) {
-            // from and size have been set.
-            int numHits = from() + size();
-            if (numHits < 0) {
-                String msg = "Result window is too large, from + size must be less than or equal to: [" + Integer.MAX_VALUE + "] but was [" + (((long) from()) + ((long) size())) + "]";
-                throw new QueryPhaseExecutionException(this, msg);
+        if (scrollContext == null) {
+            long from = from() == -1 ? 0 : from();
+            long size = size() == -1 ? 10 : size();
+            long resultWindow = from + size;
+            // We need settingsService's view of the settings because its dynamic.
+            // indexService's isn't.
+            int maxResultWindow = indexService.settingsService().getSettings().getAsInt(MAX_RESULT_WINDOW, Defaults.MAX_RESULT_WINDOW);
+
+            if (resultWindow > maxResultWindow) {
+                throw new QueryPhaseExecutionException(this,
+                        "Result window is too large, from + size must be less than or equal to: [" + maxResultWindow + "] but was ["
+                                + resultWindow + "]. See the scroll api for a more efficient way to request large data sets. "
+                                + "This limit can be set by changing the [" + DefaultSearchContext.MAX_RESULT_WINDOW
+                                + "] index level parameter.");
             }
         }
 
         // initialize the filtering alias based on the provided filters
-        aliasFilter = indexService.aliasesService().aliasFilter(request.filteringAliases());
+        aliasFilter = indexService.aliasFilter(request.filteringAliases());
 
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
         if (queryBoost() != 1.0f) {
-            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new BoostScoreFunction(queryBoost)), parsedQuery()));
+            parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
         Query searchFilter = searchFilter(types());
         if (searchFilter != null) {
@@ -684,14 +695,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public ScanContext scanContext() {
-        if (scanContext == null) {
-            scanContext = new ScanContext();
-        }
-        return scanContext;
-    }
-
-    @Override
     public MappedFieldType smartNameFieldType(String name) {
         return mapperService().smartNameFieldType(name, request.types());
     }
@@ -764,4 +767,6 @@ public class DefaultSearchContext extends SearchContext {
         return internalProfiler;
     }
 
+    @Override
+    public QueryCache getQueryCache() { return indexService.cache().query();}
 }

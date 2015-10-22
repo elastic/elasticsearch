@@ -21,8 +21,6 @@ package org.elasticsearch.index.query.support;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.QueryParseContext;
-import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsParseElement;
 import org.elasticsearch.search.fetch.innerhits.InnerHitsSubSearchContext;
 import org.elasticsearch.search.fetch.script.ScriptFieldsParseElement;
@@ -51,13 +49,12 @@ public class InnerHitsQueryParserHelper {
         this.fieldDataFieldsParseElement = fieldDataFieldsParseElement;
     }
 
-    public InnerHitsSubSearchContext parse(QueryParseContext parserContext) throws IOException, QueryParsingException {
+    public InnerHitsSubSearchContext parse(XContentParser parser) throws IOException {
         String fieldName = null;
         XContentParser.Token token;
         String innerHitName = null;
         SubSearchContext subSearchContext = new SubSearchContext(SearchContext.current());
         try {
-            XContentParser parser = parserContext.parser();
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     fieldName = parser.currentName();
@@ -72,7 +69,7 @@ public class InnerHitsQueryParserHelper {
                 }
             }
         } catch (Exception e) {
-            throw new QueryParsingException(parserContext, "Failed to parse [_inner_hits]", e);
+            throw new IOException("Failed to parse [_inner_hits]", e);
         }
         return new InnerHitsSubSearchContext(innerHitName, subSearchContext);
     }

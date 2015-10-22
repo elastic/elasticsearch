@@ -32,7 +32,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 
-
 import java.nio.file.Path;
 
 /**
@@ -73,30 +72,8 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         TransportNodesListGatewayMetaState.NodesGatewayMetaState nodesState = listGatewayMetaState.list(nodesIds.toArray(String.class), null).actionGet();
 
 
-        int requiredAllocation = 1;
-        try {
-            if ("quorum".equals(initialMeta)) {
-                if (nodesIds.size() > 2) {
-                    requiredAllocation = (nodesIds.size() / 2) + 1;
-                }
-            } else if ("quorum-1".equals(initialMeta) || "half".equals(initialMeta)) {
-                if (nodesIds.size() > 2) {
-                    requiredAllocation = ((1 + nodesIds.size()) / 2);
-                }
-            } else if ("one".equals(initialMeta)) {
-                requiredAllocation = 1;
-            } else if ("full".equals(initialMeta) || "all".equals(initialMeta)) {
-                requiredAllocation = nodesIds.size();
-            } else if ("full-1".equals(initialMeta) || "all-1".equals(initialMeta)) {
-                if (nodesIds.size() > 1) {
-                    requiredAllocation = nodesIds.size() - 1;
-                }
-            } else {
-                requiredAllocation = Integer.parseInt(initialMeta);
-            }
-        } catch (Exception e) {
-            logger.warn("failed to derived initial_meta from value {}", initialMeta);
-        }
+        int requiredAllocation = calcRequiredAllocations(this.initialMeta, nodesIds.size());
+
 
         if (nodesState.failures().length > 0) {
             for (FailedNodeException failedNodeException : nodesState.failures()) {
@@ -118,7 +95,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 electedGlobalState = nodeState.metaData();
             }
             for (ObjectCursor<IndexMetaData> cursor : nodeState.metaData().indices().values()) {
-                indices.addTo(cursor.value.index(), 1);
+                indices.addTo(cursor.value.getIndex(), 1);
             }
         }
         if (found < requiredAllocation) {
@@ -145,7 +122,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                     }
                     if (electedIndexMetaData == null) {
                         electedIndexMetaData = indexMetaData;
-                    } else if (indexMetaData.version() > electedIndexMetaData.version()) {
+                    } else if (indexMetaData.getVersion() > electedIndexMetaData.getVersion()) {
                         electedIndexMetaData = indexMetaData;
                     }
                     indexMetaDataCount++;
@@ -163,10 +140,38 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
         listener.onSuccess(builder.build());
     }
 
+    protected int calcRequiredAllocations(final String setting, final int nodeCount) {
+        int requiredAllocation = 1;
+        try {
+            if ("quorum".equals(setting)) {
+                if (nodeCount > 2) {
+                    requiredAllocation = (nodeCount / 2) + 1;
+                }
+            } else if ("quorum-1".equals(setting) || "half".equals(setting)) {
+                if (nodeCount > 2) {
+                    requiredAllocation = ((1 + nodeCount) / 2);
+                }
+            } else if ("one".equals(setting)) {
+                requiredAllocation = 1;
+            } else if ("full".equals(setting) || "all".equals(setting)) {
+                requiredAllocation = nodeCount;
+            } else if ("full-1".equals(setting) || "all-1".equals(setting)) {
+                if (nodeCount > 1) {
+                    requiredAllocation = nodeCount - 1;
+                }
+            } else {
+                requiredAllocation = Integer.parseInt(setting);
+            }
+        } catch (Exception e) {
+            logger.warn("failed to derived initial_meta from value {}", setting);
+        }
+        return requiredAllocation;
+    }
+
     public void reset() throws Exception {
         try {
             Path[] dataPaths = nodeEnv.nodeDataPaths();
-            logger.trace("removing node data paths: [{}]", dataPaths);
+            logger.trace("removing node data paths: [{}]", (Object)dataPaths);
             IOUtils.rm(dataPaths);
         } catch (Exception ex) {
             logger.debug("failed to delete shard locations", ex);

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.cluster.ack;
 
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
@@ -34,8 +36,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.metadata.IndexMetaData.State;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
@@ -43,18 +46,18 @@ import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
-import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import com.google.common.base.Predicate;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ClusterScope(minNumDataNodes = 2)
 public class AckIT extends ESIntegTestCase {
@@ -67,20 +70,18 @@ public class AckIT extends ESIntegTestCase {
                 .put(DiscoverySettings.PUBLISH_TIMEOUT, 0).build();
     }
 
-    @Test
     public void testUpdateSettingsAcknowledgement() {
         createIndex("test");
 
         assertAcked(client().admin().indices().prepareUpdateSettings("test")
-                    .setSettings(Settings.builder().put("refresh_interval", 9999, TimeUnit.MILLISECONDS)));
+                .setSettings(Settings.builder().put("refresh_interval", 9999, TimeUnit.MILLISECONDS)));
 
         for (Client client : clients()) {
-            String refreshInterval = getLocalClusterState(client).metaData().index("test").settings().get("index.refresh_interval");
+            String refreshInterval = getLocalClusterState(client).metaData().index("test").getSettings().get("index.refresh_interval");
             assertThat(refreshInterval, equalTo("9999ms"));
         }
     }
 
-    @Test
     public void testUpdateSettingsNoAcknowledgement() {
         createIndex("test");
         UpdateSettingsResponse updateSettingsResponse = client().admin().indices().prepareUpdateSettings("test").setTimeout("0s")
@@ -88,7 +89,6 @@ public class AckIT extends ESIntegTestCase {
         assertThat(updateSettingsResponse.isAcknowledged(), equalTo(false));
     }
 
-    @Test
     public void testPutWarmerAcknowledgement() {
         createIndex("test");
         // make sure one shard is started so the search during put warmer will not fail
@@ -107,7 +107,6 @@ public class AckIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testPutWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
         // make sure one shard is started so the search during put warmer will not fail
@@ -120,22 +119,18 @@ public class AckIT extends ESIntegTestCase {
         /* Since we don't wait for the ack here we have to wait until the search request has been executed from the master
          * otherwise the test infra might have already deleted the index and the search request fails on all shards causing
          * the test to fail too. We simply wait until the the warmer has been installed and also clean it up afterwards.*/
-        assertTrue(awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(Object input) {
-                for (Client client : clients()) {
-                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
-                    if (getWarmersResponse.warmers().size() != 1) {
-                        return false;
-                    }
+        assertTrue(awaitBusy(() -> {
+            for (Client client : clients()) {
+                GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                if (getWarmersResponse.warmers().size() != 1) {
+                    return false;
                 }
-                return true;
             }
+            return true;
         }));
         assertAcked(client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer"));
     }
 
-    @Test
     public void testDeleteWarmerAcknowledgement() {
         createIndex("test");
         index("test", "type", "1", "f", 1);
@@ -151,7 +146,6 @@ public class AckIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDeleteWarmerNoAcknowledgement() throws InterruptedException {
         createIndex("test");
         index("test", "type", "1", "f", 1);
@@ -161,26 +155,22 @@ public class AckIT extends ESIntegTestCase {
 
         DeleteWarmerResponse deleteWarmerResponse = client().admin().indices().prepareDeleteWarmer().setIndices("test").setNames("custom_warmer").setTimeout("0s").get();
         assertFalse(deleteWarmerResponse.isAcknowledged());
-        assertTrue(awaitBusy(new Predicate<Object>() { // wait until they are all deleted
-            @Override
-            public boolean apply(Object input) {
-                for (Client client : clients()) {
-                    GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
-                    if (getWarmersResponse.warmers().size() > 0) {
-                        return false;
-                    }
+        assertTrue(awaitBusy(() -> {
+            for (Client client : clients()) {
+                GetWarmersResponse getWarmersResponse = client.admin().indices().prepareGetWarmers().setLocal(true).get();
+                if (getWarmersResponse.warmers().size() > 0) {
+                    return false;
                 }
-                return true;
             }
+            return true;
         }));
     }
 
-    @Test
     public void testClusterRerouteAcknowledgement() throws InterruptedException {
         assertAcked(prepareCreate("test").setSettings(Settings.builder()
-                .put(indexSettings())
-                .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
-                .put(SETTING_NUMBER_OF_REPLICAS, 0)
+                        .put(indexSettings())
+                        .put(SETTING_NUMBER_OF_SHARDS, between(cluster().numDataNodes(), DEFAULT_MAX_NUM_SHARDS))
+                        .put(SETTING_NUMBER_OF_REPLICAS, 0)
         ));
         ensureGreen();
 
@@ -210,7 +200,6 @@ public class AckIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testClusterRerouteNoAcknowledgement() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -224,7 +213,6 @@ public class AckIT extends ESIntegTestCase {
         assertThat(clusterRerouteResponse.isAcknowledged(), equalTo(false));
     }
 
-    @Test
     public void testClusterRerouteAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -257,7 +245,6 @@ public class AckIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testClusterRerouteNoAcknowledgementDryRun() throws InterruptedException {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -300,7 +287,6 @@ public class AckIT extends ESIntegTestCase {
         return new MoveAllocationCommand(shardToBeMoved.shardId(), fromNodeId, toNodeId);
     }
 
-    @Test
     public void testIndicesAliasesAcknowledgement() {
         createIndex("test");
 
@@ -317,7 +303,6 @@ public class AckIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testIndicesAliasesNoAcknowledgement() {
         createIndex("test");
 
@@ -337,7 +322,6 @@ public class AckIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCloseIndexNoAcknowledgement() {
         createIndex("test");
         ensureGreen();
@@ -346,7 +330,6 @@ public class AckIT extends ESIntegTestCase {
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(false));
     }
 
-    @Test
     public void testOpenIndexAcknowledgement() {
         createIndex("test");
         ensureGreen();
@@ -361,7 +344,6 @@ public class AckIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testPutMappingAcknowledgement() {
         createIndex("test");
         ensureGreen();
@@ -373,7 +355,6 @@ public class AckIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testPutMappingNoAcknowledgement() {
         createIndex("test");
         ensureGreen();
@@ -382,7 +363,6 @@ public class AckIT extends ESIntegTestCase {
         assertThat(putMappingResponse.isAcknowledged(), equalTo(false));
     }
 
-    @Test
     public void testCreateIndexAcknowledgement() {
         createIndex("test");
 
@@ -395,7 +375,6 @@ public class AckIT extends ESIntegTestCase {
         ensureGreen();
     }
 
-    @Test
     public void testCreateIndexNoAcknowledgement() {
         CreateIndexResponse createIndexResponse = client().admin().indices().prepareCreate("test").setTimeout("0s").get();
         assertThat(createIndexResponse.isAcknowledged(), equalTo(false));

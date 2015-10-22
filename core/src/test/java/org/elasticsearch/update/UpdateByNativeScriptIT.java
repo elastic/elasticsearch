@@ -18,9 +18,7 @@
  */
 package org.elasticsearch.update;
 
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.AbstractExecutableScript;
 import org.elasticsearch.script.ExecutableScript;
@@ -32,9 +30,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.hasKey;
@@ -51,14 +49,13 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
         return pluginList(CustomNativeScriptFactory.TestPlugin.class);
     }
 
-    @Test
     public void testThatUpdateUsingNativeScriptWorks() throws Exception {
         createIndex("test");
         ensureYellow();
 
         index("test", "type", "1", "text", "value");
 
-        Map<String, Object> params = Maps.newHashMap();
+        Map<String, Object> params = new HashMap<>();
         params.put("foo", "SETVALUE");
         client().prepareUpdate("test", "type", "1")
                 .setScript(new Script("custom", ScriptService.ScriptType.INLINE, NativeScriptEngineService.NAME, params)).get();
@@ -94,7 +91,7 @@ public class UpdateByNativeScriptIT extends ESIntegTestCase {
 
     static class CustomScript extends AbstractExecutableScript {
         private Map<String, Object> params;
-        private Map<String, Object> vars = Maps.newHashMapWithExpectedSize(2);
+        private Map<String, Object> vars = new HashMap<>(2);
 
         public CustomScript(Map<String, Object> params) {
             this.params = params;

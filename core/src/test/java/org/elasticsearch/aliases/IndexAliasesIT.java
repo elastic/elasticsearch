@@ -19,7 +19,6 @@
 
 package org.elasticsearch.aliases;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
@@ -34,7 +33,6 @@ import org.elasticsearch.cluster.metadata.AliasMetaData;
 import org.elasticsearch.cluster.metadata.AliasOrIndex;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.StopWatch;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -46,15 +44,14 @@ import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
-import static com.google.common.collect.Sets.newHashSet;
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
@@ -82,8 +79,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class IndexAliasesIT extends ESIntegTestCase {
-
-    @Test
     public void testAliases() throws Exception {
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -110,7 +105,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(indexResponse.getIndex(), equalTo("test_x"));
     }
 
-    @Test
     public void testFailedFilter() throws Exception {
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -136,7 +130,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testFilteringAliases() throws Exception {
         logger.info("--> creating index [test]");
         assertAcked(prepareCreate("test").addMapping("type", "user", "type=string"));
@@ -151,11 +144,10 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> making sure that filter was stored with alias [alias1] and filter [user:kimchy]");
         ClusterState clusterState = admin().cluster().prepareState().get().getState();
         IndexMetaData indexMd = clusterState.metaData().index("test");
-        assertThat(indexMd.aliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":\"kimchy\"}}"));
+        assertThat(indexMd.getAliases().get("alias1").filter().string(), equalTo("{\"term\":{\"user\":{\"value\":\"kimchy\",\"boost\":1.0}}}"));
 
     }
 
-    @Test
     public void testEmptyFilter() throws Exception {
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -165,7 +157,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertAcked(admin().indices().prepareAliases().addAlias("test", "alias1", "{}"));
     }
 
-    @Test
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
         logger.info("--> creating index [test]");
         assertAcked(prepareCreate("test").addMapping("type1", "id", "type=string", "name", "type=string"));
@@ -246,7 +237,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertHits(searchResponse.getHits(), "1", "2", "3", "4");
     }
 
-    @Test
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
         logger.info("--> creating index [test1]");
         assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=string"));
@@ -282,35 +272,34 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking filtering alias for two indices");
         SearchResponse searchResponse = client().prepareSearch("foos").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "5");
-        assertThat(client().prepareCount("foos").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(2L));
+        assertThat(client().prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(2L));
 
         logger.info("--> checking filtering alias for one index");
         searchResponse = client().prepareSearch("bars").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "2");
-        assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
+        assertThat(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(1L));
 
         logger.info("--> checking filtering alias for two indices and one complete index");
         searchResponse = client().prepareSearch("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client().prepareCount("foos", "test1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(5L));
+        assertThat(client().prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(5L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for one index");
         searchResponse = client().prepareSearch("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "1", "2", "3", "4", "5");
-        assertThat(client().prepareCount("foos", "aliasToTest1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(5L));
+        assertThat(client().prepareSearch("foos", "aliasToTest1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(5L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get();
         assertThat(searchResponse.getHits().totalHits(), equalTo(8L));
-        assertThat(client().prepareCount("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(8L));
+        assertThat(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(8L));
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         searchResponse = client().prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).get();
         assertHits(searchResponse.getHits(), "4", "8");
-        assertThat(client().prepareCount("foos", "aliasToTests").setQuery(QueryBuilders.termQuery("name", "something")).get().getCount(), equalTo(2L));
+        assertThat(client().prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.termQuery("name", "something")).get().getHits().totalHits(), equalTo(2L));
     }
 
-    @Test
     public void testSearchingFilteringAliasesMultipleIndices() throws Exception {
         logger.info("--> creating indices");
         createIndex("test1", "test2", "test3");
@@ -352,30 +341,29 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking filtering alias for multiple indices");
         SearchResponse searchResponse = client().prepareSearch("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "13", "33");
-        assertThat(client().prepareCount("filter23", "filter13").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(4L));
+        assertThat(client().prepareSearch("filter23", "filter13").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(4L));
 
         searchResponse = client().prepareSearch("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "31", "11", "12", "13");
-        assertThat(client().prepareCount("filter23", "filter1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(5L));
+        assertThat(client().prepareSearch("filter23", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(5L));
 
         searchResponse = client().prepareSearch("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "33");
-        assertThat(client().prepareCount("filter13", "filter1").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(4L));
+        assertThat(client().prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(4L));
 
         searchResponse = client().prepareSearch("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "31", "33");
-        assertThat(client().prepareCount("filter13", "filter1", "filter23").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(6L));
+        assertThat(client().prepareSearch("filter13", "filter1", "filter23").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(6L));
 
         searchResponse = client().prepareSearch("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "21", "22", "23", "31", "13", "33");
-        assertThat(client().prepareCount("filter23", "filter13", "test2").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(6L));
+        assertThat(client().prepareSearch("filter23", "filter13", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(6L));
 
         searchResponse = client().prepareSearch("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).get();
         assertHits(searchResponse.getHits(), "11", "12", "13", "21", "22", "23", "31", "33");
-        assertThat(client().prepareCount("filter23", "filter13", "test1", "test2").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(8L));
+        assertThat(client().prepareSearch("filter23", "filter13", "test1", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(8L));
     }
 
-    @Test
     public void testDeletingByQueryFilteringAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2");
         assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=string"));
@@ -410,12 +398,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
         refresh();
 
         logger.info("--> checking counts before delete");
-        assertThat(client().prepareCount("bars").setQuery(QueryBuilders.matchAllQuery()).get().getCount(), equalTo(1L));
+        assertThat(client().prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()).get().getHits().totalHits(), equalTo(1L));
     }
 
-    
-    
-    @Test
     public void testDeleteAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2]");
         assertAcked(prepareCreate("test1").addMapping("type", "name", "type=string"));
@@ -434,18 +419,16 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .addAlias("test2", "aliasToTests")
                 .addAlias("test2", "foos", termQuery("name", "foo"))
                 .addAlias("test2", "tests", termQuery("name", "test")));
-        
-        String[] indices = {"test1", "test2"}; 
+
+        String[] indices = {"test1", "test2"};
         String[] aliases = {"aliasToTest1", "foos", "bars", "tests", "aliasToTest2", "aliasToTests"};
-        
+
         admin().indices().prepareAliases().removeAlias(indices, aliases).get();
-        
+
         AliasesExistResponse response = admin().indices().prepareAliasesExist(aliases).get();
         assertThat(response.exists(), equalTo(false));
     }
 
-    
-    @Test
     public void testWaitForAliasCreationMultipleShards() throws Exception {
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -458,7 +441,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testWaitForAliasCreationSingleShard() throws Exception {
         logger.info("--> creating index [test]");
         assertAcked(admin().indices().create(createIndexRequest("test").settings(settingsBuilder().put("index.numberOfReplicas", 0).put("index.numberOfShards", 1))).get());
@@ -471,7 +453,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testWaitForAliasSimultaneousUpdate() throws Exception {
         final int aliasCount = 10;
 
@@ -499,8 +480,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void testSameAlias() throws Exception {
         logger.info("--> creating index [test]");
         assertAcked(prepareCreate("test").addMapping("type", "name", "type=string"));
@@ -532,28 +511,30 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         logger.info("--> verify that filter was updated");
         AliasMetaData aliasMetaData = ((AliasOrIndex.Alias) internalCluster().clusterService().state().metaData().getAliasAndIndexLookup().get("alias1")).getFirstAliasMetaData();
-        assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":\"bar\"}}"));
+        assertThat(aliasMetaData.getFilter().toString(), equalTo("{\"term\":{\"name\":{\"value\":\"bar\",\"boost\":1.0}}}"));
 
         logger.info("--> deleting alias1");
         stopWatch.start();
         assertAcked((admin().indices().prepareAliases().removeAlias("test", "alias1").setTimeout(timeout)));
         assertThat(stopWatch.stop().lastTaskTime().millis(), lessThan(timeout.millis()));
 
-        
+
     }
-    
-    @Test(expected = AliasesNotFoundException.class)
+
     public void testIndicesRemoveNonExistingAliasResponds404() throws Exception {
         logger.info("--> creating index [test]");
         createIndex("test");
         ensureGreen();
         logger.info("--> deleting alias1 which does not exist");
-        assertAcked((admin().indices().prepareAliases().removeAlias("test", "alias1")));
+        try {
+            admin().indices().prepareAliases().removeAlias("test", "alias1").get();
+            fail("Expected AliasesNotFoundException");
+        } catch (AliasesNotFoundException e) {
+            assertThat(e.getMessage(), containsString("[alias1] missing"));
+        }
     }
 
-    @Test
     public void testIndicesGetAliases() throws Exception {
-
         logger.info("--> creating indices [foobar, test, test123, foobarbaz, bazbar]");
         createIndex("foobar");
         createIndex("test");
@@ -738,7 +719,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(existsResponse.exists(), equalTo(false));
     }
 
-    @Test
     public void testAddAliasNullWithoutExistingIndices() {
         try {
             assertAcked(admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, "alias1")));
@@ -749,7 +729,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testAddAliasNullWithExistingIndices() throws Exception {
         logger.info("--> creating index [test]");
         createIndex("test");
@@ -766,64 +745,89 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasEmptyIndex() {
-        admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "alias1")).get();
+        try {
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "alias1")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[index] may not be empty string"));
+        }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasNullAlias() {
-        admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null)).get();
+        try {
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", null)).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("requires an [alias] to be set"));
+        }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
     public void testAddAliasEmptyAlias() {
-        admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", "")).get();
+        try {
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("index1", "")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("requires an [alias] to be set"));
+        }
     }
 
-    @Test
     public void testAddAliasNullAliasNullIndex() {
         try {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction(null, null)).get();
-            assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
+            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }
     }
 
-    @Test
     public void testAddAliasEmptyAliasEmptyIndex() {
         try {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "")).get();
-            assertTrue("Should throw " + ActionRequestValidationException.class.getSimpleName(), false);
+            fail("Should throw " + ActionRequestValidationException.class.getSimpleName());
         } catch (ActionRequestValidationException e) {
             assertThat(e.validationErrors(), notNullValue());
             assertThat(e.validationErrors().size(), equalTo(2));
         }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
-    public void tesRemoveAliasNullIndex() {
-        admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, "alias1")).get();
+    public void testRemoveAliasNullIndex() {
+        try {
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, "alias1")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[index] may not be empty string"));
+        }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
-    public void tesRemoveAliasEmptyIndex() {
-        admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("", "alias1")).get();
+    public void testRemoveAliasEmptyIndex() {
+        try {
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("", "alias1")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[index] may not be empty string"));
+        }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
-    public void tesRemoveAliasNullAlias() {
-        admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", null)).get();
+    public void testRemoveAliasNullAlias() {
+        try {
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", null)).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
+        }
     }
 
-    @Test(expected = ActionRequestValidationException.class)
-    public void tesRemoveAliasEmptyAlias() {
-        admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", "")).get();
+    public void testRemoveAliasEmptyAlias() {
+        try {
+            admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction("index1", "")).get();
+            fail("Expected ActionRequestValidationException");
+        } catch (ActionRequestValidationException e) {
+            assertThat(e.getMessage(), containsString("[alias] may not be empty string"));
+        }
     }
 
-    @Test
     public void testRemoveAliasNullAliasNullIndex() {
         try {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newRemoveAliasAction(null, null)).get();
@@ -834,7 +838,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRemoveAliasEmptyAliasEmptyIndex() {
         try {
             admin().indices().prepareAliases().addAliasAction(AliasAction.newAddAliasAction("", "")).get();
@@ -845,7 +848,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testGetAllAliasesWorks() {
         createIndex("index1");
         createIndex("index2");
@@ -859,7 +861,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(response.getAliases(), hasKey("index1"));
     }
 
-    @Test
     public void testCreateIndexWithAliases() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type", "field", "type=string")
@@ -870,7 +871,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         checkAliases();
     }
 
-    @Test
     public void testCreateIndexWithAliasesInSource() throws Exception {
         assertAcked(prepareCreate("test").setSource("{\n" +
                 "    \"aliases\" : {\n" +
@@ -883,7 +883,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         checkAliases();
     }
 
-    @Test
     public void testCreateIndexWithAliasesSource() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type", "field", "type=string")
@@ -896,7 +895,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         checkAliases();
     }
 
-    @Test
     public void testCreateIndexWithAliasesFilterNotValid() {
         //non valid filter, invalid json
         CreateIndexRequestBuilder createIndexRequestBuilder = prepareCreate("test").addAlias(new Alias("alias2").filter("f"));
@@ -919,7 +917,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // Before 2.0 alias filters were parsed at alias creation time, in order
     // for filters to work correctly ES required that fields mentioned in those
     // filters exist in the mapping.
@@ -938,7 +935,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
                 .get();
     }
 
-    @Test
     public void testAliasFilterWithNowInRangeFilterAndQuery() throws Exception {
         assertAcked(prepareCreate("my-index").addMapping("my-type", "_timestamp", "enabled=true"));
         assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", rangeQuery("_timestamp").from("now-1d").to("now")));
@@ -958,7 +954,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testAliasesFilterWithHasChildQuery() throws Exception {
         assertAcked(prepareCreate("my-index")
                         .addMapping("parent")
@@ -979,31 +974,6 @@ public class IndexAliasesIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).id(), equalTo("2"));
     }
 
-    @Test
-    public void testAliasesFilterWithHasChildQueryPre2Dot0() throws Exception {
-        assertAcked(prepareCreate("my-index")
-                        .setSettings(Settings.builder()
-                                .put(indexSettings())
-                                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_6_0)
-                        )
-                        .addMapping("parent")
-                        .addMapping("child", "_parent", "type=parent")
-        );
-        client().prepareIndex("my-index", "parent", "1").setSource("{}").get();
-        client().prepareIndex("my-index", "child", "2").setSource("{}").setParent("1").get();
-        refresh();
-
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter1", hasChildQuery("child", matchAllQuery())));
-        assertAcked(admin().indices().prepareAliases().addAlias("my-index", "filter2", hasParentQuery("parent", matchAllQuery())));
-        SearchResponse response = client().prepareSearch("filter1").get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("1"));
-        response = client().prepareSearch("filter2").get();
-        assertHitCount(response, 1);
-        assertThat(response.getHits().getAt(0).id(), equalTo("2"));
-    }
-
-    @Test
     public void testAliasesWithBlocks() {
         createIndex("test");
         ensureGreen();
@@ -1074,7 +1044,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     private void assertHits(SearchHits hits, String... ids) {
         assertThat(hits.totalHits(), equalTo((long) ids.length));
-        Set<String> hitIds = newHashSet();
+        Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.id());
         }

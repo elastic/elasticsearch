@@ -18,6 +18,7 @@
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.javascript.JavaScriptPlugin</elasticsearch.plugin.classname>
         <tests.rest.suite>lang_javascript</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-rawtypes,-unchecked</xlint.options>
     </properties>
 
     <dependencies>

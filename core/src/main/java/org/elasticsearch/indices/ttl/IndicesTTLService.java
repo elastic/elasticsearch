@@ -164,7 +164,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                 if (indexMetaData == null) {
                     continue;
                 }
-                boolean disablePurge = indexMetaData.settings().getAsBoolean(INDEX_TTL_DISABLE_PURGE, false);
+                boolean disablePurge = indexMetaData.getSettings().getAsBoolean(INDEX_TTL_DISABLE_PURGE, false);
                 if (disablePurge) {
                     continue;
                 }
@@ -196,7 +196,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
 
     private void purgeShards(List<IndexShard> shardsToPurge) {
         for (IndexShard shardToPurge : shardsToPurge) {
-            Query query = shardToPurge.indexService().mapperService().smartNameFieldType(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false, true);
+            Query query = shardToPurge.mapperService().smartNameFieldType(TTLFieldMapper.NAME).rangeQuery(null, System.currentTimeMillis(), false, true);
             Engine.Searcher searcher = shardToPurge.acquireSearcher("indices_ttl");
             try {
                 logger.debug("[{}][{}] purging shard", shardToPurge.routingEntry().index(), shardToPurge.routingEntry().id());

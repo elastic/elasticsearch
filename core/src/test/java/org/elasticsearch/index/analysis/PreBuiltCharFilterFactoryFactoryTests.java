@@ -23,17 +23,13 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.CoreMatchers.*;
-import static org.hamcrest.MatcherAssert.assertThat;
+import static org.hamcrest.CoreMatchers.is;
 
 /**
  *
  */
 public class PreBuiltCharFilterFactoryFactoryTests extends ESTestCase {
-
-    @Test
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltCharFilterFactoryFactory factory = new PreBuiltCharFilterFactoryFactory(PreBuiltCharFilters.HTML_STRIP.getCharFilterFactory(Version.CURRENT));
 
@@ -44,5 +40,4 @@ public class PreBuiltCharFilterFactoryFactoryTests extends ESTestCase {
         assertThat(currentTokenizerFactory, is(former090TokenizerFactory));
         assertThat(currentTokenizerFactory, is(former090TokenizerFactoryCopy));
     }
-
 }

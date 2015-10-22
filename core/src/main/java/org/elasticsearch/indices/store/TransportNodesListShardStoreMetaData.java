@@ -78,7 +78,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                                                 IndicesService indicesService, NodeEnvironment nodeEnv, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ACTION_NAME, clusterName, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                Request.class, NodeRequest.class, ThreadPool.Names.FETCH_SHARD_STORE);
+                Request::new, NodeRequest::new, ThreadPool.Names.FETCH_SHARD_STORE);
         this.indicesService = indicesService;
         this.nodeEnv = nodeEnv;
     }
@@ -152,7 +152,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
         try {
             IndexService indexService = indicesService.indexService(shardId.index().name());
             if (indexService != null) {
-                IndexShard indexShard = indexService.shard(shardId.id());
+                IndexShard indexShard = indexService.getShardOrNull(shardId.id());
                 if (indexShard != null) {
                     final Store store = indexShard.store();
                     store.incRef();
@@ -169,11 +169,11 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             if (metaData == null) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
-            String storeType = metaData.settings().get(IndexStoreModule.STORE_TYPE, "fs");
+            String storeType = metaData.getSettings().get(IndexStoreModule.STORE_TYPE, "fs");
             if (!storeType.contains("fs")) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
-            final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.settings());
+            final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.getSettings());
             if (shardPath == null) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
@@ -258,7 +258,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
 
-    static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest<Request> {
 
         private ShardId shardId;
 
@@ -331,13 +331,13 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
     }
 
 
-    static class NodeRequest extends BaseNodeRequest {
+    public static class NodeRequest extends BaseNodeRequest {
 
         private ShardId shardId;
 
         private boolean unallocated;
 
-        NodeRequest() {
+        public NodeRequest() {
         }
 
         NodeRequest(String nodeId, TransportNodesListShardStoreMetaData.Request request) {

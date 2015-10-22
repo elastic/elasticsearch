@@ -38,8 +38,8 @@ public class ProcessProbe {
     private static final Method getCommittedVirtualMemorySize;
 
     static {
-        getMaxFileDescriptorCountField = getMethod("getMaxFileDescriptorCount");
-        getOpenFileDescriptorCountField = getMethod("getOpenFileDescriptorCount");
+        getMaxFileDescriptorCountField = getUnixMethod("getMaxFileDescriptorCount");
+        getOpenFileDescriptorCountField = getUnixMethod("getOpenFileDescriptorCount");
         getProcessCpuLoad = getMethod("getProcessCpuLoad");
         getProcessCpuTime = getMethod("getProcessCpuTime");
         getCommittedVirtualMemorySize = getMethod("getCommittedVirtualMemorySize");
@@ -163,12 +163,23 @@ public class ProcessProbe {
      */
     private static Method getMethod(String methodName) {
         try {
-            Method method = osMxBean.getClass().getDeclaredMethod(methodName);
-            method.setAccessible(true);
-            return method;
+            return Class.forName("com.sun.management.OperatingSystemMXBean").getMethod(methodName);
         } catch (Throwable t) {
             // not available
+            return null;
         }
-        return null;
+    }
+    
+    /**
+     * Returns a given method of the UnixOperatingSystemMXBean,
+     * or null if the method is not found or unavailable.
+     */
+    private static Method getUnixMethod(String methodName) {
+        try {
+            return Class.forName("com.sun.management.UnixOperatingSystemMXBean").getMethod(methodName);
+        } catch (Throwable t) {
+            // not available
+            return null;
+        }
     }
 }

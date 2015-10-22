@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +16,6 @@
 
 package org.elasticsearch.common.inject.spi;
 
-import com.google.common.base.Objects;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.internal.Errors;
 import org.elasticsearch.common.inject.internal.SourceProvider;
@@ -26,8 +25,7 @@ import java.io.Serializable;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-
-import static com.google.common.base.Preconditions.checkNotNull;
+import java.util.Objects;
 
 /**
  * An error message and the context in which it occurred. Messages are usually created internally by
@@ -52,7 +50,7 @@ public final class Message implements Serializable, Element {
      */
     public Message(List<Object> sources, String message, Throwable cause) {
         this.sources = Collections.unmodifiableList(sources);
-        this.message = checkNotNull(message, "message");
+        this.message = Objects.requireNonNull(message, "message");
         this.cause = cause;
     }
 
@@ -119,7 +117,7 @@ public final class Message implements Serializable, Element {
             return false;
         }
         Message e = (Message) o;
-        return message.equals(e.message) && Objects.equal(cause, e.cause) && sources.equals(e.sources);
+        return message.equals(e.message) && Objects.equals(cause, e.cause) && sources.equals(e.sources);
     }
 
     /**

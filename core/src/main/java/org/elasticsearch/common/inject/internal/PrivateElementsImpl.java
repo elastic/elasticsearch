@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.inject.internal;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Key;
@@ -28,11 +26,13 @@ import org.elasticsearch.common.inject.spi.PrivateElements;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
-import static com.google.common.base.Preconditions.*;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * @author jessewilson@google.com (Jesse Wilson)
@@ -58,11 +58,11 @@ public final class PrivateElementsImpl implements PrivateElements {
     /**
      * lazily instantiated
      */
-    private ImmutableMap<Key<?>, Object> exposedKeysToSources;
+    private Map<Key<?>, Object> exposedKeysToSources;
     private Injector injector;
 
     public PrivateElementsImpl(Object source) {
-        this.source = checkNotNull(source, "source");
+        this.source = Objects.requireNonNull(source, "source");
     }
 
     @Override
@@ -86,18 +86,20 @@ public final class PrivateElementsImpl implements PrivateElements {
     }
 
     public void initInjector(Injector injector) {
-        checkState(this.injector == null, "injector already initialized");
-        this.injector = checkNotNull(injector, "injector");
+        if (this.injector != null) {
+            throw new IllegalStateException("injector already initialized");
+        }
+        this.injector = Objects.requireNonNull(injector, "injector");
     }
 
     @Override
     public Set<Key<?>> getExposedKeys() {
         if (exposedKeysToSources == null) {
-            Map<Key<?>, Object> exposedKeysToSourcesMutable = Maps.newLinkedHashMap();
+            Map<Key<?>, Object> exposedKeysToSourcesMutable = new LinkedHashMap<>();
             for (ExposureBuilder<?> exposureBuilder : exposureBuilders) {
                 exposedKeysToSourcesMutable.put(exposureBuilder.getKey(), exposureBuilder.getSource());
             }
-            exposedKeysToSources = ImmutableMap.copyOf(exposedKeysToSourcesMutable);
+            exposedKeysToSources = unmodifiableMap(exposedKeysToSourcesMutable);
             exposureBuilders = null;
         }
 
@@ -135,7 +137,9 @@ public final class PrivateElementsImpl implements PrivateElements {
     public Object getExposedSource(Key<?> key) {
         getExposedKeys(); // ensure exposedKeysToSources is populated
         Object source = exposedKeysToSources.get(key);
-        checkArgument(source != null, "%s not exposed by %s.", key, this);
+        if (source == null) {
+            throw new IllegalArgumentException(key + " not exposed by " + ".");
+        }
         return source;
     }
 

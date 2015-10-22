@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.mapper.internal;
 
-import com.google.common.collect.Iterables;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
@@ -38,6 +37,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.FieldDataType;
@@ -49,7 +49,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
-import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -60,7 +60,7 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 
 /**
- * 
+ *
  */
 public class IdFieldMapper extends MetadataFieldMapper {
 
@@ -167,7 +167,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termQuery(Object value, @Nullable QueryParseContext context) {
+        public Query termQuery(Object value, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.termQuery(value, context);
             }
@@ -176,7 +176,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query termsQuery(List values, @Nullable QueryParseContext context) {
+        public Query termsQuery(List values, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.termsQuery(values, context);
             }
@@ -184,7 +184,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        public Query prefixQuery(String value, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.prefixQuery(value, method, context);
             }
@@ -201,7 +201,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
 
         @Override
-        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryShardContext context) {
             if (indexOptions() != IndexOptions.NONE || context == null) {
                 return super.regexpQuery(value, flags, maxDeterminizedStates, method, context);
             }
@@ -236,7 +236,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.path = path;
     }
-    
+
     private static MappedFieldType idFieldType(Settings indexSettings, MappedFieldType existing) {
         if (existing != null) {
             return existing.clone();

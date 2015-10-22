@@ -19,7 +19,6 @@
 
 package org.elasticsearch.client.transport;
 
-import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.support.PlainListenableActionFuture;
@@ -30,27 +29,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0)
 @TestLogging("discovery.zen:TRACE")
 public class TransportClientRetryIT extends ESIntegTestCase {
-
-    @Test
     public void testRetry() throws IOException, ExecutionException, InterruptedException {
-
         Iterable<TransportService> instances = internalCluster().getInstances(TransportService.class);
         TransportAddress[] addresses = new TransportAddress[internalCluster().size()];
         int i = 0;
@@ -72,12 +66,7 @@ public class TransportClientRetryIT extends ESIntegTestCase {
             int size = cluster().size();
             //kill all nodes one by one, leaving a single master/data node at the end of the loop
             for (int j = 1; j < size; j++) {
-                internalCluster().stopRandomNode(new Predicate<Settings>() {
-                    @Override
-                    public boolean apply(Settings input) {
-                        return true;
-                    }
-                });
+                internalCluster().stopRandomNode(input -> true);
 
                 ClusterStateRequest clusterStateRequest = Requests.clusterStateRequest().local(true);
                 ClusterState clusterState;

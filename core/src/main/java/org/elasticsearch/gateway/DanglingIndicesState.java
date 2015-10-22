@@ -19,7 +19,6 @@
 
 package org.elasticsearch.gateway;
 
-import com.google.common.collect.*;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -30,8 +29,12 @@ import org.elasticsearch.env.NodeEnvironment;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * The dangling indices state is responsible for finding new dangling indices (indices that have
@@ -72,7 +75,8 @@ public class DanglingIndicesState extends AbstractComponent {
      * The current set of dangling indices.
      */
     Map<String, IndexMetaData> getDanglingIndices() {
-        return ImmutableMap.copyOf(danglingIndices);
+        // This might be a good use case for CopyOnWriteHashMap
+        return unmodifiableMap(new HashMap<>(danglingIndices));
     }
 
     /**
@@ -106,18 +110,18 @@ public class DanglingIndicesState extends AbstractComponent {
             indices = nodeEnv.findAllIndices();
         } catch (Throwable e) {
             logger.warn("failed to list dangling indices", e);
-            return ImmutableMap.of();
+            return emptyMap();
         }
 
-        Map<String, IndexMetaData>  newIndices = Maps.newHashMap();
+        Map<String, IndexMetaData>  newIndices = new HashMap<>();
         for (String indexName : indices) {
             if (metaData.hasIndex(indexName) == false && danglingIndices.containsKey(indexName) == false) {
                 try {
                     IndexMetaData indexMetaData = metaStateService.loadIndexState(indexName);
                     if (indexMetaData != null) {
                         logger.info("[{}] dangling index, exists on local file system, but not in cluster metadata, auto import to cluster state", indexName);
-                        if (!indexMetaData.index().equals(indexName)) {
-                            logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name", indexName, indexMetaData.index());
+                        if (!indexMetaData.getIndex().equals(indexName)) {
+                            logger.info("dangled index directory name is [{}], state name is [{}], renaming to directory name", indexName, indexMetaData.getIndex());
                             indexMetaData = IndexMetaData.builder(indexMetaData).index(indexName).build();
                         }
                         newIndices.put(indexName, indexMetaData);

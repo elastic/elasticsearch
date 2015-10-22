@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-movavg-aggregation]]
 === Moving Average Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 Given an ordered series of data, the Moving Average aggregation will slide a window across the data and emit the average

@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2006 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -25,16 +25,13 @@ import org.elasticsearch.common.inject.spi.TypeConverter;
 import org.elasticsearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
-
-import static com.google.common.base.Preconditions.checkNotNull;
-import static com.google.common.base.Preconditions.checkState;
+import java.util.Objects;
 
 /**
  * A support class for {@link Module}s which reduces repetition and results in
  * a more readable configuration. Simply extend this class, implement {@link
  * #configure()}, and call the inherited methods which mirror those found in
  * {@link Binder}. For example:
- * <p/>
  * <pre>
  * public class MyModule extends AbstractModule {
  *   protected void configure() {
@@ -54,9 +51,10 @@ public abstract class AbstractModule implements Module {
 
     @Override
     public final synchronized void configure(Binder builder) {
-        checkState(this.binder == null, "Re-entry is not allowed.");
-
-        this.binder = checkNotNull(builder, "builder");
+        if (this.binder != null) {
+            throw new IllegalStateException("Re-entry is not allowed.");
+        }
+        this.binder = Objects.requireNonNull(builder, "builder");
         try {
             configure();
         } finally {

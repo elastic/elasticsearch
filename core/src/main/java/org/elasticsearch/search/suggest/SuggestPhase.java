@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchException;
@@ -38,23 +37,24 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
 /**
  */
 public class SuggestPhase extends AbstractComponent implements SearchPhase {
-
+    private final Map<String, SearchParseElement> parseElements;
     private final SuggestParseElement parseElement;
 
     @Inject
     public SuggestPhase(Settings settings, SuggestParseElement suggestParseElement) {
         super(settings);
         this.parseElement = suggestParseElement;
+        parseElements = singletonMap("suggest", parseElement);
     }
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
-        parseElements.put("suggest", parseElement);
-        return parseElements.build();
+        return parseElements;
     }
 
     public SuggestParseElement parseElement() {

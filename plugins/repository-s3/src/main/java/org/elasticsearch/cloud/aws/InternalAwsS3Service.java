@@ -43,7 +43,7 @@ import java.util.Map;
 public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Service> implements AwsS3Service {
 
     /**
-     * (acceskey, endpoint) -> client
+     * (acceskey, endpoint) -&gt; client
      */
     private Map<Tuple<String, String>, AmazonS3Client> clients = new HashMap<Tuple<String,String>, AmazonS3Client>();
 
@@ -134,11 +134,7 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
         String awsSigner = settings.get("cloud.aws.s3.signer", settings.get("cloud.aws.signer"));
         if (awsSigner != null) {
             logger.debug("using AWS API signer [{}]", awsSigner);
-            try {
-                AwsSigner.configureSigner(awsSigner, clientConfiguration);
-            } catch (IllegalArgumentException e) {
-                logger.warn("wrong signer set for [cloud.aws.s3.signer] or [cloud.aws.signer]: [{}]", awsSigner);
-            }
+            AwsSigner.configureSigner(awsSigner, clientConfiguration, endpoint);
         }
 
         AWSCredentialsProvider credentials;

@@ -39,4 +39,16 @@ public final class Elasticsearch {
             throw new StartupError(t);
         }
     }
+
+    /**
+     * Required method that's called by Apache Commons procrun when
+     * running as a service on Windows, when the service is stopped.
+     *
+     * http://commons.apache.org/proper/commons-daemon/procrun.html
+     *
+     * NOTE: If this method is renamed and/or moved, make sure to update service.bat!
+     */
+    static void close(String[] args) {
+        Bootstrap.stop();
+    }
 }

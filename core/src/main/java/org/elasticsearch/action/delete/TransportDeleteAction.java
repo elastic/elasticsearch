@@ -42,7 +42,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.IndexAlreadyExistsException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -64,7 +63,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
                                  AutoCreateIndex autoCreateIndex) {
         super(settings, DeleteAction.NAME, transportService, clusterService, indicesService, threadPool, shardStateAction,
                 mappingUpdatedAction, actionFilters, indexNameExpressionResolver,
-                DeleteRequest.class, DeleteRequest.class, ThreadPool.Names.INDEX);
+                DeleteRequest::new, DeleteRequest::new, ThreadPool.Names.INDEX);
         this.createIndexAction = createIndexAction;
         this.autoCreateIndex = autoCreateIndex;
     }
@@ -130,7 +129,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     @Override
     protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).shardSafe(shardRequest.shardId.id());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).getShard(shardRequest.shardId.id());
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
         // update the request with teh version so it will go to the replicas
@@ -138,8 +137,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
         request.version(delete.version());
 
         assert request.versionType().validateVersionForWrites(request.version());
-
-        processAfter(request, indexShard, delete.getTranslogLocation());
+        processAfter(request.refresh(), indexShard, delete.getTranslogLocation());
 
         DeleteResponse response = new DeleteResponse(shardRequest.shardId.getIndex(), request.type(), request.id(), delete.version(), delete.found());
         return new Tuple<>(response, shardRequest.request);
@@ -147,30 +145,16 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
 
     @Override
     protected void shardOperationOnReplica(ShardId shardId, DeleteRequest request) {
-        IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).shardSafe(shardId.id());
+        IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
 
         indexShard.delete(delete);
-        processAfter(request, indexShard, delete.getTranslogLocation());
+        processAfter(request.refresh(), indexShard, delete.getTranslogLocation());
     }
 
     @Override
     protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
         return clusterService.operationRouting()
                 .deleteShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
-    }
-
-    private void processAfter(DeleteRequest request, IndexShard indexShard, Translog.Location location) {
-        if (request.refresh()) {
-            try {
-                indexShard.refresh("refresh_flag_delete");
-            } catch (Throwable e) {
-                // ignore
-            }
-        }
-
-        if (indexShard.getTranslogDurability() == Translog.Durabilty.REQUEST && location != null) {
-            indexShard.sync(location);
-        }
     }
 }

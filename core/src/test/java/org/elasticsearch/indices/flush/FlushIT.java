@@ -31,7 +31,6 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -47,8 +46,6 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 
 public class FlushIT extends ESIntegTestCase {
-
-    @Test
     public void testWaitIfOngoing() throws InterruptedException {
         createIndex("test");
         ensureGreen("test");
@@ -181,12 +178,12 @@ public class FlushIT extends ESIntegTestCase {
         indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertFlushResponseEqualsShardStats(indexStats.getShards(), syncedFlushResult.getShardsResultPerIndex().get("test"));
         refresh();
-        assertThat(client().prepareCount().get().getCount(), equalTo((long) numDocs.get()));
-        logger.info("indexed {} docs", client().prepareCount().get().getCount());
+        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo((long) numDocs.get()));
+        logger.info("indexed {} docs", client().prepareSearch().setSize(0).get().getHits().totalHits());
         logClusterState();
         internalCluster().fullRestart();
         ensureGreen();
-        assertThat(client().prepareCount().get().getCount(), equalTo((long) numDocs.get()));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo((long) numDocs.get()));
     }
 
     private void assertFlushResponseEqualsShardStats(ShardStats[] shardsStats, List<ShardsSyncedFlushResult> syncedFlushResults) {
@@ -210,7 +207,6 @@ public class FlushIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testUnallocatedShardsDoesNotHang() throws InterruptedException {
         //  create an index but disallow allocation
         prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.include._name", "nonexistent")).get();
@@ -222,5 +218,4 @@ public class FlushIT extends ESIntegTestCase {
         assertThat(shardsResult.size(), equalTo(numShards));
         assertThat(shardsResult.get(0).failureReason(), equalTo("no active shards"));
     }
-
 }

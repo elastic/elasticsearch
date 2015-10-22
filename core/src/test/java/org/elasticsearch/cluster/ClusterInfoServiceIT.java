@@ -19,7 +19,8 @@
 
 package org.elasticsearch.cluster;
 
-import com.google.common.collect.ImmutableSet;
+import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionModule;
@@ -35,6 +36,7 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -50,19 +52,17 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
-import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptySet;
+import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -92,8 +92,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
     }
 
     public static class BlockingActionFilter extends org.elasticsearch.action.support.ActionFilter.Simple {
-
-        ImmutableSet<String> blockedActions = ImmutableSet.of();
+        private Set<String> blockedActions = emptySet();
 
         @Inject
         public BlockingActionFilter(Settings settings) {
@@ -119,32 +118,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         }
 
         public void blockActions(String... actions) {
-            blockedActions = ImmutableSet.copyOf(actions);
-        }
-    }
-
-    static class InfoListener implements ClusterInfoService.Listener {
-        final AtomicReference<CountDownLatch> collected = new AtomicReference<>(new CountDownLatch(1));
-        volatile ClusterInfo lastInfo = null;
-
-        @Override
-        public void onNewInfo(ClusterInfo info) {
-            lastInfo = info;
-            CountDownLatch latch = collected.get();
-            latch.countDown();
-        }
-
-        public void reset() {
-            lastInfo = null;
-            collected.set(new CountDownLatch(1));
-        }
-
-        public ClusterInfo get() throws InterruptedException {
-            CountDownLatch latch = collected.get();
-            if (!latch.await(10, TimeUnit.SECONDS)) {
-                fail("failed to get a new cluster info");
-            }
-            return lastInfo;
+            blockedActions = unmodifiableSet(newHashSet(actions));
         }
     }
 
@@ -162,7 +136,6 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
                 MockTransportService.TestPlugin.class);
     }
 
-    @Test
     public void testClusterInfoServiceCollectsInformation() throws Exception {
         internalCluster().startNodesAsync(2,
                 Settings.builder().put(InternalClusterInfoService.INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, "200ms").build())
@@ -174,28 +147,26 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         InternalTestCluster internalTestCluster = internalCluster();
         // Get the cluster info service on the master node
         final InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
-        InfoListener listener = new InfoListener();
-        infoService.addListener(listener);
-        ClusterInfo info = listener.get();
+        ClusterInfo info = infoService.refresh();
         assertNotNull("info should not be null", info);
-        final Map<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
-        final Map<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
-        final Map<String, Long> shardSizes = info.shardSizes;
+        ImmutableOpenMap<String, DiskUsage> leastUsages = info.getNodeLeastAvailableDiskUsages();
+        ImmutableOpenMap<String, DiskUsage> mostUsages = info.getNodeMostAvailableDiskUsages();
+        ImmutableOpenMap<String, Long> shardSizes = info.shardSizes;
         assertNotNull(leastUsages);
         assertNotNull(shardSizes);
         assertThat("some usages are populated", leastUsages.values().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", shardSizes.values().size(), greaterThan(0));
-        for (DiskUsage usage : leastUsages.values()) {
-            logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+        for (ObjectCursor<DiskUsage> usage : leastUsages.values()) {
+            logger.info("--> usage: {}", usage.value);
+            assertThat("usage has be retrieved", usage.value.getFreeBytes(), greaterThan(0L));
         }
-        for (DiskUsage usage : mostUsages.values()) {
-            logger.info("--> usage: {}", usage);
-            assertThat("usage has be retrieved", usage.getFreeBytes(), greaterThan(0L));
+        for (ObjectCursor<DiskUsage> usage : mostUsages.values()) {
+            logger.info("--> usage: {}", usage.value);
+            assertThat("usage has be retrieved", usage.value.getFreeBytes(), greaterThan(0L));
         }
-        for (Long size : shardSizes.values()) {
-            logger.info("--> shard size: {}", size);
-            assertThat("shard size is greater than 0", size, greaterThan(0L));
+        for (ObjectCursor<Long> size : shardSizes.values()) {
+            logger.info("--> shard size: {}", size.value);
+            assertThat("shard size is greater than 0", size.value, greaterThanOrEqualTo(0L));
         }
         ClusterService clusterService = internalTestCluster.getInstance(ClusterService.class, internalTestCluster.getMasterName());
         ClusterState state = clusterService.state();
@@ -208,13 +179,12 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
             DiscoveryNode discoveryNode = state.getNodes().get(nodeId);
             IndicesService indicesService = internalTestCluster.getInstance(IndicesService.class, discoveryNode.getName());
             IndexService indexService = indicesService.indexService(shard.index());
-            IndexShard indexShard = indexService.shard(shard.id());
+            IndexShard indexShard = indexService.getShardOrNull(shard.id());
             assertEquals(indexShard.shardPath().getRootDataPath().toString(), dataPath);
         }
 
     }
 
-    @Test
     public void testClusterInfoServiceInformationClearOnError() throws InterruptedException, ExecutionException {
         internalCluster().startNodesAsync(2,
                 // manually control publishing
@@ -224,12 +194,8 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         ensureGreen("test");
         InternalTestCluster internalTestCluster = internalCluster();
         InternalClusterInfoService infoService = (InternalClusterInfoService) internalTestCluster.getInstance(ClusterInfoService.class, internalTestCluster.getMasterName());
-        InfoListener listener = new InfoListener();
-        infoService.addListener(listener);
-
         // get one healthy sample
-        infoService.updateOnce();
-        ClusterInfo info = listener.get();
+        ClusterInfo info = infoService.refresh();
         assertNotNull("failed to collect info", info);
         assertThat("some usages are populated", info.getNodeLeastAvailableDiskUsages().size(), Matchers.equalTo(2));
         assertThat("some shard sizes are populated", info.shardSizes.size(), greaterThan(0));
@@ -238,7 +204,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         MockTransportService mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, internalTestCluster.getMasterName());
 
         final AtomicBoolean timeout = new AtomicBoolean(false);
-        final Set<String> blockedActions = ImmutableSet.of(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
+        final Set<String> blockedActions = newHashSet(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
             mockTransportService.addDelegate(node, new MockTransportService.DelegateTransport(mockTransportService.original()) {
@@ -258,9 +224,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         // timeouts shouldn't clear the info
         timeout.set(true);
-        listener.reset();
-        infoService.updateOnce();
-        info = listener.get();
+        info = infoService.refresh();
         assertNotNull("info should not be null", info);
         // node info will time out both on the request level on the count down latch. this means
         // it is likely to update the node disk usage based on the one response that came be from local
@@ -283,9 +247,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         assertNotNull("failed to find BlockingActionFilter", blockingActionFilter);
         blockingActionFilter.blockActions(blockedActions.toArray(Strings.EMPTY_ARRAY));
-        listener.reset();
-        infoService.updateOnce();
-        info = listener.get();
+        info = infoService.refresh();
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(0));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(0));
@@ -293,9 +255,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
 
         // check we recover
         blockingActionFilter.blockActions();
-        listener.reset();
-        infoService.updateOnce();
-        info = listener.get();
+        info = infoService.refresh();
         assertNotNull("info should not be null", info);
         assertThat(info.getNodeLeastAvailableDiskUsages().size(), equalTo(2));
         assertThat(info.getNodeMostAvailableDiskUsages().size(), equalTo(2));

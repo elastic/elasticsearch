@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.base.Predicate;
-import com.google.common.collect.Collections2;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsResponse.FieldMappingMetaData;
 import org.elasticsearch.action.support.ActionFilters;
@@ -51,9 +48,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
+import java.util.Map;
+import java.util.stream.Collectors;
 
+import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.util.CollectionUtils.newLinkedList;
 
 /**
@@ -70,7 +71,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
     public TransportGetFieldMappingsIndexAction(Settings settings, ClusterService clusterService, TransportService transportService,
                                                 IndicesService indicesService, ThreadPool threadPool, ActionFilters actionFilters,
                                                 IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, GetFieldMappingsIndexRequest.class, ThreadPool.Names.MANAGEMENT);
+        super(settings, ACTION_NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, GetFieldMappingsIndexRequest::new, ThreadPool.Names.MANAGEMENT);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
     }
@@ -96,29 +97,25 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
             typeIntersection = indexService.mapperService().types();
 
         } else {
-            typeIntersection = Collections2.filter(indexService.mapperService().types(), new Predicate<String>() {
-
-                @Override
-                public boolean apply(String type) {
-                    return Regex.simpleMatch(request.types(), type);
-                }
-
-            });
+            typeIntersection = indexService.mapperService().types()
+                    .stream()
+                    .filter(type -> Regex.simpleMatch(request.types(), type))
+                    .collect(Collectors.toCollection(ArrayList::new));
             if (typeIntersection.isEmpty()) {
                 throw new TypeMissingException(shardId.index(), request.types());
             }
         }
 
-        MapBuilder<String, ImmutableMap<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
+        MapBuilder<String, Map<String, FieldMappingMetaData>> typeMappings = new MapBuilder<>();
         for (String type : typeIntersection) {
             DocumentMapper documentMapper = indexService.mapperService().documentMapper(type);
-            ImmutableMap<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);
+            Map<String, FieldMappingMetaData> fieldMapping = findFieldMappingsByType(documentMapper, request);
             if (!fieldMapping.isEmpty()) {
                 typeMappings.put(type, fieldMapping);
             }
         }
 
-        return new GetFieldMappingsResponse(ImmutableMap.of(shardId.getIndex(), typeMappings.immutableMap()));
+        return new GetFieldMappingsResponse(singletonMap(shardId.getIndex(), typeMappings.immutableMap()));
     }
 
     @Override
@@ -168,7 +165,7 @@ public class TransportGetFieldMappingsIndexAction extends TransportSingleShardAc
         }
     };
 
-    private ImmutableMap<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {
+    private Map<String, FieldMappingMetaData> findFieldMappingsByType(DocumentMapper documentMapper, GetFieldMappingsIndexRequest request) {
         MapBuilder<String, FieldMappingMetaData> fieldMappings = new MapBuilder<>();
         final DocumentFieldMappers allFieldMappers = documentMapper.mappers();
         for (String field : request.fields()) {

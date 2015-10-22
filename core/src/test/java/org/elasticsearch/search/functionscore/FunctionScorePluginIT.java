@@ -24,7 +24,7 @@ import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.functionscore.DecayFunction;
 import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.DecayFunctionParser;
@@ -35,13 +35,11 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.junit.Test;
 
 import java.util.Collection;
 
 import static org.elasticsearch.client.Requests.indexRequest;
 import static org.elasticsearch.client.Requests.searchRequest;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
@@ -53,13 +51,11 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1)
 public class FunctionScorePluginIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(CustomDistanceScorePlugin.class);
     }
 
-    @Test
     public void testPlugin() throws Exception {
         client().admin()
                 .indices()
@@ -82,7 +78,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         DecayFunctionBuilder gfb = new CustomDistanceScoreBuilder("num1", "2013-05-28", "+1d");
 
         ActionFuture<SearchResponse> response = client().search(searchRequest().searchType(SearchType.QUERY_THEN_FETCH).source(
-                searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value")).add(gfb))));
+                searchSource().explain(false).query(functionScoreQuery(termQuery("test", "value"), gfb))));
 
         SearchResponse sr = response.actionGet();
         ElasticsearchAssertions.assertNoFailures(sr);
@@ -109,10 +105,11 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
         public void onModule(SearchModule scoreModule) {
             scoreModule.registerFunctionScoreParser(FunctionScorePluginIT.CustomDistanceScoreParser.class);
         }
-
     }
 
-    public static class CustomDistanceScoreParser extends DecayFunctionParser {
+    public static class CustomDistanceScoreParser extends DecayFunctionParser<CustomDistanceScoreBuilder> {
+
+        private static final CustomDistanceScoreBuilder PROTOTYPE = new CustomDistanceScoreBuilder("", "", "");
 
         public static final String[] NAMES = { "linear_mult", "linearMult" };
 
@@ -121,20 +118,46 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
             return NAMES;
         }
 
-        static final DecayFunction decayFunction = new LinearMultScoreFunction();
+        @Override
+        public CustomDistanceScoreBuilder getBuilderPrototype() {
+            return PROTOTYPE;
+        }
+    }
+
+    public static class CustomDistanceScoreBuilder extends DecayFunctionBuilder<CustomDistanceScoreBuilder> {
+
+        public CustomDistanceScoreBuilder(String fieldName, Object origin, Object scale) {
+            super(fieldName, origin, scale, null);
+        }
+
+        private CustomDistanceScoreBuilder(String fieldName, BytesReference functionBytes) {
+            super(fieldName, functionBytes);
+        }
+
+        @Override
+        protected CustomDistanceScoreBuilder createFunctionBuilder(String fieldName, BytesReference functionBytes) {
+            return new CustomDistanceScoreBuilder(fieldName, functionBytes);
+        }
+
+        @Override
+        public String getName() {
+            return CustomDistanceScoreParser.NAMES[0];
+        }
 
         @Override
         public DecayFunction getDecayFunction() {
             return decayFunction;
         }
 
-        static class LinearMultScoreFunction implements DecayFunction {
+        private static final DecayFunction decayFunction = new LinearMultScoreFunction();
+
+        private static class LinearMultScoreFunction implements DecayFunction {
             LinearMultScoreFunction() {
             }
 
             @Override
             public double evaluate(double value, double scale) {
-                
+
                 return value;
             }
 
@@ -148,18 +171,5 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
                 return userGivenScale;
             }
         }
-    }
-
-    public class CustomDistanceScoreBuilder extends DecayFunctionBuilder {
-
-        public CustomDistanceScoreBuilder(String fieldName, Object origin, Object scale) {
-            super(fieldName, origin, scale);
-        }
-
-        @Override
-        public String getName() {
-            return CustomDistanceScoreParser.NAMES[0];
-        }
-
     }
 }

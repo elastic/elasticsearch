@@ -19,12 +19,13 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.DocIdSet;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.FieldComparatorSource;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
@@ -107,12 +108,10 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
      */
     void clear();
 
-    void clear(IndexReader reader);
-
     // we need this extended source we we have custom comparators to reuse our field data
     // in this case, we need to reduce type that will be used when search results are reduced
     // on another node (we don't have the custom source them...)
-    public abstract class XFieldComparatorSource extends FieldComparatorSource {
+    abstract class XFieldComparatorSource extends FieldComparatorSource {
 
         /**
          * Simple wrapper class around a filter that matches parent documents
@@ -124,9 +123,9 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
         public static class Nested {
 
             private final BitSetProducer rootFilter;
-            private final Filter innerFilter;
+            private final Weight innerFilter;
 
-            public Nested(BitSetProducer rootFilter, Filter innerFilter) {
+            public Nested(BitSetProducer rootFilter, Weight innerFilter) {
                 this.rootFilter = rootFilter;
                 this.innerFilter = innerFilter;
             }
@@ -141,8 +140,8 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
             /**
              * Get a {@link DocIdSet} that matches the inner documents.
              */
-            public DocIdSet innerDocs(LeafReaderContext ctx) throws IOException {
-                return innerFilter.getDocIdSet(ctx, null);
+            public DocIdSetIterator innerDocs(LeafReaderContext ctx) throws IOException {
+                return innerFilter.scorer(ctx);
             }
         }
 
@@ -237,11 +236,11 @@ public interface IndexFieldData<FD extends AtomicFieldData> extends IndexCompone
                              CircuitBreakerService breakerService, MapperService mapperService);
     }
 
-    public static interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
+    interface Global<FD extends AtomicFieldData> extends IndexFieldData<FD> {
 
-        IndexFieldData<FD> loadGlobal(IndexReader indexReader);
+        IndexFieldData<FD> loadGlobal(DirectoryReader indexReader);
 
-        IndexFieldData<FD> localGlobalDirect(IndexReader indexReader) throws Exception;
+        IndexFieldData<FD> localGlobalDirect(DirectoryReader indexReader) throws Exception;
 
     }
 

@@ -64,8 +64,6 @@ public class SearchServiceTransportAction extends AbstractComponent {
     public static final String QUERY_FETCH_SCROLL_ACTION_NAME = "indices:data/read/search[phase/query+fetch/scroll]";
     public static final String FETCH_ID_SCROLL_ACTION_NAME = "indices:data/read/search[phase/fetch/id/scroll]";
     public static final String FETCH_ID_ACTION_NAME = "indices:data/read/search[phase/fetch/id]";
-    public static final String SCAN_ACTION_NAME = "indices:data/read/search[phase/scan]";
-    public static final String SCAN_SCROLL_ACTION_NAME = "indices:data/read/search[phase/scan/scroll]";
 
     private final TransportService transportService;
     private final SearchService searchService;
@@ -76,20 +74,18 @@ public class SearchServiceTransportAction extends AbstractComponent {
         this.transportService = transportService;
         this.searchService = searchService;
 
-        transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ScrollFreeContextRequest.class, ThreadPool.Names.SAME, new FreeContextTransportHandler<>());
-        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, SearchFreeContextRequest.class, ThreadPool.Names.SAME, new FreeContextTransportHandler<SearchFreeContextRequest>());
-        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, ClearScrollContextsRequest.class, ThreadPool.Names.SAME, new ClearScrollContextsTransportHandler());
-        transportService.registerRequestHandler(DFS_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchDfsTransportHandler());
-        transportService.registerRequestHandler(QUERY_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchQueryTransportHandler());
-        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest.class, ThreadPool.Names.SEARCH, new SearchQueryByIdTransportHandler());
-        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest.class, ThreadPool.Names.SEARCH, new SearchQueryScrollTransportHandler());
-        transportService.registerRequestHandler(QUERY_FETCH_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchQueryFetchTransportHandler());
-        transportService.registerRequestHandler(QUERY_QUERY_FETCH_ACTION_NAME, QuerySearchRequest.class, ThreadPool.Names.SEARCH, new SearchQueryQueryFetchTransportHandler());
-        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest.class, ThreadPool.Names.SEARCH, new SearchQueryFetchScrollTransportHandler());
-        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest.class, ThreadPool.Names.SEARCH, new FetchByIdTransportHandler<>());
-        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest.class, ThreadPool.Names.SEARCH, new FetchByIdTransportHandler<ShardFetchSearchRequest>());
-        transportService.registerRequestHandler(SCAN_ACTION_NAME, ShardSearchTransportRequest.class, ThreadPool.Names.SEARCH, new SearchScanTransportHandler());
-        transportService.registerRequestHandler(SCAN_SCROLL_ACTION_NAME, InternalScrollSearchRequest.class, ThreadPool.Names.SEARCH, new SearchScanScrollTransportHandler());
+        transportService.registerRequestHandler(FREE_CONTEXT_SCROLL_ACTION_NAME, ScrollFreeContextRequest::new, ThreadPool.Names.SAME, new FreeContextTransportHandler<>());
+        transportService.registerRequestHandler(FREE_CONTEXT_ACTION_NAME, SearchFreeContextRequest::new, ThreadPool.Names.SAME, new FreeContextTransportHandler<SearchFreeContextRequest>());
+        transportService.registerRequestHandler(CLEAR_SCROLL_CONTEXTS_ACTION_NAME, ClearScrollContextsRequest::new, ThreadPool.Names.SAME, new ClearScrollContextsTransportHandler());
+        transportService.registerRequestHandler(DFS_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH, new SearchDfsTransportHandler());
+        transportService.registerRequestHandler(QUERY_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH, new SearchQueryTransportHandler());
+        transportService.registerRequestHandler(QUERY_ID_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH, new SearchQueryByIdTransportHandler());
+        transportService.registerRequestHandler(QUERY_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH, new SearchQueryScrollTransportHandler());
+        transportService.registerRequestHandler(QUERY_FETCH_ACTION_NAME, ShardSearchTransportRequest::new, ThreadPool.Names.SEARCH, new SearchQueryFetchTransportHandler());
+        transportService.registerRequestHandler(QUERY_QUERY_FETCH_ACTION_NAME, QuerySearchRequest::new, ThreadPool.Names.SEARCH, new SearchQueryQueryFetchTransportHandler());
+        transportService.registerRequestHandler(QUERY_FETCH_SCROLL_ACTION_NAME, InternalScrollSearchRequest::new, ThreadPool.Names.SEARCH, new SearchQueryFetchScrollTransportHandler());
+        transportService.registerRequestHandler(FETCH_ID_SCROLL_ACTION_NAME, ShardFetchRequest::new, ThreadPool.Names.SEARCH, new FetchByIdTransportHandler<>());
+        transportService.registerRequestHandler(FETCH_ID_ACTION_NAME, ShardFetchSearchRequest::new, ThreadPool.Names.SEARCH, new FetchByIdTransportHandler<ShardFetchSearchRequest>());
     }
 
     public void sendFreeContext(DiscoveryNode node, final long contextId, SearchRequest request) {
@@ -209,28 +205,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         });
     }
 
-    public void sendExecuteScan(DiscoveryNode node, final ShardSearchTransportRequest request, final ActionListener<QuerySearchResult> listener) {
-        transportService.sendRequest(node, SCAN_ACTION_NAME, request, new ActionListenerResponseHandler<QuerySearchResult>(listener) {
-            @Override
-            public QuerySearchResult newInstance() {
-                return new QuerySearchResult();
-            }
-        });
-    }
-
-    public void sendExecuteScan(DiscoveryNode node, final InternalScrollSearchRequest request, final ActionListener<ScrollQueryFetchSearchResult> listener) {
-        transportService.sendRequest(node, SCAN_SCROLL_ACTION_NAME, request, new ActionListenerResponseHandler<ScrollQueryFetchSearchResult>(listener) {
-            @Override
-            public ScrollQueryFetchSearchResult newInstance() {
-                return new ScrollQueryFetchSearchResult();
-            }
-        });
-    }
-
-    static class ScrollFreeContextRequest extends TransportRequest {
+    public static class ScrollFreeContextRequest extends TransportRequest {
         private long id;
 
-        ScrollFreeContextRequest() {
+        public ScrollFreeContextRequest() {
         }
 
         ScrollFreeContextRequest(ClearScrollRequest request, long id) {
@@ -259,10 +237,10 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
+    public static class SearchFreeContextRequest extends ScrollFreeContextRequest implements IndicesRequest {
         private OriginalIndices originalIndices;
 
-        SearchFreeContextRequest() {
+        public SearchFreeContextRequest() {
         }
 
         SearchFreeContextRequest(SearchRequest request, long id) {
@@ -335,9 +313,9 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    static class ClearScrollContextsRequest extends TransportRequest {
+    public static class ClearScrollContextsRequest extends TransportRequest {
 
-        ClearScrollContextsRequest() {
+        public ClearScrollContextsRequest() {
         }
 
         ClearScrollContextsRequest(TransportRequest request) {
@@ -418,20 +396,4 @@ public class SearchServiceTransportAction extends AbstractComponent {
         }
     }
 
-    @Deprecated // remove in 3.0
-    class SearchScanTransportHandler implements TransportRequestHandler<ShardSearchTransportRequest> {
-        @Override
-        public void messageReceived(ShardSearchTransportRequest request, TransportChannel channel) throws Exception {
-            QuerySearchResult result = searchService.executeScan(request);
-            channel.sendResponse(result);
-        }
-    }
-
-    class SearchScanScrollTransportHandler implements TransportRequestHandler<InternalScrollSearchRequest> {
-        @Override
-        public void messageReceived(InternalScrollSearchRequest request, TransportChannel channel) throws Exception {
-            ScrollQueryFetchSearchResult result = searchService.executeScan(request);
-            channel.sendResponse(result);
-        }
-    }
 }

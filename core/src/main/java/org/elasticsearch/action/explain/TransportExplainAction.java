@@ -74,7 +74,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
                                   ScriptService scriptService, PageCacheRecycler pageCacheRecycler,
                                   BigArrays bigArrays, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
         super(settings, ExplainAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver,
-                ExplainRequest.class, ThreadPool.Names.GET);
+                ExplainRequest::new, ThreadPool.Names.GET);
         this.indicesService = indicesService;
         this.scriptService = scriptService;
         this.pageCacheRecycler = pageCacheRecycler;
@@ -104,7 +104,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     @Override
     protected ExplainResponse shardOperation(ExplainRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        IndexShard indexShard = indexService.getShard(shardId.id());
         Term uidTerm = new Term(UidFieldMapper.NAME, Uid.createUidAsBytes(request.type(), request.id()));
         Engine.GetResult result = indexShard.get(new Engine.Get(false, uidTerm));
         if (!result.exists()) {

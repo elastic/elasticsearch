@@ -19,23 +19,31 @@
 
 package org.elasticsearch.common.cli;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.attribute.*;
+import java.nio.file.attribute.GroupPrincipal;
+import java.nio.file.attribute.PosixFileAttributeView;
+import java.nio.file.attribute.PosixFileAttributes;
+import java.nio.file.attribute.PosixFilePermission;
+import java.nio.file.attribute.UserPrincipal;
 import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
@@ -51,79 +59,66 @@ public class CheckFileCommandTests extends ESTestCase {
         CHANGE, KEEP, DISABLED
     }
 
-    @Test
     public void testThatCommandLogsErrorMessageOnFail() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure that the user account running Elasticsearch has read access to this file")));
     }
 
-    @Test
     public void testThatCommandLogsNothingWhenPermissionRemains() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingWhenDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfFilesystemDoesNotSupportPermissions() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsOwnerChange() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Owner of file ["), containsString("] used to be ["), containsString("], but now is ["))));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfOwnerRemainsSame() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfOwnerIsDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportOwners() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsIfGroupChanges() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Group of file ["), containsString("] used to be ["), containsString("], but now is ["))));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfGroupRemainsSame() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfGroupIsDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportGroups() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandDoesNotLogAnythingOnFileCreation() throws Exception {
         Configuration configuration = randomBoolean() ? jimFsConfiguration : jimFsConfigurationWithoutPermissions;
 
@@ -139,13 +134,12 @@ public class CheckFileCommandTests extends ESTestCase {
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandWorksIfFileIsDeletedByCommand() throws Exception {
         Configuration configuration = randomBoolean() ? jimFsConfiguration : jimFsConfigurationWithoutPermissions;
 
         try (FileSystem fs = Jimfs.newFileSystem(configuration)) {
             Path path = fs.getPath(randomAsciiOfLength(10));
-            Files.write(path, "anything".getBytes(Charsets.UTF_8));
+            Files.write(path, "anything".getBytes(StandardCharsets.UTF_8));
 
             Settings settings = Settings.builder()
                     .put("path.home", createTempDir().toString())
@@ -187,7 +181,7 @@ public class CheckFileCommandTests extends ESTestCase {
 
         private Path writePath(FileSystem fs, String name, String content) throws IOException {
             Path path = fs.getPath(name);
-            Files.write(path, content.getBytes(Charsets.UTF_8));
+            Files.write(path, content.getBytes(StandardCharsets.UTF_8));
             return path;
         }
 
@@ -212,11 +206,11 @@ public class CheckFileCommandTests extends ESTestCase {
             Path randomPath = paths[randomInt];
             switch (mode) {
                 case CHANGE:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     Files.setPosixFilePermissions(randomPath, Sets.newHashSet(PosixFilePermission.OWNER_EXECUTE, PosixFilePermission.OTHERS_EXECUTE, PosixFilePermission.GROUP_EXECUTE));
                     break;
                 case KEEP:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     Set<PosixFilePermission> posixFilePermissions = Files.getPosixFilePermissions(randomPath);
                     Files.setPosixFilePermissions(randomPath, posixFilePermissions);
                     break;
@@ -241,12 +235,12 @@ public class CheckFileCommandTests extends ESTestCase {
             Path randomPath = paths[randomInt];
             switch (mode) {
                 case CHANGE:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     UserPrincipal randomOwner = fs.getUserPrincipalLookupService().lookupPrincipalByName(randomAsciiOfLength(10));
                     Files.setOwner(randomPath, randomOwner);
                     break;
                 case KEEP:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     UserPrincipal originalOwner = Files.getOwner(randomPath);
                     Files.setOwner(randomPath, originalOwner);
                     break;
@@ -271,12 +265,12 @@ public class CheckFileCommandTests extends ESTestCase {
             Path randomPath = paths[randomInt];
             switch (mode) {
                 case CHANGE:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     GroupPrincipal randomPrincipal = fs.getUserPrincipalLookupService().lookupPrincipalByGroupName(randomAsciiOfLength(10));
                     Files.getFileAttributeView(randomPath, PosixFileAttributeView.class).setGroup(randomPrincipal);
                     break;
                 case KEEP:
-                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(Charsets.UTF_8));
+                    Files.write(randomPath, randomAsciiOfLength(10).getBytes(StandardCharsets.UTF_8));
                     GroupPrincipal groupPrincipal = Files.readAttributes(randomPath, PosixFileAttributes.class).group();
                     Files.getFileAttributeView(randomPath, PosixFileAttributeView.class).setGroup(groupPrincipal);
                     break;
@@ -300,7 +294,7 @@ public class CheckFileCommandTests extends ESTestCase {
 
         @Override
         public CliTool.ExitStatus doExecute(Settings settings, Environment env) throws Exception {
-            Files.write(pathToCreate, "anything".getBytes(Charsets.UTF_8));
+            Files.write(pathToCreate, "anything".getBytes(StandardCharsets.UTF_8));
             return CliTool.ExitStatus.OK;
         }
 

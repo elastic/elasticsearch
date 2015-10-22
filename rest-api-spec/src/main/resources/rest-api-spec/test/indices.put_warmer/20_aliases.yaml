@@ -26,5 +26,5 @@
       indices.get_warmer:
           index: test_alias
 
-  - match: {test_index.warmers.test_warmer.source.query.match_all: {}}
+  - match: {test_index.warmers.test_warmer.source.query.match_all: {boost: 1.0}}
 

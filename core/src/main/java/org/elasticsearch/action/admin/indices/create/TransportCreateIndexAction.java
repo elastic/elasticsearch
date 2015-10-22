@@ -46,7 +46,7 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
     public TransportCreateIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                       ThreadPool threadPool, MetaDataCreateIndexService createIndexService,
                                       ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
-        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateIndexRequest.class);
+        super(settings, CreateIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CreateIndexRequest::new);
         this.createIndexService = createIndexService;
     }
 
@@ -73,7 +73,8 @@ public class TransportCreateIndexAction extends TransportMasterNodeAction<Create
             cause = "api";
         }
 
-        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, request.index(), request.updateAllTypes())
+        final String indexName = indexNameExpressionResolver.resolveDateMathExpression(request.index());
+        final CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(request, cause, indexName, request.updateAllTypes())
                 .ackTimeout(request.timeout()).masterNodeTimeout(request.masterNodeTimeout())
                 .settings(request.settings()).mappings(request.mappings())
                 .aliases(request.aliases()).customs(request.customs());

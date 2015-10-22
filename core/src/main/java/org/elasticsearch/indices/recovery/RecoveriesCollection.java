@@ -19,8 +19,6 @@
 
 package org.elasticsearch.indices.recovery;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
@@ -34,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 /**
  * This class holds a collection of all on going recoveries on the current node (i.e., the node is the target node
@@ -74,7 +73,7 @@ public class RecoveriesCollection {
      * gets the {@link RecoveryStatus } for a given id. The RecoveryStatus returned has it's ref count already incremented
      * to make sure it's safe to use. However, you must call {@link RecoveryStatus#decRef()} when you are done with it, typically
      * by using this method in a try-with-resources clause.
-     * <p/>
+     * <p>
      * Returns null if recovery is not found
      */
     public StatusRef getStatus(long id) {
@@ -139,7 +138,7 @@ public class RecoveriesCollection {
 
     /** cancel all ongoing recoveries for the given shard. typically because the shards is closed */
     public boolean cancelRecoveriesForShard(ShardId shardId, String reason) {
-        return cancelRecoveriesForShard(shardId, reason, Predicates.<RecoveryStatus>alwaysTrue());
+        return cancelRecoveriesForShard(shardId, reason, status -> true);
     }
 
     /**
@@ -160,7 +159,7 @@ public class RecoveriesCollection {
                 // if we can't increment the status, the recovery is not there any more.
                 if (status.tryIncRef()) {
                     try {
-                        cancel = shouldCancel.apply(status);
+                        cancel = shouldCancel.test(status);
                     } finally {
                         status.decRef();
                     }

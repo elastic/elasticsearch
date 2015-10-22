@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2008 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -27,23 +27,20 @@ import org.elasticsearch.common.inject.spi.TypeListener;
 
 import java.lang.annotation.Annotation;
 
-import static com.google.common.base.Preconditions.checkState;
-
 /**
  * A module whose configuration information is hidden from its environment by default. Only bindings
  * that are explicitly exposed will be available to other modules and to the users of the injector.
  * This module may expose the bindings it creates and the bindings of the modules it installs.
- * <p/>
- * <p>A private module can be nested within a regular module or within another private module using
+ * <p>
+ * A private module can be nested within a regular module or within another private module using
  * {@link Binder#install install()}.  Its bindings live in a new environment that inherits bindings,
  * type converters, scopes, and interceptors from the surrounding ("parent") environment.  When you
  * nest multiple private modules, the result is a tree of environments where the injector's
  * environment is the root.
- * <p/>
- * <p>Guice EDSL bindings can be exposed with {@link #expose(Class) expose()}. {@literal @}{@link
+ * <p>
+ * Guice EDSL bindings can be exposed with {@link #expose(Class) expose()}. {@literal @}{@link
  * org.elasticsearch.common.inject.Provides Provides} bindings can be exposed with the {@literal @}{@link
  * Exposed} annotation:
- * <p/>
  * <pre>
  * public class FooBarBazModule extends PrivateModule {
  *   protected void configure() {
@@ -63,20 +60,20 @@ import static com.google.common.base.Preconditions.checkState;
  *   }
  * }
  * </pre>
- * <p/>
- * <p>Private modules are implemented using {@link Injector#createChildInjector(Module[]) parent
+ * <p>
+ * Private modules are implemented using {@link Injector#createChildInjector(Module[]) parent
  * injectors}. When it can satisfy their dependencies, just-in-time bindings will be created in the
  * root environment. Such bindings are shared among all environments in the tree.
- * <p/>
- * <p>The scope of a binding is constrained to its environment. A singleton bound in a private
+ * <p>
+ * The scope of a binding is constrained to its environment. A singleton bound in a private
  * module will be unique to its environment. But a binding for the same type in a different private
  * module will yield a different instance.
- * <p/>
- * <p>A shared binding that injects the {@code Injector} gets the root injector, which only has
+ * <p>
+ * A shared binding that injects the {@code Injector} gets the root injector, which only has
  * access to bindings in the root environment. An explicit binding that injects the {@code Injector}
  * gets access to all bindings in the child environment.
- * <p/>
- * <p>To promote a just-in-time binding to an explicit binding, bind it:
+ * <p>
+ * To promote a just-in-time binding to an explicit binding, bind it:
  * <pre>
  *   bind(FooImpl.class);
  * </pre>
@@ -93,7 +90,9 @@ public abstract class PrivateModule implements Module {
 
     @Override
     public final synchronized void configure(Binder binder) {
-        checkState(this.binder == null, "Re-entry is not allowed.");
+        if (this.binder != null) {
+            throw new IllegalStateException("Re-entry is not allowed.");
+        }
 
         // Guice treats PrivateModules specially and passes in a PrivateBinder automatically.
         this.binder = (PrivateBinder) binder.skipSources(PrivateModule.class);

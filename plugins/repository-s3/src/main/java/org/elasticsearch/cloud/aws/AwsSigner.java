@@ -21,33 +21,53 @@ package org.elasticsearch.cloud.aws;
 
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.auth.SignerFactory;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
 
 public class AwsSigner {
 
+    private static final ESLogger logger = Loggers.getLogger(AwsSigner.class);
+
     private AwsSigner() {
 
+    }
+
+    protected static void validateSignerType(String signer, String endpoint) {
+        if (signer == null) {
+            throw new IllegalArgumentException("[null] signer set");
+        }
+
+        // do not block user to any signerType
+        switch (signer) {
+            case "S3SignerType":
+                if (endpoint.equals("s3.cn-north-1.amazonaws.com.cn") || endpoint.equals("s3.eu-central-1.amazonaws.com")) {
+                    throw new IllegalArgumentException("[S3SignerType] may not be supported in aws Beijing and Frankfurt region");
+                }
+                break;
+            case "AWSS3V4SignerType":
+                break;
+            default:
+                try {
+                    SignerFactory.getSignerByTypeAndService(signer, null);
+                } catch (IllegalArgumentException e) {
+                    throw new IllegalArgumentException("[" + signer + "] may not be supported");
+                }
+        }
     }
 
     /**
      * Add a AWS API Signer.
      * @param signer Signer to use
      * @param configuration AWS Client configuration
-     * @throws IllegalArgumentException if signer does not exist
      */
-    public static void configureSigner(String signer, ClientConfiguration configuration)
-        throws IllegalArgumentException {
-
-        if (signer == null) {
-            throw new IllegalArgumentException("[null] signer set");
-        }
-
+    public static void configureSigner(String signer, ClientConfiguration configuration, String endpoint) {
         try {
-            // We check this signer actually exists in AWS SDK
-            // It throws a IllegalArgumentException if not found
-            SignerFactory.getSignerByTypeAndService(signer, null);
-            configuration.setSignerOverride(signer);
+            validateSignerType(signer, endpoint);
         } catch (IllegalArgumentException e) {
-            throw new IllegalArgumentException("wrong signer set [" + signer + "]");
+            logger.warn(e.getMessage());
         }
+
+        configuration.setSignerOverride(signer);
     }
+
 }

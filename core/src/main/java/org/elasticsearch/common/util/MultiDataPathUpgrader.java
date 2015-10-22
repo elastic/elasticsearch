@@ -18,9 +18,6 @@
  */
 package org.elasticsearch.common.util;
 
-import com.google.common.base.Charsets;
-import com.google.common.collect.Sets;
-import com.google.common.primitives.Ints;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
@@ -38,10 +35,13 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardPath;
+import org.elasticsearch.index.shard.ShardStateMetaData;
 
 import java.io.IOException;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.*;
@@ -118,14 +118,14 @@ public class MultiDataPathUpgrader {
      */
     public void checkIndex(ShardPath targetPath) throws IOException {
         BytesStreamOutput os = new BytesStreamOutput();
-        PrintStream out = new PrintStream(os, false, Charsets.UTF_8.name());
+        PrintStream out = new PrintStream(os, false, StandardCharsets.UTF_8.name());
         try (Directory directory = new SimpleFSDirectory(targetPath.resolveIndex());
             final CheckIndex checkIndex = new CheckIndex(directory)) {
             checkIndex.setInfoStream(out);
             CheckIndex.Status status = checkIndex.checkIndex();
             out.flush();
             if (!status.clean) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), Charsets.UTF_8));
+                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                 throw new IllegalStateException("index check failure");
             }
         }
@@ -343,7 +343,7 @@ public class MultiDataPathUpgrader {
     }
 
     private static Set<ShardId> findAllShardIds(Path... locations) throws IOException {
-        final Set<ShardId> shardIds = Sets.newHashSet();
+        final Set<ShardId> shardIds = new HashSet<>();
         for (final Path location : locations) {
             if (Files.isDirectory(location)) {
                 shardIds.addAll(findAllShardsForIndex(location));
@@ -358,12 +358,11 @@ public class MultiDataPathUpgrader {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(indexPath)) {
                 String currentIndex = indexPath.getFileName().toString();
                 for (Path shardPath : stream) {
-                    if (Files.isDirectory(shardPath)) {
-                        Integer shardId = Ints.tryParse(shardPath.getFileName().toString());
-                        if (shardId != null) {
-                            ShardId id = new ShardId(currentIndex, shardId);
-                            shardIds.add(id);
-                        }
+                    String fileName = shardPath.getFileName().toString();
+                    if (Files.isDirectory(shardPath) && fileName.chars().allMatch(Character::isDigit)) {
+                        int shardId = Integer.parseInt(fileName);
+                        ShardId id = new ShardId(currentIndex, shardId);
+                        shardIds.add(id);
                     }
                 }
             }

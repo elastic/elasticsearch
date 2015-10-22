@@ -25,34 +25,36 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.VersionUtils;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(NodeVersionAllocationDeciderTests.class);
 
-    @Test
     public void testDoNotAllocateFromPrimary() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -167,8 +169,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-
-    @Test
     public void testRandom() {
         AllocationService service = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -218,7 +218,6 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testRollingRestart() {
         AllocationService service = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)

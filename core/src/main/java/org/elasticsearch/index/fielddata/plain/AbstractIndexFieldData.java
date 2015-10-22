@@ -65,11 +65,6 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     }
 
     @Override
-    public void clear(IndexReader reader) {
-        cache.clear(reader);
-    }
-
-    @Override
     public FD load(LeafReaderContext context) {
         if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
             // If the field doesn't exist, then don't bother with loading and adding an empty instance to the field data cache
@@ -83,7 +78,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }
@@ -99,7 +94,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
      * the memory overhead for loading the data. Each field data
      * implementation should implement its own {@code PerValueEstimator} if it
      * intends to take advantage of the MemoryCircuitBreaker.
-     * <p/>
+     * <p>
      * Note that the .beforeLoad(...) and .afterLoad(...) methods must be
      * manually called.
      */
@@ -118,7 +113,6 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
          *
          * @param terms terms to be estimated
          * @return A TermsEnum for the given terms
-         * @throws IOException
          */
         public TermsEnum beforeLoad(Terms terms) throws IOException;
 

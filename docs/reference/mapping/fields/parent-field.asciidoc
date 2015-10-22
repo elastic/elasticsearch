@@ -1,8 +1,6 @@
 [[mapping-parent-field]]
 === `_parent` field
 
-added[2.0.0-beta1,The parent-child implementation has been completely rewritten. It is advisable to reindex any 1.x indices which use parent-child to take advantage of the new optimizations]
-
 A parent-child relationship can be established between documents in the same
 index by making one mapping type the parent of another:
 

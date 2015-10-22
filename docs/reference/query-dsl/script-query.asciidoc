@@ -2,13 +2,13 @@
 === Script Query
 
 A query allowing to define
-<<modules-scripting,scripts>> as filters. For
-example:
+<<modules-scripting,scripts>> as queries. They are typically used in a filter
+context, for example:
 
 [source,js]
 ----------------------------------------------
-"filtered" : {
-    "query" : {
+"bool" : {
+    "must" : {
         ...
     }, 
     "filter" : {
@@ -28,8 +28,8 @@ to use the ability to pass parameters to the script itself, for example:
 
 [source,js]
 ----------------------------------------------
-"filtered" : {
-    "query" : {
+"bool" : {
+    "must" : {
         ...
     }, 
     "filter" : {

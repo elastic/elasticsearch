@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2009 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.TypeLiteral;
  * @param <I> the injectable type encountered
  * @since 2.0
  */
+@SuppressWarnings("overloads")
 public interface TypeEncounter<I> {
 
     /**

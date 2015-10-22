@@ -26,6 +26,7 @@
         <elasticsearch.plugin.jvm>true</elasticsearch.plugin.jvm>
         <elasticsearch.plugin.isolated>true</elasticsearch.plugin.isolated>
         <elasticsearch.plugin.site>false</elasticsearch.plugin.site>
+        <amazonaws.version>1.10.19</amazonaws.version>
     </properties>
 
     <dependencies>
@@ -104,11 +105,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.apache.lucene</groupId>
-            <artifactId>lucene-expressions</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>com.spatial4j</groupId>
             <artifactId>spatial4j</artifactId>
             <scope>provided</scope>
@@ -121,11 +117,6 @@
         <dependency>
             <groupId>com.github.spullara.mustache.java</groupId>
             <artifactId>compiler</artifactId>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
-            <groupId>com.google.guava</groupId>
-            <artifactId>guava</artifactId>
             <scope>provided</scope>
         </dependency>
         <dependency>
@@ -184,12 +175,6 @@
             <scope>provided</scope>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-all</artifactId>
-            <classifier>indy</classifier>
-            <scope>provided</scope>
-        </dependency>
-        <dependency>
             <groupId>log4j</groupId>
             <artifactId>log4j</artifactId>
             <scope>provided</scope>
@@ -221,46 +206,11 @@
 
     <!-- typical layout for plugins -->
     <build>
-        <resources>
-            <resource>
-                <directory>src/main/resources</directory>
-                <filtering>true</filtering>
-                <includes>
-                    <include>**/*.properties</include>
-                </includes>
-            </resource>
-        </resources>
-
         <testResources>
             <testResource>
-                <directory>src/test/java</directory>
-                <includes>
-                    <include>**/*.json</include>
-                    <include>**/*.txt</include>
-                </includes>
-            </testResource>
-            <testResource>
                 <directory>src/test/resources</directory>
-                <excludes>
-                    <exclude>elasticsearch.yml</exclude>
-                    <exclude>**/*.properties</exclude>
-                </excludes>
-            </testResource>
-            <testResource>
-                <directory>src/test/resources</directory>
-                <filtering>true</filtering>
                 <includes>
-                    <include>elasticsearch.yml</include>
-                    <include>**/*.properties</include>
-                </includes>
-            </testResource>
-            <!-- REST API specification and test suites -->
-            <testResource>
-                <directory>${project.basedir}/rest-api-spec</directory>
-                <targetPath>rest-api-spec</targetPath>
-                <includes>
-                    <include>api/*.json</include>
-                    <include>test/**/*.yaml</include>
+                    <include>**/*</include>
                 </includes>
             </testResource>
             <!-- REST API specifications copied from main Elasticsearch specs
@@ -276,6 +226,9 @@
                     <!-- used in plugin REST tests -->
                     <include>api/index.json</include>
                     <include>api/get.json</include>
+                    <include>api/get_script.json</include>
+                    <include>api/put_script.json</include>
+                    <include>api/delete_script.json</include>
                     <include>api/update.json</include>
                     <include>api/search.json</include>
                     <include>api/indices.analyze.json</include>
@@ -293,9 +246,41 @@
                 <directory>${elasticsearch.tools.directory}/shared-test-resources</directory>
                 <filtering>false</filtering>
             </testResource>
+            <!-- plugin metadata as a test resource -->
+            <testResource>
+                <directory>${basedir}/target/metadata-test-resources</directory>
+                <filtering>false</filtering>
+            </testResource>
         </testResources>
 
         <plugins>
+           <!-- we don't have a proper .zip plugin structure for tests, but we need the metadata as test resource -->
+           <plugin>
+              <artifactId>maven-resources-plugin</artifactId>
+              <executions>
+                  <execution>
+                      <id>copy-resources</id>
+                      <!-- process-resources makes more sense, but is not done by e.g. mvn eclipse:eclipse! -->
+                      <phase>generate-resources</phase>
+                      <goals>
+                          <goal>copy-resources</goal>
+                      </goals>
+                      <configuration>
+                          <outputDirectory>${basedir}/target/metadata-test-resources</outputDirectory>
+                          <resources>
+                              <resource>
+                                  <directory>src/main/plugin-metadata</directory>
+                                  <filtering>false</filtering>
+                              </resource>
+                              <resource>
+                                  <directory>${elasticsearch.tools.directory}/plugin-metadata</directory>
+                                  <filtering>true</filtering>
+                              </resource>
+                          </resources>
+                      </configuration>
+                  </execution>
+              </executions>
+           </plugin>
            <!-- integration tests -->
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -430,16 +415,20 @@
         <module>analysis-phonetic</module>
         <module>analysis-smartcn</module>
         <module>analysis-stempel</module>
-        <module>cloud-azure</module>
-        <module>cloud-gce</module>
         <module>delete-by-query</module>
+        <module>discovery-azure</module>
         <module>discovery-ec2</module>
+        <module>discovery-gce</module>
         <module>discovery-multicast</module>
+        <module>lang-expression</module>
+        <module>lang-groovy</module>
         <module>lang-javascript</module>
         <module>lang-python</module>
         <module>mapper-murmur3</module>
         <module>mapper-size</module>
+        <module>repository-azure</module>
         <module>repository-s3</module>
+        <module>store-smb</module>
 
         <!-- Internal plugins for test only -->
         <module>jvm-example</module>

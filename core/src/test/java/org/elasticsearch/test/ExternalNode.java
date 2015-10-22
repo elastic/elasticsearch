@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.test;
 
-import com.google.common.base.Predicate;
-
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
@@ -155,18 +153,15 @@ final class ExternalNode implements Closeable {
     }
 
     static boolean waitForNode(final Client client, final String name) throws InterruptedException {
-        return ESTestCase.awaitBusy(new Predicate<Object>() {
-            @Override
-            public boolean apply(java.lang.Object input) {
-                final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
-                final NodeInfo[] nodes = nodeInfos.getNodes();
-                for (NodeInfo info : nodes) {
-                    if (name.equals(info.getNode().getName())) {
-                        return true;
-                    }
+        return ESTestCase.awaitBusy(() -> {
+            final NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().get();
+            final NodeInfo[] nodes = nodeInfos.getNodes();
+            for (NodeInfo info : nodes) {
+                if (name.equals(info.getNode().getName())) {
+                    return true;
                 }
-                return false;
             }
+            return false;
         }, 30, TimeUnit.SECONDS);
     }
 

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.recovery;
 
-import com.google.common.base.Predicate;
-import com.google.common.base.Predicates;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -29,21 +27,24 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.recovery.*;
+import org.elasticsearch.indices.recovery.RecoveriesCollection;
+import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoveryState;
+import org.elasticsearch.indices.recovery.RecoveryStatus;
+import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
-
     final static RecoveryTarget.RecoveryListener listener = new RecoveryTarget.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
@@ -56,7 +57,6 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         }
     };
 
-    @Test
     public void testLastAccessTimeUpdate() throws Exception {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
@@ -76,7 +76,6 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testRecoveryTimeout() throws InterruptedException {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
@@ -103,7 +102,6 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
 
     }
 
-    @Test
     public void testRecoveryCancellationNoPredicate() throws Exception {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
@@ -119,7 +117,6 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testRecoveryCancellationPredicate() throws Exception {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
@@ -130,13 +127,8 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
             RecoveriesCollection.StatusRef statusRef = collection.getStatus(recoveryId);
             toClose.add(statusRef);
             ShardId shardId = statusRef.status().shardId();
-            assertFalse("should not have cancelled recoveries", collection.cancelRecoveriesForShard(shardId, "test", Predicates.<RecoveryStatus>alwaysFalse()));
-            final Predicate<RecoveryStatus> shouldCancel = new Predicate<RecoveryStatus>() {
-                @Override
-                public boolean apply(RecoveryStatus status) {
-                    return status.recoveryId() == recoveryId;
-                }
-            };
+            assertFalse("should not have cancelled recoveries", collection.cancelRecoveriesForShard(shardId, "test", status -> false));
+            final Predicate<RecoveryStatus> shouldCancel = status -> status.recoveryId() == recoveryId;
             assertTrue("failed to cancel recoveries", collection.cancelRecoveriesForShard(shardId, "test", shouldCancel));
             assertThat("we should still have on recovery", collection.size(), equalTo(1));
             statusRef = collection.getStatus(recoveryId);
@@ -173,7 +165,7 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
 
     long startRecovery(RecoveriesCollection collection, RecoveryTarget.RecoveryListener listener, TimeValue timeValue) {
         IndicesService indexServices = getInstanceFromNode(IndicesService.class);
-        IndexShard indexShard = indexServices.indexServiceSafe("test").shard(0);
+        IndexShard indexShard = indexServices.indexServiceSafe("test").getShardOrNull(0);
         final DiscoveryNode sourceNode = new DiscoveryNode("id", DummyTransportAddress.INSTANCE, Version.CURRENT);
         return collection.startRecovery(indexShard, sourceNode, listener, timeValue);
     }

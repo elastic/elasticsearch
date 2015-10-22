@@ -28,7 +28,6 @@ import org.elasticsearch.search.aggregations.support.values.ScriptBytesValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptDoubleValues;
 import org.elasticsearch.search.aggregations.support.values.ScriptLongValues;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -36,10 +35,10 @@ import java.util.Map;
 public class ScriptValuesTests extends ESTestCase {
 
     private static class FakeSearchScript implements LeafSearchScript {
-        
+
         private final Object[][] values;
         int index;
-        
+
         FakeSearchScript(Object[][] values) {
             this.values = values;
             index = -1;
@@ -94,8 +93,7 @@ public class ScriptValuesTests extends ESTestCase {
 
     }
 
-    @Test
-    public void longs() {
+    public void testLongs() {
         final Object[][] values = new Long[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             Long[] longs = new Long[randomInt(8)];
@@ -116,8 +114,7 @@ public class ScriptValuesTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void doubles() {
+    public void testDoubles() {
         final Object[][] values = new Double[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             Double[] doubles = new Double[randomInt(8)];
@@ -138,8 +135,7 @@ public class ScriptValuesTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void bytes() {
+    public void testBytes() {
         final String[][] values = new String[randomInt(10)][];
         for (int i = 0; i < values.length; ++i) {
             String[] strings = new String[randomInt(8)];

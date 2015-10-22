@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.indices.template;
 
-import com.google.common.collect.Sets;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.alias.Alias;
@@ -30,32 +29,41 @@ import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.AliasMetaData;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.indices.IndexTemplateAlreadyExistsException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class SimpleIndexTemplateIT extends ESIntegTestCase {
-
-    @Test
-    public void simpleIndexTemplateTests() throws Exception {
+    public void testSimpleIndexTemplateTests() throws Exception {
         // clean all templates setup by the framework.
         client().admin().indices().prepareDeleteTemplate("*").get();
 
@@ -128,7 +136,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).field("field2").value().toString(), equalTo("value 2"));
     }
 
-    @Test
     public void testDeleteIndexTemplate() throws Exception {
         final int existingTemplates = admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size();
         logger.info("--> put template_1 and template_2");
@@ -175,7 +182,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(admin().cluster().prepareState().execute().actionGet().getState().metaData().templates().size(), equalTo(0));
     }
 
-    @Test
     public void testThatGetIndexTemplatesWorks() throws Exception {
         logger.info("--> put template_1");
         client().admin().indices().preparePutTemplate("template_1")
@@ -199,7 +205,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(getTemplate2Response.getIndexTemplates(), hasSize(0));
     }
 
-    @Test
     public void testThatGetIndexTemplatesWithSimpleRegexWorks() throws Exception {
         logger.info("--> put template_1");
         client().admin().indices().preparePutTemplate("template_1")
@@ -260,10 +265,9 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(templateNames, containsInAnyOrder("template_1", "template_2"));
     }
 
-    @Test
     public void testThatInvalidGetIndexTemplatesFails() throws Exception {
         logger.info("--> get template null");
-        testExpectActionRequestValidationException(null);
+        testExpectActionRequestValidationException((String[])null);
 
         logger.info("--> get template empty");
         testExpectActionRequestValidationException("");
@@ -281,7 +285,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
                 "get template with " + Arrays.toString(names));
     }
 
-    @Test
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/8802")
     public void testBrokenMapping() throws Exception {
         // clean all templates setup by the framework.
@@ -309,7 +312,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testInvalidSettings() throws Exception {
         // clean all templates setup by the framework.
         client().admin().indices().prepareDeleteTemplate("*").get();
@@ -379,7 +381,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         searchResponse = client().prepareSearch("complex_filtered_alias").get();
         assertHitCount(searchResponse, 3l);
 
-        Set<String> types = Sets.newHashSet();
+        Set<String> types = new HashSet<>();
         for (SearchHit searchHit : searchResponse.getHits().getHits()) {
             types.add(searchHit.getType());
         }
@@ -387,7 +389,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(types, containsInAnyOrder("typeX", "typeY", "typeZ"));
     }
 
-    @Test
     public void testIndexTemplateWithAliasesInSource() {
         client().admin().indices().preparePutTemplate("template_1")
                 .setSource("{\n" +
@@ -423,7 +424,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
     }
 
-    @Test
     public void testIndexTemplateWithAliasesSource() {
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
@@ -462,7 +462,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).type(), equalTo("type2"));
     }
 
-    @Test
     public void testDuplicateAlias() throws Exception {
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
@@ -476,9 +475,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getIndexTemplates().get(0).getAliases().get("my_alias").filter().string(), containsString("\"value1\""));
     }
 
-    @Test
     public void testAliasInvalidFilterValidJson() throws Exception {
-
         //invalid filter but valid json: put index template works fine, fails during index creation
         client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
@@ -494,14 +491,12 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
             fail("index creation should have failed due to invalid alias filter in matching index template");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("failed to parse filter for alias [invalid_alias]"));
-            assertThat(e.getCause(), instanceOf(QueryParsingException.class));
+            assertThat(e.getCause(), instanceOf(ParsingException.class));
             assertThat(e.getCause().getMessage(), equalTo("No query registered for [invalid]"));
         }
     }
 
-    @Test
     public void testAliasInvalidFilterInvalidJson() throws Exception {
-
         //invalid json: put index template fails
         PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
@@ -517,9 +512,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         assertThat(response.getIndexTemplates().size(), equalTo(0));
     }
 
-    @Test
     public void testAliasNameExistingIndex() throws Exception {
-
         createIndex("index");
 
         client().admin().indices().preparePutTemplate("template_1")
@@ -534,7 +527,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testAliasEmptyName() throws Exception {
         PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
@@ -548,7 +540,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testAliasWithMultipleIndexRoutings() throws Exception {
         PutIndexTemplateRequestBuilder putIndexTemplateRequestBuilder = client().admin().indices().preparePutTemplate("template_1")
                 .setTemplate("te*")
@@ -562,7 +553,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMultipleAliasesPrecedence() throws Exception {
         client().admin().indices().preparePutTemplate("template1")
                 .setTemplate("*")
@@ -600,7 +590,6 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testStrictAliasParsingInIndicesCreatedViaTemplates() throws Exception {
         // Indexing into a should succeed, because the field mapping for field 'field' is defined in the test mapping.
         client().admin().indices().preparePutTemplate("template1")

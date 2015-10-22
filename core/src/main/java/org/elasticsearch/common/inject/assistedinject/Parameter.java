@@ -1,4 +1,4 @@
-/**
+/*
  * Copyright (C) 2007 Google Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,8 +21,6 @@ import org.elasticsearch.common.inject.*;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
-
-import static com.google.common.base.Preconditions.checkArgument;
 
 /**
  * Models a method or constructor parameter.
@@ -103,7 +101,7 @@ class Parameter {
     /**
      * Replace annotation instances with annotation types, this is only
      * appropriate for testing if a key is bound and not for injecting.
-     * <p/>
+     * <p>
      * See Guice bug 125,
      * http://code.google.com/p/google-guice/issues/detail?id=125
      */
@@ -144,8 +142,9 @@ class Parameter {
         Annotation bindingAnnotation = null;
         for (Annotation a : annotations) {
             if (a.annotationType().getAnnotation(BindingAnnotation.class) != null) {
-                checkArgument(bindingAnnotation == null,
-                        "Parameter has multiple binding annotations: %s and %s", bindingAnnotation, a);
+                if (bindingAnnotation != null) {
+                    throw new IllegalArgumentException("Parameter has multiple binding annotations: " + bindingAnnotation + " and " + a);
+                }
                 bindingAnnotation = a;
             }
         }

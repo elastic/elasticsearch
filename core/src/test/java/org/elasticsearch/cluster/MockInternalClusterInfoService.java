@@ -18,16 +18,20 @@
  */
 package org.elasticsearch.cluster;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.TransportNodesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.TransportIndicesStatsAction;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDeciderTests;
-import org.elasticsearch.cluster.routing.allocation.decider.MockDiskUsagesIT;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -57,6 +61,21 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     private final ClusterName clusterName;
     private volatile NodeStats[] stats = new NodeStats[3];
 
+    /** Create a fake NodeStats for the given node and usage */
+    public static NodeStats makeStats(String nodeName, DiskUsage usage) {
+        FsInfo.Path[] paths = new FsInfo.Path[1];
+        FsInfo.Path path = new FsInfo.Path("/dev/null", null,
+            usage.getTotalBytes(), usage.getFreeBytes(), usage.getFreeBytes());
+        paths[0] = path;
+        FsInfo fsInfo = new FsInfo(System.currentTimeMillis(), paths);
+        return new NodeStats(new DiscoveryNode(nodeName, DummyTransportAddress.INSTANCE, Version.CURRENT),
+            System.currentTimeMillis(),
+            null, null, null, null, null,
+            fsInfo,
+            null, null, null,
+            null);
+    }
+
     @Inject
     public MockInternalClusterInfoService(Settings settings, NodeSettingsService nodeSettingsService,
                                           TransportNodesStatsAction transportNodesStatsAction,
@@ -64,21 +83,21 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
                                           ClusterService clusterService, ThreadPool threadPool) {
         super(settings, nodeSettingsService, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
         this.clusterName = ClusterName.clusterNameFromSettings(settings);
-        stats[0] = MockDiskUsagesIT.makeStats("node_t1", new DiskUsage("node_t1", "n1", "/dev/null", 100, 100));
-        stats[1] = MockDiskUsagesIT.makeStats("node_t2", new DiskUsage("node_t2", "n2", "/dev/null", 100, 100));
-        stats[2] = MockDiskUsagesIT.makeStats("node_t3", new DiskUsage("node_t3", "n3", "/dev/null", 100, 100));
+        stats[0] = makeStats("node_t1", new DiskUsage("node_t1", "n1", "/dev/null", 100, 100));
+        stats[1] = makeStats("node_t2", new DiskUsage("node_t2", "n2", "/dev/null", 100, 100));
+        stats[2] = makeStats("node_t3", new DiskUsage("node_t3", "n3", "/dev/null", 100, 100));
     }
 
     public void setN1Usage(String nodeName, DiskUsage newUsage) {
-        stats[0] = MockDiskUsagesIT.makeStats(nodeName, newUsage);
+        stats[0] = makeStats(nodeName, newUsage);
     }
 
     public void setN2Usage(String nodeName, DiskUsage newUsage) {
-        stats[1] = MockDiskUsagesIT.makeStats(nodeName, newUsage);
+        stats[1] = makeStats(nodeName, newUsage);
     }
 
     public void setN3Usage(String nodeName, DiskUsage newUsage) {
-        stats[2] = MockDiskUsagesIT.makeStats(nodeName, newUsage);
+        stats[2] = makeStats(nodeName, newUsage);
     }
 
     @Override
@@ -94,8 +113,24 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
         return new CountDownLatch(0);
     }
 
+    @Override
     public ClusterInfo getClusterInfo() {
         ClusterInfo clusterInfo = super.getClusterInfo();
-        return new ClusterInfo(clusterInfo.getNodeLeastAvailableDiskUsages(), clusterInfo.getNodeMostAvailableDiskUsages(), clusterInfo.shardSizes, DiskThresholdDeciderTests.DEV_NULL_MAP);
+        return new DevNullClusterInfo(clusterInfo.getNodeLeastAvailableDiskUsages(), clusterInfo.getNodeMostAvailableDiskUsages(), clusterInfo.shardSizes);
+    }
+
+    /**
+     * ClusterInfo that always points to DevNull.
+     */
+    public static class DevNullClusterInfo extends ClusterInfo {
+        public DevNullClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
+            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage, ImmutableOpenMap<String, Long> shardSizes) {
+            super(leastAvailableSpaceUsage, mostAvailableSpaceUsage, shardSizes, null);
+        }
+
+        @Override
+        public String getDataPath(ShardRouting shardRouting) {
+            return "/dev/null";
+        }
     }
 }

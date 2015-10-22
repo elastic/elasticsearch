@@ -24,15 +24,16 @@ import org.elasticsearch.action.admin.indices.refresh.RefreshResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.flushRequest;
+import static org.elasticsearch.client.Requests.getRequest;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleRecoveryIT extends ESIntegTestCase {
-
     @Override
     public Settings indexSettings() {
         return settingsBuilder().put(super.indexSettings()).put(recoverySettings()).build();
@@ -47,7 +48,6 @@ public class SimpleRecoveryIT extends ESIntegTestCase {
         return 1;
     }
 
-    @Test
     public void testSimpleRecovery() throws Exception {
         assertAcked(prepareCreate("test", 1).execute().actionGet());
 

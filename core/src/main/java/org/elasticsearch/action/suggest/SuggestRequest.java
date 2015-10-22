@@ -37,8 +37,8 @@ import java.util.Arrays;
 /**
  * A request to get suggestions for corrections of phrases. Best created with
  * {@link org.elasticsearch.client.Requests#suggestRequest(String...)}.
- * <p/>
- * <p>The request requires the suggest query source to be set either using
+ * <p>
+ * The request requires the suggest query source to be set either using
  * {@link #suggest(org.elasticsearch.common.bytes.BytesReference)} / {@link #suggest(org.elasticsearch.common.bytes.BytesReference)}
  * or by using {@link #suggest(org.elasticsearch.search.suggest.SuggestBuilder)}
  * (Best created using the {link @org.elasticsearch.search.suggest.SuggestBuilders)}).
@@ -58,7 +58,7 @@ public final class SuggestRequest extends BroadcastRequest<SuggestRequest> {
 
     private BytesReference suggestSource;
 
-    SuggestRequest() {
+    public SuggestRequest() {
     }
 
     /**

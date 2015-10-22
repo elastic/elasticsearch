@@ -43,4 +43,18 @@ public final class BootstrapInfo {
     public static boolean isMemoryLocked() {
         return Natives.isMemoryLocked();
     }
+    
+    /**
+     * Returns true if secure computing mode is enabled (supported systems only)
+     */
+    public static boolean isSeccompInstalled() {
+        return Natives.isSeccompInstalled();
+    }
+
+    /**
+     * codebase location for untrusted scripts (provide some additional safety)
+     * <p>
+     * This is not a full URL, just a path.
+     */
+    public static final String UNTRUSTED_CODEBASE = "/untrusted";
 }

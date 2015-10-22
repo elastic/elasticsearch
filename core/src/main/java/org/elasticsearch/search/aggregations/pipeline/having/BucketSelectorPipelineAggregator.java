@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.aggregations.pipeline.having;
 
-import com.google.common.base.Function;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -27,8 +26,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.expression.ExpressionScriptEngineService;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -63,13 +60,6 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
     public static void registerStreams() {
         PipelineAggregatorStreams.registerStream(STREAM, TYPE.stream());
     }
-
-    private static final Function<Aggregation, InternalAggregation> FUNCTION = new Function<Aggregation, InternalAggregation>() {
-        @Override
-        public InternalAggregation apply(Aggregation input) {
-            return (InternalAggregation) input;
-        }
-    };
 
     private GapPolicy gapPolicy;
 
@@ -114,7 +104,8 @@ public class BucketSelectorPipelineAggregator extends PipelineAggregator {
             ExecutableScript executableScript = reduceContext.scriptService().executable(compiledScript, vars);
             Object scriptReturnValue = executableScript.run();
             final boolean keepBucket;
-            if (ExpressionScriptEngineService.NAME.equals(script.getLang())) {
+            // TODO: WTF!!!!!
+            if ("expression".equals(script.getLang())) {
                 double scriptDoubleValue = (double) scriptReturnValue;
                 keepBucket = scriptDoubleValue == 1.0;
             } else {

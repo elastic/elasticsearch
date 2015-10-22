@@ -23,14 +23,12 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.Collection;
 
@@ -40,12 +38,12 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.instanceOf;
 
 public class CustomQueryParserIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(DummyQueryParserPlugin.class);
     }
 
+    @Override
     @Before
     public void setUp() throws Exception {
         super.setUp();
@@ -60,12 +58,10 @@ public class CustomQueryParserIT extends ESIntegTestCase {
         return cluster().numDataNodes();
     }
 
-    @Test
     public void testCustomDummyQuery() {
         assertHitCount(client().prepareSearch("index").setQuery(new DummyQueryParserPlugin.DummyQueryBuilder()).get(), 1l);
     }
 
-    @Test
     public void testCustomDummyQueryWithinBooleanQuery() {
         assertHitCount(client().prepareSearch("index").setQuery(new BoolQueryBuilder().must(new DummyQueryParserPlugin.DummyQueryBuilder())).get(), 1l);
     }
@@ -75,24 +71,24 @@ public class CustomQueryParserIT extends ESIntegTestCase {
         return indicesService.indexServiceSafe("index").queryParserService();
     }
 
-    @Test //see #11120
+    //see #11120
     public void testConstantScoreParsesFilter() throws Exception {
         IndexQueryParserService queryParser = queryParser();
-        Query q = queryParser.parse(constantScoreQuery(new DummyQueryParserPlugin.DummyQueryBuilder())).query();
+        Query q = constantScoreQuery(new DummyQueryParserPlugin.DummyQueryBuilder()).toQuery(queryParser.getShardContext());
         Query inner = ((ConstantScoreQuery) q).getQuery();
         assertThat(inner, instanceOf(DummyQueryParserPlugin.DummyQuery.class));
         assertEquals(true, ((DummyQueryParserPlugin.DummyQuery) inner).isFilter);
     }
 
-    @Test //see #11120
+    //see #11120
     public void testBooleanParsesFilter() throws Exception {
         IndexQueryParserService queryParser = queryParser();
         // single clause, serialized as inner object
-        Query q = queryParser.parse(boolQuery()
+        Query q = boolQuery()
                 .should(new DummyQueryParserPlugin.DummyQueryBuilder())
                 .must(new DummyQueryParserPlugin.DummyQueryBuilder())
                 .filter(new DummyQueryParserPlugin.DummyQueryBuilder())
-                .mustNot(new DummyQueryParserPlugin.DummyQueryBuilder())).query();
+                .mustNot(new DummyQueryParserPlugin.DummyQueryBuilder()).toQuery(queryParser.getShardContext());
         assertThat(q, instanceOf(BooleanQuery.class));
         BooleanQuery bq = (BooleanQuery) q;
         assertEquals(4, bq.clauses().size());
@@ -113,11 +109,11 @@ public class CustomQueryParserIT extends ESIntegTestCase {
         }
 
         // multiple clauses, serialized as inner arrays
-        q = queryParser.parse(boolQuery()
+        q = boolQuery()
                 .should(new DummyQueryParserPlugin.DummyQueryBuilder()).should(new DummyQueryParserPlugin.DummyQueryBuilder())
                 .must(new DummyQueryParserPlugin.DummyQueryBuilder()).must(new DummyQueryParserPlugin.DummyQueryBuilder())
                 .filter(new DummyQueryParserPlugin.DummyQueryBuilder()).filter(new DummyQueryParserPlugin.DummyQueryBuilder())
-                .mustNot(new DummyQueryParserPlugin.DummyQueryBuilder()).mustNot(new DummyQueryParserPlugin.DummyQueryBuilder())).query();
+                .mustNot(new DummyQueryParserPlugin.DummyQueryBuilder()).mustNot(new DummyQueryParserPlugin.DummyQueryBuilder()).toQuery(queryParser.getShardContext());
         assertThat(q, instanceOf(BooleanQuery.class));
         bq = (BooleanQuery) q;
         assertEquals(8, bq.clauses().size());

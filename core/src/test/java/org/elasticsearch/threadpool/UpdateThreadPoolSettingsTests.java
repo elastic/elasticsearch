@@ -19,12 +19,10 @@
 
 package org.elasticsearch.threadpool;
 
-import com.google.common.util.concurrent.MoreExecutors;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.junit.Test;
 
 import java.lang.reflect.Field;
 import java.util.concurrent.CountDownLatch;
@@ -33,12 +31,16 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
 /**
  */
 public class UpdateThreadPoolSettingsTests extends ESTestCase {
-
     private ThreadPool.Info info(ThreadPool threadPool, String name) {
         for (ThreadPool.Info info : threadPool.info()) {
             if (info.getName().equals(name)) {
@@ -48,7 +50,6 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         return null;
     }
 
-    @Test
     public void testCachedExecutorType() throws InterruptedException {
         ThreadPool threadPool = new ThreadPool(
                 Settings.settingsBuilder()
@@ -62,7 +63,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         // Replace with different type
         threadPool.updateSettings(settingsBuilder().put("threadpool.search.type", "same").build());
         assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("same"));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(MoreExecutors.directExecutor().getClass()));
+        assertThat(threadPool.executor(Names.SEARCH), is(ThreadPool.DIRECT_EXECUTOR));
 
         // Replace with different type again
         threadPool.updateSettings(settingsBuilder()
@@ -104,7 +105,6 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testFixedExecutorType() throws InterruptedException {
         ThreadPool threadPool = new ThreadPool(settingsBuilder()
                 .put("threadpool.search.type", "fixed")
@@ -163,8 +163,6 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         terminate(threadPool);
     }
 
-
-    @Test
     public void testScalingExecutorType() throws InterruptedException {
         ThreadPool threadPool = new ThreadPool(settingsBuilder()
                 .put("threadpool.search.type", "scaling")
@@ -199,19 +197,18 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test(timeout = 10000)
-    public void testShutdownDownNowDoesntBlock() throws Exception {
+    public void testShutdownNowInterrupts() throws Exception {
         ThreadPool threadPool = new ThreadPool(Settings.settingsBuilder()
                 .put("threadpool.search.type", "cached")
                 .put("name","testCachedExecutorType").build());
 
         final CountDownLatch latch = new CountDownLatch(1);
-        Executor oldExecutor = threadPool.executor(Names.SEARCH);
+        ThreadPoolExecutor oldExecutor = (ThreadPoolExecutor) threadPool.executor(Names.SEARCH);
         threadPool.executor(Names.SEARCH).execute(new Runnable() {
             @Override
             public void run() {
                 try {
-                    Thread.sleep(20000);
+                    new CountDownLatch(1).await();
                 } catch (InterruptedException ex) {
                     latch.countDown();
                     Thread.currentThread().interrupt();
@@ -220,15 +217,14 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         });
         threadPool.updateSettings(settingsBuilder().put("threadpool.search.type", "fixed").build());
         assertThat(threadPool.executor(Names.SEARCH), not(sameInstance(oldExecutor)));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isShutdown(), equalTo(true));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isTerminating(), equalTo(true));
-        assertThat(((ThreadPoolExecutor) oldExecutor).isTerminated(), equalTo(false));
-        threadPool.shutdownNow(); // interrupt the thread
-        latch.await();
+        assertThat(oldExecutor.isShutdown(), equalTo(true));
+        assertThat(oldExecutor.isTerminating(), equalTo(true));
+        assertThat(oldExecutor.isTerminated(), equalTo(false));
+        threadPool.shutdownNow(); // should interrupt the thread
+        latch.await(3, TimeUnit.SECONDS); // If this throws then shotdownNow didn't interrupt
         terminate(threadPool);
     }
 
-    @Test
     public void testCustomThreadPool() throws Exception {
         ThreadPool threadPool = new ThreadPool(Settings.settingsBuilder()
                 .put("threadpool.my_pool1.type", "cached")

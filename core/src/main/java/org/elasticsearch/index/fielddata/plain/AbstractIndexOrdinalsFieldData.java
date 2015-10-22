@@ -59,7 +59,7 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -70,13 +70,13 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
     }
 

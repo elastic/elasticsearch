@@ -30,6 +30,8 @@ import java.util.Map;
  */
 public final class ProfileBreakdown {
 
+    public static final Map<String, Long> EMPTY_TIMINGS = new ProfileBreakdown(false).toTimingMap();
+
     /** Enumeration of all supported timing types. */
     public enum TimingType {
         REWRITE,
@@ -54,7 +56,7 @@ public final class ProfileBreakdown {
     /**
      * The temporary scratch space for holding start-times
      */
-    private final long[] scratch;
+    private long scratch;
 
     /**
      * Does this breakdown need to be "reconciled" later?  A breakdown
@@ -66,7 +68,6 @@ public final class ProfileBreakdown {
     /** Sole constructor. */
     public ProfileBreakdown(boolean needsReconciling) {
         timings = new long[TimingType.values().length];
-        scratch = new long[TimingType.values().length];
         this.needsReconciling = needsReconciling;
     }
 
@@ -75,8 +76,8 @@ public final class ProfileBreakdown {
      * @param timing    The timing context being profiled
      */
     public void startTime(TimingType timing) {
-        assert scratch[timing.ordinal()] == 0;
-        scratch[timing.ordinal()] = System.nanoTime();
+        assert scratch == 0;
+        scratch = System.nanoTime();
     }
 
     /**
@@ -89,9 +90,9 @@ public final class ProfileBreakdown {
      * @return          The elapsed time
      */
     public long stopAndRecordTime(TimingType timing) {
-        long time = System.nanoTime() - scratch[timing.ordinal()];
+        long time = Math.max(1, System.nanoTime() - scratch);
         timings[timing.ordinal()] += time;
-        scratch[timing.ordinal()] = 0L;
+        scratch = 0L;
         return time;
     }
 

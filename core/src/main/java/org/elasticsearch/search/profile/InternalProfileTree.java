@@ -35,10 +35,7 @@ public class InternalProfileTree {
 
     private static Map<String, Long> mergeTimings(Iterable<Map<String, Long>> timings) {
         Iterator<Map<String, Long>> timingIt = timings.iterator();
-        if (timingIt.hasNext() == false) {
-            return Collections.emptyMap();
-        }
-        Map<String, Long> merged = new HashMap<>(timingIt.next());
+        Map<String, Long> merged = new HashMap<>(ProfileBreakdown.EMPTY_TIMINGS);
         while (timingIt.hasNext()) {
             for (Map.Entry<String, Long> entry : timingIt.next().entrySet()) {
                 merged.put(entry.getKey(), merged.get(entry.getKey()) + entry.getValue());

@@ -51,6 +51,7 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder.FuzzyOptionsBuilder;
 import org.elasticsearch.search.suggest.completion.context.*;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.hamcrest.Matcher;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -128,7 +129,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                     .setSource(jsonBuilder()
                                     .startObject()
                                     .startObject(FIELD)
-                                    .field("input", "sugxgestion"+i)
+                                    .field("input", "sugxgestion" + i)
                                     .field("weight", i)
                                     .endObject()
                                     .endObject()
@@ -263,6 +264,57 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         for (CompletionSuggestion.Entry.Option option : options.getOptions()) {
             assertThat(option.getPayload().keySet(), contains("test_field"));
         }
+    }
+
+    @Test
+    public void testPayload() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        XContentBuilder source = jsonBuilder()
+                .startObject()
+                .startObject(FIELD)
+                .field("input", "suggest")
+                .field("weight", 1)
+                .endObject()
+                .field("title", "title1")
+                .field("count", 1)
+                .endObject();
+        indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "1").setSource(source));
+        source = jsonBuilder()
+                .startObject()
+                .startObject(FIELD)
+                .field("input", "suggestion")
+                .field("weight", 2)
+                .endObject()
+                .field("title", "title2")
+                .field("count", 2)
+                .endObject();
+        indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "2").setSource(source));
+        for (int i = 0; i < 5; i++) {
+            indexRandom(true, indexRequestBuilders);
+        }
+
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").payload("title", "count");
+        SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(prefix).execute().actionGet();
+        assertNoFailures(suggestResponse);
+        CompletionSuggestion completionSuggestion = suggestResponse.getSuggest().getSuggestion("foo");
+        List<CompletionSuggestion.Entry.Option> options = completionSuggestion.getEntries().get(0).getOptions();
+        assertThat(options.size(), equalTo(2));
+        assertThat(options.get(0).getText().toString(), equalTo("suggestion"));
+        assertThat(options.get(0).getScore(), equalTo(2f));
+        assertThat(options.get(1).getText().toString(), equalTo("suggest"));
+        assertThat(options.get(1).getScore(), equalTo(1f));
+
+        Map<String, List<Object>> firstPayload = options.get(0).getPayload();
+        assertThat(firstPayload.keySet(), contains("title", "count"));
+        assertThat((String) firstPayload.get("title").get(0), equalTo("title2"));
+        assertThat((long) firstPayload.get("count").get(0), equalTo(2l));
+
+        Map<String, List<Object>> secondPayload = options.get(1).getPayload();
+        assertThat(secondPayload.keySet(), contains("title", "count"));
+        assertThat((String) secondPayload.get("title").get(0), equalTo("title1"));
+        assertThat((long) secondPayload.get("count").get(0), equalTo(1l));
     }
 
     @Test

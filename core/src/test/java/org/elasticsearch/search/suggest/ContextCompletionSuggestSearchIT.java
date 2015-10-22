@@ -24,6 +24,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestResponse;
+import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -40,11 +41,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 
 @SuppressCodecs("*") // requires custom completion format
 public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
-
-    /* TODO: currently to get n completions with contexts, we have to request size of
-     * n * size(contexts); internally a suggestion + a context value is considered
-     * as one hit, instead of a suggestion + all its context values
-     */
 
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
@@ -230,10 +226,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
-    @Override
-    protected int numberOfShards() {
-        return 1;
-    }
     @Test
     public void testMultiContextFiltering() throws Exception {
         LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
@@ -491,7 +483,37 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         CompletionSuggestionBuilder geoBoostingPrefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg")
                 .geoContexts("geo", new GeoQueryContext(geoHashes[0], 2), new GeoQueryContext(geoHashes[1]));
 
-        assertSuggestions("foo", geoBoostingPrefix, "suggestion8", "suggestion6", "suggestion9", "suggestion4", "suggestion7");
+        assertSuggestions("foo", geoBoostingPrefix, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion7");
+    }
+
+    @Test
+    public void testGeoPointContext() throws Exception {
+        LinkedHashMap<String, ContextMapping> map = new LinkedHashMap<>();
+        map.put("geo", ContextBuilder.geo("geo").build());
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder().context(map);
+        createIndexAndMapping(mapping);
+        int numDocs = 10;
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            XContentBuilder source = jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", "suggestion" + i)
+                    .field("weight", i + 1)
+                    .startObject("contexts")
+                    .startObject("geo")
+                        .field("lat", 52.22)
+                        .field("lon", 4.53)
+                    .endObject()
+                    .endObject()
+                    .endObject().endObject();
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(source));
+        }
+        indexRandom(true, indexRequestBuilders);
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg")
+                .geoContexts("geo", new GeoQueryContext(new GeoPoint(52.2263, 4.543)));
+        assertSuggestions("foo", prefix, "suggestion9", "suggestion8", "suggestion7", "suggestion6", "suggestion5");
     }
 
     @Test

@@ -775,18 +775,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         client().prepareIndex("test1", "baz", Integer.toString(1)).setSource("{\"bar\":\"bar\",\"baz\":\"baz\"}").execute().actionGet();
         refresh();
 
-        // should not load FST in memory yet
         IndicesStatsRequestBuilder builder = client().admin().indices().prepareStats();
         IndicesStatsResponse stats = builder.execute().actionGet();
-        assertThat(stats.getTotal().completion.getSizeInBytes(), equalTo(0l));
-        assertThat(stats.getTotal().completion.getFields(), is(nullValue()));
-
-        // load FST in memory by searching
-        client().prepareSuggest().addSuggestion(SuggestBuilders.completionSuggestion("suggest").field("bar.completion").prefix("ba")).get();
-        client().prepareSuggest().addSuggestion(SuggestBuilders.completionSuggestion("suggest").field("baz.completion").prefix("ba")).get();
-
-        builder = client().admin().indices().prepareStats();
-        stats = builder.execute().actionGet();
 
         assertThat(stats.getTotal().completion.getSizeInBytes(), greaterThan(0l));
         assertThat(stats.getTotal().completion.getFields(), is(nullValue()));

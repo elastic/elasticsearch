@@ -194,8 +194,8 @@ setup:
               field: suggest_geo
               contexts:
                 location:
-                  lat : 52.22
-                  lon : 4.53
+                  lat : 52.2263
+                  lon : 4.543
 
   - length: { result: 1  }
   - length: { result.0.options: 1  }

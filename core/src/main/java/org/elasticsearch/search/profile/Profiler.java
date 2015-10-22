@@ -32,17 +32,16 @@ import java.util.*;
  * to know the relationship between nodes in tree without explicitly
  * walking the tree or pre-wrapping everything
  */
-public class InternalProfiler {
+public final class Profiler {
 
-    private InternalProfileTree queryTree = new InternalProfileTree();
-
+    private final InternalProfileTree queryTree = new InternalProfileTree();
 
     /**
      * The root Collector used in the search
      */
     private InternalProfileCollector collector;
 
-    public InternalProfiler() {
+    public Profiler() {
     }
 
     /**
@@ -127,7 +126,7 @@ public class InternalProfiler {
      * @param purpose  A "hint" for the user to understand the context the Collector is being used in
      * @return         A Collector which has been wrapped for profiling
      */
-    public static Collector wrapCollector(InternalProfiler profiler, Collector original, CollectorReason purpose) {
+    public static Collector wrapCollector(Profiler profiler, Collector original, CollectorReason purpose) {
         if (profiler != null && !(original instanceof InternalProfileCollector)) {
             InternalProfileCollector c = new InternalProfileCollector(original, purpose);
 
@@ -148,7 +147,7 @@ public class InternalProfiler {
      * @param original The Collector to be wrapped
      * @return         A Collector which has been wrapped for profiling
      */
-    public static Collector wrapCollector(InternalProfiler profiler, Collector original) {
+    public static Collector wrapCollector(Profiler profiler, Collector original) {
         return wrapCollector(profiler, original, CollectorReason.GENERAL);
     }
 
@@ -160,7 +159,7 @@ public class InternalProfiler {
      * @param original The Collector to be wrapped
      * @return         A Collector which has been wrapped for profiling
      */
-    public static Collector wrapBucketCollector(InternalProfiler profiler, Collector original) {
+    public static Collector wrapBucketCollector(Profiler profiler, Collector original) {
         return wrapBucketCollector(profiler, original, false);
     }
 
@@ -175,7 +174,7 @@ public class InternalProfiler {
      * @param global   True if this Collector is being used as a global aggregation
      * @return         A Collector which has been wrapped for profiling
      */
-    public static Collector wrapBucketCollector(InternalProfiler profiler, Collector original, boolean global) {
+    public static Collector wrapBucketCollector(Profiler profiler, Collector original, boolean global) {
         if (profiler != null && !(original instanceof InternalProfileCollector)) {
             if (global) {
                 // Global aggs are built after all search phase is done, so
@@ -208,7 +207,7 @@ public class InternalProfiler {
      * @param constituents  The list of Collectors that the MultiCollector contains
      * @return              A wrapped MultiCollector
      */
-    public static Collector wrapMultiCollector(InternalProfiler profiler, Collector multi, List<Collector> constituents) {
+    public static Collector wrapMultiCollector(Profiler profiler, Collector multi, List<Collector> constituents) {
         if (profiler != null) {
 
             // If the multicollector hasn't been wrapped yet, wrap it

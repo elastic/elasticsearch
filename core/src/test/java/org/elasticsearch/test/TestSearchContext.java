@@ -60,7 +60,7 @@ import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.profile.InternalProfiler;
+import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -673,7 +673,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public InternalProfiler queryProfiler() {
+    public Profiler queryProfiler() {
         return null;
     }
 

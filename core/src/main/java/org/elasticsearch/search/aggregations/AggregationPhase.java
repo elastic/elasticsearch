@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.InternalProfiler;
+import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
@@ -73,7 +73,7 @@ public class AggregationPhase implements SearchPhase {
 
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
-            InternalProfiler profiler = context.queryProfiler();
+            Profiler profiler = context.queryProfiler();
             try {
                 AggregatorFactories factories = context.aggregations().factories();
                 aggregators = factories.createTopLevelAggregators(aggregationContext);
@@ -86,7 +86,7 @@ public class AggregationPhase implements SearchPhase {
                 if (!collectors.isEmpty()) {
                     Collector collector = BucketCollector.wrap(collectors);
                     ((BucketCollector)collector).preCollection();
-                    collector = InternalProfiler.wrapBucketCollector(profiler, collector);
+                    collector = Profiler.wrapBucketCollector(profiler, collector);
                     context.queryCollectors().put(AggregationPhase.class, collector);
                 }
             } catch (IOException e) {
@@ -129,7 +129,7 @@ public class AggregationPhase implements SearchPhase {
             }
             try {
                 ((BucketCollector)globalsCollector).preCollection();
-                globalsCollector = InternalProfiler.wrapBucketCollector(context.queryProfiler(), globalsCollector, true);
+                globalsCollector = Profiler.wrapBucketCollector(context.queryProfiler(), globalsCollector, true);
                 context.searcher().search(query, globalsCollector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);

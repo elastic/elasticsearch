@@ -28,7 +28,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.common.lucene.search.ProfileWeight;
 import org.elasticsearch.search.profile.ProfileBreakdown;
-import org.elasticsearch.search.profile.InternalProfiler;
+import org.elasticsearch.search.profile.Profiler;
 
 import java.io.IOException;
 
@@ -45,7 +45,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
 
     private final Engine.Searcher engineSearcher;
-    private InternalProfiler profiler;
+    private Profiler profiler;
 
     public ContextIndexSearcher(Engine.Searcher searcher,
             QueryCache queryCache, QueryCachingPolicy queryCachingPolicy) {
@@ -61,7 +61,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public void close() {
     }
 
-    public void setProfiler(InternalProfiler profiler) {
+    public void setProfiler(Profiler profiler) {
         this.profiler = profiler;
     }
 

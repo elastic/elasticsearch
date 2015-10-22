@@ -74,7 +74,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.profile.InternalProfiler;
+import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -758,7 +758,7 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public InternalProfiler queryProfiler() {
+    public Profiler queryProfiler() {
         throw new UnsupportedOperationException();
     }
 }

@@ -288,6 +288,12 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         final Exporter exporter = internalCluster().getInstance(Exporters.class).getExporter(name);
         assertThat(exporter, notNullValue());
         assertThat(exporter, instanceOf(LocalExporter.class));
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                assertThat(exporter.openBulk(), notNullValue());
+            }
+        });
         return (LocalExporter) exporter;
     }
 

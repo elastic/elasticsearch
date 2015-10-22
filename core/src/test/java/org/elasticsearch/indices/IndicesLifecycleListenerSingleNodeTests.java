@@ -49,7 +49,6 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         ensureGreen();
         IndexMetaData metaData = indicesService.indexService("test").getMetaData();
         ShardRouting shardRouting = indicesService.indexService("test").getShard(0).routingEntry();
-        assertAcked(client().admin().indices().prepareDelete("test").get());
         final AtomicInteger counter = new AtomicInteger(1);
         IndexEventListener countingListener = new IndexEventListener() {
             @Override
@@ -88,18 +87,22 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
                 counter.incrementAndGet();
             }
         };
-        IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
-        ShardRouting newRouting = new ShardRouting(shardRouting);
-        String nodeId = newRouting.currentNodeId();
-        ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom"));
-        ShardRoutingHelper.initialize(newRouting, nodeId);
-        IndexShard shard = index.createShard(0, newRouting);
-        shard.updateRoutingEntry(newRouting, true);
-        shard.recoverFromStore(newRouting, new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT));
-        newRouting = new ShardRouting(newRouting);
-        ShardRoutingHelper.moveToStarted(newRouting);
-        shard.updateRoutingEntry(newRouting, true);
         indicesService.deleteIndex("test", "simon says");
+        try {
+            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
+            ShardRouting newRouting = new ShardRouting(shardRouting);
+            String nodeId = newRouting.currentNodeId();
+            ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom"));
+            ShardRoutingHelper.initialize(newRouting, nodeId);
+            IndexShard shard = index.createShard(0, newRouting);
+            shard.updateRoutingEntry(newRouting, true);
+            shard.recoverFromStore(newRouting, new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT));
+            newRouting = new ShardRouting(newRouting);
+            ShardRoutingHelper.moveToStarted(newRouting);
+            shard.updateRoutingEntry(newRouting, true);
+        } finally {
+            indicesService.deleteIndex("test", "simon says");
+        }
         assertEquals(7, counter.get());
     }
 

@@ -72,7 +72,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     /**
      * A "hint" to help provide some context about this Collector
      */
-    private CollectorReason reason;
+    private String reason;
 
     /**
      * The total elapsed time for this Collector
@@ -87,7 +87,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
 
     private List<InternalProfileCollector> children = new ArrayList<>(5);
 
-    public InternalProfileCollector(Collector collector, CollectorReason reason) {
+    public InternalProfileCollector(Collector collector, String reason) {
         this.collector = Objects.requireNonNull(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(this.collector);
@@ -118,7 +118,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
         }
 
         // Aggregation collector toString()'s include the user-defined agg name
-        if (reason.equals(CollectorReason.AGGREGATION) || reason.equals(CollectorReason.AGGREGATION_GLOBAL)) {
+        if (reason.equals(REASON_AGGREGATION) || reason.equals(REASON_AGGREGATION_GLOBAL)) {
             s += ": [" + c.toString() + "]";
         }
         return s;
@@ -157,7 +157,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
      * Returns the reason "hint"
      */
     @Override
-    public CollectorReason getReason() {
+    public String getReason() {
         return reason;
     }
 
@@ -188,7 +188,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
         for (InternalProfileCollector child : children) {
             // Global bucket collectors happen after the search, so they won't be
             // included in the time naturally
-            if (child.getReason().equals(CollectorReason.AGGREGATION_GLOBAL)) {
+            if (child.getReason().equals(REASON_AGGREGATION_GLOBAL)) {
                 totalTime += child.getTime();
             }
         }
@@ -247,10 +247,9 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     @Override
     public void readFrom(StreamInput in) throws IOException {
         collectorName = in.readString();
-        reason = CollectorReason.fromInt(in.readVInt());
+        reason = in.readString();
         time = in.readLong();
         globalTime = in.readLong();
-
         int size = in.readVInt();
         children = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -268,7 +267,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(collectorName);
-        out.writeVInt(reason.getReason());
+        out.writeString(reason);
         out.writeLong(time);
         out.writeLong(globalTime);
         out.writeVInt(children.size());

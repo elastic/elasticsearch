@@ -21,7 +21,6 @@ package org.elasticsearch.search.profile;
 
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.search.profile.CollectorResult.CollectorReason;
 
 import java.util.*;
 
@@ -126,7 +125,7 @@ public final class Profiler {
      * @param purpose  A "hint" for the user to understand the context the Collector is being used in
      * @return         A Collector which has been wrapped for profiling
      */
-    public static Collector wrapCollector(Profiler profiler, Collector original, CollectorReason purpose) {
+    public static Collector wrapCollector(Profiler profiler, Collector original, String purpose) {
         if (profiler != null && !(original instanceof InternalProfileCollector)) {
             InternalProfileCollector c = new InternalProfileCollector(original, purpose);
 
@@ -137,18 +136,6 @@ public final class Profiler {
             return c;
         }
         return original;
-    }
-
-    /**
-     * Convenience helper for wrapCollector() when you do not have / do not know an
-     * appropriate Reason "hint".  Uses GENERAL as the Reason
-     *
-     * @param profiler The InternalProfiler associated with the search context
-     * @param original The Collector to be wrapped
-     * @return         A Collector which has been wrapped for profiling
-     */
-    public static Collector wrapCollector(Profiler profiler, Collector original) {
-        return wrapCollector(profiler, original, CollectorReason.GENERAL);
     }
 
     /**
@@ -179,13 +166,13 @@ public final class Profiler {
             if (global) {
                 // Global aggs are built after all search phase is done, so
                 // global agg collectors must be appended to the root collector.
-                InternalProfileCollector c = new InternalProfileCollector(original, CollectorReason.AGGREGATION_GLOBAL);
+                InternalProfileCollector c = new InternalProfileCollector(original, CollectorResult.REASON_AGGREGATION_GLOBAL);
                 profiler.getCollector().addChild(c);
                 return c;
             }
             // Otherwise this is a non-global agg, so it'll be wrapped by a multi later and we don't need
             // to set children now
-            return new InternalProfileCollector(original, CollectorReason.AGGREGATION);
+            return new InternalProfileCollector(original, CollectorResult.REASON_AGGREGATION);
         }
         return original;
     }
@@ -212,7 +199,7 @@ public final class Profiler {
 
             // If the multicollector hasn't been wrapped yet, wrap it
             if (!(multi instanceof InternalProfileCollector)) {
-                multi = new InternalProfileCollector(multi, CollectorReason.SEARCH_MULTI);
+                multi = new InternalProfileCollector(multi, CollectorResult.REASON_SEARCH_MULTI);
             } else if (constituents.size() == 1) {
                 // If multi is wrapped already, and size is one, the child has already
                 // been configured and we need to bail otherwise we create a cycle
@@ -227,7 +214,7 @@ public final class Profiler {
                 // Safety mechanism.  Hopefully all collectors were wrapped in the
                 // calling code, but if not, wrap them in a generic ProfileCollector
                 if (!(c instanceof InternalProfileCollector)) {
-                    c = new InternalProfileCollector(c, CollectorReason.GENERAL);
+                    c = new InternalProfileCollector(c, CollectorResult.REASON_GENERAL);
                 }
                 ((InternalProfileCollector) multi).addChild((InternalProfileCollector) c);
             }

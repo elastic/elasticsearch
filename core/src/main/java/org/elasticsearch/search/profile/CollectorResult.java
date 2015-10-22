@@ -28,40 +28,16 @@ import java.util.List;
  */
 public interface CollectorResult {
 
-    /**
-     * Collectors are used for a variety of purposes (scoring, limiting time, etc).  To help the
-     * user understand what the collector does, an optional CollectorReason can be supplied
-     * when instantiating the CollectorResult
-     */
-    enum CollectorReason {
-        GENERAL(0), SEARCH_COUNT(1), SEARCH_SCAN(2), SEARCH_SORTED(3), SEARCH_TERMINATE_AFTER_COUNT(4),
-        SEARCH_POST_FILTER(5), SEARCH_MIN_SCORE(6), SEARCH_MULTI(7), SEARCH_TIMEOUT(8), AGGREGATION(9), AGGREGATION_GLOBAL(10);
-
-        private int reason;
-
-        CollectorReason(int reason) {
-            this.reason = reason;
-        }
-
-        public int getReason() {
-            return reason;
-        }
-
-        @Override
-        public String toString() {
-            return name().toLowerCase();
-        }
-
-        public static CollectorReason fromInt(int reason) {
-            CollectorReason[] values = CollectorReason.values();
-            for (CollectorReason value : values) {
-                if (value.getReason() == reason) {
-                    return value;
-                }
-            }
-            return GENERAL;
-        }
-    }
+    public static final String REASON_GENERAL = "general";
+    public static final String REASON_SEARCH_COUNT = "search_count";
+    public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
+    public static final String REASON_SEARCH_TERMINATE_AFTER_COUNT = "search_terminate_after_count";
+    public static final String REASON_SEARCH_POST_FILTER = "search_post_filter";
+    public static final String REASON_SEARCH_MIN_SCORE = "search_min_score";
+    public static final String REASON_SEARCH_MULTI = "search_multi";
+    public static final String REASON_SEARCH_TIMEOUT = "search_timeout";
+    public static final String REASON_AGGREGATION = "aggregation";
+    public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
     /**
      * Return the elapsed time for this Collector, inclusive of all children
@@ -79,7 +55,7 @@ public interface CollectorResult {
      * Return the reason "hint" for the Collector, to provide a little more
      * context to the end user why the Collector was added to the query.
      */
-    CollectorReason getReason();
+    String getReason();
 
     /**
      * Return the Class name of this Collector

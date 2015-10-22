@@ -52,7 +52,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.CollectorResult.CollectorReason;
+import org.elasticsearch.search.profile.CollectorResult;
 import org.elasticsearch.search.profile.InternalProfileCollector;
 import org.elasticsearch.search.profile.InternalProfileResult;
 import org.elasticsearch.search.profile.Profiler;
@@ -185,7 +185,7 @@ public class QueryPhase implements SearchPhase {
             if (searchContext.size() == 0) { // no matter what the value of from is
                 final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
                 collector = totalHitCountCollector;
-                collector = Profiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_COUNT);
+                collector = Profiler.wrapCollector(profiler, collector, CollectorResult.REASON_SEARCH_COUNT);
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -240,7 +240,7 @@ public class QueryPhase implements SearchPhase {
                     topDocsCollector = TopScoreDocCollector.create(numDocs, lastEmittedDoc);
                 }
                 collector = topDocsCollector;
-                collector = Profiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_SORTED);
+                collector = Profiler.wrapCollector(profiler, collector, CollectorResult.REASON_SEARCH_TOP_HITS);
                 topDocsCallable = new Callable<TopDocs>() {
                     @Override
                     public TopDocs call() throws Exception {
@@ -278,7 +278,7 @@ public class QueryPhase implements SearchPhase {
             if (terminateAfterSet) {
                 // throws Lucene.EarlyTerminationException when given count is reached
                 collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
-                collector = Profiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_TERMINATE_AFTER_COUNT);
+                collector = Profiler.wrapCollector(profiler, collector, CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT);
             }
 
             if (searchContext.parsedPostFilter() != null) {
@@ -287,7 +287,7 @@ public class QueryPhase implements SearchPhase {
                 // since that is where the filter should only work
                 final Weight filterWeight = searcher.createNormalizedWeight(searchContext.parsedPostFilter().query(), false);
                 collector = new FilteredCollector(collector, filterWeight);
-                collector = Profiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_POST_FILTER);
+                collector = Profiler.wrapCollector(profiler, collector, CollectorResult.REASON_SEARCH_POST_FILTER);
             }
 
             // plug in additional collectors, like aggregations
@@ -300,7 +300,7 @@ public class QueryPhase implements SearchPhase {
             // apply the minimum score after multi collector so we filter aggs as well
             if (searchContext.minimumScore() != null) {
                 collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
-                collector = Profiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_MIN_SCORE);
+                collector = Profiler.wrapCollector(profiler, collector, CollectorResult.REASON_SEARCH_MIN_SCORE);
             }
 
             if (collector.getClass() == TotalHitCountCollector.class) {
@@ -348,7 +348,7 @@ public class QueryPhase implements SearchPhase {
                 // TODO: change to use our own counter that uses the scheduler in ThreadPool
                 // throws TimeLimitingCollector.TimeExceededException when timeout has reached
                 collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
-                collector = Profiler.wrapCollector(profiler, collector, CollectorReason.SEARCH_TIMEOUT);
+                collector = Profiler.wrapCollector(profiler, collector, CollectorResult.REASON_SEARCH_TIMEOUT);
             }
 
             try {

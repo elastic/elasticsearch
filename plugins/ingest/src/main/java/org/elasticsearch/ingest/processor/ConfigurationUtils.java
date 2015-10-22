@@ -92,4 +92,82 @@ public final class ConfigurationUtils {
             throw new IllegalArgumentException("property [" + propertyName + "] isn't a list, but of type [" + value.getClass().getName() + "]");
         }
     }
+
+    /**
+     * Returns and removes the specified property of type list from the specified configuration map.
+     *
+     * If the property value isn't of type list an {@link IllegalArgumentException} is thrown.
+     */
+    public static List<String> readOptionalStringList(Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<String> stringList = (List<String>) value;
+            return stringList;
+        } else {
+            throw new IllegalArgumentException("property [" + propertyName + "] isn't a list, but of type [" + value.getClass().getName() + "]");
+        }
+    }
+
+    /**
+     * Returns and removes the specified property of type map from the specified configuration map.
+     *
+     * If the property value isn't of type map an {@link IllegalArgumentException} is thrown.
+     */
+    public static Map<String, List<String>> readOptionalStringListMap(Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            return null;
+        }
+        if (value instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, List<String>> stringList = (Map<String, List<String>>) value;
+            return stringList;
+        } else {
+            throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
+        }
+    }
+
+    /**
+     * Returns and removes the specified property of type map from the specified configuration map.
+     *
+     * If the property value isn't of type map an {@link IllegalArgumentException} is thrown.
+     */
+    public static Map<String, String> readOptionalStringMap(Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Map) {
+            Map<String, String> map = (Map<String, String>) value;
+            return map;
+        } else {
+            throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
+        }
+    }
+
+    /**
+     * Returns and removes the specified property of type map from the specified configuration map.
+     *
+     * If the property value isn't of type map an {@link IllegalArgumentException} is thrown.
+     */
+    public static Map<String, Object> readOptionalObjectMap(Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+
+        if (value == null) {
+            return null;
+        }
+
+        if (value instanceof Map) {
+            Map<String, Object> map = (Map<String, Object>) value;
+            return map;
+        } else {
+            throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
+        }
+    }
 }

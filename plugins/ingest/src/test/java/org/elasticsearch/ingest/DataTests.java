@@ -49,6 +49,22 @@ public class DataTests extends ESTestCase {
         assertThat(data.getProperty("fizz.buzz"), equalTo("hello world"));
     }
 
+    public void testContainsProperty() {
+        assertTrue(data.containsProperty("fizz"));
+    }
+
+    public void testContainsProperty_Nested() {
+        assertTrue(data.containsProperty("fizz.buzz"));
+    }
+
+    public void testContainsProperty_NotFound() {
+        assertFalse(data.containsProperty("doesnotexist"));
+    }
+
+    public void testContainsProperty_NestedNotFound() {
+        assertFalse(data.containsProperty("fizz.doesnotexist"));
+    }
+
     public void testSimpleAddField() {
         data.addField("new_field", "foo");
         assertThat(data.getDocument().get("new_field"), equalTo("foo"));

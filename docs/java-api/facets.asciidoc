@@ -2,7 +2,7 @@
 == Facets
 
 Elasticsearch provides a full Java API to play with facets. See the
-{ref}/search-facets.html[Facets guide].
+{ref-deprecate}/search-facets.html[Facets guide].
 
 Use the factory for facet builders (`FacetBuilders`) and add each facet
 you want to compute when querying and add it to your search request:

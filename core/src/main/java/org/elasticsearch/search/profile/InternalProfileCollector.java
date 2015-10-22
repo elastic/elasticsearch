@@ -93,6 +93,11 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
         this.collectorName = deriveCollectorName(this.collector);
     }
 
+    /** For serialization. */
+    public InternalProfileCollector() {
+        // no-op
+    }
+
     /**
      * Creates a human-friendly representation of the Collector name.
      *
@@ -255,7 +260,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     }
 
     public static InternalProfileCollector readProfileCollectorFromStream(StreamInput in) throws IOException {
-        InternalProfileCollector newInternalProfileCollector = new InternalProfileCollector(null, CollectorReason.GENERAL);
+        InternalProfileCollector newInternalProfileCollector = new InternalProfileCollector();
         newInternalProfileCollector.readFrom(in);
         return newInternalProfileCollector;
     }

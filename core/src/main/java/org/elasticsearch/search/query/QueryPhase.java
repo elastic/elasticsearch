@@ -108,7 +108,6 @@ public class QueryPhase implements SearchPhase {
         parseElements.put("minScore", new MinScoreParseElement());
         parseElements.put("timeout", new TimeoutParseElement());
         parseElements.put("terminate_after", new TerminateAfterParseElement());
-        parseElements.put("profile", new ProfileParseElement());
         parseElements.putAll(aggregationPhase.parseElements());
         parseElements.putAll(suggestPhase.parseElements());
         parseElements.putAll(rescorePhase.parseElements());

@@ -91,6 +91,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     public static final ParseField RESCORE_FIELD = new ParseField("rescore");
     public static final ParseField STATS_FIELD = new ParseField("stats");
     public static final ParseField EXT_FIELD = new ParseField("ext");
+    public static final ParseField PROFILE_FIELD = new ParseField("profile");
 
     private static final SearchSourceBuilder PROTOTYPE = new SearchSourceBuilder();
 
@@ -495,6 +496,14 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
+     * Return whether to profile query execution, or {@code null} if
+     * unspecified.
+     */
+    public Boolean profile() {
+        return profile;
+    }
+
+    /**
      * Gets the bytes representing the rescore builders for this request.
      */
     public List<BytesReference> rescores() {
@@ -743,6 +752,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     builder.fieldNames = fieldNames;
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
                     builder.sort(parser.text());
+                } else if (context.parseFieldMatcher().match(currentFieldName, PROFILE_FIELD)) {
+                    builder.profile = parser.booleanValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());
@@ -1243,6 +1254,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (in.readBoolean()) {
             builder.ext = in.readBytesReference();
         }
+        // nocommit version check
+        builder.profile = in.readOptionalBoolean();
         return builder;
     }
 
@@ -1356,13 +1369,15 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (hasExt) {
             out.writeBytesReference(ext);
         }
+        // nocommit version check
+        out.writeOptionalBoolean(profile);
     }
 
     @Override
     public int hashCode() {
         return Objects.hash(aggregations, explain, fetchSourceContext, fieldDataFields, fieldNames, from,
                 highlightBuilder, indexBoost, innerHitsBuilder, minScore, postQueryBuilder, queryBuilder, rescoreBuilders, scriptFields,
-                size, sorts, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version);
+                size, sorts, stats, suggestBuilder, terminateAfter, timeoutInMillis, trackScores, version, profile);
     }
 
     @Override
@@ -1395,6 +1410,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 && Objects.equals(terminateAfter, other.terminateAfter)
                 && Objects.equals(timeoutInMillis, other.timeoutInMillis)
                 && Objects.equals(trackScores, other.trackScores)
-                && Objects.equals(version, other.version);
+                && Objects.equals(version, other.version)
+                && Objects.equals(profile, other.profile);
     }
 }

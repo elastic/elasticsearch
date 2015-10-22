@@ -26,11 +26,6 @@ public class DoubleMatcher {
      * Better floating point comparisons courtesy of https://github.com/brazzy/floating-point-gui.de
      *
      * Snippet adapted to use doubles instead of floats
-     *
-     * @param a
-     * @param b
-     * @param epsilon
-     * @return
      */
     public static boolean nearlyEqual(double a, double b, double epsilon) {
         final double absA = Math.abs(a);

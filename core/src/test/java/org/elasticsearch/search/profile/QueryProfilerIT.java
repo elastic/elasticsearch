@@ -285,8 +285,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
     /**
      * Tests a boolean query with no children clauses
-     *
-     * @throws Exception
      */
     @Test
     public void testEmptyBool() throws Exception {
@@ -338,8 +336,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * Tests a series of three nested boolean queries with a single "leaf" match query.
      * The rewrite process will "collapse" this down to a single bool, so this tests to make sure
      * nothing catastrophic happens during that fairly substantial rewrite
-     *
-     * @throws Exception
      */
     @Test
     public void testCollapsingBool() throws Exception {
@@ -590,8 +586,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
     /**
      * This test makes sure no profile results are returned when profiling is disabled
-     *
-     * @throws Exception
      */
     @Test
     public void testNoProfile() throws Exception {

@@ -19,9 +19,6 @@
 
 package org.elasticsearch.search.profile;
 
-import com.google.common.base.Function;
-import com.google.common.collect.Lists;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
@@ -36,6 +33,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -62,17 +60,6 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     private static final ParseField TIME = new ParseField("time");
     private static final ParseField RELATIVE_TIME = new ParseField("relative_time");
     private static final ParseField CHILDREN = new ParseField("children");
-
-    /**
-     * Used to cast a list of InternalProfileCollector into CollectorResult's for
-     * external consumption
-     */
-    private static final Function<InternalProfileCollector, CollectorResult> SUPERTYPE_CAST = new Function<InternalProfileCollector, CollectorResult>() {
-        @Override
-        public CollectorResult apply(InternalProfileCollector input) {
-            return input;
-        }
-    };
 
     private Collector collector;
     private LeafCollector leafCollector;
@@ -224,7 +211,7 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
 
     @Override
     public List<CollectorResult> getProfiledChildren() {
-        return Lists.transform(children, SUPERTYPE_CAST);
+        return Collections.unmodifiableList(children);
     }
     @Override
     public String getName() {

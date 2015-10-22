@@ -19,8 +19,6 @@
 
 package org.elasticsearch.search.profile;
 
-import com.google.common.collect.Lists;
-import com.google.common.collect.Maps;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -31,11 +29,9 @@ import org.elasticsearch.search.SearchShardTarget;
 import java.io.IOException;
 import java.util.*;
 
-import com.google.common.base.Function;
-
 /**
  * This class is the internal representation of profiled results from all shards.  It is essentially
- * a map of Shard -> Profile results, with some convenience methods and streamable/toxcontent
+ * a map of Shard -&gt; Profile results, with some convenience methods and streamable/toxcontent
  */
 public class InternalProfileShardResults implements ProfileResults, Streamable, ToXContent {
 
@@ -104,7 +100,11 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
 
     @Override
     public Map<SearchShardTarget, List<ProfileResult>> queryProfilesAsMap() {
-        return Maps.transformValues(results, QUERY_SUPERTYPE_LIST_CAST);
+        Map<SearchShardTarget, List<ProfileResult>> profiles = new HashMap<>();
+        for (Map.Entry<SearchShardTarget, List<InternalProfileResult>> entry : results.entrySet()) {
+            profiles.put(entry.getKey(), Collections.unmodifiableList(entry.getValue()));
+        }
+        return Collections.unmodifiableMap(profiles);
     }
 
     @Override
@@ -119,7 +119,7 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
 
     @Override
     public Map<SearchShardTarget, CollectorResult> collectorProfilesAsMap() {
-        return Maps.transformValues(collectors, COLLECTOR_SUPERTYPE_CAST);
+        return Collections.unmodifiableMap(collectors);
     }
 
     @Override
@@ -215,24 +215,4 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
         }
     }
 
-    private static final Function<List<InternalProfileResult>, List<ProfileResult>> QUERY_SUPERTYPE_LIST_CAST = new Function<List<InternalProfileResult>, List<ProfileResult>>() {
-        @Override
-        public List<ProfileResult> apply(List<InternalProfileResult> input) {
-            return Lists.transform(input, QUERY_SUPERTYPE_CAST);
-        }
-    };
-
-    private static final Function<InternalProfileResult, ProfileResult> QUERY_SUPERTYPE_CAST = new Function<InternalProfileResult, ProfileResult>() {
-        @Override
-        public ProfileResult apply(InternalProfileResult input) {
-            return input;
-        }
-    };
-
-    private static final Function<InternalProfileCollector, CollectorResult> COLLECTOR_SUPERTYPE_CAST = new Function<InternalProfileCollector, CollectorResult>() {
-        @Override
-        public CollectorResult apply(InternalProfileCollector input) {
-            return input;
-        }
-    };
 }

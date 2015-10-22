@@ -20,8 +20,6 @@
 package org.elasticsearch.search.profile;
 
 
-import com.google.common.base.Function;
-import com.google.common.collect.Lists;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -59,14 +58,6 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
     private long nodeTime = -1;     // Use -1 instead of Null so it can be serialized, and there should never be a negative time
     private long globalTime;
     private ArrayList<InternalProfileResult> children;
-
-
-    private static final Function<InternalProfileResult, ProfileResult> SUPERTYPE_CAST = new Function<InternalProfileResult, ProfileResult>() {
-        @Override
-        public ProfileResult apply(InternalProfileResult input) {
-            return input;
-        }
-    };
 
     public InternalProfileResult(Query query, InternalProfileBreakdown timings) {
         children = new ArrayList<>(5);
@@ -176,7 +167,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
 
     @Override
     public List<ProfileResult> getProfiledChildren() {
-        return Lists.transform(children, SUPERTYPE_CAST);
+        return Collections.unmodifiableList(children);
     }
 
     @Override

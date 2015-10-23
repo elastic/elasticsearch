@@ -72,7 +72,7 @@ public abstract class Engine implements Closeable {
     protected final EngineConfig engineConfig;
     protected final Store store;
     protected final AtomicBoolean isClosed = new AtomicBoolean(false);
-    protected final FailedEngineListener failedEngineListener;
+    protected final EventListener eventListener;
     protected final SnapshotDeletionPolicy deletionPolicy;
     protected final ReentrantLock failEngineLock = new ReentrantLock();
     protected final ReentrantReadWriteLock rwl = new ReentrantReadWriteLock();
@@ -89,7 +89,7 @@ public abstract class Engine implements Closeable {
         this.store = engineConfig.getStore();
         this.logger = Loggers.getLogger(Engine.class, // we use the engine class directly here to make sure all subclasses have the same logger name
                 engineConfig.getIndexSettings(), engineConfig.getShardId());
-        this.failedEngineListener = engineConfig.getFailedEngineListener();
+        this.eventListener = engineConfig.getEventListener();
         this.deletionPolicy = engineConfig.getDeletionPolicy();
     }
 
@@ -535,7 +535,7 @@ public abstract class Engine implements Closeable {
                             logger.warn("Couldn't mark store corrupted", e);
                         }
                     }
-                    failedEngineListener.onFailedEngine(shardId, reason, failure);
+                    eventListener.onFailedEngine(reason, failure);
                 }
             } catch (Throwable t) {
                 // don't bubble up these exceptions up
@@ -560,19 +560,9 @@ public abstract class Engine implements Closeable {
         return false;
     }
 
-    /** Wrap a Throwable in an {@code EngineClosedException} if the engine is already closed */
-    protected Throwable wrapIfClosed(Throwable t) {
-        if (isClosed.get()) {
-            if (t != failedEngine && failedEngine != null) {
-                t.addSuppressed(failedEngine);
-            }
-            return new EngineClosedException(shardId, t);
-        }
-        return t;
-    }
 
-    public interface FailedEngineListener {
-        void onFailedEngine(ShardId shardId, String reason, @Nullable Throwable t);
+    public interface EventListener {
+        default void onFailedEngine(String reason, @Nullable Throwable t) {}
     }
 
     public static class Searcher implements Releasable {
@@ -990,11 +980,6 @@ public abstract class Engine implements Closeable {
             }
         }
     }
-
-    /**
-     * Returns <code>true</code> the internal writer has any uncommitted changes. Otherwise <code>false</code>
-     */
-    public abstract boolean hasUncommittedChanges();
 
     public static class CommitId implements Writeable {
 

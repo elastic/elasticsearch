@@ -205,7 +205,7 @@ public class PluginInfoTests extends ESTestCase {
             PluginInfo.readFromProperties(pluginDir);
             fail("expected bogus elasticsearch version exception");
         } catch (IllegalArgumentException e) {
-            assertTrue(e.getMessage().contains("version needs to contain major, minor and revision"));
+            assertTrue(e.getMessage().contains("version needs to contain major, minor, and revision"));
         }
     }
 

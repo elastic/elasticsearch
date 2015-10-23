@@ -22,7 +22,6 @@ package org.elasticsearch.operateAllIndices;
 import org.elasticsearch.action.support.DestructiveOperations;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -31,8 +30,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DestructiveOperationsIntegrationIT extends ESIntegTestCase {
-
-    @Test
     // One test for test performance, since cluster scope is test
     // The cluster scope is test b/c we can't clear cluster settings.
     public void testDestructiveOperations() throws Exception {

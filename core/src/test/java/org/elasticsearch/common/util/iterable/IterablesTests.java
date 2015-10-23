@@ -20,17 +20,12 @@
 package org.elasticsearch.common.util.iterable;
 
 import org.elasticsearch.test.ESTestCase;
-import org.hamcrest.Matchers;
 
 import java.util.Arrays;
 import java.util.Iterator;
-import java.util.List;
 import java.util.NoSuchElementException;
 
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.object.HasToString.hasToString;
-import static org.junit.Assert.*;
 
 public class IterablesTests extends ESTestCase {
     public void testGetOverList() {

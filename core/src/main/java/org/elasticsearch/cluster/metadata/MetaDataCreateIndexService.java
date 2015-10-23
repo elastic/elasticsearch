@@ -80,13 +80,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 
@@ -106,32 +100,25 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     public final static int MAX_INDEX_NAME_BYTES = 255;
     private static final DefaultIndexTemplateFilter DEFAULT_INDEX_TEMPLATE_FILTER = new DefaultIndexTemplateFilter();
 
-    private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final IndicesService indicesService;
     private final AllocationService allocationService;
-    private final MetaDataService metaDataService;
     private final Version version;
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
-    private final NodeEnvironment nodeEnv;
     private final Environment env;
 
     @Inject
-    public MetaDataCreateIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService,
-                                      IndicesService indicesService, AllocationService allocationService, MetaDataService metaDataService,
+    public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
+                                      IndicesService indicesService, AllocationService allocationService,
                                       Version version, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env,
-                                      NodeEnvironment nodeEnv) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env) {
         super(settings);
-        this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.allocationService = allocationService;
-        this.metaDataService = metaDataService;
         this.version = version;
         this.aliasValidator = aliasValidator;
-        this.nodeEnv = nodeEnv;
         this.env = env;
 
         if (indexTemplateFilters.isEmpty()) {
@@ -145,29 +132,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             }
             this.indexTemplateFilter = new IndexTemplateFilter.Compound(templateFilters);
         }
-    }
-
-    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
-
-        // we lock here, and not within the cluster service callback since we don't want to
-        // block the whole cluster state handling
-        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index());
-
-        // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
-        if (mdLock.tryAcquire()) {
-            createIndex(request, listener, mdLock);
-            return;
-        }
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new ActionRunnable(listener) {
-            @Override
-            public void doRun() throws InterruptedException {
-                if (!mdLock.tryAcquire(request.masterNodeTimeout().nanos(), TimeUnit.NANOSECONDS)) {
-                    listener.onFailure(new ProcessClusterEventTimeoutException(request.masterNodeTimeout(), "acquire index lock"));
-                    return;
-                }
-                createIndex(request, listener, mdLock);
-            }
-        });
     }
 
     public void validateIndexName(String index, ClusterState state) {
@@ -209,8 +173,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         }
     }
 
-    private void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener, final Semaphore mdLock) {
-
+    public void createIndex(final CreateIndexClusterStateUpdateRequest request, final ActionListener<ClusterStateUpdateResponse> listener) {
         Settings.Builder updatedSettingsBuilder = Settings.settingsBuilder();
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
@@ -220,24 +183,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
             @Override
             protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
                 return new ClusterStateUpdateResponse(acknowledged);
-            }
-
-            @Override
-            public void onAllNodesAcked(@Nullable Throwable t) {
-                mdLock.release();
-                super.onAllNodesAcked(t);
-            }
-
-            @Override
-            public void onAckTimeout() {
-                mdLock.release();
-                super.onAckTimeout();
-            }
-
-            @Override
-            public void onFailure(String source, Throwable t) {
-                mdLock.release();
-                super.onFailure(source, t);
             }
 
             @Override
@@ -362,7 +307,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // Set up everything, now locally create the index to see that things are ok, and apply
                     final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(tmpImd);
+                    indicesService.createIndex(tmpImd, Collections.EMPTY_LIST);
                     indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());
@@ -373,7 +318,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false, request.updateAllTypes());
                         } catch (Exception e) {
                             removalReason = "failed on parsing default mapping on index creation";
-                            throw new MapperParsingException("mapping [" + MapperService.DEFAULT_MAPPING + "]", e);
+                            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, MapperService.DEFAULT_MAPPING, e.getMessage());
                         }
                     }
                     for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
@@ -385,7 +330,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                             mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true, request.updateAllTypes());
                         } catch (Exception e) {
                             removalReason = "failed on parsing mappings on index creation";
-                            throw new MapperParsingException("mapping [" + entry.getKey() + "]", e);
+                            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
                         }
                     }
 
@@ -436,7 +381,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                         throw e;
                     }
 
-                    indexService.indicesLifecycle().beforeIndexAddedToCluster(new Index(request.index()),
+                    indexService.getIndexEventListener().beforeIndexAddedToCluster(new Index(request.index()),
                             indexMetaData.getSettings());
 
                     MetaData newMetaData = MetaData.builder(currentState.metaData())
@@ -479,29 +424,6 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private Map<String, Object> parseMapping(String mappingSource) throws Exception {
         try (XContentParser parser = XContentFactory.xContent(mappingSource).createParser(mappingSource)) {
             return parser.map();
-        }
-    }
-
-    private void addMappings(Map<String, Map<String, Object>> mappings, Path mappingsDir) throws IOException {
-        try (DirectoryStream<Path> stream = Files.newDirectoryStream(mappingsDir)) {
-            for (Path mappingFile : stream) {
-                final String fileName = mappingFile.getFileName().toString();
-                if (FileSystemUtils.isHidden(mappingFile)) {
-                    continue;
-                }
-                int lastDotIndex = fileName.lastIndexOf('.');
-                String mappingType = lastDotIndex != -1 ? mappingFile.getFileName().toString().substring(0, lastDotIndex) : mappingFile.getFileName().toString();
-                try (BufferedReader reader = Files.newBufferedReader(mappingFile, StandardCharsets.UTF_8)) {
-                    String mappingSource = Streams.copyToString(reader);
-                    if (mappings.containsKey(mappingType)) {
-                        XContentHelper.mergeDefaults(mappings.get(mappingType), parseMapping(mappingSource));
-                    } else {
-                        mappings.put(mappingType, parseMapping(mappingSource));
-                    }
-                } catch (Exception e) {
-                    logger.warn("failed to read / parse mapping [" + mappingType + "] from location [" + mappingFile + "], ignoring...", e);
-                }
-            }
         }
     }
 

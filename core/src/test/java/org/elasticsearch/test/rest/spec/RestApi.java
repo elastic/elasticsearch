@@ -20,14 +20,12 @@ package org.elasticsearch.test.rest.spec;
 
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.methods.HttpPut;
+import org.elasticsearch.test.rest.client.RestPath;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Represents an elasticsearch REST endpoint (api)
@@ -41,7 +39,7 @@ public class RestApi {
     private List<String> params = new ArrayList<>();
     private BODY body = BODY.NOT_SUPPORTED;
 
-    public static enum BODY {
+    public enum BODY {
         NOT_SUPPORTED, OPTIONAL, REQUIRED
     }
 
@@ -131,28 +129,18 @@ public class RestApi {
      * Finds the best matching rest path given the current parameters and replaces
      * placeholders with their corresponding values received as arguments
      */
-    public String[] getFinalPaths(Map<String, String> pathParams) {
-
+    public RestPath[] getFinalPaths(Map<String, String> pathParams) {
         List<RestPath> matchingRestPaths = findMatchingRestPaths(pathParams.keySet());
         if (matchingRestPaths == null || matchingRestPaths.isEmpty()) {
             throw new IllegalArgumentException("unable to find matching rest path for api [" + name + "] and path params " + pathParams);
         }
 
-        String[] paths = new String[matchingRestPaths.size()];
+        RestPath[] restPaths = new RestPath[matchingRestPaths.size()];
         for (int i = 0; i < matchingRestPaths.size(); i++) {
             RestPath restPath = matchingRestPaths.get(i);
-            String path = restPath.path;
-            for (Map.Entry<String, String> paramEntry : restPath.parts.entrySet()) {
-                // replace path placeholders with actual values
-                String value = pathParams.get(paramEntry.getValue());
-                if (value == null) {
-                    throw new IllegalArgumentException("parameter [" + paramEntry.getValue() + "] missing");
-                }
-                path = path.replace(paramEntry.getKey(), value);
-            }
-            paths[i] = path;
+            restPaths[i] = restPath.replacePlaceholders(pathParams);
         }
-        return paths;
+        return restPaths;
     }
 
     /**
@@ -165,15 +153,11 @@ public class RestApi {
 
         List<RestPath> matchingRestPaths = new ArrayList<>();
         RestPath[] restPaths = buildRestPaths();
-
         for (RestPath restPath : restPaths) {
-            if (restPath.parts.size() == restParams.size()) {
-                if (restPath.parts.values().containsAll(restParams)) {
-                    matchingRestPaths.add(restPath);
-                }
+            if (restPath.matches(restParams)) {
+                matchingRestPaths.add(restPath);
             }
         }
-
         return matchingRestPaths;
     }
 
@@ -183,34 +167,5 @@ public class RestApi {
             restPaths[i] = new RestPath(paths.get(i));
         }
         return restPaths;
-    }
-
-    private static class RestPath {
-        private static final Pattern PLACEHOLDERS_PATTERN = Pattern.compile("(\\{(.*?)})");
-
-        final String path;
-        //contains param to replace (e.g. {index}) and param key to use for lookup in the current values map (e.g. index)
-        final Map<String, String> parts;
-
-        RestPath(String path) {
-            this.path = path;
-            this.parts = extractParts(path);
-        }
-
-        private static Map<String,String> extractParts(String input) {
-            Map<String, String> parts = new HashMap<>();
-            Matcher matcher = PLACEHOLDERS_PATTERN.matcher(input);
-            while (matcher.find()) {
-                //key is e.g. {index}
-                String key = input.substring(matcher.start(), matcher.end());
-                if (matcher.groupCount() != 2) {
-                    throw new IllegalArgumentException("no lookup key found for param [" + key + "]");
-                }
-                //to be replaced with current value found with key e.g. index
-                String value = matcher.group(2);
-                parts.put(key, value);
-            }
-            return parts;
-        }
     }
 }

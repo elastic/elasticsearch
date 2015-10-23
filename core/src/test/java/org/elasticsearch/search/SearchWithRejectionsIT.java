@@ -24,7 +24,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
@@ -44,7 +43,6 @@ public class SearchWithRejectionsIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testOpenContextsAfterRejections() throws InterruptedException {
         createIndex("test");
         ensureGreen("test");

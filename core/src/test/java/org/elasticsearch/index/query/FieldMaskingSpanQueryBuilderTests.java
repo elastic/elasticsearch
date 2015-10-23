@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.FieldMaskingSpanQuery;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -30,7 +29,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<FieldMaskingSpanQueryBuilder> {
-
     @Override
     protected FieldMaskingSpanQueryBuilder doCreateTestQueryBuilder() {
         String fieldName;
@@ -56,7 +54,6 @@ public class FieldMaskingSpanQueryBuilderTests extends AbstractQueryTestCase<Fie
         assertThat(fieldMaskingSpanQuery.getMaskedQuery(), equalTo(queryBuilder.innerQuery().toQuery(context)));
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new FieldMaskingSpanQueryBuilder(null, "maskedField");

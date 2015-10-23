@@ -311,7 +311,7 @@ public class TimeValue implements Streamable {
     @Override
     public int hashCode() {
         long normalized = timeUnit.toNanos(duration);
-        return (int) (normalized ^ (normalized >>> 32));
+        return Long.hashCode(normalized);
     }
 
     public static long nsecToMSec(long ns) {

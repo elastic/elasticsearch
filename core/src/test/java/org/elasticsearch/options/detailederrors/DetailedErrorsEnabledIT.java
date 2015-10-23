@@ -29,7 +29,6 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.rest.client.http.HttpDeleteWithEntity;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
@@ -39,8 +38,6 @@ import static org.hamcrest.Matchers.not;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class DetailedErrorsEnabledIT extends ESIntegTestCase {
-
-    // Build our cluster settings
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder()
@@ -49,7 +46,6 @@ public class DetailedErrorsEnabledIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testThatErrorTraceWorksByDefault() throws Exception {
         // Make the HTTP request
         HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault())

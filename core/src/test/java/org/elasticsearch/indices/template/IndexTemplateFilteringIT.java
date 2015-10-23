@@ -26,12 +26,10 @@ import org.elasticsearch.cluster.metadata.IndexTemplateFilter;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.util.Collection;
 
@@ -41,13 +39,11 @@ import static org.hamcrest.core.IsNull.notNullValue;
 
 @ClusterScope(scope = Scope.SUITE)
 public class IndexTemplateFilteringIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(TestPlugin.class);
     }
 
-    @Test
     public void testTemplateFiltering() throws Exception {
         client().admin().indices().preparePutTemplate("template1")
                 .setTemplate("test*")
@@ -69,7 +65,6 @@ public class IndexTemplateFilteringIT extends ESIntegTestCase {
         assertThat(metadata.size(), is(1));
         assertThat(metadata.get("type2"), notNullValue());
     }
-
 
     public static class TestFilter implements IndexTemplateFilter {
         @Override

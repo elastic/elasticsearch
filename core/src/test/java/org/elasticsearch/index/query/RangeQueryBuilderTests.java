@@ -26,14 +26,17 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuilder> {
 
@@ -126,7 +129,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {
@@ -166,25 +168,31 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
     /**
      * Specifying a timezone together with a numeric range query should throw an exception.
      */
-    @Test(expected=QueryShardException.class)
     public void testToQueryNonDateWithTimezone() throws QueryShardException, IOException {
         RangeQueryBuilder query = new RangeQueryBuilder(INT_FIELD_NAME);
         query.from(1).to(10).timeZone("UTC");
-        query.toQuery(createShardContext());
+        try {
+            query.toQuery(createShardContext());
+            fail("Expected QueryShardException");
+        } catch (QueryShardException e) {
+            assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
+        }
     }
 
     /**
      * Specifying a timezone together with an unmapped field should throw an exception.
      */
-    @Test(expected=QueryShardException.class)
     public void testToQueryUnmappedWithTimezone() throws QueryShardException, IOException {
         RangeQueryBuilder query = new RangeQueryBuilder("bogus_field");
         query.from(1).to(10).timeZone("UTC");
-        query.toQuery(createShardContext());
+        try {
+            query.toQuery(createShardContext());
+            fail("Expected QueryShardException");
+        } catch (QueryShardException e) {
+            assertThat(e.getMessage(), containsString("[range] time_zone can not be applied"));
+        }
     }
 
-
-    @Test
     public void testToQueryNumericField() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = rangeQuery(INT_FIELD_NAME).from(23).to(54).includeLower(true).includeUpper(false).toQuery(createShardContext());
@@ -198,7 +206,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertThat(rangeQuery.includesMax(), equalTo(false));
     }
 
-    @Test
     public void testDateRangeQueryFormat() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         // We test 01/01/2012 from gte and 2030 for lt
@@ -240,7 +247,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         }
     }
 
-    @Test
     public void testDateRangeBoundaries() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -284,7 +290,6 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
         assertFalse(rangeQuery.includesMax());
     }
 
-    @Test
     public void testDateRangeQueryTimezone() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         long startDate = System.currentTimeMillis();

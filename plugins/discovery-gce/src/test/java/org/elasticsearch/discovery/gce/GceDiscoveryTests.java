@@ -29,7 +29,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.local.LocalTransport;
-import org.junit.*;
+import org.junit.After;
+import org.junit.AfterClass;
+import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.Locale;
@@ -45,7 +48,7 @@ import static org.hamcrest.Matchers.is;
  *
  * compute/v1/projects/[project-id]/zones/[zone]
  *
- * By default, project-id is the test method name, lowercase.
+ * By default, project-id is the test method name, lowercase and missing the "test" prefix.
  *
  * For example, if you create a test `myNewAwesomeTest` with following settings:
  *
@@ -83,6 +86,10 @@ public class GceDiscoveryTests extends ESTestCase {
     @Before
     public void setProjectName() {
         projectName = getTestName().toLowerCase(Locale.ROOT);
+        // Slice off the "test" part of the method names so the project names
+        if (projectName.startsWith("test")) {
+            projectName = projectName.substring("test".length());
+        }
     }
 
     @Before
@@ -113,8 +120,7 @@ public class GceDiscoveryTests extends ESTestCase {
         return discoveryNodes;
     }
 
-    @Test
-    public void nodesWithDifferentTagsAndNoTagSet() {
+    public void testNodesWithDifferentTagsAndNoTagSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
@@ -124,8 +130,7 @@ public class GceDiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(2));
     }
 
-    @Test
-    public void nodesWithDifferentTagsAndOneTagSet() {
+    public void testNodesWithDifferentTagsAndOneTagSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
@@ -137,8 +142,7 @@ public class GceDiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes.get(0).getId(), is("#cloud-test2-0"));
     }
 
-    @Test
-    public void nodesWithDifferentTagsAndTwoTagSet() {
+    public void testNodesWithDifferentTagsAndTwoTagSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
@@ -150,8 +154,7 @@ public class GceDiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes.get(0).getId(), is("#cloud-test2-0"));
     }
 
-    @Test
-    public void nodesWithSameTagsAndNoTagSet() {
+    public void testNodesWithSameTagsAndNoTagSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
@@ -161,8 +164,7 @@ public class GceDiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(2));
     }
 
-    @Test
-    public void nodesWithSameTagsAndOneTagSet() {
+    public void testNodesWithSameTagsAndOneTagSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
@@ -173,8 +175,7 @@ public class GceDiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(2));
     }
 
-    @Test
-    public void nodesWithSameTagsAndTwoTagsSet() {
+    public void testNodesWithSameTagsAndTwoTagsSet() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .put(GceComputeService.Fields.ZONE, "europe-west1-b")
@@ -185,8 +186,7 @@ public class GceDiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(2));
     }
 
-    @Test
-    public void multipleZonesAndTwoNodesInSameZone() {
+    public void testMultipleZonesAndTwoNodesInSameZone() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .putArray(GceComputeService.Fields.ZONE, "us-central1-a", "europe-west1-b")
@@ -196,8 +196,7 @@ public class GceDiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(2));
     }
 
-    @Test
-    public void multipleZonesAndTwoNodesInDifferentZones() {
+    public void testMultipleZonesAndTwoNodesInDifferentZones() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .putArray(GceComputeService.Fields.ZONE, "us-central1-a", "europe-west1-b")
@@ -210,8 +209,7 @@ public class GceDiscoveryTests extends ESTestCase {
     /**
      * For issue https://github.com/elastic/elasticsearch-cloud-gce/issues/43
      */
-    @Test
-    public void zeroNode43() {
+    public void testZeroNode43() {
         Settings nodeSettings = Settings.builder()
                 .put(GceComputeService.Fields.PROJECT, projectName)
                 .putArray(GceComputeService.Fields.ZONE, "us-central1-a", "us-central1-b")

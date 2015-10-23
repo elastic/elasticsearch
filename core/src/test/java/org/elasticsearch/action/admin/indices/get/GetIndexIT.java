@@ -28,22 +28,25 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData.Entry;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.INDEX_METADATA_BLOCK;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class GetIndexIT extends ESIntegTestCase {
-
-    private static final String[] allFeatures = { "_alias", "_aliases", "_mapping", "_mappings", "_settings", "_warmer", "_warmers" };
-
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
         assertAcked(prepareCreate("idx").addAlias(new Alias("alias_idx")).addMapping("type1", "{\"type1\":{}}")
@@ -54,7 +57,6 @@ public class GetIndexIT extends ESIntegTestCase {
         ensureSearchable("idx", "empty_idx");
     }
 
-    @Test
     public void testSimple() {
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("idx").get();
         String[] indices = response.indices();
@@ -67,12 +69,15 @@ public class GetIndexIT extends ESIntegTestCase {
         assertWarmers(response, "idx");
     }
 
-    @Test(expected=IndexNotFoundException.class)
     public void testSimpleUnknownIndex() {
-        client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
+        try {
+            client().admin().indices().prepareGetIndex().addIndices("missing_idx").get();
+            fail("Expected IndexNotFoundException");
+        } catch (IndexNotFoundException e) {
+            assertThat(e.getMessage(), is("no such index"));
+        }
     }
 
-    @Test
     public void testEmpty() {
         GetIndexResponse response = client().admin().indices().prepareGetIndex().addIndices("empty_idx").get();
         String[] indices = response.indices();
@@ -85,7 +90,6 @@ public class GetIndexIT extends ESIntegTestCase {
         assertEmptyWarmers(response);
     }
 
-    @Test
     public void testSimpleMapping() {
         GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
                 Feature.MAPPINGS);
@@ -99,7 +103,6 @@ public class GetIndexIT extends ESIntegTestCase {
         assertEmptyWarmers(response);
     }
 
-    @Test
     public void testSimpleAlias() {
         GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
                 Feature.ALIASES);
@@ -113,7 +116,6 @@ public class GetIndexIT extends ESIntegTestCase {
         assertEmptyWarmers(response);
     }
 
-    @Test
     public void testSimpleSettings() {
         GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
                 Feature.SETTINGS);
@@ -127,7 +129,6 @@ public class GetIndexIT extends ESIntegTestCase {
         assertEmptyWarmers(response);
     }
 
-    @Test
     public void testSimpleWarmer() {
         GetIndexResponse response = runWithRandomFeatureMethod(client().admin().indices().prepareGetIndex().addIndices("idx"),
                 Feature.WARMERS);
@@ -141,7 +142,6 @@ public class GetIndexIT extends ESIntegTestCase {
         assertEmptySettings(response);
     }
 
-    @Test
     public void testSimpleMixedFeatures() {
         int numFeatures = randomIntBetween(1, Feature.values().length);
         List<Feature> features = new ArrayList<Feature>(numFeatures);
@@ -176,7 +176,6 @@ public class GetIndexIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testEmptyMixedFeatures() {
         int numFeatures = randomIntBetween(1, Feature.values().length);
         List<Feature> features = new ArrayList<Feature>(numFeatures);
@@ -203,7 +202,6 @@ public class GetIndexIT extends ESIntegTestCase {
         assertEmptyWarmers(response);
     }
 
-    @Test
     public void testGetIndexWithBlocks() {
         for (String block : Arrays.asList(SETTING_BLOCKS_READ, SETTING_BLOCKS_WRITE, SETTING_READ_ONLY)) {
             try {

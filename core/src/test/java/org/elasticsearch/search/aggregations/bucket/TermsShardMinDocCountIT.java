@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -51,9 +50,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
     }
 
     // see https://github.com/elasticsearch/elasticsearch/issues/5998
-    @Test
-    public void shardMinDocCountSignificantTermsTest() throws Exception {
-
+    public void testShardMinDocCountSignificantTermsTest() throws Exception {
         String termtype = "string";
         if (randomBoolean()) {
             termtype = "long";
@@ -111,8 +108,7 @@ public class TermsShardMinDocCountIT extends ESIntegTestCase {
     }
 
     // see https://github.com/elasticsearch/elasticsearch/issues/5998
-    @Test
-    public void shardMinDocCountTermsTest() throws Exception {
+    public void testShardMinDocCountTermsTest() throws Exception {
         final String [] termTypes = {"string", "long", "integer", "float", "double"};
         String termtype = termTypes[randomInt(termTypes.length - 1)];
 

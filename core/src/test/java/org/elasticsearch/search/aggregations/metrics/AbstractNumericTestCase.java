@@ -31,7 +31,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  */
 @ESIntegTestCase.SuiteScopeTestCase
 public abstract class AbstractNumericTestCase extends ESIntegTestCase {
-
     protected static long minValue, maxValue, minValues, maxValues;
 
     @Override
@@ -77,30 +76,29 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
 
     public abstract void testSingleValuedField() throws Exception;
 
-    public abstract void testSingleValuedField_getProperty() throws Exception;
+    public abstract void testSingleValuedFieldGetProperty() throws Exception;
 
-    public abstract void testSingleValuedField_PartiallyUnmapped() throws Exception;
+    public abstract void testSingleValuedFieldPartiallyUnmapped() throws Exception;
 
-    public abstract void testSingleValuedField_WithValueScript() throws Exception;
+    public abstract void testSingleValuedFieldWithValueScript() throws Exception;
 
-    public abstract void testSingleValuedField_WithValueScript_WithParams() throws Exception;
+    public abstract void testSingleValuedFieldWithValueScriptWithParams() throws Exception;
 
     public abstract void testMultiValuedField() throws Exception;
 
-    public abstract void testMultiValuedField_WithValueScript() throws Exception;
+    public abstract void testMultiValuedFieldWithValueScript() throws Exception;
 
-    public abstract void testMultiValuedField_WithValueScript_WithParams() throws Exception;
+    public abstract void testMultiValuedFieldWithValueScriptWithParams() throws Exception;
 
-    public abstract void testScript_SingleValued() throws Exception;
+    public abstract void testScriptSingleValued() throws Exception;
 
-    public abstract void testScript_SingleValued_WithParams() throws Exception;
+    public abstract void testScriptSingleValuedWithParams() throws Exception;
 
-    public abstract void testScript_ExplicitSingleValued_WithParams() throws Exception;
+    public abstract void testScriptExplicitSingleValuedWithParams() throws Exception;
 
-    public abstract void testScript_MultiValued() throws Exception;
+    public abstract void testScriptMultiValued() throws Exception;
 
-    public abstract void testScript_ExplicitMultiValued() throws Exception;
+    public abstract void testScriptExplicitMultiValued() throws Exception;
 
-    public abstract void testScript_MultiValued_WithParams() throws Exception;
-
+    public abstract void testScriptMultiValuedWithParams() throws Exception;
 }

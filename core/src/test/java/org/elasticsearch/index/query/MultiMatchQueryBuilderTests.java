@@ -21,11 +21,17 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.search.MatchQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -34,7 +40,9 @@ import java.util.Map;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBooleanSubQuery;
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.either;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatchQueryBuilder> {
 
@@ -126,7 +134,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
                 .or(instanceOf(MatchNoDocsQuery.class)).or(instanceOf(PhraseQuery.class)));
     }
 
-    @Test
     public void testIllegaArguments() {
         try {
             new MultiMatchQueryBuilder(null, "field");
@@ -162,7 +169,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         //we delegate boost checks to specific boost tests below
     }
 
-    @Test
     public void testToQueryBoost() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
@@ -180,7 +186,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(query.getBoost(), equalTo(10f));
     }
 
-    @Test
     public void testToQueryMultipleTermsBooleanQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = multiMatchQuery("test1 test2").field(STRING_FIELD_NAME).useDisMax(false).toQuery(createShardContext());
@@ -191,7 +196,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test2")));
     }
 
-    @Test
     public void testToQueryMultipleFieldsBooleanQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = multiMatchQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).useDisMax(false).toQuery(createShardContext());
@@ -202,7 +206,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(assertBooleanSubQuery(query, TermQuery.class, 1).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
 
-    @Test
     public void testToQueryMultipleFieldsDisMaxQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = multiMatchQuery("test").field(STRING_FIELD_NAME).field(STRING_FIELD_NAME_2).useDisMax(true).toQuery(createShardContext());
@@ -213,7 +216,6 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
 
-    @Test
     public void testToQueryFieldsWildcard() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query query = multiMatchQuery("test").field("mapped_str*").useDisMax(false).toQuery(createShardContext());

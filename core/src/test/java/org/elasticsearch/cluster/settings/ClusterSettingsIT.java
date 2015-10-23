@@ -31,21 +31,21 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = TEST)
 public class ClusterSettingsIT extends ESIntegTestCase {
-
-    @Test
-    public void clusterNonExistingSettingsUpdate() {
+    public void testClusterNonExistingSettingsUpdate() {
         String key1 = "no_idea_what_you_are_talking_about";
         int value1 = 10;
 
@@ -58,8 +58,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(response.getTransientSettings().getAsMap().entrySet(), Matchers.emptyIterable());
     }
 
-    @Test
-    public void clusterSettingsUpdateResponse() {
+    public void testClusterSettingsUpdateResponse() {
         String key1 = IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC;
         int value1 = 10;
 
@@ -115,7 +114,6 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(response3.getPersistentSettings().get(key2), notNullValue());
     }
 
-    @Test
     public void testUpdateDiscoveryPublishTimeout() {
 
         DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
@@ -150,7 +148,6 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(discoverySettings.getPublishTimeout().seconds(), equalTo(1l));
     }
 
-    @Test
     public void testClusterUpdateSettingsWithBlocks() {
         String key1 = "cluster.routing.allocation.enable";
         Settings transientSettings = Settings.builder().put(key1, false).build();
@@ -185,15 +182,18 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertThat(response.getPersistentSettings().get(key2), notNullValue());
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testMissingUnits() {
         assertAcked(prepareCreate("test"));
 
-        // Should fail (missing units for refresh_interval):
-        client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+        try {
+            client().admin().indices().prepareUpdateSettings("test").setSettings(Settings.builder().put("index.refresh_interval", "10")).execute().actionGet();
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("[index.refresh_interval] with value [10]"));
+            assertThat(e.getMessage(), containsString("unit is missing or unrecognized"));
+        }
     }
 
-    @Test
     public void testMissingUnitsLenient() {
         try {
             createNode(Settings.builder().put(Settings.SETTINGS_REQUIRE_UNITS, "false").build());

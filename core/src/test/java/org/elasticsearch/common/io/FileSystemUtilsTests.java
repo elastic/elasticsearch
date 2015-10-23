@@ -19,16 +19,14 @@
 
 package org.elasticsearch.common.io;
 
-import java.nio.charset.StandardCharsets;
-
-import org.elasticsearch.test.ESTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressFileSystems;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Assert;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -60,7 +58,6 @@ public class FileSystemUtilsTests extends ESTestCase {
         FileSystemUtils.copyDirectoryRecursively(path, src);
     }
 
-    @Test
     public void testMoveOverExistingFileAndAppend() throws IOException {
 
         FileSystemUtils.moveFilesWithoutOverwriting(src.resolve("v1"), dst, ".new");
@@ -87,7 +84,6 @@ public class FileSystemUtilsTests extends ESTestCase {
         assertFileContent(dst, "dir/subdir/file5.txt", "version1");
     }
 
-    @Test
     public void testMoveOverExistingFileAndIgnore() throws IOException {
         Path dest = createTempDir();
 
@@ -115,7 +111,6 @@ public class FileSystemUtilsTests extends ESTestCase {
         assertFileContent(dest, "dir/subdir/file5.txt", "version1");
     }
 
-    @Test
     public void testMoveFilesDoesNotCreateSameFileWithSuffix() throws Exception {
         Path[] dirs = new Path[] { createTempDir(), createTempDir(), createTempDir()};
         for (Path dir : dirs) {
@@ -162,7 +157,6 @@ public class FileSystemUtilsTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAppend() {
         assertEquals(FileSystemUtils.append(PathUtils.get("/foo/bar"), PathUtils.get("/hello/world/this_is/awesome"), 0),
             PathUtils.get("/foo/bar/hello/world/this_is/awesome"));

@@ -84,8 +84,6 @@ include::docs.asciidoc[]
 
 include::search.asciidoc[]
 
-include::count.asciidoc[]
-
 include::aggs.asciidoc[]
 
 include::percolate.asciidoc[]

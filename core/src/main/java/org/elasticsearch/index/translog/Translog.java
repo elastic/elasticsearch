@@ -746,8 +746,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public int hashCode() {
-            int result = (int) (generation ^ (generation >>> 32));
-            result = 31 * result + (int) (translogLocation ^ (translogLocation >>> 32));
+            int result = Long.hashCode(generation);
+            result = 31 * result + Long.hashCode(translogLocation);
             result = 31 * result + size;
             return result;
         }
@@ -1005,13 +1005,13 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public int hashCode() {
             int result = id.hashCode();
             result = 31 * result + type.hashCode();
-            result = 31 * result + (int) (version ^ (version >>> 32));
+            result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();
             result = 31 * result + source.hashCode();
             result = 31 * result + (routing != null ? routing.hashCode() : 0);
             result = 31 * result + (parent != null ? parent.hashCode() : 0);
-            result = 31 * result + (int) (timestamp ^ (timestamp >>> 32));
-            result = 31 * result + (int) (ttl ^ (ttl >>> 32));
+            result = 31 * result + Long.hashCode(timestamp);
+            result = 31 * result + Long.hashCode(ttl);
             return result;
         }
 
@@ -1119,7 +1119,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public int hashCode() {
             int result = uid.hashCode();
-            result = 31 * result + (int) (version ^ (version >>> 32));
+            result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();
             return result;
         }

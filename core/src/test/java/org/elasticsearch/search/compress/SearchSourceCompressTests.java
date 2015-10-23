@@ -32,15 +32,12 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class SearchSourceCompressTests  extends ESSingleNodeTestCase {
-    
-    @Test
+public class SearchSourceCompressTests extends ESSingleNodeTestCase {
     public void testSourceCompressionLZF() throws IOException {
         final Compressor defaultCompressor = CompressorFactory.defaultCompressor();
         try {

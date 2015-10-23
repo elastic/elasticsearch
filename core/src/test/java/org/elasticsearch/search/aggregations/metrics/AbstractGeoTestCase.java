@@ -68,6 +68,7 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     protected static GeoPoint singleTopLeft, singleBottomRight, multiTopLeft, multiBottomRight, singleCentroid, multiCentroid, unmappedCentroid;
     protected static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     protected static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
+    protected static final double GEOHASH_TOLERANCE = 1E-5D;
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {

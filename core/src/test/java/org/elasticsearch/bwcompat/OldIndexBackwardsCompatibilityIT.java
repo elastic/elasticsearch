@@ -54,7 +54,6 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -71,7 +70,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.SortedSet;
 import java.util.TreeSet;
-import java.util.concurrent.Future;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -277,7 +275,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testHandlingOfUnsupportedDanglingIndexes() throws Exception {
         setupCluster();
         Collections.shuffle(unsupportedIndexes, getRandom());

@@ -409,7 +409,7 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) {
             // change threadpool types to make sure we don't have components that rely on the type of thread pools
             for (String name : Arrays.asList(ThreadPool.Names.BULK, ThreadPool.Names.FLUSH, ThreadPool.Names.GET,
-                    ThreadPool.Names.INDEX, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.OPTIMIZE,
+                    ThreadPool.Names.INDEX, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.FORCE_MERGE,
                     ThreadPool.Names.PERCOLATE, ThreadPool.Names.REFRESH, ThreadPool.Names.SEARCH, ThreadPool.Names.SNAPSHOT,
                     ThreadPool.Names.SUGGEST, ThreadPool.Names.WARMER)) {
                 if (random.nextBoolean()) {
@@ -478,10 +478,6 @@ public final class InternalTestCluster extends TestCluster {
             builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, random.nextBoolean());
         }
 
-        if (random.nextBoolean()) {
-            builder.put(IndicesRequestCache.INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
-            builder.put(IndicesFieldDataCache.FIELDDATA_CACHE_CONCURRENCY_LEVEL, RandomInts.randomIntBetween(random, 1, 32));
-        }
         if (random.nextBoolean()) {
             builder.put(NettyTransport.PING_SCHEDULE, RandomInts.randomIntBetween(random, 100, 2000) + "ms");
         }

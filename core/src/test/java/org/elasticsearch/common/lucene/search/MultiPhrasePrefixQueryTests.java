@@ -22,19 +22,21 @@ package org.elasticsearch.common.lucene.search;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class MultiPhrasePrefixQueryTests extends ESTestCase {
-
-    @Test
-    public void simpleTests() throws Exception {
+    public void testSimple() throws Exception {
         IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document doc = new Document();
         doc.add(new Field("field", "aaa bbb ccc ddd", TextField.TYPE_NOT_STORED));
@@ -63,7 +65,6 @@ public class MultiPhrasePrefixQueryTests extends ESTestCase {
         assertThat(searcher.count(query), equalTo(0));
     }
 
-    @Test
     public void testBoost() throws Exception {
         IndexWriter writer = new IndexWriter(new RAMDirectory(), new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
         Document doc = new Document();

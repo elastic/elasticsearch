@@ -26,32 +26,27 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class UpdateMappingOnClusterIT extends ESIntegTestCase {
-
     private static final String INDEX = "index";
     private static final String TYPE = "type";
 
-
-    @Test
-    public void test_all_enabled() throws Exception {
+    public void testAllEnabled() throws Exception {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("mappings").startObject(TYPE).startObject("_all").field("enabled", "false").endObject().endObject().endObject().endObject();
         XContentBuilder mappingUpdate = jsonBuilder().startObject().startObject("_all").field("enabled", "true").endObject().startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject();
         String errorMessage = "[_all] enabled is false now encountering true";
         testConflict(mapping.string(), mappingUpdate.string(), errorMessage);
     }
 
-    @Test
-    public void test_all_conflicts() throws Exception {
+    public void testAllConflicts() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_create_index.json");
         String mappingUpdate = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/all_mapping_update_with_conflicts.json");
         String[] errorMessage = {"[_all] enabled is true now encountering false",
@@ -67,9 +62,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         testConflict(mapping, mappingUpdate, errorMessage);
     }
 
-
-    @Test
-    public void test_all_with_default() throws Exception {
+    public void testAllWithDefault() throws Exception {
         String defaultMapping = jsonBuilder().startObject().startObject("_default_")
                 .startObject("_all")
                 .field("enabled", false)
@@ -115,8 +108,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void test_doc_valuesInvalidMapping() throws Exception {
+    public void testDocValuesInvalidMapping() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("mappings").startObject(TYPE).startObject("_all").startObject("fielddata").field("format", "doc_values").endObject().endObject().endObject().endObject().endObject().string();
         try {
             prepareCreate(INDEX).setSource(mapping).get();
@@ -126,8 +118,7 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void test_doc_valuesInvalidMappingOnUpdate() throws Exception {
+    public void testDocValuesInvalidMappingOnUpdate() throws Exception {
         String mapping = jsonBuilder().startObject().startObject(TYPE).startObject("properties").startObject("text").field("type", "string").endObject().endObject().endObject().string();
         prepareCreate(INDEX).addMapping(TYPE, mapping).get();
         String mappingUpdate = jsonBuilder().startObject().startObject(TYPE).startObject("_all").startObject("fielddata").field("format", "doc_values").endObject().endObject().endObject().endObject().string();
@@ -143,7 +134,6 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
     }
 
     // checks if the setting for timestamp and size are kept even if disabled
-    @Test
     public void testDisabledSizeTimestampIndexDoNotLooseMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
         prepareCreate(INDEX).addMapping(TYPE, mapping).get();

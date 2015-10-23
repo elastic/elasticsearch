@@ -47,10 +47,15 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Semaphore;
@@ -59,7 +64,14 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateIT extends ESIntegTestCase {
 
@@ -457,7 +469,6 @@ public class UpdateIT extends ESIntegTestCase {
                         .endObject()));
     }
 
-    @Test
     public void testUpsert() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -487,7 +498,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testScriptedUpsert() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -531,7 +541,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testUpsertDoc() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -547,8 +556,7 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("bar").toString(), equalTo("baz"));
     }
 
-    @Test
-    // See: https://github.com/elasticsearch/elasticsearch/issues/3265
+    // Issue #3265
     public void testNotUpsertDoc() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -560,7 +568,6 @@ public class UpdateIT extends ESIntegTestCase {
                 .execute(), DocumentMissingException.class);
     }
 
-    @Test
     public void testUpsertFields() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -590,7 +597,6 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra").toString(), equalTo("foo"));
     }
 
-    @Test
     public void testVersionedUpdate() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
@@ -651,7 +657,6 @@ public class UpdateIT extends ESIntegTestCase {
         assertThrows(client().prepareUpdate(indexOrAlias(), "type", "1").setVersion(10).setRetryOnConflict(5), ActionRequestValidationException.class);
     }
 
-    @Test
     public void testIndexAutoCreation() throws Exception {
         UpdateResponse updateResponse = client().prepareUpdate("test", "type1", "1")
                 .setUpsert(XContentFactory.jsonBuilder().startObject().field("bar", "baz").endObject())
@@ -666,7 +671,6 @@ public class UpdateIT extends ESIntegTestCase {
         assertThat(updateResponse.getGetResult().sourceAsMap().get("extra"), nullValue());
     }
 
-    @Test
     public void testUpdate() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -813,7 +817,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testUpdateRequestWithBothScriptAndDoc() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -831,7 +834,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testUpdateRequestWithScriptAndShouldUpsertDoc() throws Exception {
         createTestIndex();
         ensureGreen();
@@ -848,7 +850,6 @@ public class UpdateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testContextVariables() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                         .addMapping("type1", XContentFactory.jsonBuilder()
@@ -927,7 +928,6 @@ public class UpdateIT extends ESIntegTestCase {
         assertNull(updateContext.get("_ttl"));
     }
 
-    @Test
     public void testConcurrentUpdateWithRetryOnConflict() throws Exception {
         final boolean useBulkApi = randomBoolean();
         createTestIndex();
@@ -985,8 +985,7 @@ public class UpdateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void stressUpdateDeleteConcurrency() throws Exception {
+    public void testStressUpdateDeleteConcurrency() throws Exception {
         //We create an index with merging disabled so that deletes don't get merged away
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder()

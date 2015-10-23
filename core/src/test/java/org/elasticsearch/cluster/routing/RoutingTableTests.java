@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -109,7 +108,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
                 .numberOfShards(this.numberOfShards);
     }
 
-    @Test
     public void testAllShards() {
         assertThat(this.emptyRoutingTable.allShards().size(), is(0));
         assertThat(this.testRoutingTable.allShards().size(), is(this.totalNumberOfShards));
@@ -123,26 +121,22 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testHasIndex() {
         assertThat(this.testRoutingTable.hasIndex(TEST_INDEX_1), is(true));
         assertThat(this.testRoutingTable.hasIndex("foobar"), is(false));
     }
 
-    @Test
     public void testIndex() {
         assertThat(this.testRoutingTable.index(TEST_INDEX_1).getIndex(), is(TEST_INDEX_1));
         assertThat(this.testRoutingTable.index("foobar"), is(nullValue()));
     }
 
-    @Test
     public void testIndicesRouting() {
         assertThat(this.testRoutingTable.indicesRouting().size(), is(2));
         assertThat(this.testRoutingTable.getIndicesRouting().size(), is(2));
         assertSame(this.testRoutingTable.getIndicesRouting(), this.testRoutingTable.indicesRouting());
     }
 
-    @Test
     public void testShardsWithState() {
         assertThat(this.testRoutingTable.shardsWithState(ShardRoutingState.UNASSIGNED).size(), is(this.totalNumberOfShards));
 
@@ -168,7 +162,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         assertThat(this.testRoutingTable.shardsWithState(ShardRoutingState.STARTED).size(), is(this.totalNumberOfShards));
     }
 
-    @Test
     public void testActivePrimaryShardsGrouped() {
         assertThat(this.emptyRoutingTable.activePrimaryShardsGrouped(new String[0], true).size(), is(0));
         assertThat(this.emptyRoutingTable.activePrimaryShardsGrouped(new String[0], false).size(), is(0));
@@ -198,7 +191,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testAllActiveShardsGrouped() {
         assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], true).size(), is(0));
         assertThat(this.emptyRoutingTable.allActiveShardsGrouped(new String[0], false).size(), is(0));
@@ -227,7 +219,6 @@ public class RoutingTableTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
     public void testAllAssignedShardsGrouped() {
         assertThat(this.testRoutingTable.allAssignedShardsGrouped(new String[]{TEST_INDEX_1}, false).size(), is(0));
         assertThat(this.testRoutingTable.allAssignedShardsGrouped(new String[]{TEST_INDEX_1}, true).size(), is(this.shardsPerIndex));

@@ -46,6 +46,19 @@ discovery:
       type: gce
 --------------------------------------------------
 
+The following gce settings (prefixed with `cloud.gce`) are supported:
+
+ `retry`::
+
+     If set to `true`, client will use
+     https://developers.google.com/api-client-library/java/google-http-java-client/backoff[ExponentialBackOff]
+     policy to retry the failed http request. Defaults to `true`.
+
+ `max_wait`::
+
+     The maximum elapsed time in milliseconds after the client instantiating retry. If the time elapsed goes past the
+     `max_wait`, client stops to retry. Defaults to 15 minutes (900000 milliseconds).
+
 
 [IMPORTANT]
 .Binding the network host

@@ -48,7 +48,6 @@ import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Date;
@@ -59,8 +58,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithAssignedPrimariesAndOneReplica;
+import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithNoShard;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class BroadcastReplicationTests extends ESTestCase {
 
@@ -92,7 +95,6 @@ public class BroadcastReplicationTests extends ESTestCase {
         threadPool = null;
     }
 
-    @Test
     public void testNotStartedPrimary() throws InterruptedException, ExecutionException, IOException {
         final String index = "test";
         clusterService.setState(state(index, randomBoolean(),
@@ -112,7 +114,6 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertBroadcastResponse(2, 0, 0, response.get(), null);
     }
 
-    @Test
     public void testStartedPrimary() throws InterruptedException, ExecutionException, IOException {
         final String index = "test";
         clusterService.setState(state(index, randomBoolean(),
@@ -128,7 +129,6 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertBroadcastResponse(1, 1, 0, response.get(), null);
     }
 
-    @Test
     public void testResultCombine() throws InterruptedException, ExecutionException, IOException {
         final String index = "test";
         int numShards = randomInt(3);
@@ -161,7 +161,6 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertBroadcastResponse(2 * numShards, succeeded, failed, response.get(), Exception.class);
     }
 
-    @Test
     public void testNoShards() throws InterruptedException, ExecutionException, IOException {
         clusterService.setState(stateWithNoShard());
         logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
@@ -169,7 +168,6 @@ public class BroadcastReplicationTests extends ESTestCase {
         assertBroadcastResponse(0, 0, 0, response, null);
     }
 
-    @Test
     public void testShardsList() throws InterruptedException, ExecutionException {
         final String index = "test";
         final ShardId shardId = new ShardId(index, 0);

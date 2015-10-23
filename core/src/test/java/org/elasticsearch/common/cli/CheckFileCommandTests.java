@@ -19,16 +19,16 @@
 
 package org.elasticsearch.common.cli;
 
-import java.nio.charset.StandardCharsets;
 import com.google.common.jimfs.Configuration;
 import com.google.common.jimfs.Jimfs;
+
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileSystem;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -59,79 +59,66 @@ public class CheckFileCommandTests extends ESTestCase {
         CHANGE, KEEP, DISABLED
     }
 
-    @Test
     public void testThatCommandLogsErrorMessageOnFail() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(containsString("Please ensure that the user account running Elasticsearch has read access to this file")));
     }
 
-    @Test
     public void testThatCommandLogsNothingWhenPermissionRemains() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingWhenDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfFilesystemDoesNotSupportPermissions() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new PermissionCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsOwnerChange() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Owner of file ["), containsString("] used to be ["), containsString("], but now is ["))));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfOwnerRemainsSame() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfOwnerIsDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportOwners() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new OwnerCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsIfGroupChanges() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.CHANGE));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasItem(allOf(containsString("Group of file ["), containsString("] used to be ["), containsString("], but now is ["))));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfGroupRemainsSame() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.KEEP));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfGroupIsDisabled() throws Exception {
         executeCommand(jimFsConfiguration, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandLogsNothingIfFileSystemDoesNotSupportGroups() throws Exception {
         executeCommand(jimFsConfigurationWithoutPermissions, new GroupCheckFileCommand(createTempDir(), captureOutputTerminal, Mode.DISABLED));
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandDoesNotLogAnythingOnFileCreation() throws Exception {
         Configuration configuration = randomBoolean() ? jimFsConfiguration : jimFsConfigurationWithoutPermissions;
 
@@ -147,7 +134,6 @@ public class CheckFileCommandTests extends ESTestCase {
         assertThat(captureOutputTerminal.getTerminalOutput(), hasSize(0));
     }
 
-    @Test
     public void testThatCommandWorksIfFileIsDeletedByCommand() throws Exception {
         Configuration configuration = randomBoolean() ? jimFsConfiguration : jimFsConfigurationWithoutPermissions;
 

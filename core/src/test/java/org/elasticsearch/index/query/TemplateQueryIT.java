@@ -38,7 +38,6 @@ import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -51,6 +50,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -76,7 +76,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
                 .put("path.conf", this.getDataPath("config")).build();
     }
 
-    @Test
     public void testTemplateInBody() throws IOException {
         Map<String, Object> vars = new HashMap<>();
         vars.put("template", "all");
@@ -88,7 +87,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertHitCount(sr, 2);
     }
 
-    @Test
     public void testTemplateInBodyWithSize() throws IOException {
         String request = "{\n" +
                 "    \"size\":0," +
@@ -113,7 +111,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertThat(sr.getHits().hits().length, equalTo(0));
     }
 
-    @Test
     public void testTemplateWOReplacementInBody() throws IOException {
         Map<String, Object> vars = new HashMap<>();
 
@@ -124,7 +121,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertHitCount(sr, 2);
     }
 
-    @Test
     public void testTemplateInFile() {
         Map<String, Object> vars = new HashMap<>();
         vars.put("template", "all");
@@ -136,7 +132,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertHitCount(sr, 2);
     }
 
-    @Test
     public void testRawFSTemplate() throws IOException {
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
@@ -145,7 +140,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertHitCount(sr, 2);
     }
 
-    @Test
     public void testSearchRequestTemplateSource() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
@@ -163,7 +157,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // Releates to #6318
     public void testSearchRequestFail() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
@@ -183,7 +176,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
 
-    @Test
     public void testThatParametersCanBeSet() throws Exception {
         index("test", "type", "1", jsonBuilder().startObject().field("theField", "foo").endObject());
         index("test", "type", "2", jsonBuilder().startObject().field("theField", "foo 2").endObject());
@@ -211,7 +203,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1);
     }
 
-    @Test
     public void testSearchTemplateQueryFromFile() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
@@ -225,7 +216,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
     /**
      * Test that template can be expressed as a single escaped string.
      */
-    @Test
     public void testTemplateQueryAsEscapedString() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
@@ -240,7 +230,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
      * Test that template can contain conditional clause. In this case it is at
      * the beginning of the string.
      */
-    @Test
     public void testTemplateQueryAsEscapedStringStartingWithConditionalClause() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
@@ -256,7 +245,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
      * Test that template can contain conditional clause. In this case it is at
      * the end of the string.
      */
-    @Test
     public void testTemplateQueryAsEscapedStringWithConditionalClauseAtEnd() throws Exception {
         SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices("_all");
@@ -268,7 +256,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
     }
 
-    @Test(expected = SearchPhaseExecutionException.class)
     public void testIndexedTemplateClient() throws Exception {
         createIndex(ScriptService.SCRIPT_INDEX);
         ensureGreen(ScriptService.SCRIPT_INDEX);
@@ -323,14 +310,18 @@ public class TemplateQueryIT extends ESIntegTestCase {
         getResponse = client().prepareGetIndexedScript(MustacheScriptEngineService.NAME, "testTemplate").get();
         assertFalse(getResponse.isExists());
 
-        client().prepareSearch("test")
-                .setTypes("type")
-                .setTemplate(
-                        new Template("/template_index/mustache/1000", ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
-                                templateParams)).get();
+        try {
+            client().prepareSearch("test")
+                    .setTypes("type")
+                    .setTemplate(
+                            new Template("/template_index/mustache/1000", ScriptType.INDEXED, MustacheScriptEngineService.NAME, null,
+                                    templateParams)).get();
+            fail("Expected SearchPhaseExecutionException");
+        } catch (SearchPhaseExecutionException e) {
+            assertThat(e.getCause().getMessage(), containsString("Illegal index script format"));
+        }
     }
 
-    @Test
     public void testIndexedTemplate() throws Exception {
         createIndex(ScriptService.SCRIPT_INDEX);
         ensureGreen(ScriptService.SCRIPT_INDEX);
@@ -441,7 +432,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
     }
 
     // Relates to #10397
-    @Test
     public void testIndexedTemplateOverwrite() throws Exception {
         createIndex("testindex");
         ensureGreen("testindex");
@@ -487,8 +477,6 @@ public class TemplateQueryIT extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void testIndexedTemplateWithArray() throws Exception {
       createIndex(ScriptService.SCRIPT_INDEX);
       ensureGreen(ScriptService.SCRIPT_INDEX);

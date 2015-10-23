@@ -28,7 +28,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -48,8 +47,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 /**
  */
 public class XContentMapValuesTests extends ESTestCase {
-
-    @Test
     public void testFilter() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test1", "value1")
@@ -106,7 +103,6 @@ public class XContentMapValuesTests extends ESTestCase {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Test
     public void testExtractValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test", "value")
@@ -196,8 +192,6 @@ public class XContentMapValuesTests extends ESTestCase {
         assertThat(XContentMapValues.extractValue("path1.xxx.path2.yyy.test", map).toString(), equalTo("value"));
     }
 
-    @SuppressWarnings({"unchecked"})
-    @Test
     public void testExtractRawValue() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .field("test", "value")
@@ -237,8 +231,7 @@ public class XContentMapValuesTests extends ESTestCase {
         assertThat(XContentMapValues.extractRawValues("path1.xxx.path2.yyy.test", map).get(0).toString(), equalTo("value"));
     }
 
-    @Test
-    public void prefixedNamesFilteringTest() {
+    public void testPrefixedNamesFilteringTest() {
         Map<String, Object> map = new HashMap<>();
         map.put("obj", "value");
         map.put("obj_name", "value_name");
@@ -248,9 +241,8 @@ public class XContentMapValuesTests extends ESTestCase {
     }
 
 
-    @Test
     @SuppressWarnings("unchecked")
-    public void nestedFilteringTest() {
+    public void testNestedFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("array",
@@ -295,8 +287,7 @@ public class XContentMapValuesTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @Test
-    public void completeObjectFilteringTest() {
+    public void testCompleteObjectFiltering() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("obj",
@@ -340,8 +331,7 @@ public class XContentMapValuesTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @Test
-    public void filterIncludesUsingStarPrefix() {
+    public void testFilterIncludesUsingStarPrefix() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         map.put("obj",
@@ -382,8 +372,7 @@ public class XContentMapValuesTests extends ESTestCase {
 
     }
 
-    @Test
-    public void filterWithEmptyIncludesExcludes() {
+    public void testFilterWithEmptyIncludesExcludes() {
         Map<String, Object> map = new HashMap<>();
         map.put("field", "value");
         Map<String, Object> filteredMap = XContentMapValues.filter(map, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY);
@@ -392,8 +381,6 @@ public class XContentMapValuesTests extends ESTestCase {
 
     }
 
-    @SuppressWarnings({"unchecked"})
-    @Test
     public void testThatFilterIncludesEmptyObjectWhenUsingIncludes() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj")
@@ -406,7 +393,6 @@ public class XContentMapValuesTests extends ESTestCase {
         assertThat(mapTuple.v2(), equalTo(filteredSource));
     }
 
-    @Test
     public void testThatFilterIncludesEmptyObjectWhenUsingExcludes() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj")
@@ -419,7 +405,6 @@ public class XContentMapValuesTests extends ESTestCase {
         assertThat(mapTuple.v2(), equalTo(filteredSource));
     }
 
-    @Test
     public void testNotOmittingObjectsWithExcludedProperties() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj")
@@ -436,7 +421,6 @@ public class XContentMapValuesTests extends ESTestCase {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Test
     public void testNotOmittingObjectWithNestedExcludedObject() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj1")
@@ -470,7 +454,6 @@ public class XContentMapValuesTests extends ESTestCase {
     }
 
     @SuppressWarnings({"unchecked"})
-    @Test
     public void testIncludingObjectWithNestedIncludedObject() throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject()
                 .startObject("obj1")
@@ -568,5 +551,4 @@ public class XContentMapValuesTests extends ESTestCase {
                     parser.list());
         }
     }
-
 }

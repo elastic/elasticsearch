@@ -27,7 +27,13 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.RestoreSource;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.common.Nullable;
@@ -35,7 +41,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -43,7 +48,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
@@ -64,13 +71,11 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Verifies that the canProcess method of primary allocation behaves correctly
      * and processes only the applicable shard.
      */
-    @Test
     public void testNoProcessReplica() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
         assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
     }
 
-    @Test
     public void testNoProcessPrimayNotAllcoatedBefore() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, true, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
@@ -79,7 +84,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Tests that when async fetch returns that there is no data, the shard will not be allocated.
      */
-    @Test
     public void testNoAsyncFetchData() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders());
         boolean changed = testAllocator.allocateUnassigned(allocation);
@@ -91,7 +95,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Tests when the node returns that no data was found for it (-1), it will be moved to ignore unassigned.
      */
-    @Test
     public void testNoAllocationFound() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders());
         testAllocator.addData(node1, -1);
@@ -104,7 +107,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Tests when the node returns that no data was found for it (-1), it will be moved to ignore unassigned.
      */
-    @Test
     public void testStoreException() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders());
         testAllocator.addData(node1, 3, new CorruptIndexException("test", "test"));
@@ -117,7 +119,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Tests that when there is a node to allocate the shard to, it will be allocated to it.
      */
-    @Test
     public void testFoundAllocationAndAllocating() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders());
         testAllocator.addData(node1, 10);
@@ -132,7 +133,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that when there is a node to allocate to, but it is throttling (and it is the only one),
      * it will be moved to ignore unassigned until it can be allocated to.
      */
-    @Test
     public void testFoundAllocationButThrottlingDecider() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(throttleAllocationDeciders());
         testAllocator.addData(node1, 10);
@@ -146,7 +146,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that when there is a node to be allocated to, but it the decider said "no", we still
      * force the allocation to it.
      */
-    @Test
     public void testFoundAllocationButNoDecider() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(noAllocationDeciders());
         testAllocator.addData(node1, 10);
@@ -160,7 +159,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     /**
      * Tests that the highest version node is chosed for allocation.
      */
-    @Test
     public void testAllocateToTheHighestVersion() {
         RoutingAllocation allocation = routingAllocationWithOnePrimaryNoReplicas(yesAllocationDeciders());
         testAllocator.addData(node1, 10).addData(node2, 12);
@@ -175,7 +173,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that when restoring from snapshot, even if we didn't find any node to allocate on, the shard
      * will remain in the unassigned list to be allocated later.
      */
-    @Test
     public void testRestoreIgnoresNoNodesToAllocate() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(0))
@@ -199,7 +196,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that only when enough copies of the shard exists we are going to allocate it. This test
      * verifies that with same version (1), and quorum allocation.
      */
-    @Test
     public void testEnoughCopiesFoundForAllocation() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
@@ -241,7 +237,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * Tests that only when enough copies of the shard exists we are going to allocate it. This test
      * verifies that even with different version, we treat different versions as a copy, and count them.
      */
-    @Test
     public void testEnoughCopiesFoundForAllocationWithDifferentVersion() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder(shardId.getIndex()).settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
@@ -279,7 +274,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(allocation.routingNodes().shardsWithState(ShardRoutingState.INITIALIZING).get(0).currentNodeId(), equalTo(node2.id()));
     }
 
-    @Test
     public void testAllocationOnAnyNodeWithSharedFs() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false,
                 ShardRoutingState.UNASSIGNED, 0,
@@ -304,8 +298,6 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
         assertThat(nAndV.nodes, contains(node2, node1, node3));
     }
 
-
-    @Test
     public void testAllocationOnAnyNodeShouldPutNodesWithExceptionsLast() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false,
                 ShardRoutingState.UNASSIGNED, 0,

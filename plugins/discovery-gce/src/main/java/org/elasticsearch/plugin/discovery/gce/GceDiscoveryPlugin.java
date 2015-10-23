@@ -19,6 +19,10 @@
 
 package org.elasticsearch.plugin.discovery.gce;
 
+import com.google.api.client.http.HttpHeaders;
+import com.google.api.client.util.ClassInfo;
+
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.gce.GceComputeService;
 import org.elasticsearch.cloud.gce.GceModule;
 import org.elasticsearch.common.Strings;
@@ -32,11 +36,34 @@ import org.elasticsearch.discovery.gce.GceDiscovery;
 import org.elasticsearch.discovery.gce.GceUnicastHostsProvider;
 import org.elasticsearch.plugins.Plugin;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 
 public class GceDiscoveryPlugin extends Plugin {
+    static {
+        /*
+         * GCE's http client changes access levels because its silly and we
+         * can't allow that on any old stack stack so we pull it here, up front,
+         * so we can cleanly check the permissions for it. Without this changing
+         * the permission can fail if any part of core is on the stack because
+         * our plugin permissions don't allow core to "reach through" plugins to
+         * change the permission. Because that'd be silly.
+         */
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                ClassInfo.of(HttpHeaders.class, true);
+                return null;
+            }
+        });
+    }
 
     private final Settings settings;
     protected final ESLogger logger = Loggers.getLogger(GceDiscoveryPlugin.class);

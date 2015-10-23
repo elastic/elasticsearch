@@ -24,7 +24,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
-import org.junit.Test;
 import org.junit.runner.Description;
 import org.junit.runner.Result;
 
@@ -34,10 +33,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.nullValue;
 
 public class LoggingListenerTests extends ESTestCase {
-
-    @Test
     public void testCustomLevelPerMethod() throws Exception {
-
         LoggingListener loggingListener = new LoggingListener();
 
         Description suiteDescription = Description.createSuiteDescription(TestClass.class);
@@ -67,9 +63,7 @@ public class LoggingListenerTests extends ESTestCase {
         assertThat(abcLogger.getLevel(), nullValue());
     }
 
-    @Test
     public void testCustomLevelPerClass() throws Exception {
-
         LoggingListener loggingListener = new LoggingListener();
 
         Description suiteDescription = Description.createSuiteDescription(AnnotatedTestClass.class);
@@ -97,9 +91,7 @@ public class LoggingListenerTests extends ESTestCase {
         assertThat(xyzLogger.getLevel(), nullValue());
     }
 
-    @Test
     public void testCustomLevelPerClassAndPerMethod() throws Exception {
-
         LoggingListener loggingListener = new LoggingListener();
 
         Description suiteDescription = Description.createSuiteDescription(AnnotatedTestClass.class);

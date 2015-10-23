@@ -33,16 +33,13 @@ import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.monitor.fs.FsInfo;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.nio.file.Path;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class DiskUsageTests extends ESTestCase {
-
-    @Test
-    public void diskUsageCalcTest() {
+    public void testDiskUsageCalc() {
         DiskUsage du = new DiskUsage("node1", "n1", "random", 100, 40);
         assertThat(du.getFreeDiskAsPercentage(), equalTo(40.0));
         assertThat(du.getUsedDiskAsPercentage(), equalTo(100.0 - 40.0));
@@ -71,8 +68,7 @@ public class DiskUsageTests extends ESTestCase {
         assertThat(du4.getTotalBytes(), equalTo(0L));
     }
 
-    @Test
-    public void randomDiskUsageTest() {
+    public void testRandomDiskUsage() {
         int iters = scaledRandomIntBetween(1000, 10000);
         for (int i = 1; i < iters; i++) {
             long total = between(Integer.MIN_VALUE, Integer.MAX_VALUE);

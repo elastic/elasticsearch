@@ -19,7 +19,12 @@
 
 package org.elasticsearch.search.scroll;
 
-import org.elasticsearch.action.search.*;
+import org.elasticsearch.action.search.ClearScrollRequest;
+import org.elasticsearch.action.search.ClearScrollResponse;
+import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.action.search.SearchScrollRequest;
+import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -40,22 +45,32 @@ import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
  */
 public class SearchScrollIT extends ESIntegTestCase {
-
-    @Test
     public void testSimpleScrollQueryThenFetch() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -107,7 +122,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSimpleScrollQueryThenFetchSmallSizeUnevenDistribution() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -181,7 +195,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testScrollAndUpdateIndex() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 5)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -193,11 +206,11 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         client().admin().indices().prepareRefresh().execute().actionGet();
 
-        assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(500l));
-        assertThat(client().prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(500l));
-        assertThat(client().prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(500l));
-        assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(0l));
-        assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(0l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(500l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().totalHits(), equalTo(500l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().totalHits(), equalTo(500l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().totalHits(), equalTo(0l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().totalHits(), equalTo(0l));
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(queryStringQuery("user:kimchy"))
@@ -216,17 +229,16 @@ public class SearchScrollIT extends ESIntegTestCase {
             } while (searchResponse.getHits().hits().length > 0);
 
             client().admin().indices().prepareRefresh().execute().actionGet();
-            assertThat(client().prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount(), equalTo(500l));
-            assertThat(client().prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(0l));
-            assertThat(client().prepareCount().setQuery(termQuery("message", "test")).execute().actionGet().getCount(), equalTo(0l));
-            assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(500l));
-            assertThat(client().prepareCount().setQuery(termQuery("message", "update")).execute().actionGet().getCount(), equalTo(500l));
+            assertThat(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(500l));
+            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().totalHits(), equalTo(0l));
+            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "test")).execute().actionGet().getHits().totalHits(), equalTo(0l));
+            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().totalHits(), equalTo(500l));
+            assertThat(client().prepareSearch().setSize(0).setQuery(termQuery("message", "update")).execute().actionGet().getHits().totalHits(), equalTo(500l));
         } finally {
             clearScroll(searchResponse.getScrollId());
         }
     }
 
-    @Test
     public void testSimpleScrollQueryThenFetch_clearScrollIds() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
@@ -303,7 +315,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThrows(client().prepareSearchScroll(searchResponse2.getScrollId()).setScroll(TimeValue.timeValueMinutes(2)), RestStatus.NOT_FOUND);
     }
 
-    @Test
     public void testClearNonExistentScrollId() throws Exception {
         createIndex("idx");
         ClearScrollResponse response = client().prepareClearScroll()
@@ -317,7 +328,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertToXContentResponse(response, true, response.getNumFreed());
     }
 
-    @Test
     public void testClearIllegalScrollId() throws Exception {
         createIndex("idx");
         try {
@@ -340,8 +350,7 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void testSimpleScrollQueryThenFetch_clearAllScrollIds() throws Exception {
+    public void testSimpleScrollQueryThenFetchClearAllScrollIds() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder().put("index.number_of_shards", 3)).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -440,7 +449,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatNonExistingScrollIdReturnsCorrectException() throws Exception {
         client().prepareIndex("index", "type", "1").setSource("field", "value").execute().get();
         refresh();
@@ -454,7 +462,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThrows(internalCluster().transportClient().prepareSearchScroll(searchResponse.getScrollId()), RestStatus.NOT_FOUND);
     }
 
-    @Test
     public void testStringSortMissingAscTerminates() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0))
@@ -488,7 +495,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(response.getHits().getHits().length, equalTo(0));
     }
 
-    @Test
     public void testParseSearchScrollRequest() throws Exception {
         BytesReference content = XContentFactory.jsonBuilder()
             .startObject()
@@ -503,7 +509,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(searchScrollRequest.scroll().keepAlive(), equalTo(TimeValue.parseTimeValue("1m", null, "scroll")));
     }
 
-    @Test
     public void testParseSearchScrollRequestWithInvalidJsonThrowsException() throws Exception {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         try {
@@ -515,7 +520,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testParseSearchScrollRequestWithUnknownParamThrowsException() throws Exception {
         SearchScrollRequest searchScrollRequest = new SearchScrollRequest();
         BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
@@ -532,7 +536,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testParseClearScrollRequest() throws Exception {
         BytesReference content = XContentFactory.jsonBuilder().startObject()
             .array("scroll_id", "value_1", "value_2")
@@ -542,7 +545,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         assertThat(clearScrollRequest.scrollIds(), contains("value_1", "value_2"));
     }
 
-    @Test
     public void testParseClearScrollRequestWithInvalidJsonThrowsException() throws Exception {
         ClearScrollRequest clearScrollRequest = new ClearScrollRequest();
 
@@ -555,7 +557,6 @@ public class SearchScrollIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testParseClearScrollRequestWithUnknownParamThrowsException() throws Exception {
         BytesReference invalidContent = XContentFactory.jsonBuilder().startObject()
             .array("scroll_id", "value_1", "value_2")

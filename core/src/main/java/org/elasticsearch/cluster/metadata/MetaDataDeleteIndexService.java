@@ -56,50 +56,18 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
 
     private final NodeIndexDeletedAction nodeIndexDeletedAction;
 
-    private final MetaDataService metaDataService;
-
     @Inject
     public MetaDataDeleteIndexService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService,
-                                      NodeIndexDeletedAction nodeIndexDeletedAction, MetaDataService metaDataService) {
+                                      NodeIndexDeletedAction nodeIndexDeletedAction) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.allocationService = allocationService;
         this.nodeIndexDeletedAction = nodeIndexDeletedAction;
-        this.metaDataService = metaDataService;
     }
 
     public void deleteIndex(final Request request, final Listener userListener) {
-        // we lock here, and not within the cluster service callback since we don't want to
-        // block the whole cluster state handling
-        final Semaphore mdLock = metaDataService.indexMetaDataLock(request.index);
-
-        // quick check to see if we can acquire a lock, otherwise spawn to a thread pool
-        if (mdLock.tryAcquire()) {
-            deleteIndex(request, userListener, mdLock);
-            return;
-        }
-
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
-            @Override
-            public void run() {
-                try {
-                    if (!mdLock.tryAcquire(request.masterTimeout.nanos(), TimeUnit.NANOSECONDS)) {
-                        userListener.onFailure(new ProcessClusterEventTimeoutException(request.masterTimeout, "acquire index lock"));
-                        return;
-                    }
-                } catch (InterruptedException e) {
-                    userListener.onFailure(e);
-                    return;
-                }
-
-                deleteIndex(request, userListener, mdLock);
-            }
-        });
-    }
-
-    private void deleteIndex(final Request request, final Listener userListener, Semaphore mdLock) {
-        final DeleteIndexListener listener = new DeleteIndexListener(mdLock, userListener);
+        final DeleteIndexListener listener = new DeleteIndexListener(userListener);
         clusterService.submitStateUpdateTask("delete-index [" + request.index + "]", Priority.URGENT, new ClusterStateUpdateTask() {
 
             @Override
@@ -181,19 +149,16 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     class DeleteIndexListener implements Listener {
 
         private final AtomicBoolean notified = new AtomicBoolean();
-        private final Semaphore mdLock;
         private final Listener listener;
         volatile ScheduledFuture<?> future;
 
-        private DeleteIndexListener(Semaphore mdLock, Listener listener) {
-            this.mdLock = mdLock;
+        private DeleteIndexListener(Listener listener) {
             this.listener = listener;
         }
 
         @Override
         public void onResponse(final Response response) {
             if (notified.compareAndSet(false, true)) {
-                mdLock.release();
                 FutureUtils.cancel(future);
                 listener.onResponse(response);
             }
@@ -202,7 +167,6 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
         @Override
         public void onFailure(Throwable t) {
             if (notified.compareAndSet(false, true)) {
-                mdLock.release();
                 FutureUtils.cancel(future);
                 listener.onFailure(t);
             }
@@ -210,7 +174,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     }
 
 
-    public static interface Listener {
+    public interface Listener {
 
         void onResponse(Response response);
 

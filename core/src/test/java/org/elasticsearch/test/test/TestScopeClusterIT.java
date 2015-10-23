@@ -20,7 +20,6 @@ package org.elasticsearch.test.test;
 
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -36,7 +35,6 @@ public class TestScopeClusterIT extends ESIntegTestCase {
     private static long[] SEQUENCE = new long[100];
     private static Long CLUSTER_SEED = null;
 
-    @Test
     public void testReproducible() throws IOException {
         if (ITER++ == 0) {
             CLUSTER_SEED = cluster().seed();

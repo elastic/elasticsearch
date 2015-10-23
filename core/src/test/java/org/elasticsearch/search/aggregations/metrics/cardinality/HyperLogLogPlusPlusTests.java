@@ -21,18 +21,16 @@ package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import com.carrotsearch.hppc.BitMixer;
 import com.carrotsearch.hppc.IntHashSet;
+
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.search.aggregations.metrics.cardinality.HyperLogLogPlusPlus.MAX_PRECISION;
 import static org.elasticsearch.search.aggregations.metrics.cardinality.HyperLogLogPlusPlus.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 
 public class HyperLogLogPlusPlusTests extends ESTestCase {
-
-    @Test
-    public void encodeDecode() {
+    public void testEncodeDecode() {
         final int iters = scaledRandomIntBetween(100000, 500000);
         // random hashes
         for (int i = 0; i < iters; ++i) {
@@ -56,8 +54,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         assertEquals(runLen, HyperLogLogPlusPlus.decodeRunLen(encoded, p1));
     }
 
-    @Test
-    public void accuracy() {
+    public void testAccuracy() {
         final long bucket = randomInt(20);
         final int numValues = randomIntBetween(1, 100000);
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000: 100000);
@@ -77,8 +74,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         assertThat((double) e.cardinality(bucket), closeTo(set.size(), 0.1 * set.size()));
     }
 
-    @Test
-    public void merge() {
+    public void testMerge() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
         final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
         final HyperLogLogPlusPlus[] multi = new HyperLogLogPlusPlus[randomIntBetween(2, 100)];
@@ -106,8 +102,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void fakeHashes() {
+    public void testFakeHashes() {
         // hashes with lots of leading zeros trigger different paths in the code that we try to go through here
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
         final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
@@ -123,8 +118,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         assertEquals(1, counts.cardinality(0));
     }
 
-    @Test
-    public void precisionFromThreshold() {
+    public void testPrecisionFromThreshold() {
         assertEquals(4, HyperLogLogPlusPlus.precisionFromThreshold(0));
         assertEquals(6, HyperLogLogPlusPlus.precisionFromThreshold(10));
         assertEquals(10, HyperLogLogPlusPlus.precisionFromThreshold(100));
@@ -133,5 +127,4 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         assertEquals(18, HyperLogLogPlusPlus.precisionFromThreshold(100000));
         assertEquals(18, HyperLogLogPlusPlus.precisionFromThreshold(1000000));
     }
-
 }

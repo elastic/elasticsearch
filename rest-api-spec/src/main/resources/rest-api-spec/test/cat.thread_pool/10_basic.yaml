@@ -29,13 +29,13 @@
 
   - do:
       cat.thread_pool:
-          h: id,ba,fa,gea,ga,ia,maa,ma,oa,pa
+          h: id,ba,fa,gea,ga,ia,maa,ma,fma,pa
           v: true
           full_id: true
 
   - match:
       $body: |
-               /^  id   \s+  ba   \s+  fa   \s+  gea  \s+  ga   \s+  ia   \s+  maa  \s+  oa   \s+  pa  \s+  \n
+               /^  id   \s+  ba   \s+  fa   \s+  gea  \s+  ga   \s+  ia   \s+  maa  \s+  fma   \s+  pa  \s+  \n
                   (\S+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+  \s+  \d+ \s+  \n)+  $/
 
   - do:
@@ -100,12 +100,12 @@
 
   - do:
       cat.thread_pool:
-          h: id,optimize.type,optimize.active,optimize.size,optimize.queue,optimize.queueSize,optimize.rejected,optimize.largest,optimize.completed,optimize.min,optimize.max,optimize.keepAlive
+          h: id,force_merge.type,force_merge.active,force_merge.size,force_merge.queue,force_merge.queueSize,force_merge.rejected,force_merge.largest,force_merge.completed,force_merge.min,force_merge.max,force_merge.keepAlive
           v: true
 
   - match:
       $body: |
-               /^  id  \s+  optimize.type            \s+  optimize.active  \s+  optimize.size  \s+  optimize.queue  \s+  optimize.queueSize  \s+  optimize.rejected  \s+  optimize.largest  \s+  optimize.completed  \s+  optimize.min  \s+  optimize.max  \s+  optimize.keepAlive  \s+  \n
+               /^  id  \s+  force_merge.type            \s+  force_merge.active  \s+  force_merge.size  \s+  force_merge.queue  \s+  force_merge.queueSize  \s+  force_merge.rejected  \s+  force_merge.largest  \s+  force_merge.completed  \s+  force_merge.min  \s+  force_merge.max  \s+  force_merge.keepAlive  \s+  \n
                   (\S+ \s+  (cached|fixed|scaling)?  \s+              \d+  \s+            \d+  \s+             \d+  \s+                 \d*  \s+                \d+  \s+               \d+  \s+                 \d+  \s+           \d*  \s+           \d*  \s+                 \S*  \s+  \n)+  $/
 
   - do:

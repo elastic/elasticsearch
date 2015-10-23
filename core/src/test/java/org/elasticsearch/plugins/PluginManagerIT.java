@@ -57,6 +57,7 @@ import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.nio.file.attribute.PosixFileAttributeView;
 import java.nio.file.attribute.PosixFileAttributes;
@@ -64,6 +65,7 @@ import java.nio.file.attribute.PosixFilePermission;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
+import java.util.jar.JarOutputStream;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -405,6 +407,45 @@ public class PluginManagerIT extends ESIntegTestCase {
         assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("Version:"))));
         assertThat(terminal.getTerminalOutput(), not(hasItem(containsString("JVM:"))));
         assertThatPluginIsListed(pluginName);
+    }
+
+    /**
+     * @deprecated support for this is not going to stick around, seriously.
+     */
+    @Deprecated
+    public void testAlreadyInstalledNotIsolated() throws Exception {
+        String pluginName = "fake-plugin";
+        Path pluginDir = createTempDir().resolve(pluginName);
+        Files.createDirectories(pluginDir);
+        // create a jar file in the plugin
+        Path pluginJar = pluginDir.resolve("fake-plugin.jar");
+        try (ZipOutputStream out = new JarOutputStream(Files.newOutputStream(pluginJar, StandardOpenOption.CREATE))) {
+            out.putNextEntry(new ZipEntry("foo.class"));
+            out.closeEntry();
+        }
+        String pluginUrl = createPlugin(pluginDir,
+            "description", "fake desc",
+            "name", pluginName,
+            "version", "1.0",
+            "elasticsearch.version", Version.CURRENT.toString(),
+            "java.version", System.getProperty("java.specification.version"),
+            "isolated", "false",
+            "jvm", "true",
+            "classname", "FakePlugin");
+
+        // install
+        ExitStatus status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl));
+        assertEquals("unexpected exit status: output: " + terminal.getTerminalOutput(), ExitStatus.OK, status);
+
+        // install again
+        status = new PluginManagerCliParser(terminal).execute(args("install " + pluginUrl));
+        List<String> output = terminal.getTerminalOutput();
+        assertEquals("unexpected exit status: output: " + output, ExitStatus.IO_ERROR, status);
+        boolean foundExpectedMessage = false;
+        for (String line : output) {
+            foundExpectedMessage |= line.contains("already exists");
+        }
+        assertTrue(foundExpectedMessage);
     }
 
     public void testInstallSitePluginVerbose() throws IOException {

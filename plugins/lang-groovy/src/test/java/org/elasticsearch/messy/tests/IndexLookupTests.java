@@ -33,7 +33,6 @@ import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,7 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexLookupTests extends ESIntegTestCase {
-
     String includeAllFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS | _CACHE";
     String includeAllWithoutRecordFlag = "_FREQUENCIES | _OFFSETS | _PAYLOADS | _POSITIONS ";
     private HashMap<String, List<Object>> expectedEndOffsetsArray;
@@ -62,7 +60,7 @@ public class IndexLookupTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     void initTestData() throws InterruptedException, ExecutionException, IOException {
         emptyArray = new HashMap<>();
         List<Object> empty1 = new ArrayList<>();
@@ -154,9 +152,7 @@ public class IndexLookupTests extends ESIntegTestCase {
         ensureGreen();
     }
 
-    @Test
     public void testTwoScripts() throws Exception {
-
         initTestData();
 
         // check term frequencies for 'a'
@@ -176,9 +172,7 @@ public class IndexLookupTests extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testCallWithDifferentFlagsFails() throws Exception {
-
         initTestData();
 
         // should throw an exception, we cannot call with different flags twice
@@ -212,9 +206,7 @@ public class IndexLookupTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDocumentationExample() throws Exception {
-
         initTestData();
 
         Script script = new Script("term = _index['float_payload_field'].get('b'," + includeAllFlag
@@ -237,9 +229,7 @@ public class IndexLookupTests extends ESIntegTestCase {
         checkValueInEachDoc(script, zeroArray, 3);
     }
 
-    @Test
     public void testIteratorAndRecording() throws Exception {
-
         initTestData();
 
         // call twice with record: should work as expected
@@ -300,9 +290,7 @@ public class IndexLookupTests extends ESIntegTestCase {
         return new Script(script);
     }
 
-    @Test
     public void testFlags() throws Exception {
-
         initTestData();
 
         // check default flag
@@ -409,7 +397,6 @@ public class IndexLookupTests extends ESIntegTestCase {
         assertThat(nullCounter, equalTo(expectedArray.size()));
     }
 
-    @Test
     public void testAllExceptPosAndOffset() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("float_payload_field").field("type", "string").field("index_options", "offsets").field("term_vector", "no")

@@ -23,7 +23,6 @@ import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.Logger;
 import org.apache.log4j.spi.LoggingEvent;
-import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -33,21 +32,24 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.shard.MergePolicyConfig;
+import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class UpdateSettingsIT extends ESIntegTestCase {
-
-    @Test
     public void testOpenCloseUpdateSettings() throws Exception {
         createIndex("test");
         try {
@@ -119,7 +121,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test", "index.cache.filter.type"), equalTo("none"));
     }
 
-    @Test
     public void testEngineGCDeletesSetting() throws InterruptedException {
         createIndex("test");
         client().prepareIndex("test", "type", "1").setSource("f", 1).get(); // set version to 1
@@ -137,9 +138,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     }
 
     // #6626: make sure we can update throttle settings and the changes take effect
-    @Test
     public void testUpdateThrottleSettings() {
-
         // No throttling at first, only 1 non-replicated shard, force lots of merging:
         assertAcked(prepareCreate("test")
                     .setSettings(Settings.builder()
@@ -214,7 +213,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
 
         logger.info("test: disable merge throttling");
-        
+
         // Now updates settings to disable merge throttling
         client()
             .admin()
@@ -226,7 +225,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
 
         // Optimize does a waitForMerges, which we must do to make sure all in-flight (throttled) merges finish:
         logger.info("test: optimize");
-        client().admin().indices().prepareOptimize("test").setMaxNumSegments(1).get();
+        client().admin().indices().prepareForceMerge("test").setMaxNumSegments(1).get();
         logger.info("test: optimize done");
 
         // Record current throttling so far
@@ -264,16 +263,13 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         // when ESIntegTestCase.after tries to remove indices created by the test:
 
         // Wait for merges to finish
-        client().admin().indices().prepareOptimize("test").get();
+        client().admin().indices().prepareForceMerge("test").get();
         flush();
 
         logger.info("test: test done");
     }
 
     private static class MockAppender extends AppenderSkeleton {
-        public boolean sawIndexWriterMessage;
-        public boolean sawFlushDeletes;
-        public boolean sawMergeThreadPaused;
         public boolean sawUpdateMaxThreadCount;
         public boolean sawUpdateAutoThrottle;
 
@@ -282,8 +278,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
             String message = event.getMessage().toString();
             if (event.getLevel() == Level.TRACE &&
                 event.getLoggerName().endsWith("lucene.iw")) {
-                sawFlushDeletes |= message.contains("IW: apply all deletes during flush");
-                sawMergeThreadPaused |= message.contains("CMS: pause thread");
             }
             if (event.getLevel() == Level.INFO && message.contains("updating [index.merge.scheduler.max_thread_count] from [10000] to [1]")) {
                 sawUpdateMaxThreadCount = true;
@@ -303,9 +297,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testUpdateAutoThrottleSettings() {
-
         MockAppender mockAppender = new MockAppender();
         Logger rootLogger = Logger.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
@@ -347,9 +339,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
     }
 
     // #6882: make sure we can change index.merge.scheduler.max_thread_count live
-    @Test
     public void testUpdateMergeMaxThreadCount() {
-
         MockAppender mockAppender = new MockAppender();
         Logger rootLogger = Logger.getRootLogger();
         Level savedLevel = rootLogger.getLevel();
@@ -379,7 +369,7 @@ public class UpdateSettingsIT extends ESIntegTestCase {
                              .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
                              )
                 .get();
-            
+
             // Make sure we log the change:
             assertTrue(mockAppender.sawUpdateMaxThreadCount);
 
@@ -393,7 +383,6 @@ public class UpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testUpdateSettingsWithBlocks() {
         createIndex("test");
         ensureGreen("test");

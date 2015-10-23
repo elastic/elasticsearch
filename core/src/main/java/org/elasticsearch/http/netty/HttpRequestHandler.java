@@ -40,7 +40,7 @@ public class HttpRequestHandler extends SimpleChannelUpstreamHandler {
 
     public HttpRequestHandler(NettyHttpServerTransport serverTransport, boolean detailedErrorsEnabled) {
         this.serverTransport = serverTransport;
-        this.corsPattern = RestUtils.getCorsSettingRegex(serverTransport.settings());
+        this.corsPattern = RestUtils.checkCorsSettingForRegex(serverTransport.settings().get(NettyHttpServerTransport.SETTING_CORS_ALLOW_ORIGIN));
         this.httpPipeliningEnabled = serverTransport.pipelining;
         this.detailedErrorsEnabled = detailedErrorsEnabled;
     }

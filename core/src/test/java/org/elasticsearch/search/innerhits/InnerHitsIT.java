@@ -40,7 +40,6 @@ import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -71,13 +70,11 @@ import static org.hamcrest.Matchers.nullValue;
 /**
  */
 public class InnerHitsIT extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(MockScriptEngine.TestPlugin.class);
     }
 
-    @Test
     public void testSimpleNested() throws Exception {
         assertAcked(prepareCreate("articles").addMapping("article", jsonBuilder().startObject().startObject("article").startObject("properties")
                 .startObject("comments")
@@ -207,7 +204,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRandomNested() throws Exception {
         assertAcked(prepareCreate("idx").addMapping("type", "field1", "type=nested", "field2", "type=nested"));
         int numDocs = scaledRandomIntBetween(25, 100);
@@ -284,7 +280,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSimpleParentChild() throws Exception {
         assertAcked(prepareCreate("articles")
                 .addMapping("article", "title", "type=string")
@@ -395,7 +390,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRandomParentChild() throws Exception {
         assertAcked(prepareCreate("idx")
                         .addMapping("parent")
@@ -491,7 +485,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     @AwaitsFix(bugUrl = "need validation of type or path defined in InnerHitsBuilder")
     public void testPathOrTypeMustBeDefined() {
         createIndex("articles");
@@ -508,7 +501,6 @@ public class InnerHitsIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testInnerHitsOnHasParent() throws Exception {
         assertAcked(prepareCreate("stack")
                         .addMapping("question", "body", "type=string")
@@ -547,7 +539,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(searchHit.getInnerHits().get("question").getAt(0).id(), equalTo("2"));
     }
 
-    @Test
     public void testParentChildMultipleLayers() throws Exception {
         assertAcked(prepareCreate("articles")
                         .addMapping("article", "title", "type=string")
@@ -617,7 +608,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(innerHits.getAt(0).type(), equalTo("remark"));
     }
 
-    @Test
     public void testNestedMultipleLayers() throws Exception {
         assertAcked(prepareCreate("articles").addMapping("article", jsonBuilder().startObject().startObject("article").startObject("properties")
                 .startObject("comments")
@@ -736,8 +726,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(innerHits.getAt(0).getNestedIdentity().getChild().getOffset(), equalTo(0));
     }
 
-    @Test
-    // https://github.com/elasticsearch/elasticsearch/issues/9723
+    // Issue #9723
     public void testNestedDefinedAsObject() throws Exception {
         assertAcked(prepareCreate("articles").addMapping("article", "comments", "type=nested", "title", "type=string"));
 
@@ -761,7 +750,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).getNestedIdentity().getChild(), nullValue());
     }
 
-    @Test
     public void testNestedInnerHitsWithStoredFieldsAndNoSourceBackcompat() throws Exception {
         assertAcked(prepareCreate("articles")
                 .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
@@ -800,7 +788,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue(), equalTo("fox eat quick"));
     }
 
-    @Test
     public void testNestedInnerHitsWithHighlightOnStoredFieldBackcompat() throws Exception {
         assertAcked(prepareCreate("articles")
                 .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
@@ -840,7 +827,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).highlightFields().get("comments.message").getFragments()[0]), equalTo("<em>fox</em> eat quick"));
     }
 
-    @Test
     public void testNestedInnerHitsWithExcludeSourceBackcompat() throws Exception {
         assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
@@ -880,7 +866,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).fields().get("comments.message").getValue(), equalTo("fox eat quick"));
     }
 
-    @Test
     public void testNestedInnerHitsHiglightWithExcludeSourceBackcompat() throws Exception {
         assertAcked(prepareCreate("articles").setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
                         .addMapping("article", jsonBuilder().startObject()
@@ -919,7 +904,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(String.valueOf(response.getHits().getAt(0).getInnerHits().get("comments").getAt(0).highlightFields().get("comments.message").getFragments()[0]), equalTo("<em>fox</em> eat quick"));
     }
 
-    @Test
     public void testInnerHitsWithObjectFieldThatHasANestedField() throws Exception {
         assertAcked(prepareCreate("articles")
                         .addMapping("article", jsonBuilder().startObject()
@@ -991,7 +975,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("comments.messages").getAt(0).getNestedIdentity().getChild(), nullValue());
     }
 
-    @Test
     public void testRoyals() throws Exception {
         assertAcked(
                 prepareCreate("royals")
@@ -1069,8 +1052,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(innerInnerHits.getAt(0).getId(), equalTo("king"));
     }
 
-    @Test
-    public void matchesQueries_nestedInnerHits() throws Exception {
+    public void testMatchesQueriesNestedInnerHits() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                 .startObject("type1")
                 .startObject("properties")
@@ -1167,8 +1149,7 @@ public class InnerHitsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void matchesQueries_parentChildInnerHits() throws Exception {
+    public void testMatchesQueriesParentChildInnerHits() throws Exception {
         assertAcked(prepareCreate("index").addMapping("child", "_parent", "type=parent"));
         List<IndexRequestBuilder> requests = new ArrayList<>();
         requests.add(client().prepareIndex("index", "parent", "1").setSource("{}"));
@@ -1204,7 +1185,6 @@ public class InnerHitsIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).getInnerHits().get("child").getAt(0).getMatchedQueries()[0], equalTo("_name2"));
     }
 
-    @Test
     public void testDontExplode() throws Exception {
         assertAcked(prepareCreate("index1").addMapping("child", "_parent", "type=parent"));
         List<IndexRequestBuilder> requests = new ArrayList<>();

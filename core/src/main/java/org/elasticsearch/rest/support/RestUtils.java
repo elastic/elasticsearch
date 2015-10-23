@@ -19,12 +19,11 @@
 
 package org.elasticsearch.rest.support;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.path.PathTrie;
-import org.elasticsearch.common.settings.Settings;
 
 import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import java.util.regex.Pattern;
 
@@ -39,7 +38,6 @@ public class RestUtils {
             return RestUtils.decodeComponent(value);
         }
     };
-    public static final String HTTP_CORS_ALLOW_ORIGIN_SETTING = "http.cors.allow-origin";
 
     public static boolean isBrowser(@Nullable String userAgent) {
         if (userAgent == null) {
@@ -224,9 +222,13 @@ public class RestUtils {
 
     /**
      * Determine if CORS setting is a regex
+     *
+     * @return a corresponding {@link Pattern} if so and o.w. null.
      */
-    public static Pattern getCorsSettingRegex(Settings settings) {
-        String corsSetting = settings.get(HTTP_CORS_ALLOW_ORIGIN_SETTING, "*");
+    public static Pattern checkCorsSettingForRegex(String corsSetting) {
+        if (corsSetting == null) {
+            return null;
+        }
         int len = corsSetting.length();
         boolean isRegex = len > 2 &&  corsSetting.startsWith("/") && corsSetting.endsWith("/");
 

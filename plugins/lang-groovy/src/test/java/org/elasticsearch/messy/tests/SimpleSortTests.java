@@ -45,35 +45,62 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map.Entry;
+import java.util.Random;
+import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.functionScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders.fieldValueFactorFunction;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 
 /**
  *
  */
 public class SimpleSortTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
@@ -182,7 +209,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertOrderedSearchHits(searchResponse, "data.activity.6", "data.activity.5");
     }
 
-    @Test
     public void testTrackScores() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -299,8 +325,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void test3078() {
         createIndex("test");
         ensureGreen();
@@ -331,8 +355,8 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(1).sortValues()[0].toString(), equalTo("10"));
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
 
-        // optimize
-        optimize();
+        // force merge
+        forceMerge();
         refresh();
 
         client().prepareIndex("test", "type", Integer.toString(1)).setSource("field", Integer.toString(1)).execute().actionGet();
@@ -348,7 +372,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).sortValues()[0].toString(), equalTo("100"));
     }
 
-    @Test
     public void testScoreSortDirection() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -391,9 +414,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
 
-
-    @Test
-    public void testScoreSortDirection_withFunctionScore() throws Exception {
+    public void testScoreSortDirectionWithFunctionScore() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -428,7 +449,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).getId(), equalTo("1"));
     }
 
-    @Test
     public void testIssue2986() {
         createIndex("test");
 
@@ -443,7 +463,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testIssue2991() {
         for (int i = 1; i < 4; i++) {
             try {
@@ -479,7 +498,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSimpleSorts() throws Exception {
         Random random = getRandom();
         assertAcked(prepareCreate("test")
@@ -734,7 +752,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertNoFailures(searchResponse);
     }
 
-    @Test
     public void test2920() throws IOException {
         assertAcked(prepareCreate("test").addMapping(
                 "test",
@@ -751,7 +768,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertNoFailures(searchResponse);
     }
 
-    @Test
     public void testSortMinValueScript() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("lvalue").field("type", "long").endObject()
@@ -839,7 +855,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDocumentsWithNullValue() throws Exception {
         // TODO: sort shouldn't fail when sort field is mapped dynamically
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
@@ -933,7 +948,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).field("id").value(), equalTo("2"));
     }
 
-    @Test
     public void testSortMissingNumbers() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
@@ -1008,7 +1022,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
     }
 
-    @Test
     public void testSortMissingStrings() throws IOException {
         assertAcked(prepareCreate("test").addMapping("type1",
                 XContentFactory.jsonBuilder()
@@ -1096,7 +1109,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(2).id(), equalTo("3"));
     }
 
-    @Test
     public void testIgnoreUnmapped() throws Exception {
         createIndex("test");
         ensureYellow();
@@ -1128,7 +1140,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertNoFailures(searchResponse);
     }
 
-    @Test
     public void testSortMVField() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -1443,7 +1454,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         assertThat(((Text) searchResponse.getHits().getAt(2).sortValues()[0]).string(), equalTo("03"));
     }
 
-    @Test
     public void testSortOnRareField() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
@@ -1609,7 +1619,6 @@ public class SimpleSortTests extends ESIntegTestCase {
     /**
      * Test case for issue 6150: https://github.com/elasticsearch/elasticsearch/issues/6150
      */
-    @Test
     public void testNestedSort() throws IOException, InterruptedException, ExecutionException {
         assertAcked(prepareCreate("test")
                 .addMapping("type",
@@ -1677,7 +1686,6 @@ public class SimpleSortTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSortDuelBetweenSingleShardAndMultiShardIndex() throws Exception {
         String sortField = "sortField";
         assertAcked(prepareCreate("test1")

@@ -25,7 +25,11 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -51,9 +55,20 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.IndicesStoreIntegrationIT;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
-import org.elasticsearch.test.disruption.*;
+import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
+import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
+import org.elasticsearch.test.disruption.LongGCDisruption;
+import org.elasticsearch.test.disruption.NetworkDelaysPartition;
+import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
+import org.elasticsearch.test.disruption.NetworkPartition;
+import org.elasticsearch.test.disruption.NetworkUnresponsivePartition;
+import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
+import org.elasticsearch.test.disruption.SingleNodeDisruption;
+import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
@@ -61,20 +76,33 @@ import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
@@ -170,9 +198,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     /**
      * Test that no split brain occurs under partial network partition. See https://github.com/elasticsearch/elasticsearch/issues/2488
      */
-    @Test
-    public void failWithMinimumMasterNodesConfigured() throws Exception {
-
+    public void testFailWithMinimumMasterNodesConfigured() throws Exception {
         List<String> nodes = startCluster(3);
 
         // Figure out what is the elected master node
@@ -213,7 +239,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     /**
      * Verify that nodes fault detection works after master (re) election
      */
-    @Test
     public void testNodesFDAfterMasterReelection() throws Exception {
         startCluster(4);
 
@@ -244,7 +269,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     /**
      * Verify that the proper block is applied when nodes loose their master
      */
-    @Test
     public void testVerifyApiBlocksDuringPartition() throws Exception {
         startCluster(3);
 
@@ -326,7 +350,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * This test isolates the master from rest of the cluster, waits for a new master to be elected, restores the partition
      * and verifies that all node agree on the new cluster state
      */
-    @Test
     public void testIsolateMasterAndVerifyClusterStateConsensus() throws Exception {
         final List<String> nodes = startCluster(3);
 
@@ -394,7 +417,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * <p>
      * This test is a superset of tests run in the Jepsen test suite, with the exception of versioned updates
      */
-    @Test
     // NOTE: if you remove the awaitFix, make sure to port the test to the 1.x branch
     @LuceneTestCase.AwaitsFix(bugUrl = "needs some more work to stabilize")
     @TestLogging("action.index:TRACE,action.get:TRACE,discovery:TRACE,cluster.service:TRACE,indices.recovery:TRACE,indices.cluster:TRACE")
@@ -530,7 +552,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     /**
      * Test that cluster recovers from a long GC on master that causes other nodes to elect a new one
      */
-    @Test
     public void testMasterNodeGCs() throws Exception {
         List<String> nodes = startCluster(3, -1);
 
@@ -572,7 +593,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * that already are following another elected master node. These nodes should reject this cluster state and prevent
      * them from following the stale master.
      */
-    @Test
     public void testStaleMasterNotHijackingMajority() throws Exception {
         // 3 node cluster with unicast discovery and minimum_master_nodes set to 2:
         final List<String> nodes = startCluster(3, 2);
@@ -682,7 +702,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * Test that a document which is indexed on the majority side of a partition, is available from the minority side,
      * once the partition is healed
      */
-    @Test
     @TestLogging(value = "cluster.service:TRACE")
     public void testRejoinDocumentExistsInAllShardCopies() throws Exception {
         List<String> nodes = startCluster(3);
@@ -738,8 +757,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * The temporal unicast responses is empty. When partition is solved the one ping response contains a master node.
      * The rejoining node should take this master node and connect.
      */
-    @Test
-    public void unicastSinglePingResponseContainsMaster() throws Exception {
+    public void testUnicastSinglePingResponseContainsMaster() throws Exception {
         List<String> nodes = startCluster(4, -1, new int[]{0});
         // Figure out what is the elected master node
         final String masterNode = internalCluster().getMasterName();
@@ -774,9 +792,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         assertMaster(masterNode, nodes);
     }
 
-    @Test
     @TestLogging("discovery.zen:TRACE,cluster.service:TRACE")
-    public void isolatedUnicastNodes() throws Exception {
+    public void testIsolatedUnicastNodes() throws Exception {
         List<String> nodes = startCluster(4, -1, new int[]{0});
         // Figure out what is the elected master node
         final String unicastTarget = nodes.get(0);
@@ -814,7 +831,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
     /**
      * Test cluster join with issues in cluster state publishing *
      */
-    @Test
     public void testClusterJoinDespiteOfPublishingIssues() throws Exception {
         List<String> nodes = startCluster(2, 1);
 
@@ -867,8 +883,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         internalCluster().stopRandomNonMasterNode();
     }
 
-
-    @Test
     public void testClusterFormingWithASlowNode() throws Exception {
         configureUnicastCluster(3, null, 2);
 
@@ -894,7 +908,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * sure that the node is removed form the cluster, that the node start pinging and that
      * the cluster reforms when healed.
      */
-    @Test
     @TestLogging("discovery.zen:TRACE,action:TRACE")
     public void testNodeNotReachableFromMaster() throws Exception {
         startCluster(3);
@@ -932,8 +945,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
      * This test creates a scenario where a primary shard (0 replicas) relocates and is in POST_RECOVERY on the target
      * node but already deleted on the source node. Search request should still work.
      */
-    @Test
-    public void searchWithRelocationAndSlowClusterStateProcessing() throws Exception {
+    public void testSearchWithRelocationAndSlowClusterStateProcessing() throws Exception {
         configureUnicastCluster(3, null, 1);
         InternalTestCluster.Async<String> masterNodeFuture = internalCluster().startMasterOnlyNodeAsync();
         InternalTestCluster.Async<String> node_1Future = internalCluster().startDataOnlyNodeAsync();
@@ -969,10 +981,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // wait for relocation to finish
         endRelocationLatch.await();
         // now search for the documents and see if we get a reply
-        assertThat(client().prepareCount().get().getCount(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).get().getHits().totalHits(), equalTo(100l));
     }
 
-    @Test
     public void testIndexImportedFromDataOnlyNodesIfMasterLostDataFolder() throws Exception {
         // test for https://github.com/elastic/elasticsearch/issues/8823
         configureUnicastCluster(2, null, 1);
@@ -997,7 +1008,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
     // tests if indices are really deleted even if a master transition inbetween
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/11665")
-    @Test
     public void testIndicesDeleted() throws Exception {
         configureUnicastCluster(3, null, 2);
         InternalTestCluster.Async<List<String>> masterNodes= internalCluster().startMasterOnlyNodesAsync(2);

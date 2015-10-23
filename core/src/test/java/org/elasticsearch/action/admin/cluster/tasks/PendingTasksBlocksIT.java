@@ -21,16 +21,16 @@ package org.elasticsearch.action.admin.cluster.tasks;
 
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class PendingTasksBlocksIT extends ESIntegTestCase {
-
-    @Test
     public void testPendingTasksWithBlocks() {
         createIndex("test");
         ensureGreen("test");

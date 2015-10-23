@@ -30,8 +30,7 @@ public final class GeoPoint {
 
     private double lat;
     private double lon;
-    private final static double TOLERANCE = XGeoUtils.TOLERANCE;
-    
+
     public GeoPoint() {
     }
 
@@ -126,14 +125,10 @@ public final class GeoPoint {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        final GeoPoint geoPoint = (GeoPoint) o;
-        final double lonCompare = geoPoint.lon - lon;
-        final double latCompare = geoPoint.lat - lat;
+        GeoPoint geoPoint = (GeoPoint) o;
 
-        if ((lonCompare < -TOLERANCE || lonCompare > TOLERANCE)
-                || (latCompare < -TOLERANCE || latCompare > TOLERANCE)) {
-            return false;
-        }
+        if (Double.compare(geoPoint.lat, lat) != 0) return false;
+        if (Double.compare(geoPoint.lon, lon) != 0) return false;
 
         return true;
     }
@@ -143,9 +138,9 @@ public final class GeoPoint {
         int result;
         long temp;
         temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
-        result = (int) (temp ^ (temp >>> 32));
+        result = Long.hashCode(temp);
         temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         return result;
     }
 

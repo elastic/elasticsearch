@@ -77,7 +77,6 @@ import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,7 +107,6 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = SUITE)
 public class ContextAndHeaderTransportTests extends ESIntegTestCase {
-
     private static final List<ActionRequest> requests =  new CopyOnWriteArrayList<>();
     private String randomHeaderKey = randomAsciiOfLength(10);
     private String randomHeaderValue = randomAsciiOfLength(20);
@@ -157,7 +155,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertRequestsContainHeader(RefreshRequest.class);
     }
 
-    @Test
     public void testThatTermsLookupGetRequestContainsContextAndHeaders() throws Exception {
         transportClient().prepareIndex(lookupIndex, "type", "1")
                 .setSource(jsonBuilder().startObject().array("followers", "foo", "bar", "baz").endObject()).get();
@@ -178,7 +175,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertGetRequestsContainHeaders();
     }
 
-    @Test
     public void testThatGeoShapeQueryGetRequestContainsContextAndHeaders() throws Exception {
         transportClient().prepareIndex(lookupIndex, "type", "1").setSource(jsonBuilder().startObject()
                 .field("name", "Munich Suburban Area")
@@ -220,7 +216,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertGetRequestsContainHeaders();
     }
 
-    @Test
     public void testThatMoreLikeThisQueryMultiTermVectorRequestContainsContextAndHeaders() throws Exception {
         transportClient().prepareIndex(lookupIndex, "type", "1")
                 .setSource(jsonBuilder().startObject().field("name", "Star Wars - The new republic").endObject())
@@ -248,7 +243,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertRequestsContainHeader(MultiTermVectorsRequest.class);
     }
 
-    @Test
     public void testThatPercolatingExistingDocumentGetRequestContainsContextAndHeaders() throws Exception {
         transportClient().prepareIndex(lookupIndex, ".percolator", "1")
                 .setSource(jsonBuilder().startObject().startObject("query").startObject("match").field("name", "star wars").endObject().endObject().endObject())
@@ -265,7 +259,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertGetRequestsContainHeaders();
     }
 
-    @Test
     public void testThatIndexedScriptGetRequestContainsContextAndHeaders() throws Exception {
         PutIndexedScriptResponse scriptResponse = transportClient().preparePutIndexedScript(GroovyScriptEngineService.NAME, "my_script",
                 jsonBuilder().startObject().field("script", "_score * 10").endObject().string()
@@ -291,7 +284,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertRequestsContainHeader(PutIndexedScriptRequest.class);
     }
 
-    @Test
     public void testThatIndexedScriptGetRequestInTemplateQueryContainsContextAndHeaders() throws Exception {
         PutIndexedScriptResponse scriptResponse = transportClient()
                 .preparePutIndexedScript(
@@ -317,7 +309,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertRequestsContainHeader(PutIndexedScriptRequest.class);
     }
 
-    @Test
     public void testThatIndexedScriptGetRequestInReducePhaseContainsContextAndHeaders() throws Exception {
         PutIndexedScriptResponse scriptResponse = transportClient().preparePutIndexedScript(GroovyScriptEngineService.NAME, "my_script",
                 jsonBuilder().startObject().field("script", "_value0 * 10").endObject().string()).get();
@@ -344,7 +335,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertRequestsContainHeader(PutIndexedScriptRequest.class);
     }
 
-    @Test
     public void testThatSearchTemplatesWithIndexedTemplatesGetRequestContainsContextAndHeaders() throws Exception {
         PutIndexedScriptResponse scriptResponse = transportClient().preparePutIndexedScript(MustacheScriptEngineService.NAME, "the_template",
                 jsonBuilder().startObject().startObject("template").startObject("query").startObject("match")
@@ -370,7 +360,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertRequestsContainHeader(PutIndexedScriptRequest.class);
     }
 
-    @Test
     public void testThatIndexedScriptGetRequestInPhraseSuggestContainsContextAndHeaders() throws Exception {
         CreateIndexRequestBuilder builder = transportClient().admin().indices().prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
@@ -461,8 +450,6 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         assertRequestsContainHeader(PutIndexedScriptRequest.class);
     }
 
-
-    @Test
     public void testThatRelevantHttpHeadersBecomeRequestHeaders() throws Exception {
         String releventHeaderName = "relevant_" + randomHeaderKey;
         for (RestController restController : internalCluster().getDataNodeInstances(RestController.class)) {

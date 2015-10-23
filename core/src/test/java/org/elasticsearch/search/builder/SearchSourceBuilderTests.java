@@ -57,7 +57,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -67,7 +66,6 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SearchSourceBuilderTests extends ESTestCase {
-
     private static Injector injector;
 
     private static NamedWriteableRegistry namedWriteableRegistry;
@@ -83,7 +81,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesModule(settings) {
+                new IndicesModule() {
                     @Override
                     public void configure() {
                         // skip services
@@ -293,7 +291,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
         return builder;
     }
 
-    @Test
     public void testFromXContent() throws IOException {
         SearchSourceBuilder testBuilder = createSearchSourceBuilder();
         String builderAsString = testBuilder.toString();
@@ -320,7 +317,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
         return context;
     }
 
-    @Test
     public void testSerialization() throws IOException {
         SearchSourceBuilder testBuilder = createSearchSourceBuilder();
         try (BytesStreamOutput output = new BytesStreamOutput()) {
@@ -334,7 +330,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testEqualsAndHashcode() throws IOException {
         SearchSourceBuilder firstBuilder = createSearchSourceBuilder();
         assertFalse("source builder is equal to null", firstBuilder.equals(null));
@@ -389,7 +384,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testParseSort() throws IOException {
         {
             String restContent = " { \"sort\": \"foo\"}";
@@ -420,7 +414,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testEmptyPostFilter() throws IOException {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         builder.postFilter(EmptyQueryBuilder.PROTOTYPE);

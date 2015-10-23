@@ -202,8 +202,6 @@ public class ShadowEngine extends Engine {
         throw new UnsupportedOperationException("Can not take snapshot from a shadow engine");
     }
 
-
-
     @Override
     protected SearcherManager getSearcherManager() {
         return searcherManager;
@@ -221,11 +219,6 @@ public class ShadowEngine extends Engine {
                 store.decRef();
             }
         }
-    }
-
-    @Override
-    public boolean hasUncommittedChanges() {
-        return false;
     }
 
     @Override

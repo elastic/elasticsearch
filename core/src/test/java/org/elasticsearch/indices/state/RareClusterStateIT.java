@@ -54,7 +54,6 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -76,7 +75,6 @@ import static org.hamcrest.Matchers.instanceOf;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class RareClusterStateIT extends ESIntegTestCase {
-
     @Override
     protected int numberOfShards() {
         return 1;
@@ -87,7 +85,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         return 0;
     }
 
-    @Test
     public void testUnassignedShardAndEmptyNodesInRoutingTable() throws Exception {
         internalCluster().startNode();
         createIndex("a");
@@ -106,7 +103,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         allocator.allocateUnassigned(routingAllocation);
     }
 
-    @Test
     @TestLogging("gateway:TRACE")
     public void testAssignmentWithJustAddedNodes() throws Exception {
         internalCluster().startNode();
@@ -171,9 +167,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-
-    @Test
-    @TestLogging(value = "cluster.service:TRACE")
+    @TestLogging("cluster.service:TRACE")
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startNodesAsync(2, Settings.builder()
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")

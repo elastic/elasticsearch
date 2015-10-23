@@ -32,28 +32,20 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
-import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import java.util.Collections;
-
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
-import static org.elasticsearch.cluster.routing.allocation.RoutingNodesUtils.numberOfShardsOfType;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
 public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(ExpectedShardSizeAllocationTests.class);
 
-    @Test
     public void testInitializingHasExpectedSize() {
         final long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
         AllocationService strategy = createAllocationService(Settings.EMPTY, new ClusterInfoService() {
@@ -112,7 +104,6 @@ public class ExpectedShardSizeAllocationTests extends ESAllocationTestCase {
         assertEquals(byteSize, clusterState.getRoutingNodes().getRoutingTable().shardsWithState(ShardRoutingState.INITIALIZING).get(0).getExpectedShardSize());
     }
 
-    @Test
     public void testExpectedSizeOnMove() {
         final long byteSize = randomIntBetween(0, Integer.MAX_VALUE);
         final AllocationService allocation = createAllocationService(Settings.EMPTY, new ClusterInfoService() {

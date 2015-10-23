@@ -63,6 +63,11 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+==== search exists api removed
+
+The search exists api has been removed in favour of using the search api with
+`size` set to `0` and `terminate_after` set to `1`.
+
 === Parent/Child changes
 
 The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
@@ -147,6 +152,22 @@ Cloud Azure plugin has been split in three plugins:
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
 
 === Java-API
+
+==== Count api has been removed
+
+The deprecated count api has been removed from the Java api, use the search api instead and set size to 0.
+
+The following call
+
+```
+client.prepareCount(indices).setQuery(query).get();
+```
+
+can be replaced with
+
+```
+client.prepareSearch(indices).setSource(new SearchSourceBuilder().size(0).query(query)).get();
+```
 
 ==== BoostingQueryBuilder
 
@@ -269,6 +290,12 @@ The two individual setters for existence() and nullValue() were removed in favou
 optional constructor settings in order to better capture and validate their interdependent
 settings at construction time.
 
+==== NotQueryBuilder
+
+The NotQueryBuilder which was deprecated in 2.1.0 is removed. As a replacement use BoolQueryBuilder
+with added mustNot() clause. So instead of using `new NotQueryBuilder(filter)` now use 
+`new BoolQueryBuilder().mustNot(filter)`. 
+
 ==== TermsQueryBuilder
 
 Remove the setter for `termsLookup()`, making it only possible to either use a TermsLookup object or
@@ -296,3 +323,9 @@ For simplicity, only one way of adding the ids to the existing list (empty by de
 `DocumentAlreadyExistsException` is removed and a `VersionConflictException` is thrown instead (with a better
 error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
 to index a document only if it doesn't already exist.
+
+=== Cache concurrency level settings removed
+
+Two cache concurrency level settings `indices.requests.cache.concurrency_level` and
+`indices.fielddata.cache.concurrency_level` because they no longer apply to the cache implementation used for the
+request cache and the field data cache.

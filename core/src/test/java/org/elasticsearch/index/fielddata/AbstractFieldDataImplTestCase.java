@@ -21,13 +21,18 @@ package org.elasticsearch.index.fielddata;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.FieldDoc;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.Sort;
+import org.apache.lucene.search.SortField;
+import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.MultiValueMode;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTestCase {
 
@@ -63,7 +68,6 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         return 1;
     }
 
-    @Test
     public void testDeletedDocs() throws Exception {
         add2SingleValuedDocumentsAndDeleteOneOfThem();
         IndexFieldData indexFieldData = getForField("value");
@@ -76,7 +80,6 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         }
     }
 
-    @Test
     public void testSingleValueAllSet() throws Exception {
         fillSingleValueAllSet();
         IndexFieldData indexFieldData = getForField("value");
@@ -122,7 +125,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
     }
 
     protected abstract void fillSingleValueWithMissing() throws Exception;
-    
+
     public void assertValues(SortedBinaryDocValues values, int docId, BytesRef... actualValues) {
         values.setDocument(docId);
         assertThat(values.count(), equalTo(actualValues.length));
@@ -130,7 +133,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
             assertThat(values.valueAt(i), equalTo(actualValues[i]));
         }
     }
-    
+
     public void assertValues(SortedBinaryDocValues values, int docId, String... actualValues) {
         values.setDocument(docId);
         assertThat(values.count(), equalTo(actualValues.length));
@@ -139,8 +142,6 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         }
     }
 
-
-    @Test
     public void testSingleValueWithMissing() throws Exception {
         fillSingleValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
@@ -157,7 +158,6 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     protected abstract void fillMultiValueAllSet() throws Exception;
 
-    @Test
     public void testMultiValueAllSet() throws Exception {
         fillMultiValueAllSet();
         IndexFieldData indexFieldData = getForField("value");
@@ -169,7 +169,7 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
         assertValues(bytesValues, 0, two(), four());
         assertValues(bytesValues, 1, one());
         assertValues(bytesValues, 2, three());
-        
+
         IndexSearcher searcher = new IndexSearcher(DirectoryReader.open(writer, true));
         TopFieldDocs topDocs = searcher.search(new MatchAllDocsQuery(), 10, new Sort(new SortField("value", indexFieldData.comparatorSource(null, MultiValueMode.MIN, null))));
         assertThat(topDocs.totalHits, equalTo(3));
@@ -188,7 +188,6 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     protected abstract void fillMultiValueWithMissing() throws Exception;
 
-    @Test
     public void testMultiValueWithMissing() throws Exception {
         fillMultiValueWithMissing();
         IndexFieldData indexFieldData = getForField("value");
@@ -223,7 +222,6 @@ public abstract class AbstractFieldDataImplTestCase extends AbstractFieldDataTes
 
     protected abstract void fillAllMissing() throws Exception;
 
-    @Test
     public void testSortMultiValuesFields() throws Exception {
         fillExtendedMvSet();
         IndexFieldData indexFieldData = getForField("value");

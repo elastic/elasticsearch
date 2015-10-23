@@ -26,7 +26,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -34,12 +33,9 @@ import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.Matchers.equalTo;
 
 public class MergePolicySettingsTests extends ESTestCase {
-
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
-    @Test
     public void testCompoundFileSettings() throws IOException {
-
         assertThat(new MergePolicyConfig(logger, EMPTY_SETTINGS).getMergePolicy().getNoCFSRatio(), equalTo(0.1));
         assertThat(new MergePolicyConfig(logger, build(true)).getMergePolicy().getNoCFSRatio(), equalTo(1.0));
         assertThat(new MergePolicyConfig(logger, build(0.5)).getMergePolicy().getNoCFSRatio(), equalTo(0.5));
@@ -58,7 +54,6 @@ public class MergePolicySettingsTests extends ESTestCase {
         assertTrue(mp.getMergePolicy() instanceof NoMergePolicy);
     }
 
-    @Test
     public void testUpdateSettings() throws IOException {
         {
             IndexSettingsService service = new IndexSettingsService(new Index("test"), EMPTY_SETTINGS);

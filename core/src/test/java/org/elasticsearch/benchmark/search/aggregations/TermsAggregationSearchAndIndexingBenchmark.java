@@ -151,7 +151,7 @@ public class TermsAggregationSearchAndIndexingBenchmark {
                 .setSource(generateMapping("lazy", "lazy"))
                 .get();
         client.admin().indices().prepareRefresh().execute().actionGet();
-        System.out.println("--> Number of docs in index: " + client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount());
+        System.out.println("--> Number of docs in index: " + client.prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits());
 
 
         String[] nodeIds = new String[nodes.length];

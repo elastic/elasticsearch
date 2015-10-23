@@ -79,7 +79,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
     @Deprecated
     public static final String DEPRECATED_INDICES_CACHE_QUERY_SIZE = "indices.cache.query.size";
     public static final String INDICES_CACHE_QUERY_EXPIRE = "indices.requests.cache.expire";
-    public static final String INDICES_CACHE_QUERY_CONCURRENCY_LEVEL = "indices.requests.cache.concurrency_level";
 
     private static final Set<SearchType> CACHEABLE_SEARCH_TYPES = EnumSet.of(SearchType.QUERY_THEN_FETCH, SearchType.QUERY_AND_FETCH);
 
@@ -96,7 +95,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
     //TODO make these changes configurable on the cluster level
     private final String size;
     private final TimeValue expire;
-    private final int concurrencyLevel;
 
     private volatile Cache<Key, Value> cache;
 
@@ -122,11 +120,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         this.size = size;
 
         this.expire = settings.getAsTime(INDICES_CACHE_QUERY_EXPIRE, null);
-        // defaults to 4, but this is a busy map for all indices, increase it a bit by default
-        this.concurrencyLevel =  settings.getAsInt(INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, 16);
-        if (concurrencyLevel <= 0) {
-            throw new IllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
-        }
         buildCache();
 
         this.reaper = new Reaper();
@@ -351,7 +344,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         @Override
         public int hashCode() {
             int result = shard.hashCode();
-            result = 31 * result + (int) (readerVersion ^ (readerVersion >>> 32));
+            result = 31 * result + Long.hashCode(readerVersion);
             result = 31 * result + value.hashCode();
             return result;
         }
@@ -386,7 +379,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         @Override
         public int hashCode() {
             int result = indexShard.hashCode();
-            result = 31 * result + (int) (readerVersion ^ (readerVersion >>> 32));
+            result = 31 * result + Long.hashCode(readerVersion);
             return result;
         }
     }

@@ -19,9 +19,8 @@
 
 package org.elasticsearch.rest.action.cat;
 
-import org.elasticsearch.action.count.CountRequest;
-import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.support.QuerySourceBuilder;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
@@ -38,6 +37,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -66,23 +66,23 @@ public class RestCountAction extends AbstractCatAction {
     @Override
     public void doRequest(final RestRequest request, final RestChannel channel, final Client client) {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        CountRequest countRequest = new CountRequest(indices);
+        SearchRequest countRequest = new SearchRequest(indices);
         String source = request.param("source");
+        SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
+        countRequest.source(searchSourceBuilder);
         if (source != null) {
             QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
             context.parseFieldMatcher(parseFieldMatcher);
-            countRequest.query(RestActions.getQueryContent(new BytesArray(source), context));
+            searchSourceBuilder.query(RestActions.getQueryContent(new BytesArray(source), context));
         } else {
             QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {
-                QuerySourceBuilder querySourceBuilder = new QuerySourceBuilder();
-                querySourceBuilder.setQuery(queryBuilder);
-                countRequest.query(queryBuilder);
+                searchSourceBuilder.query(queryBuilder);
             }
         }
-        client.count(countRequest, new RestResponseListener<CountResponse>(channel) {
+        client.search(countRequest, new RestResponseListener<SearchResponse>(channel) {
             @Override
-            public RestResponse buildResponse(CountResponse countResponse) throws Exception {
+            public RestResponse buildResponse(SearchResponse countResponse) throws Exception {
                 return RestTable.buildResponse(buildTable(request, countResponse), channel);
             }
         });
@@ -101,13 +101,13 @@ public class RestCountAction extends AbstractCatAction {
 
     private DateTimeFormatter dateFormat = DateTimeFormat.forPattern("HH:mm:ss");
 
-    private Table buildTable(RestRequest request, CountResponse response) {
+    private Table buildTable(RestRequest request, SearchResponse response) {
         Table table = getTableWithHeader(request);
         long time = System.currentTimeMillis();
         table.startRow();
         table.addCell(TimeUnit.SECONDS.convert(time, TimeUnit.MILLISECONDS));
         table.addCell(dateFormat.print(time));
-        table.addCell(response.getCount());
+        table.addCell(response.getHits().totalHits());
         table.endRow();
 
         return table;

@@ -19,12 +19,9 @@
 
 package org.elasticsearch.common.settings;
 
-import org.elasticsearch.common.settings.bar.BarTestClass;
-import org.elasticsearch.common.settings.foo.FooTestClass;
 import org.elasticsearch.common.settings.loader.YamlSettingsLoader;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.List;
@@ -32,13 +29,17 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
 public class SettingsTests extends ESTestCase {
-
-    @Test
     public void testCamelCaseSupport() {
         Settings settings = settingsBuilder()
                 .put("test.camelCase", "bar")
@@ -47,7 +48,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("test.camel_case"), equalTo("bar"));
     }
 
-    @Test
     public void testLoadFromDelimitedString() {
         Settings settings = settingsBuilder()
                 .loadFromDelimitedString("key1=value1;key2=value2", ';')
@@ -66,7 +66,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.toDelimitedString(';'), equalTo("key1=value1;key2=value2;"));
     }
 
-    @Test
     public void testReplacePropertiesPlaceholderSystemProperty() {
         System.setProperty("sysProp1", "sysVal1");
         try {
@@ -92,7 +91,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("setting1"), is(nullValue()));
     }
 
-    @Test
     public void testReplacePropertiesPlaceholderIgnoreEnvUnset() {
         Settings settings = settingsBuilder()
                 .put("setting1", "${env.UNSET_ENV_VAR}")
@@ -101,7 +99,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("setting1"), is(nullValue()));
     }
 
-    @Test
     public void testReplacePropertiesPlaceholderIgnoresPrompt() {
         Settings settings = settingsBuilder()
                 .put("setting1", "${prompt.text}")
@@ -112,7 +109,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("setting2"), is("${prompt.secret}"));
     }
 
-    @Test
     public void testUnFlattenedSettings() {
         Settings settings = settingsBuilder()
                 .put("foo", "abc")
@@ -137,7 +133,6 @@ public class SettingsTests extends ESTestCase {
 
     }
 
-    @Test
     public void testFallbackToFlattenedSettings() {
         Settings settings = settingsBuilder()
                 .put("foo", "abc")
@@ -163,7 +158,6 @@ public class SettingsTests extends ESTestCase {
                 Matchers.<String, Object>hasEntry("foo.baz", "ghi")));
     }
 
-    @Test
     public void testGetAsSettings() {
         Settings settings = settingsBuilder()
                 .put("foo", "abc")
@@ -175,7 +169,6 @@ public class SettingsTests extends ESTestCase {
         assertThat(fooSettings.get("baz"), equalTo("ghi"));
     }
 
-    @Test
     public void testNames() {
         Settings settings = settingsBuilder()
                 .put("bar", "baz")
@@ -195,7 +188,6 @@ public class SettingsTests extends ESTestCase {
         assertTrue(names.contains("baz"));
     }
 
-    @Test
     public void testThatArraysAreOverriddenCorrectly() throws IOException {
         // overriding a single value with an array
         Settings settings = settingsBuilder()
@@ -300,9 +292,7 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.get("value"), is(nullValue()));
     }
 
-    @Test
     public void testPrefixNormalization() {
-
         Settings settings = settingsBuilder().normalizePrefix("foo.").build();
 
         assertThat(settings.names().size(), equalTo(0));
@@ -337,6 +327,4 @@ public class SettingsTests extends ESTestCase {
         assertThat(settings.getAsMap().size(), equalTo(1));
         assertThat(settings.get("foo.test"), equalTo("test"));
     }
-
-
 }

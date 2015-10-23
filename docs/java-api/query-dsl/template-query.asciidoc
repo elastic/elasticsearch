@@ -62,7 +62,7 @@ To execute an indexed templates, use `ScriptService.ScriptType.INDEXED`:
 --------------------------------------------------
 QueryBuilder qb = templateQuery(
     "gender_template",                  <1>
-    ScriptService.ScriptType.INDEXED,   <2>
+    ScriptType.INDEXED,                 <2>
     template_params);                   <3>
 --------------------------------------------------
 <1> template name

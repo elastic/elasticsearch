@@ -25,7 +25,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -56,7 +55,6 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         ensureYellow();
     }
 
-    @Test
     public void testThatCustomHighlightersAreSupported() throws IOException {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.matchAllQuery())
@@ -65,7 +63,6 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(searchResponse, 0, "name", 0, equalTo("standard response for name at position 1"));
     }
 
-    @Test
     public void testThatCustomHighlighterCanBeConfiguredPerField() throws Exception {
         HighlightBuilder.Field highlightConfig = new HighlightBuilder.Field("name");
         highlightConfig.highlighterType("test-custom");
@@ -82,7 +79,6 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(searchResponse, 0, "name", 1, equalTo("field:myFieldOption:someValue"));
     }
 
-    @Test
     public void testThatCustomHighlighterCanBeConfiguredGlobally() throws Exception {
         Map<String, Object> options = new HashMap<>();
         options.put("myGlobalOption", "someValue");
@@ -95,7 +91,6 @@ public class CustomHighlighterSearchIT extends ESIntegTestCase {
         assertHighlight(searchResponse, 0, "name", 1, equalTo("field:myGlobalOption:someValue"));
     }
 
-    @Test
     public void testThatCustomHighlighterReceivesFieldsInOrder() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("test")
                 .setQuery(QueryBuilders.boolQuery().must(QueryBuilders.matchAllQuery()).should(QueryBuilders

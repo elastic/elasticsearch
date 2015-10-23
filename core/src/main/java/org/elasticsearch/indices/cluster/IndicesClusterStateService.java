@@ -41,27 +41,27 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.flush.SyncedFlushService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
+import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 
 /**
@@ -98,17 +98,19 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     private final Object mutex = new Object();
-    private final FailedEngineHandler failedEngineHandler = new FailedEngineHandler();
+    private final FailedShardHandler failedShardHandler = new FailedShardHandler();
 
     private final boolean sendRefreshMapping;
+    private final List<IndexEventListener> buildInIndexListener;
 
     @Inject
     public IndicesClusterStateService(Settings settings, IndicesService indicesService, ClusterService clusterService,
                                       ThreadPool threadPool, RecoveryTarget recoveryTarget,
                                       ShardStateAction shardStateAction,
                                       NodeIndexDeletedAction nodeIndexDeletedAction,
-                                      NodeMappingRefreshAction nodeMappingRefreshAction, RepositoriesService repositoriesService, RestoreService restoreService) {
+                                      NodeMappingRefreshAction nodeMappingRefreshAction, RepositoriesService repositoriesService, RestoreService restoreService, SearchService searchService, SyncedFlushService syncedFlushService, RecoverySource recoverySource) {
         super(settings);
+        this.buildInIndexListener = Arrays.asList(recoverySource, recoveryTarget, searchService, syncedFlushService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
@@ -299,7 +301,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                     logger.debug("[{}] creating index", indexMetaData.getIndex());
                 }
                 try {
-                    indicesService.createIndex(indexMetaData);
+                    indicesService.createIndex(indexMetaData, buildInIndexListener);
                 } catch (Throwable e) {
                     sendFailShard(shard, indexMetaData.getIndexUUID(), "failed to create index", e);
                 }
@@ -381,7 +383,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // so this failure typically means wrong node level configuration or something similar
                 for (IndexShard indexShard : indexService) {
                     ShardRouting shardRouting = indexShard.routingEntry();
-                    failAndRemoveShard(shardRouting, indexService, true, "failed to update mappings", t);
+                    failAndRemoveShard(shardRouting, indexService.indexUUID(), indexService, true, "failed to update mappings", t);
                 }
             }
         }
@@ -637,11 +639,11 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 }
                 IndexShard indexShard = indexService.createShard(shardId, shardRouting);
                 indexShard.updateRoutingEntry(shardRouting, state.blocks().disableStatePersistence() == false);
-                indexShard.addFailedEngineListener(failedEngineHandler);
+                indexShard.addShardFailureCallback(failedShardHandler);
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times
             } catch (Throwable e) {
-                failAndRemoveShard(shardRouting, indexService, true, "failed to create shard", e);
+                failAndRemoveShard(shardRouting, indexService.indexUUID(), indexService, true, "failed to create shard", e);
                 return;
             }
         }
@@ -768,7 +770,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     private void handleRecoveryFailure(IndexService indexService, ShardRouting shardRouting, boolean sendShardFailure, Throwable failure) {
         synchronized (mutex) {
-            failAndRemoveShard(shardRouting, indexService, sendShardFailure, "failed recovery", failure);
+            failAndRemoveShard(shardRouting, indexService.indexUUID(), indexService, sendShardFailure, "failed recovery", failure);
         }
     }
 
@@ -802,8 +804,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
 
     }
 
-    private void failAndRemoveShard(ShardRouting shardRouting, IndexService indexService, boolean sendShardFailure, String message, @Nullable Throwable failure) {
-        if (indexService.hasShard(shardRouting.getId())) {
+    private void failAndRemoveShard(ShardRouting shardRouting, String indexUUID, @Nullable IndexService indexService, boolean sendShardFailure, String message, @Nullable Throwable failure) {
+        if (indexService != null && indexService.hasShard(shardRouting.getId())) {
+            // if the indexService is null we can't remove the shard, that's fine since we might have a failure
+            // when the index is remove and then we already removed the index service for that shard...
             try {
                 indexService.removeShard(shardRouting.getId(), message);
             } catch (ShardNotFoundException e) {
@@ -813,7 +817,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             }
         }
         if (sendShardFailure) {
-            sendFailShard(shardRouting, indexService.indexUUID(), message, failure);
+            sendFailShard(shardRouting, indexUUID, message, failure);
         }
     }
 
@@ -827,29 +831,14 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         }
     }
 
-    private class FailedEngineHandler implements Engine.FailedEngineListener {
+    private class FailedShardHandler implements Callback<IndexShard.ShardFailure> {
         @Override
-        public void onFailedEngine(final ShardId shardId, final String reason, final @Nullable Throwable failure) {
-            ShardRouting shardRouting = null;
-            final IndexService indexService = indicesService.indexService(shardId.index().name());
-            if (indexService != null) {
-                IndexShard indexShard = indexService.getShardOrNull(shardId.id());
-                if (indexShard != null) {
-                    shardRouting = indexShard.routingEntry();
-                }
-            }
-            if (shardRouting == null) {
-                logger.warn("[{}][{}] engine failed, but can't find index shard. failure reason: [{}]", failure,
-                        shardId.index().name(), shardId.id(), reason);
-                return;
-            }
-            final ShardRouting fShardRouting = shardRouting;
-            threadPool.generic().execute(new Runnable() {
-                @Override
-                public void run() {
-                    synchronized (mutex) {
-                        failAndRemoveShard(fShardRouting, indexService, true, "engine failure, reason [" + reason + "]", failure);
-                    }
+        public void handle(final IndexShard.ShardFailure shardFailure) {
+            final IndexService indexService = indicesService.indexService(shardFailure.routing.shardId().index().name());
+            final ShardRouting shardRouting = shardFailure.routing;
+            threadPool.generic().execute(() -> {
+                synchronized (mutex) {
+                    failAndRemoveShard(shardRouting, shardFailure.indexUUID, indexService, true, "shard failure, reason [" + shardFailure.reason + "]", shardFailure.cause);
                 }
             });
         }

@@ -51,7 +51,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Random;
@@ -73,7 +72,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.query.QueryBuilders.missingQuery;
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.notQuery;
 import static org.elasticsearch.index.query.QueryBuilders.prefixQuery;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -121,7 +119,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         return Math.min(2, cluster().numDataNodes() - 1);
     }
 
-    @Test
     public void testOmitNormsOnAll() throws ExecutionException, InterruptedException, IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
@@ -153,7 +150,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     }
 
-    @Test // see #3952
+    // see #3952
     public void testEmptyQueryString() throws ExecutionException, InterruptedException, IOException {
         createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox jumps"),
@@ -164,7 +161,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setQuery(queryStringQuery("")).get(), 0l); // return no docs
     }
 
-    @Test // see https://github.com/elasticsearch/elasticsearch/issues/3177
+    // see https://github.com/elasticsearch/elasticsearch/issues/3177
     public void testIssue3177() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
@@ -172,7 +169,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "3").setSource("field1", "value3").get();
         ensureGreen();
         waitForRelocation();
-        optimize();
+        forceMerge();
         refresh();
         assertHitCount(
                 client().prepareSearch()
@@ -180,7 +177,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .setPostFilter(
                                 boolQuery().must(
                                         matchAllQuery()).must(
-                                        notQuery(boolQuery().must(termQuery("field1", "value1")).must(
+                                        boolQuery().mustNot(boolQuery().must(termQuery("field1", "value1")).must(
                                                 termQuery("field1", "value2"))))).get(),
                 3l);
         assertHitCount(
@@ -189,15 +186,14 @@ public class SearchQueryIT extends ESIntegTestCase {
                                 boolQuery().must(
                                         boolQuery().should(termQuery("field1", "value1")).should(termQuery("field1", "value2"))
                                                 .should(termQuery("field1", "value3"))).filter(
-                                        notQuery(boolQuery().must(termQuery("field1", "value1")).must(
+                                        boolQuery().mustNot(boolQuery().must(termQuery("field1", "value1")).must(
                                                 termQuery("field1", "value2"))))).get(),
                 3l);
         assertHitCount(
-                client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(notQuery(termQuery("field1", "value3"))).get(),
+                client().prepareSearch().setQuery(matchAllQuery()).setPostFilter(boolQuery().mustNot(termQuery("field1", "value3"))).get(),
                 2l);
     }
 
-    @Test
     public void testIndexOptions() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,index_options=docs"));
@@ -213,7 +209,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     containsString("field \"field1\" was indexed without position data; cannot run PhraseQuery"));
     }
 
-    @Test // see #3521
+    // see #3521
     public void testConstantScoreQuery() throws Exception {
         Random random = getRandom();
         createIndex("test");
@@ -275,7 +271,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test // see #3521
+    // see #3521
     public void testAllDocsQueryString() throws InterruptedException, ExecutionException {
         createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("foo", "bar"),
@@ -295,7 +291,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCommonTermsQueryOnAllField() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "message", "type=string", "comment", "type=string,boost=5.0")
@@ -310,7 +305,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getHits()[0].getScore(), greaterThan(searchResponse.getHits().getHits()[1].getScore()));
     }
 
-    @Test
     public void testCommonTermsQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=whitespace")
@@ -391,7 +385,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThirdHit(searchResponse, hasId("2"));
     }
 
-    @Test
     public void testCommonTermsQueryStackedTokens() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -484,7 +477,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThirdHit(searchResponse, hasId("2"));
     }
 
-    @Test
     public void testOmitTermFreqsAndPositions() throws Exception {
         cluster().wipeTemplates(); // no randomized template for this test -- we are testing bwc compat and set version explicitly this might cause failures if an unsupported feature
                                    // is added randomly via an index template.
@@ -518,8 +510,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void queryStringAnalyzedWildcard() throws Exception {
+    public void testQueryStringAnalyzedWildcard() throws Exception {
         createIndex("test");
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value_1", "field2", "value_2").get();
@@ -541,7 +532,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test
     public void testLowercaseExpandedTerms() {
         createIndex("test");
 
@@ -562,7 +552,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0l);
     }
 
-    @Test //https://github.com/elasticsearch/elasticsearch/issues/3540
+    // Issue #3540
     public void testDateRangeInQueryString() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
@@ -590,7 +580,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test // https://github.com/elasticsearch/elasticsearch/issues/7880
+    // Issue #7880
     public void testDateRangeInQueryStringWithTimeZone_7880() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
@@ -609,7 +599,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test // https://github.com/elasticsearch/elasticsearch/issues/10477
+    // Issue #10477
     public void testDateRangeInQueryStringWithTimeZone_10477() {
         //the mapping needs to be provided upfront otherwise we are not sure how many failures we get back
         //as with dynamic mappings some shards might be lacking behind and parse a different query
@@ -646,13 +636,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0l);
     }
 
-    @Test
-    public void typeFilterTypeIndexedTests() throws Exception {
+    public void testTypeFilterTypeIndexedTests() throws Exception {
         typeFilterTests("not_analyzed");
     }
 
-    @Test
-    public void typeFilterTypeNotIndexedTests() throws Exception {
+    public void testTypeFilterTypeNotIndexedTests() throws Exception {
         typeFilterTests("no");
     }
 
@@ -681,13 +669,11 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setTypes("type1", "type2").setQuery(matchAllQuery()).get(), 5l);
     }
 
-    @Test
-    public void idsQueryTestsIdIndexed() throws Exception {
+    public void testIdsQueryTestsIdIndexed() throws Exception {
         idsQueryTests("not_analyzed");
     }
 
-    @Test
-    public void idsQueryTestsIdNotIndexed() throws Exception {
+    public void testIdsQueryTestsIdNotIndexed() throws Exception {
         idsQueryTests("no");
     }
 
@@ -729,17 +715,15 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1", "3");
     }
 
-    @Test
-    public void term_indexQueryTestsIndexed() throws Exception {
-        term_indexQueryTests("not_analyzed");
+    public void testTermIndexQueryIndexed() throws Exception {
+        termIndexQueryTests("not_analyzed");
     }
 
-    @Test
-    public void term_indexQueryTestsNotIndexed() throws Exception {
-        term_indexQueryTests("no");
+    public void testTermIndexQueryNotIndexed() throws Exception {
+        termIndexQueryTests("no");
     }
 
-    private void term_indexQueryTests(String index) throws Exception {
+    private void termIndexQueryTests(String index) throws Exception {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         String[] indexNames = { "test1", "test2" };
         for (String indexName : indexNames) {
@@ -782,8 +766,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void filterExistsMissingTests() throws Exception {
+    public void testFilterExistsMissing() throws Exception {
         createIndex("test");
 
         indexRandom(true,
@@ -850,8 +833,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "3", "4");
     }
 
-    @Test
-    public void passQueryOrFilterAsJSONStringTest() throws Exception {
+    public void testPassQueryOrFilterAsJSONString() throws Exception {
         createIndex("test");
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1_1", "field2", "value2_1").setRefresh(true).get();
@@ -866,7 +848,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setPostFilter(wrapperFilter).get(), 1l);
     }
 
-    @Test
     public void testFiltersWithCustomCacheKey() throws Exception {
         createIndex("test");
 
@@ -885,7 +866,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test
     public void testMatchQueryNumeric() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type1", "long", "type=long", "double", "type=double"));
 
@@ -908,7 +888,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMultiMatchQuery() throws Exception {
         createIndex("test");
 
@@ -972,7 +951,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    @Test
     public void testMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "field1", "type=string,analyzer=classic", "field2", "type=string,analyzer=classic"));
@@ -1022,7 +1000,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2l);
     }
 
-    @Test
     public void testMultiMatchQueryMinShouldMatch() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("field1", new String[]{"value1", "value2", "value3"}).get();
@@ -1068,7 +1045,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    @Test
     public void testFuzzyQueryString() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
@@ -1089,7 +1065,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    @Test
     public void testQuotedQueryStringWithBoost() throws InterruptedException, ExecutionException {
         float boost = 10.0f;
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1));
@@ -1113,7 +1088,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat((double)searchResponse.getHits().getAt(0).score(), closeTo(boost * searchResponse.getHits().getAt(1).score(), .1));
     }
 
-    @Test
     public void testSpecialRangeSyntaxInQueryString() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("str", "kimchy", "date", "2012-02-01", "num", 12).get();
@@ -1144,7 +1118,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test
     public void testEmptytermsQuery() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "term", "type=string"));
 
@@ -1161,7 +1134,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0l);
     }
 
-    @Test
     public void testTermsQuery() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "str", "type=string", "lng", "type=long", "dbl", "type=double"));
 
@@ -1229,7 +1201,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0l);
     }
 
-    @Test
     public void testTermsLookupFilter() throws Exception {
         assertAcked(prepareCreate("lookup").addMapping("type", "terms","type=string", "other", "type=string"));
         assertAcked(prepareCreate("lookup2").addMapping("type",
@@ -1317,7 +1288,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0l);
     }
 
-    @Test
     public void testBasicQueryById() throws Exception {
         createIndex("test");
 
@@ -1350,7 +1320,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
     }
 
-    @Test
     public void testNumericTermsAndRanges() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
@@ -1450,7 +1419,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    @Test
     public void testNumericRangeFilter_2826() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1",
@@ -1489,7 +1457,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2l);
     }
 
-    @Test // see #2926
+    // see #2926
     public void testMustNot() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
                 //issue manifested only with shards>=2
@@ -1512,7 +1480,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2l);
     }
 
-    @Test // see #2994
+    // see #2994
     public void testSimpleSpan() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
 
@@ -1532,7 +1500,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 3l);
     }
 
-    @Test
     public void testSpanMultiTermQuery() throws IOException {
         createIndex("test");
 
@@ -1564,7 +1531,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(response, 3);
     }
 
-    @Test
     public void testSpanNot() throws IOException, ExecutionException, InterruptedException {
         createIndex("test");
 
@@ -1588,7 +1554,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test
     public void testSimpleDFSQuery() throws IOException {
         assertAcked(prepareCreate("test")
             .addMapping("s", jsonBuilder()
@@ -1643,7 +1608,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertNoFailures(response);
     }
 
-    @Test
     public void testMultiFieldQueryString() {
         client().prepareIndex("test", "s", "1").setSource("field1", "value1", "field2", "value2").setRefresh(true).get();
 
@@ -1665,7 +1629,6 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     // see #3881 - for extensive description of the issue
-    @Test
     public void testMatchQueryWithSynonyms() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
@@ -1696,7 +1659,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2);
     }
 
-    @Test
     public void testMatchQueryWithStackedStems() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
@@ -1721,7 +1683,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2);
     }
 
-    @Test
     public void testQueryStringWithSynonyms() throws IOException {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
@@ -1754,7 +1715,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 2);
     }
 
-    @Test // see https://github.com/elasticsearch/elasticsearch/issues/3898
+    // see #3898
     public void testCustomWordDelimiterQueryString() {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings("analysis.analyzer.my_analyzer.type", "custom",
@@ -1781,7 +1742,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(response, 1l);
     }
 
-    @Test // see https://github.com/elasticsearch/elasticsearch/issues/3797
+    // see #3797
     public void testMultiMatchLenientIssue3797() {
         createIndex("test");
 
@@ -1801,14 +1762,12 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
     }
 
-    @Test
     public void testAllFieldEmptyMapping() throws Exception {
         client().prepareIndex("myindex", "mytype").setId("1").setSource("{}").setRefresh(true).get();
         SearchResponse response = client().prepareSearch("myindex").setQuery(matchQuery("_all", "foo")).get();
         assertNoFailures(response);
     }
 
-    @Test
     public void testAllDisabledButQueried() throws Exception {
         createIndex("myindex");
         assertAcked(client().admin().indices().preparePutMapping("myindex").setType("mytype").setSource(
@@ -1819,7 +1778,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(response, 0);
     }
 
-    @Test
     public void testIndicesQuery() throws Exception {
         createIndex("index1", "index2", "index3");
 
@@ -1853,7 +1811,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertFirstHit(searchResponse, hasId("1"));
     }
 
-    @Test // https://github.com/elasticsearch/elasticsearch/issues/2416
+    // See #2416
     public void testIndicesQuerySkipParsing() throws Exception {
         createIndex("simple");
         assertAcked(prepareCreate("related")
@@ -1885,7 +1843,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1", "2");
     }
 
-    @Test
     public void testIndicesQueryMissingIndices() throws IOException, ExecutionException, InterruptedException {
         createIndex("index1");
         createIndex("index2");
@@ -1954,7 +1911,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMinScore() throws ExecutionException, InterruptedException {
         createIndex("test");
 
@@ -1971,7 +1927,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertSecondHit(searchResponse, hasId("1"));
     }
 
-    @Test
     public void testQueryStringWithSlopAndFields() {
         createIndex("test");
 
@@ -2000,7 +1955,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDateProvidedAsNumber() throws ExecutionException, InterruptedException {
         createIndex("test");
         assertAcked(client().admin().indices().preparePutMapping("test").setType("type").setSource("field", "type=date,format=epoch_millis").get());
@@ -2009,11 +1963,10 @@ public class SearchQueryIT extends ESIntegTestCase {
                 client().prepareIndex("test", "type", "3").setSource("field", -999999999999L));
 
 
-        assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
-        assertHitCount(client().prepareCount("test").setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-1000000000000L)).get(), 2);
+        assertHitCount(client().prepareSearch("test").setSize(0).setQuery(rangeQuery("field").lte(-999999999999L)).get(), 3);
     }
 
-    @Test
     public void testRangeQueryWithTimeZone() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "date", "type=date", "num", "type=integer"));
@@ -2108,7 +2061,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSearchEmptyDoc() {
         assertAcked(prepareCreate("test").setSettings("{\"index.analysis.analyzer.default.type\":\"keyword\"}"));
         client().prepareIndex("test", "type1", "1").setSource("{}").get();
@@ -2117,7 +2069,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch().setQuery(matchAllQuery()).get(), 1l);
     }
 
-    @Test  // see #5120
+    // see #5120
     public void testNGramCopyField() {
         CreateIndexRequestBuilder builder = prepareCreate("test").setSettings(settingsBuilder()
                 .put(indexSettings())
@@ -2183,7 +2135,6 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "2");
     }
 
-    @Test
     public void testQueryStringParserCache() throws Exception {
         createIndex("test");
         indexRandom(true, false, client().prepareIndex("test", "type", "1").setSource("nameTokens", "xyz"));

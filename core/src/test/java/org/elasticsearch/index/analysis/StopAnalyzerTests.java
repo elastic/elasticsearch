@@ -32,13 +32,10 @@ import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class StopAnalyzerTests extends ESTokenStreamTestCase {
-
-    @Test
     public void testDefaultsCompoundAnalysis() throws Exception {
         String json = "/org/elasticsearch/index/analysis/stop.json";
         Index index = new Index("test");
@@ -64,5 +61,4 @@ public class StopAnalyzerTests extends ESTokenStreamTestCase {
 
         assertTokenStreamContents(analyzer2.tokenStream("test", "to be or not to be"), new String[0]);
     }
-
 }

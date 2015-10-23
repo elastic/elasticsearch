@@ -25,7 +25,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequest;
@@ -45,7 +45,6 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
@@ -54,18 +53,23 @@ import java.util.Collections;
 import java.util.concurrent.CyclicBarrier;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BulkTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
-    @Test
-    public void testBulkUpdate_simple() throws Exception {
+
+    public void testBulkUpdateSimple() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
@@ -156,7 +160,6 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(((Long) getResponse.getField("field").getValue()), equalTo(4l));
     }
 
-    @Test
     public void testBulkVersioning() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -203,9 +206,7 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(((UpdateResponse) bulkResponse.getItems()[2].getResponse()).getVersion(), equalTo(21l));
     }
 
-    @Test
-    public void testBulkUpdate_malformedScripts() throws Exception {
-
+    public void testBulkUpdateMalformedScripts() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -244,8 +245,7 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[2].getResponse(), nullValue());
     }
 
-    @Test
-    public void testBulkUpdate_largerVolume() throws Exception {
+    public void testBulkUpdateLargerVolume() throws Exception {
         createIndex("test");
         ensureGreen();
 
@@ -378,9 +378,7 @@ public class BulkTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testBulkIndexingWhileInitializing() throws Exception {
-
         int replica = randomInt(2);
 
         internalCluster().ensureAtLeastNumDataNodes(1 + replica);
@@ -407,14 +405,13 @@ public class BulkTests extends ESIntegTestCase {
 
         refresh();
 
-        CountResponse countResponse = client().prepareCount().get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).get();
         assertHitCount(countResponse, numDocs);
     }
 
     /*
     Test for https://github.com/elasticsearch/elasticsearch/issues/3444
      */
-    @Test
     public void testBulkUpdateDocAsUpsertWithParent() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("parent", "{\"parent\":{}}")
@@ -452,7 +449,6 @@ public class BulkTests extends ESIntegTestCase {
     /*
     Test for https://github.com/elasticsearch/elasticsearch/issues/3444
      */
-    @Test
     public void testBulkUpdateUpsertWithParent() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent", "{\"parent\":{}}")
@@ -487,7 +483,6 @@ public class BulkTests extends ESIntegTestCase {
     /*
      * Test for https://github.com/elasticsearch/elasticsearch/issues/8365
      */
-    @Test
     public void testBulkUpdateChildMissingParentRouting() throws Exception {
         assertAcked(prepareCreate("test").addMapping("parent", "{\"parent\":{}}").addMapping("child",
                 "{\"child\": {\"_parent\": {\"type\": \"parent\"}}}"));
@@ -518,7 +513,6 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(bulkResponse.getItems()[3].isFailed(), equalTo(false));
     }
 
-    @Test
     public void testFailingVersionedUpdatedOnBulk() throws Exception {
         createIndex("test");
         index("test", "type", "1", "field", "1");
@@ -561,8 +555,8 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(successes, equalTo(1));
     }
 
-    @Test // issue 4745
-    public void preParsingSourceDueToMappingShouldNotBreakCompleteBulkRequest() throws Exception {
+    // issue 4745
+    public void testPreParsingSourceDueToMappingShouldNotBreakCompleteBulkRequest() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                     .startObject("type")
                         .startObject("_timestamp")
@@ -587,8 +581,8 @@ public class BulkTests extends ESIntegTestCase {
         assertExists(get("test", "type", "2"));
     }
 
-    @Test // issue 4745
-    public void preParsingSourceDueToRoutingShouldNotBreakCompleteBulkRequest() throws Exception {
+    // issue 4745
+    public void testPreParsingSourceDueToRoutingShouldNotBreakCompleteBulkRequest() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                     .startObject("type")
                         .startObject("_routing")
@@ -615,8 +609,8 @@ public class BulkTests extends ESIntegTestCase {
     }
 
 
-    @Test // issue 4745
-    public void preParsingSourceDueToIdShouldNotBreakCompleteBulkRequest() throws Exception {
+    // issue 4745
+    public void testPreParsingSourceDueToIdShouldNotBreakCompleteBulkRequest() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject()
                     .startObject("type")
                         .startObject("_id")
@@ -641,7 +635,7 @@ public class BulkTests extends ESIntegTestCase {
         assertExists(get("test", "type", "48"));
     }
 
-    @Test // issue 4987
+    // issue 4987
     public void testThatInvalidIndexNamesShouldNotBreakCompleteBulkRequest() {
         int bulkEntryCount = randomIntBetween(10, 50);
         BulkRequestBuilder builder = client().prepareBulk();
@@ -669,7 +663,7 @@ public class BulkTests extends ESIntegTestCase {
         }
     }
 
-    @Test // issue 6630
+    // issue 6630
     public void testThatFailedUpdateRequestReturnsCorrectType() throws Exception {
         BulkResponse indexBulkItemResponse = client().prepareBulk()
                 .add(new IndexRequest("test", "type", "3").source("{ \"title\" : \"Great Title of doc 3\" }"))
@@ -704,7 +698,7 @@ public class BulkTests extends ESIntegTestCase {
         return randomBoolean() ? "test" : "alias";
     }
 
-    @Test // issue 6410
+    // issue 6410
     public void testThatMissingIndexDoesNotAbortFullBulkRequest() throws Exception{
         createIndex("bulkindex1", "bulkindex2");
         ensureYellow();
@@ -727,7 +721,7 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(bulkResponse.getItems().length, is(5));
     }
 
-    @Test // issue 9821
+    // issue 9821
     public void testFailedRequestsOnClosedIndex() throws Exception {
         createIndex("bulkindex1");
         ensureYellow();
@@ -749,7 +743,7 @@ public class BulkTests extends ESIntegTestCase {
         assertThat(responseItems[2].getOpType(), is("delete"));
     }
 
-    @Test // issue 9821
+    // issue 9821
     public void testInvalidIndexNamesCorrectOpType() {
         BulkResponse bulkResponse = client().prepareBulk()
                 .add(client().prepareIndex().setIndex("INVALID.NAME").setType("type1").setId("1").setSource("field", 1))

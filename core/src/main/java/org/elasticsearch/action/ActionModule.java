@@ -80,6 +80,8 @@ import org.elasticsearch.action.admin.indices.exists.types.TransportTypesExistsA
 import org.elasticsearch.action.admin.indices.exists.types.TypesExistsAction;
 import org.elasticsearch.action.admin.indices.flush.FlushAction;
 import org.elasticsearch.action.admin.indices.flush.TransportFlushAction;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
+import org.elasticsearch.action.admin.indices.forcemerge.TransportForceMergeAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.TransportGetIndexAction;
 import org.elasticsearch.action.admin.indices.mapping.get.GetFieldMappingsAction;
@@ -91,8 +93,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingAction;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.open.OpenIndexAction;
 import org.elasticsearch.action.admin.indices.open.TransportOpenIndexAction;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeAction;
-import org.elasticsearch.action.admin.indices.optimize.TransportOptimizeAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryAction;
 import org.elasticsearch.action.admin.indices.recovery.TransportRecoveryAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
@@ -134,8 +134,6 @@ import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.delete.DeleteAction;
 import org.elasticsearch.action.delete.TransportDeleteAction;
-import org.elasticsearch.action.exists.ExistsAction;
-import org.elasticsearch.action.exists.TransportExistsAction;
 import org.elasticsearch.action.explain.ExplainAction;
 import org.elasticsearch.action.explain.TransportExplainAction;
 import org.elasticsearch.action.fieldstats.FieldStatsAction;
@@ -295,7 +293,7 @@ public class ActionModule extends AbstractModule {
         registerAction(ValidateQueryAction.INSTANCE, TransportValidateQueryAction.class);
         registerAction(RefreshAction.INSTANCE, TransportRefreshAction.class);
         registerAction(FlushAction.INSTANCE, TransportFlushAction.class);
-        registerAction(OptimizeAction.INSTANCE, TransportOptimizeAction.class);
+        registerAction(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         registerAction(UpgradeAction.INSTANCE, TransportUpgradeAction.class);
         registerAction(UpgradeStatusAction.INSTANCE, TransportUpgradeStatusAction.class);
         registerAction(UpgradeSettingsAction.INSTANCE, TransportUpgradeSettingsAction.class);
@@ -314,7 +312,6 @@ public class ActionModule extends AbstractModule {
         registerAction(MultiTermVectorsAction.INSTANCE, TransportMultiTermVectorsAction.class,
                 TransportShardMultiTermsVectorAction.class);
         registerAction(DeleteAction.INSTANCE, TransportDeleteAction.class);
-        registerAction(ExistsAction.INSTANCE, TransportExistsAction.class);
         registerAction(SuggestAction.INSTANCE, TransportSuggestAction.class);
         registerAction(UpdateAction.INSTANCE, TransportUpdateAction.class);
         registerAction(MultiGetAction.INSTANCE, TransportMultiGetAction.class,

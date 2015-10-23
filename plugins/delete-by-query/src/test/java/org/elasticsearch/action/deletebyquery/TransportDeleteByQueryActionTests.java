@@ -20,7 +20,6 @@
 package org.elasticsearch.action.deletebyquery;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -37,7 +36,6 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -46,8 +44,6 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testExecuteScanFailsOnMissingIndex() {
         DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"none"});
         TestActionListener listener = new TestActionListener();
@@ -59,7 +55,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testExecuteScan() {
         createIndex("test");
         final int numDocs = randomIntBetween(1, 200);
@@ -67,7 +62,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
             client().prepareIndex("test", "type").setSource("num", i).get();
         }
         client().admin().indices().prepareRefresh("test").get();
-        assertHitCount(client().prepareCount("test").get(), numDocs);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), numDocs);
 
         final long limit = randomIntBetween(0, numDocs);
         DeleteByQueryRequest delete = new DeleteByQueryRequest().indices(new String[]{"test"}).query(boolQuery().must(rangeQuery("num").lte(limit)));
@@ -84,7 +79,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testExecuteScrollFailsOnMissingScrollId() {
         DeleteByQueryRequest delete = new DeleteByQueryRequest();
         TestActionListener listener = new TestActionListener();
@@ -96,7 +90,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testExecuteScrollFailsOnMalformedScrollId() {
         DeleteByQueryRequest delete = new DeleteByQueryRequest();
         TestActionListener listener = new TestActionListener();
@@ -108,14 +101,13 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testExecuteScrollFailsOnExpiredScrollId() {
         final long numDocs = randomIntBetween(1, 100);
         for (int i = 1; i <= numDocs; i++) {
             client().prepareIndex("test", "type").setSource("num", i).get();
         }
         client().admin().indices().prepareRefresh("test").get();
-        assertHitCount(client().prepareCount("test").get(), numDocs);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), numDocs);
 
         SearchResponse searchResponse = client().prepareSearch("test").setScroll(TimeValue.timeValueSeconds(10)).get();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(numDocs));
@@ -137,7 +129,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testExecuteScrollTimedOut() throws InterruptedException {
         client().prepareIndex("test", "type", "1").setSource("num", "1").get();
         client().prepareIndex("test", "type", "2").setSource("num", "1").get();
@@ -163,7 +154,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testExecuteScrollNoDocuments() {
         createIndex("test");
         SearchResponse searchResponse = client().prepareSearch("test").setScroll(TimeValue.timeValueSeconds(10)).get();
@@ -183,14 +173,13 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testExecuteScroll() {
         final int numDocs = randomIntBetween(1, 100);
         for (int i = 1; i <= numDocs; i++) {
             client().prepareIndex("test", "type").setSource("num", i).get();
         }
         client().admin().indices().prepareRefresh("test").get();
-        assertHitCount(client().prepareCount("test").get(), numDocs);
+        assertHitCount(client().prepareSearch("test").setSize(0).get(), numDocs);
 
         final long limit = randomIntBetween(0, numDocs);
 
@@ -220,7 +209,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertSearchContextsClosed();
     }
 
-    @Test
     public void testOnBulkResponse() {
         final int nbItems = randomIntBetween(0, 20);
         long deleted = 0;
@@ -266,7 +254,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testOnBulkResponseMultipleIndices() {
         final int nbIndices = randomIntBetween(2, 5);
 
@@ -337,7 +324,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testOnBulkFailureNoDocuments() {
         DeleteByQueryRequest delete = new DeleteByQueryRequest();
         TestActionListener listener = new TestActionListener();
@@ -348,7 +334,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertFailure(listener, "This is a bulk failure");
     }
 
-    @Test
     public void testOnBulkFailure() {
         final int nbDocs = randomIntBetween(0, 20);
         SearchHit[] docs = new SearchHit[nbDocs];
@@ -371,7 +356,6 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertThat(response.getTotalDeleted(), equalTo(0L));
     }
 
-    @Test
     public void testFinishHim() {
         TestActionListener listener = new TestActionListener();
         newAsyncAction(new DeleteByQueryRequest(), listener).finishHim(null, false, null);
@@ -433,19 +417,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertThat(t.toString(), containsString(expectedFailure));
     }
 
-    private void assertShardFailuresContains(ShardOperationFailedException[] shardFailures, String expectedFailure) {
-        assertNotNull(shardFailures);
-        for (ShardOperationFailedException failure : shardFailures) {
-            Throwable t = failure.getCause();
-            if (t.toString().contains(expectedFailure)) {
-                return;
-            }
-        }
-        fail("failed to find shard failure [" + expectedFailure + "]");
-    }
-
     private class TestActionListener implements ActionListener<DeleteByQueryResponse> {
-
         private final CountDown count = new CountDown(1);
 
         private DeleteByQueryResponse response;

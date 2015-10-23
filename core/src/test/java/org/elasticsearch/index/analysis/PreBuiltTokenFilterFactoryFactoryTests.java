@@ -23,16 +23,14 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.is;
+import static org.hamcrest.CoreMatchers.not;
 
 /**
  *
  */
 public class PreBuiltTokenFilterFactoryFactoryTests extends ESTestCase {
-
-    @Test
     public void testThatCachingWorksForCachingStrategyOne() {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.WORD_DELIMITER.getTokenFilterFactory(Version.CURRENT));
 
@@ -44,7 +42,6 @@ public class PreBuiltTokenFilterFactoryFactoryTests extends ESTestCase {
         assertThat(currentTokenizerFactory, is(former090TokenizerFactoryCopy));
     }
 
-    @Test
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.STOP.getTokenFilterFactory(Version.CURRENT));
 
@@ -55,5 +52,4 @@ public class PreBuiltTokenFilterFactoryFactoryTests extends ESTestCase {
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));
         assertThat(former090TokenizerFactory, is(former090TokenizerFactoryCopy));
     }
-
 }

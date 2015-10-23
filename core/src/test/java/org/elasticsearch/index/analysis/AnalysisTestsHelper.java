@@ -52,7 +52,7 @@ public class AnalysisTestsHelper {
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
             settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
-        IndicesModule indicesModule = new IndicesModule(settings) {
+        IndicesModule indicesModule = new IndicesModule() {
             @Override
             public void configure() {
                 // skip services

@@ -18,9 +18,8 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.test.ESTestCase;
 import org.apache.lucene.util.XGeoHashUtils;
-import org.junit.Test;
+import org.elasticsearch.test.ESTestCase;
 
 
 
@@ -28,12 +27,11 @@ import org.junit.Test;
  * Tests for {@link org.apache.lucene.util.XGeoHashUtils}
  */
 public class GeoHashTests extends ESTestCase {
-    @Test
     public void testGeohashAsLongRoutines()  {
         final GeoPoint expected = new GeoPoint();
         final GeoPoint actual = new GeoPoint();
         //Ensure that for all points at all supported levels of precision
-        // that the long encoding of a geohash is compatible with its 
+        // that the long encoding of a geohash is compatible with its
         // String based counterpart
         for (double lat=-90;lat<90;lat++)
         {

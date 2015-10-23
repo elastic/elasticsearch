@@ -39,14 +39,12 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.hamcrest.Matchers;
 import org.junit.Assert;
-import org.junit.Test;
 
 import java.net.DatagramPacket;
 import java.net.InetAddress;
 import java.net.MulticastSocket;
 
 public class MulticastZenPingTests extends ESTestCase {
-
     private Settings buildRandomMulticast(Settings settings) {
         Settings.Builder builder = Settings.builder().put(settings);
         builder.put("discovery.zen.ping.multicast.group", "224.2.3." + randomIntBetween(0, 255));
@@ -58,7 +56,6 @@ public class MulticastZenPingTests extends ESTestCase {
         return builder.build();
     }
 
-    @Test
     public void testSimplePings() throws InterruptedException {
         Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);
@@ -132,7 +129,7 @@ public class MulticastZenPingTests extends ESTestCase {
         }
     }
 
-    @Test @SuppressForbidden(reason = "I bind to wildcard addresses. I am a total nightmare")
+    @SuppressForbidden(reason = "I bind to wildcard addresses. I am a total nightmare")
     public void testExternalPing() throws Exception {
         Settings settings = Settings.EMPTY;
         settings = buildRandomMulticast(settings);

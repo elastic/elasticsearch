@@ -31,7 +31,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -59,7 +58,6 @@ public class GetTermVectorsCheckDocFreqIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testSimpleTermVectors() throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")

@@ -19,7 +19,7 @@
 package org.elasticsearch.transport.netty;
 
 import com.carrotsearch.hppc.IntHashSet;
-import java.nio.charset.StandardCharsets;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
@@ -29,16 +29,15 @@ import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.junit.Rule;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.OutputStream;
@@ -46,6 +45,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
@@ -71,7 +71,6 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
         int[] ports = getRandomPorts(3);
 
@@ -92,7 +91,6 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatDefaultProfileInheritsFromStandardSettings() throws Exception {
         int[] ports = getRandomPorts(2);
 
@@ -111,7 +109,6 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatProfileWithoutPortSettingsFails() throws Exception {
         int[] ports = getRandomPorts(1);
 
@@ -129,7 +126,6 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatDefaultProfilePortOverridesGeneralConfiguration() throws Exception {
         int[] ports = getRandomPorts(3);
 
@@ -150,7 +146,6 @@ public class NettyTransportMultiPortTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testThatProfileWithoutValidNameIsIgnored() throws Exception {
         int[] ports = getRandomPorts(3);
 

@@ -40,19 +40,18 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
-import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;
 import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
@@ -61,15 +60,12 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class MultiFieldTests extends ESSingleNodeTestCase {
-
-    @Test
-    public void testMultiField_multiFieldType() throws Exception {
+    public void testMultiFieldMultiFieldType() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type.json");
         testMultiField(mapping);
     }
 
-    @Test
-    public void testMultiField_multiFields() throws Exception {
+    public void testMultiFieldMultiFields() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-fields.json");
         testMultiField(mapping);
     }
@@ -145,7 +141,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("object1.multi1.string").fieldType().tokenized(), equalTo(false));
     }
 
-    @Test
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
         Settings settings = indexService.settingsService().getSettings();
@@ -186,7 +181,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertEquals(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
-    @Test
     public void testConvertMultiFieldNoDefaultField() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-no-default-field.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -256,7 +250,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("age.stored").fieldType().tokenized(), equalTo(false));
     }
 
-    @Test
     public void testConvertMultiFieldGeoPoint() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-geo_point.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -353,7 +346,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
-    @Test
     public void testConvertMultiFieldCompletion() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-completion.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -421,7 +413,6 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
     }
 
-    @Test
     // The underlying order of the fields in multi fields in the mapping source should always be consistent, if not this
     // can to unnecessary re-syncing of the mappings between the local instance and cluster state
     public void testMultiFieldsInConsistentOrder() throws Exception {
@@ -451,12 +442,11 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             assertThat(field, equalTo(multiFieldNames[i++]));
         }
     }
-    
-    @Test
+
     // The fielddata settings need to be the same after deserializing/re-serialsing, else unneccesary mapping sync's can be triggered
     public void testMultiFieldsFieldDataSettingsInConsistentOrder() throws Exception {
         final String MY_MULTI_FIELD = "multi_field";
-        
+
         // Possible fielddata settings
         Map<String, Object> possibleSettings = new TreeMap<String, Object>();
         possibleSettings.put("filter.frequency.min", 1);
@@ -466,7 +456,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         possibleSettings.put("foo", "bar");
         possibleSettings.put("zetting", "zValue");
         possibleSettings.put("aSetting", "aValue");
-        
+
         // Generate a mapping with the a random subset of possible fielddata settings
         XContentBuilder builder = jsonBuilder().startObject().startObject("type").startObject("properties")
             .startObject("my_field").field("type", "string").startObject("fields").startObject(MY_MULTI_FIELD)
@@ -476,8 +466,8 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         for(int i = randomIntBetween(0, possibleSettings.size()-1); i >= 0; --i)
             builder.field(keys[i], possibleSettings.get(keys[i]));
         builder.endObject().endObject().endObject().endObject().endObject().endObject().endObject();
-        
-        // Check the mapping remains identical when deserialed/re-serialsed 
+
+        // Check the mapping remains identical when deserialed/re-serialsed
         final DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse(builder.string());
         DocumentMapper docMapper2 = parser.parse(docMapper.mappingSource().string());

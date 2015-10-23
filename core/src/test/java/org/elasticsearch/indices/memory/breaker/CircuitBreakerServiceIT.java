@@ -38,7 +38,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +59,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  */
 @ClusterScope(scope = TEST, randomDynamicTemplates = false)
 public class CircuitBreakerServiceIT extends ESIntegTestCase {
-
     /** Reset all breaker settings back to their defaults */
     private void reset() {
         logger.info("--> resetting breaker settings");
@@ -100,7 +98,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         return false;
     }
 
-    @Test
     public void testMemoryBreaker() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -142,7 +139,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         assertThat(breaks, greaterThanOrEqualTo(1));
     }
 
-    @Test
     public void testRamAccountingTermsEnum() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -196,7 +192,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
      * Test that a breaker correctly redistributes to a different breaker, in
      * this case, the fielddata breaker borrows space from the request breaker
      */
-    @Test
     public void testParentChecking() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -256,7 +251,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRequestBreaker() throws Exception {
         if (noopBreakerUsed()) {
             logger.info("--> noop breakers used, skipping test");
@@ -307,7 +301,6 @@ public class CircuitBreakerServiceIT extends ESIntegTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
-    @Test
     public void testCustomCircuitBreakerRegistration() throws Exception {
         Iterable<CircuitBreakerService> serviceIter = internalCluster().getInstances(CircuitBreakerService.class);
 

@@ -38,7 +38,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -50,7 +49,6 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 public class AddIncrementallyTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(AddIncrementallyTests.class);
 
-    @Test
     public void testAddNodesAndIndices() {
         Settings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString());
@@ -94,7 +92,6 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
     }
 
-    @Test
     public void testMinimalRelocations() {
         Settings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString())
@@ -163,7 +160,6 @@ public class AddIncrementallyTests extends ESAllocationTestCase {
         logger.debug("ClusterState: {}", clusterState.getRoutingNodes().prettyPrint());
     }
 
-    @Test
     public void testMinimalRelocationsNoLimit() {
         Settings.Builder settings = settingsBuilder();
         settings.put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString())

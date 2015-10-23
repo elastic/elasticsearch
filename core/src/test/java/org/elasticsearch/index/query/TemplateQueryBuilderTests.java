@@ -26,7 +26,6 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -59,7 +58,6 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         assertEquals(templateBase.toQuery(context), query);
     }
 
-    @Test
     public void testIllegalArgument() {
         try {
             new TemplateQueryBuilder(null);
@@ -74,7 +72,6 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         //no-op boost is checked already above as part of doAssertLuceneQuery as we rely on lucene equals impl
     }
 
-    @Test
     public void testJSONGeneration() throws IOException {
         Map<String, Object> vars = new HashMap<>();
         vars.put("template", "filled");
@@ -89,7 +86,6 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
                 content.string());
     }
 
-    @Test
     public void testRawEscapedTemplate() throws IOException {
         String expectedTemplateString = "{\"match_{{template}}\": {}}\"";
         String query = "{\"template\": {\"query\": \"{\\\"match_{{template}}\\\": {}}\\\"\",\"params\" : {\"template\" : \"all\"}}}";
@@ -100,7 +96,6 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         assertParsedQuery(query, expectedBuilder);
     }
 
-    @Test
     public void testRawTemplate() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -115,5 +110,4 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
                 XContentType.JSON, params));
         assertParsedQuery(query, expectedBuilder);
     }
-
 }

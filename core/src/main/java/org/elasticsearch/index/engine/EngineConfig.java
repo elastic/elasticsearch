@@ -25,15 +25,12 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCache;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -72,11 +69,10 @@ public final class EngineConfig {
     private final Analyzer analyzer;
     private final Similarity similarity;
     private final CodecService codecService;
-    private final Engine.FailedEngineListener failedEngineListener;
+    private final Engine.EventListener eventListener;
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-    private final SetOnce<IndexSearcherWrapper> searcherWrapper = new SetOnce<>();
 
     /**
      * Index setting for compound file on flush. This setting is realtime updateable.
@@ -121,7 +117,7 @@ public final class EngineConfig {
     public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
                         Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
-                        Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
+                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
@@ -135,7 +131,7 @@ public final class EngineConfig {
         this.analyzer = analyzer;
         this.similarity = similarity;
         this.codecService = codecService;
-        this.failedEngineListener = failedEngineListener;
+        this.eventListener = eventListener;
         this.compoundOnFlush = indexSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush);
         codecName = indexSettings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
         // We start up inactive and rely on IndexingMemoryController to give us our fair share once we start indexing:
@@ -250,7 +246,7 @@ public final class EngineConfig {
 
     /**
      * Returns a thread-pool mainly used to get estimated time stamps from {@link org.elasticsearch.threadpool.ThreadPool#estimatedTimeInMillis()} and to schedule
-     * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#OPTIMIZE} thread-pool
+     * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool
      */
     public ThreadPool getThreadPool() {
         return threadPool;
@@ -314,8 +310,8 @@ public final class EngineConfig {
     /**
      * Returns a listener that should be called on engine failure
      */
-    public Engine.FailedEngineListener getFailedEngineListener() {
-        return failedEngineListener;
+    public Engine.EventListener getEventListener() {
+        return eventListener;
     }
 
     /**

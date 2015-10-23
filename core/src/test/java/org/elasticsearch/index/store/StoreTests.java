@@ -73,7 +73,6 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -107,8 +106,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class StoreTests extends ESTestCase {
-
-    @Test
     public void testRefCount() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -162,7 +159,6 @@ public class StoreTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testVerifyingIndexOutput() throws IOException {
         Directory dir = newDirectory();
         IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);
@@ -276,7 +272,6 @@ public class StoreTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testVerifyingIndexOutputWithBogusInput() throws IOException {
         Directory dir = newDirectory();
         int length = scaledRandomIntBetween(10, 1024);
@@ -359,7 +354,6 @@ public class StoreTests extends ESTestCase {
     // The test currently fails because the segment infos and the index don't
     // agree on the oldest version of a segment. We should fix this test by
     // switching to a static bw index
-    @Test
     public void testWriteLegacyChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -444,7 +438,6 @@ public class StoreTests extends ESTestCase {
 
     }
 
-    @Test
     public void testNewChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -504,7 +497,6 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
-    @Test
     public void testMixedChecksums() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -596,7 +588,6 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
-    @Test
     public void testRenameFile() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random(), false);
@@ -713,7 +704,6 @@ public class StoreTests extends ESTestCase {
 
     }
 
-    @Test
     public void testVerifyingIndexInput() throws IOException {
         Directory dir = newDirectory();
         IndexOutput output = dir.createOutput("foo.bar", IOContext.DEFAULT);
@@ -843,7 +833,6 @@ public class StoreTests extends ESTestCase {
      * Legacy indices without lucene CRC32 did never write or calculate checksums for segments_N files
      * but for other files
      */
-    @Test
     public void testRecoveryDiffWithLegacyCommit() {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
@@ -855,8 +844,6 @@ public class StoreTests extends ESTestCase {
         assertEquals(recoveryDiff.toString(), recoveryDiff.different.size(), 2);
     }
 
-
-    @Test
     public void testRecoveryDiff() throws IOException, InterruptedException {
         int numDocs = 2 + random().nextInt(100);
         List<Document> docs = new ArrayList<>();
@@ -1001,7 +988,6 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
-    @Test
     public void testCleanupFromSnapshot() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -1111,7 +1097,6 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
-    @Test
     public void testCleanUpWithLegacyChecksums() throws IOException {
         Map<String, StoreFileMetaData> metaDataMap = new HashMap<>();
         metaDataMap.put("segments_1", new StoreFileMetaData("segments_1", 50, null, null, new BytesRef(new byte[]{1})));
@@ -1158,7 +1143,6 @@ public class StoreTests extends ESTestCase {
         assertEquals(count.get(), 1);
     }
 
-    @Test
     public void testStoreStats() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -1217,9 +1201,7 @@ public class StoreTests extends ESTestCase {
         return numNonExtra;
     }
 
-    @Test
     public void testMetadataSnapshotStreaming() throws Exception {
-
         Store.MetadataSnapshot outMetadataSnapshot = createMetaDataSnapshot();
         org.elasticsearch.Version targetNodeVersion = randomVersion(random());
 
@@ -1253,7 +1235,6 @@ public class StoreTests extends ESTestCase {
         return new Store.MetadataSnapshot(unmodifiableMap(storeFileMetaDataMap), unmodifiableMap(commitUserData), 0);
     }
 
-    @Test
     public void testUserDataRead() throws IOException {
         final ShardId shardId = new ShardId(new Index("index"), 1);
         DirectoryService directoryService = new LuceneManagedDirectoryService(random());
@@ -1288,7 +1269,6 @@ public class StoreTests extends ESTestCase {
         IOUtils.close(store);
     }
 
-    @Test
     public void testStreamStoreFilesMetaData() throws Exception {
         Store.MetadataSnapshot metadataSnapshot = createMetaDataSnapshot();
         TransportNodesListShardStoreMetaData.StoreFilesMetaData outStoreFileMetaData = new TransportNodesListShardStoreMetaData.StoreFilesMetaData(randomBoolean(), new ShardId("test", 0),metadataSnapshot);

@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.analysis.AnalysisTestUtils.createAnalysisService;
@@ -29,8 +28,6 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  */
 public class SimpleIcuAnalysisTests extends ESTestCase {
-
-    @Test
     public void testDefaultsIcuAnalysis() {
         Settings settings = settingsBuilder()
                 .put("path.home", createTempDir()).build();

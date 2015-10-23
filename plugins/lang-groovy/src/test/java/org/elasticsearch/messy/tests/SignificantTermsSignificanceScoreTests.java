@@ -59,7 +59,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -85,7 +84,6 @@ import static org.hamcrest.Matchers.is;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
-
     static final String INDEX_NAME = "testidx";
     static final String DOC_TYPE = "doc";
     static final String TEXT_FIELD = "text";
@@ -108,7 +106,6 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
         return randomBoolean() ? null : randomFrom(SignificantTermsAggregatorFactory.ExecutionMode.values()).toString();
     }
 
-    @Test
     public void testPlugin() throws Exception {
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
@@ -259,10 +256,7 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void testXContentResponse() throws Exception {
-
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings);
@@ -295,7 +289,6 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testDeletesIssue7951() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"string\",\"index\":\"not_analyzed\"}}}}";
@@ -338,7 +331,6 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
                 .actionGet();
     }
 
-    @Test
     public void testBackgroundVsSeparateSet() throws Exception {
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
@@ -425,7 +417,6 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
         indexRandom(true, false, indexRequestBuilderList);
     }
 
-    @Test
     public void testScoresEqualForPositiveAndNegative() throws Exception {
         indexEqualTestData();
         testScoresEqualForPositiveAndNegative(new MutualInformation.MutualInformationBuilder(true, true));
@@ -491,7 +482,6 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
         indexRandom(true, false, indexRequestBuilders);
     }
 
-    @Test
     public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
         indexRandomFrequencies01(randomBoolean() ? "string" : "long");
         ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = getScriptSignificanceHeuristicBuilder();
@@ -512,7 +502,6 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNoNumberFormatExceptionWithDefaultScriptingEngine() throws ExecutionException, InterruptedException, IOException {
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("index.number_of_shards", 1)));
         index("test", "doc", "1", "{\"field\":\"a\"}");

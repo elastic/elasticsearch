@@ -41,11 +41,11 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.BaseTransportResponseHandler;
@@ -63,7 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentMap;
 
-public class SyncedFlushService extends AbstractComponent {
+public class SyncedFlushService extends AbstractComponent implements IndexEventListener {
 
     private static final String PRE_SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/pre";
     private static final String SYNCED_FLUSH_ACTION_NAME = "internal:indices/flush/synced/sync";
@@ -85,25 +85,24 @@ public class SyncedFlushService extends AbstractComponent {
         transportService.registerRequestHandler(PRE_SYNCED_FLUSH_ACTION_NAME, PreSyncedFlushRequest::new, ThreadPool.Names.FLUSH, new PreSyncedFlushTransportHandler());
         transportService.registerRequestHandler(SYNCED_FLUSH_ACTION_NAME, SyncedFlushRequest::new, ThreadPool.Names.FLUSH, new SyncedFlushTransportHandler());
         transportService.registerRequestHandler(IN_FLIGHT_OPS_ACTION_NAME, InFlightOpsRequest::new, ThreadPool.Names.SAME, new InFlightOpCountTransportHandler());
-        indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
-            @Override
-            public void onShardInactive(final IndexShard indexShard) {
-                // we only want to call sync flush once, so only trigger it when we are on a primary
-                if (indexShard.routingEntry().primary()) {
-                    attemptSyncedFlush(indexShard.shardId(), new ActionListener<ShardsSyncedFlushResult>() {
-                        @Override
-                        public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
-                            logger.trace("{} sync flush on inactive shard returned successfully for sync_id: {}", syncedFlushResult.getShardId(), syncedFlushResult.syncId());
-                        }
+    }
 
-                        @Override
-                        public void onFailure(Throwable e) {
-                            logger.debug("{} sync flush on inactive shard failed", e, indexShard.shardId());
-                        }
-                    });
+    @Override
+    public void onShardInactive(final IndexShard indexShard) {
+        // we only want to call sync flush once, so only trigger it when we are on a primary
+        if (indexShard.routingEntry().primary()) {
+            attemptSyncedFlush(indexShard.shardId(), new ActionListener<ShardsSyncedFlushResult>() {
+                @Override
+                public void onResponse(ShardsSyncedFlushResult syncedFlushResult) {
+                    logger.trace("{} sync flush on inactive shard returned successfully for sync_id: {}", syncedFlushResult.getShardId(), syncedFlushResult.syncId());
                 }
-            }
-        });
+
+                @Override
+                public void onFailure(Throwable e) {
+                    logger.debug("{} sync flush on inactive shard failed", e, indexShard.shardId());
+                }
+            });
+        }
     }
 
     /**

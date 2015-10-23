@@ -20,9 +20,10 @@ package org.elasticsearch.search.suggest;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
+
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
@@ -46,7 +47,6 @@ import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionBuilder;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionFuzzyBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -65,17 +65,22 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasItems;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
-
     private final String INDEX = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String TYPE = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final String FIELD = RandomStrings.randomAsciiOfLength(getRandom(), 10).toLowerCase(Locale.ROOT);
     private final CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
 
-    @Test
     public void testSimple() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
         String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
@@ -99,7 +104,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestionsNotInOrder("t", "The Prodigy", "Turbonegro", "Turbonegro Get it on", "The Prodigy Firestarter");
     }
 
-    @Test
     public void testSuggestFieldWithPercolateApi() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
         String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
@@ -129,7 +133,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertThat(response.getCount(), equalTo(1l));
     }
 
-    @Test
     public void testBasicPrefixSuggestion() throws Exception {
         completionMappingBuilder.payloads(true);
         createIndexAndMapping(completionMappingBuilder);
@@ -142,7 +145,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatWeightsAreWorking() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -162,7 +164,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("the", "the", "The the", "The Verve", "The Prodigy");
     }
 
-    @Test
     public void testThatWeightMustBeAnInteger() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -179,7 +180,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatWeightCanBeAString() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -206,7 +206,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
 
-    @Test
     public void testThatWeightMustNotBeANonNumberString() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -223,7 +222,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatWeightAsStringMustBeInt() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -241,7 +239,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatInputCanBeAStringInsteadOfAnArray() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -257,7 +254,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("f", "Boo Fighters");
     }
 
-    @Test
     public void testThatPayloadsAreArbitraryJsonObjects() throws Exception {
         completionMappingBuilder.payloads(true);
         createIndexAndMapping(completionMappingBuilder);
@@ -291,7 +287,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertThat(listValues, hasItems("spam", "eggs"));
     }
 
-    @Test
     public void testPayloadAsNumeric() throws Exception {
         completionMappingBuilder.payloads(true);
         createIndexAndMapping(completionMappingBuilder);
@@ -319,7 +314,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertThat(prefixOption.getPayloadAsLong(), equalTo(1l));
     }
 
-    @Test
     public void testPayloadAsString() throws Exception {
         completionMappingBuilder.payloads(true);
         createIndexAndMapping(completionMappingBuilder);
@@ -347,21 +341,24 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertThat(prefixOption.getPayloadAsString(), equalTo("test"));
     }
 
-    @Test(expected = MapperException.class)
     public void testThatExceptionIsThrownWhenPayloadsAreDisabledButInIndexRequest() throws Exception {
         completionMappingBuilder.payloads(false);
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().startObject(FIELD)
-                .startArray("input").value("Foo Fighters").endArray()
-                .field("output", "Boo Fighters")
-                .startArray("payload").value("spam").value("eggs").endArray()
-                .endObject().endObject()
-        ).get();
+        try {
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                    .startObject().startObject(FIELD)
+                    .startArray("input").value("Foo Fighters").endArray()
+                    .field("output", "Boo Fighters")
+                    .startArray("payload").value("spam").value("eggs").endArray()
+                    .endObject().endObject()
+            ).get();
+            fail("Expected MapperException");
+        } catch (MapperException e) {
+            assertThat(e.getMessage(), is("failed to parse"));
+        }
     }
 
-    @Test
     public void testDisabledPreserveSeparators() throws Exception {
         completionMappingBuilder.preserveSeparators(false);
         createIndexAndMapping(completionMappingBuilder);
@@ -385,7 +382,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foof", "Foof", "Foo Fighters");
     }
 
-    @Test
     public void testEnabledPreserveSeparators() throws Exception {
         completionMappingBuilder.preserveSeparators(true);
         createIndexAndMapping(completionMappingBuilder);
@@ -407,7 +403,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("foof", "Foof");
     }
 
-    @Test
     public void testThatMultipleInputsAreSupported() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -424,7 +419,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("fu", "The incredible Foo Fighters");
     }
 
-    @Test
     public void testThatShortSyntaxIsWorking() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -440,7 +434,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("f", "Firestarter");
     }
 
-    @Test
     public void testThatDisablingPositionIncrementsWorkForStopwords() throws Exception {
         // analyzer which removes stopwords... so may not be the simple one
         completionMappingBuilder.searchAnalyzer("classic").indexAnalyzer("classic").preservePositionIncrements(false);
@@ -457,7 +450,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("b", "The Beatles");
     }
 
-    @Test
     public void testThatSynonymsWork() throws Exception {
         Settings.Builder settingsBuilder = settingsBuilder()
                 .put("analysis.analyzer.suggest_analyzer_synonyms.type", "custom")
@@ -480,7 +472,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("r", "Foo Fighters");
     }
 
-    @Test
     public void testThatUpgradeToMultiFieldTypeWorks() throws Exception {
         final XContentBuilder mapping = jsonBuilder()
                 .startObject()
@@ -524,7 +515,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
 
-    @Test
     public void testThatUpgradeToMultiFieldsWorks() throws Exception {
         final XContentBuilder mapping = jsonBuilder()
                 .startObject()
@@ -567,7 +557,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(afterReindexingResponse, "suggs", "Foo Fighters");
     }
 
-    @Test
     public void testThatFuzzySuggesterWorks() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -590,7 +579,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
 
-    @Test
     public void testThatFuzzySuggesterSupportsEditDistances() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -615,7 +603,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
 
-    @Test
     public void testThatFuzzySuggesterSupportsTranspositions() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -638,7 +625,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
 
-    @Test
     public void testThatFuzzySuggesterSupportsMinPrefixLength() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -661,7 +647,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
 
-    @Test
     public void testThatFuzzySuggesterSupportsNonPrefixLength() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -684,7 +669,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(suggestResponse, false, "foo", "Nirvana");
     }
 
-    @Test
     public void testThatFuzzySuggesterIsUnicodeAware() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -714,7 +698,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions(suggestResponse, false, "foo", "ööööö");
     }
 
-    @Test
     public void testThatStatsAreWorking() throws Exception {
         String otherField = "testOtherField";
 
@@ -756,7 +739,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertThat(regexSizeInBytes, is(totalSizeInBytes));
     }
 
-    @Test
     public void testThatSortingOnCompletionFieldReturnsUsefulException() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
 
@@ -776,7 +758,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testThatSuggestStopFilterWorks() throws Exception {
         Settings.Builder settingsBuilder = settingsBuilder()
                 .put("index.analysis.analyzer.stoptest.tokenizer", "standard")
@@ -817,15 +798,19 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertSuggestions("feed the t");
     }
 
-    @Test(expected = MapperParsingException.class)
     public void testThatIndexingInvalidFieldsInCompletionFieldResultsInException() throws Exception {
         CompletionMappingBuilder completionMappingBuilder = new CompletionMappingBuilder();
         createIndexAndMapping(completionMappingBuilder);
 
-        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().startObject(FIELD)
-                .startArray("FRIGGININVALID").value("Nirvana").endArray()
-                .endObject().endObject()).get();
+        try {
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                    .startObject().startObject(FIELD)
+                    .startArray("FRIGGININVALID").value("Nirvana").endArray()
+                    .endObject().endObject()).get();
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("failed to parse"));
+        }
     }
 
 
@@ -949,11 +934,11 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         if (optimize) {
             // make sure merging works just fine
             client().admin().indices().prepareFlush(INDEX).execute().actionGet();
-            client().admin().indices().prepareOptimize(INDEX).setMaxNumSegments(randomIntBetween(1, 5)).get();
+            client().admin().indices().prepareForceMerge(INDEX).setMaxNumSegments(randomIntBetween(1, 5)).get();
         }
     }
 
-    @Test // see #3555
+    // see #3555
     public void testPrunedSegments() throws IOException {
         createIndexAndMappingAndSettings(settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0).build(), completionMappingBuilder);
 
@@ -967,7 +952,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("somefield", "somevalue")
                 .endObject()
         ).get(); // we have 2 docs in a segment...
-        OptimizeResponse actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
+        ForceMergeResponse actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).execute().actionGet();
         assertAllSuccessful(actionGet);
         refresh();
         // update the first one and then merge.. the target segment will have no value in FIELD
@@ -976,12 +961,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .field("somefield", "somevalue")
                 .endObject()
         ).get();
-        actionGet = client().admin().indices().prepareOptimize().setFlush(true).setMaxNumSegments(1).execute().actionGet();
+        actionGet = client().admin().indices().prepareForceMerge().setFlush(true).setMaxNumSegments(1).execute().actionGet();
         assertAllSuccessful(actionGet);
         refresh();
 
         assertSuggestions("b");
-        assertThat(2l, equalTo(client().prepareCount(INDEX).get().getCount()));
+        assertThat(2l, equalTo(client().prepareSearch(INDEX).setSize(0).get().getHits().totalHits()));
         for (IndexShardSegments seg : client().admin().indices().prepareSegments().get().getIndices().get(INDEX)) {
             ShardSegments[] shards = seg.getShards();
             for (ShardSegments shardSegments : shards) {
@@ -990,7 +975,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMaxFieldLength() throws IOException {
         client().admin().indices().prepareCreate(INDEX).get();
         ensureGreen();
@@ -1028,7 +1012,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // see #3596
     public void testVeryLongInput() throws IOException {
         assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
@@ -1051,7 +1034,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     // see #3648
-    @Test(expected = MapperParsingException.class)
     public void testReservedChars() throws IOException {
         assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
@@ -1063,15 +1045,20 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         ensureYellow();
         // can cause stack overflow without the default max_input_length
         String string = "foo" + (char) 0x00 + "bar";
-        client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
-                .startObject().startObject(FIELD)
-                .startArray("input").value(string).endArray()
-                .field("output", "foobar")
-                .endObject().endObject()
-        ).setRefresh(true).get();
+        try {
+            client().prepareIndex(INDEX, TYPE, "1").setSource(jsonBuilder()
+                    .startObject().startObject(FIELD)
+                    .startArray("input").value(string).endArray()
+                    .field("output", "foobar")
+                    .endObject().endObject()
+            ).setRefresh(true).get();
+            fail("Expected MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), containsString("failed to parse"));
+        }
     }
 
-    @Test // see #5930
+    // see #5930
     public void testIssue5930() throws IOException {
         assertAcked(client().admin().indices().prepareCreate(INDEX).addMapping(TYPE, jsonBuilder().startObject()
                 .startObject(TYPE).startObject("properties")
@@ -1099,7 +1086,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     // see issue #6399
-    @Test
     public void testIndexingUnrelatedNullValue() throws Exception {
         String mapping = jsonBuilder()
                 .startObject()
@@ -1127,7 +1113,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
             // make sure that the exception has the name of the field causing the error
             assertTrue(e.getDetailedMessage().contains(FIELD));
         }
-
     }
 
     private static String replaceReservedChars(String input, char replacement) {

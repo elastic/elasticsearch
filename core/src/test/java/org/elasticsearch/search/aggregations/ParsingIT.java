@@ -19,19 +19,7 @@
 
 package org.elasticsearch.search.aggregations;
 
-import com.carrotsearch.randomizedtesting.generators.RandomStrings;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
-import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
-
-import java.security.SecureRandom;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
-public class ParsingIT extends ESIntegTestCase {
-
-    // NORELEASE move these tests to unit tests when aggs refactoring is done
+// NORELEASE move these tests to unit tests when aggs refactoring is done
 //    @Test(expected=SearchPhaseExecutionException.class)
 //    public void testTwoTypes() throws Exception {
 //        createIndex("idx");
@@ -178,4 +166,3 @@ public class ParsingIT extends ESIntegTestCase {
 //            .endObject()).execute().actionGet();
 //    }
 
-}

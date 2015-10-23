@@ -21,7 +21,7 @@ package org.elasticsearch.percolator;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.percolate.MultiPercolateRequestBuilder;
 import org.elasticsearch.action.percolate.MultiPercolateResponse;
 import org.elasticsearch.action.percolate.PercolateRequestBuilder;
@@ -33,7 +33,8 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
@@ -47,8 +48,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
@@ -61,13 +60,11 @@ import static org.hamcrest.Matchers.nullValue;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 public class RecoveryPercolatorIT extends ESIntegTestCase {
-
     @Override
     protected int numberOfShards() {
         return 1;
     }
 
-    @Test
     public void testRestartNodePercolator1() throws Exception {
         internalCluster().startNode();
         assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
@@ -104,7 +101,6 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
-    @Test
     public void testRestartNodePercolator2() throws Exception {
         internalCluster().startNode();
         assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
@@ -118,7 +114,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getCount(), equalTo(1l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1l));
 
         PercolateResponse percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -135,7 +131,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         ClusterHealthResponse clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        CountResponse countResponse = client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get();
+        SearchResponse countResponse = client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get();
         assertHitCount(countResponse, 1l);
 
         DeleteIndexResponse actionGet = client().admin().indices().prepareDelete("test").get();
@@ -144,7 +140,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         clusterHealth = client().admin().cluster().health(clusterHealthRequest().waitForYellowStatus().waitForActiveShards(1)).actionGet();
         logger.info("Done Cluster Health, status " + clusterHealth.getStatus());
         assertThat(clusterHealth.isTimedOut(), equalTo(false));
-        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getCount(), equalTo(0l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(0l));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -164,7 +160,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
                 .setRefresh(true)
                 .get();
 
-        assertThat(client().prepareCount().setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getCount(), equalTo(1l));
+        assertThat(client().prepareSearch().setSize(0).setTypes(PercolatorService.TYPE_NAME).setQuery(matchAllQuery()).get().getHits().totalHits(), equalTo(1l));
 
         percolate = client().preparePercolate()
                 .setIndices("test").setDocumentType("type1")
@@ -176,7 +172,6 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         assertThat(percolate.getMatches(), arrayWithSize(1));
     }
 
-    @Test
     public void testLoadingPercolateQueriesDuringCloseAndOpen() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();
@@ -223,13 +218,11 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
         assertThat(response.getMatches()[0].getId().string(), equalTo("100"));
     }
 
-    @Test
-    public void testSinglePercolator_recovery() throws Exception {
+    public void testSinglePercolatorRecovery() throws Exception {
         percolatorRecovery(false);
     }
 
-    @Test
-    public void testMultiPercolator_recovery() throws Exception {
+    public void testMultiPercolatorRecovery() throws Exception {
         percolatorRecovery(true);
     }
 

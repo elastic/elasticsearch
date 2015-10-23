@@ -273,7 +273,7 @@ The REST tests are run automatically when executing the maven test command. To r
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-mvn verify -Dtests.filter="@Rest"
+mvn verify -Dtests.filter="@Rest" -Dskip.unit.tests=true
 ---------------------------------------------------------------------------
 
 `RestNIT` are the executable test classes that runs all the

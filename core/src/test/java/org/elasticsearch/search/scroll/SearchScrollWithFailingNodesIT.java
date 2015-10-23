@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocatio
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -34,13 +33,14 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.lessThan;
 
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
-
     @Override
     protected int numberOfShards() {
         return 2;
@@ -51,7 +51,6 @@ public class SearchScrollWithFailingNodesIT extends ESIntegTestCase {
         return 0;
     }
 
-    @Test
     public void testScanScrollWithShardExceptions() throws Exception {
         internalCluster().startNode();
         internalCluster().startNode();

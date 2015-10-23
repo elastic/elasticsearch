@@ -24,11 +24,9 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
@@ -36,8 +34,6 @@ import static org.hamcrest.Matchers.lessThan;
  *
  */
 public class InputStreamIndexInputTests extends ESTestCase {
-
-    @Test
     public void testSingleReadSingleByteLimit() throws IOException {
         RAMDirectory dir = new RAMDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
@@ -74,7 +70,6 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(), equalTo(-1));
     }
 
-    @Test
     public void testReadMultiSingleByteLimit1() throws IOException {
         RAMDirectory dir = new RAMDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
@@ -113,7 +108,6 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(read), equalTo(-1));
     }
 
-    @Test
     public void testSingleReadTwoBytesLimit() throws IOException {
         RAMDirectory dir = new RAMDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
@@ -155,7 +149,6 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(), equalTo(-1));
     }
 
-    @Test
     public void testReadMultiTwoBytesLimit1() throws IOException {
         RAMDirectory dir = new RAMDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
@@ -199,7 +192,6 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(read), equalTo(-1));
     }
 
-    @Test
     public void testReadMultiFourBytesLimit() throws IOException {
         RAMDirectory dir = new RAMDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);
@@ -238,7 +230,6 @@ public class InputStreamIndexInputTests extends ESTestCase {
         assertThat(is.read(read), equalTo(-1));
     }
 
-    @Test
     public void testMarkRest() throws Exception {
         RAMDirectory dir = new RAMDirectory();
         IndexOutput output = dir.createOutput("test", IOContext.DEFAULT);

@@ -42,7 +42,6 @@ import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,11 +54,9 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class SynonymsAnalysisTests extends ESTestCase {
-
     protected final ESLogger logger = Loggers.getLogger(getClass());
     private AnalysisService analysisService;
 
-    @Test
     public void testSynonymsAnalysis() throws IOException {
         InputStream synonyms = getClass().getResourceAsStream("synonyms.txt");
         InputStream synonymsWordnet = getClass().getResourceAsStream("synonyms_wordnet.txt");

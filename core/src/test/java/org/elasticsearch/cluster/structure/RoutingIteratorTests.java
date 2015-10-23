@@ -40,7 +40,6 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -58,8 +57,6 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
 public class RoutingIteratorTests extends ESAllocationTestCase {
-
-    @Test
     public void testEmptyIterator() {
         ShardShuffler shuffler = new RotationShardShuffler(0);
         ShardIterator shardIterator = new PlainShardIterator(new ShardId("test1", 0), shuffler.shuffle(Collections.<ShardRouting>emptyList()));
@@ -91,7 +88,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardIterator.remaining(), equalTo(0));
     }
 
-    @Test
     public void testIterator1() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(2))
@@ -119,7 +115,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardIterator.remaining(), equalTo(0));
     }
 
-    @Test
     public void testIterator2() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
@@ -200,7 +195,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardRouting10, sameInstance(shardRouting6));
     }
 
-    @Test
     public void testRandomRouting() {
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
@@ -228,7 +222,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardRouting1, sameInstance(shardRouting3));
     }
 
-    @Test
     public void testAttributePreferenceRouting() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -284,7 +277,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardRouting.currentNodeId(), equalTo("node2"));
     }
 
-    @Test
     public void testNodeSelectorRouting(){
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -342,7 +334,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
     }
 
 
-    @Test
     public void testShardsAndPreferNodeRouting() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -404,7 +395,6 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
         assertThat(shardIterators.iterator().next().nextOrNull().currentNodeId(), equalTo("node1"));
     }
 
-    @Test
     public void testReplicaShardPreferenceIters() throws Exception {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)

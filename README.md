@@ -133,7 +133,6 @@ PUT /test/person/_mapping
     "properties": {
       "file": {
         "type": "attachment",
-        "path": "full",
         "fields": {
           "file": {
             "type": "string",
@@ -165,7 +164,6 @@ PUT /test/person/_mapping
     "properties": {
       "file": {
         "type": "attachment",
-        "path": "full",
         "fields": {
           "content_type": {
             "type": "string",
@@ -281,7 +279,6 @@ PUT /test/person/_mapping
     "properties": {
       "file": {
         "type": "attachment",
-        "path": "full",
         "fields": {
           "file": {
             "type": "string",

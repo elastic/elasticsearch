@@ -48,16 +48,17 @@ public final class IndexSettings {
     private final Settings nodeSettings;
     private final int numberOfShards;
     private final boolean isShadowReplicaIndex;
-
-    // updated via #updateIndexMetaData(IndexMetaData)
+    // volatile fields are updated via #updateIndexMetaData(IndexMetaData) under lock
     private volatile Settings settings;
     private volatile IndexMetaData indexMetaData;
 
 
     /**
-     * Creates a new {@link IndexSettings} instance
-     * @param indexMetaData the index this settings object is associated with
-     * @param nodeSettings the actual settings including the node level settings
+     * Creates a new {@link IndexSettings} instance. The given node settings will be merged with the settings in the metadata
+     * while index level settings will overwrite node settings.
+     *
+     * @param indexMetaData the index metadata this settings object is associated with
+     * @param nodeSettings the nodes settings this index is allocated on.
      * @param updateListeners a collection of listeners / consumers that should be notified if one or more settings are updated
      */
     public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Collection<Consumer<Settings>> updateListeners) {
@@ -117,13 +118,6 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns all settings update consumers
-     */
-    List<Consumer<Settings>> getUpdateListeners() { // for testing
-        return updateListeners;
-    }
-
-    /**
      * Returns the current IndexMetaData for this index
      */
     public IndexMetaData getIndexMetaData() {
@@ -138,9 +132,7 @@ public final class IndexSettings {
     /**
      * Returns the number of replicas this index has.
      */
-    public int getNumberOfReplicas() {
-        return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
-    }
+    public int getNumberOfReplicas() { return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null); }
 
     /**
      * Returns <code>true</code> iff this index uses shadow replicas.
@@ -159,7 +151,7 @@ public final class IndexSettings {
     }
 
     /**
-     * Notifies  all registered settings consumers with the new settings iff at least one setting has changed.
+     * Updates the settings and index metadata and notifies all registered settings consumers with the new settings iff at least one setting has changed.
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
@@ -178,8 +170,7 @@ public final class IndexSettings {
             // nothing to update, same settings
             return false;
         }
-        this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
-        final Settings mergedSettings = this.settings;
+        final Settings mergedSettings = this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
         for (final Consumer<Settings> consumer : updateListeners) {
             try {
                 consumer.accept(mergedSettings);
@@ -188,5 +179,12 @@ public final class IndexSettings {
             }
         }
         return true;
+    }
+
+    /**
+     * Returns all settings update consumers
+     */
+    List<Consumer<Settings>> getUpdateListeners() { // for testing
+        return updateListeners;
     }
 }

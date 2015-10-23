@@ -89,13 +89,9 @@ import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
 import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
-import org.elasticsearch.search.internal.DefaultSearchContext;
-import org.elasticsearch.search.internal.InternalScrollSearchRequest;
-import org.elasticsearch.search.internal.ScrollContext;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.internal.ShardSearchLocalRequest;
-import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -594,8 +590,11 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             // Since we find out about profiling after building the IndexSearcher, we have to
             // go back and inform it that profiling is required
             // Must happen before queryPhase.preProcess, since that calls rewrite()
-            if (context.request().profile()) {
-                context.profile(true);
+            Profiler profiler = context.queryProfiler();
+            if (profiler != null) {
+                //nocommit This is not cast'able, and we can't access the search context from the profiler
+                // anymore... unsure how to resolve the issue :(
+                ((ContextIndexSearcher)engineSearcher.searcher()).setProfiler(context.queryProfiler());
             }
 
             // pre process

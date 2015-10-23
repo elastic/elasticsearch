@@ -177,9 +177,11 @@ public class InternalProfileTree {
         InternalProfileResult rootNode =  new InternalProfileResult(query, breakdown.toTimingMap());
         ArrayList<Integer> children = tree.get(token);
 
-        for (Integer child : children) {
-            InternalProfileResult childNode = doGetQueryTree(child);
-            rootNode.addChild(childNode);
+        if (children != null) {
+            for (Integer child : children) {
+                InternalProfileResult childNode = doGetQueryTree(child);
+                rootNode.addChild(childNode);
+            }
         }
 
         return rootNode;

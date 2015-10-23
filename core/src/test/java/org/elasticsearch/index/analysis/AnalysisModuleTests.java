@@ -40,7 +40,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.filter1.MyFilterTokenFilterFactory;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexNameAndSettingsModule;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 
@@ -68,7 +68,7 @@ public class AnalysisModuleTests extends ESTestCase {
         AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
         analysisModule.addTokenFilter("myfilter", MyFilterTokenFilterFactory.class);
         injector = new ModulesBuilder().add(
-                new IndexNameAndSettingsModule(index, settings),
+                new IndexSettingsModule(index, settings),
                 analysisModule)
             .createChildInjector(parentInjector);
 

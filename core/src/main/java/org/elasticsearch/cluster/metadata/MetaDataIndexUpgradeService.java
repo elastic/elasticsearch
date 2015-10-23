@@ -215,12 +215,10 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Checks the mappings for compatibility with the current version
      */
     private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
-        Index index = new Index(indexMetaData.getIndex());
-        Settings settings = indexMetaData.getSettings();
         try {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
-            IndexSettings indexSettings = new IndexSettings(new Index(indexMetaData.getIndex()), Settings.settingsBuilder().put(settings).put(indexMetaData.getSettings()).build(), Collections.EMPTY_LIST);
+            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
 
 

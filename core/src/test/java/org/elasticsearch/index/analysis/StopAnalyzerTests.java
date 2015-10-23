@@ -30,7 +30,7 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.elasticsearch.test.IndexNameAndSettingsModule;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -45,7 +45,7 @@ public class StopAnalyzerTests extends ESTokenStreamTestCase {
                 .build();
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
         Injector injector = new ModulesBuilder().add(
-                new IndexNameAndSettingsModule(index, settings),
+                new IndexSettingsModule(index, settings),
                 new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
                 .createChildInjector(parentInjector);
 

@@ -36,7 +36,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexNameAndSettingsModule;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -212,7 +212,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         new AnalysisKuromojiPlugin().onModule(analysisModule);
 
         Injector injector = new ModulesBuilder().add(
-                new IndexNameAndSettingsModule(index, settings),
+                new IndexSettingsModule(index, settings),
                 analysisModule)
                 .createChildInjector(parentInjector);
 

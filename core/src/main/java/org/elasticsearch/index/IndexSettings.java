@@ -40,36 +40,45 @@ import java.util.function.Consumer;
  */
 public final class IndexSettings {
     private final String uuid;
-    private volatile Settings settings;
     private final List<Consumer<Settings>> updateListeners;
     private final Index index;
     private final Version version;
     private final ESLogger logger;
     private final String nodeName;
+    private final Settings nodeSettings;
+    private final int numberOfShards;
+    private final boolean isShadowReplicaIndex;
+
+    // updated via #updateIndexMetaData(IndexMetaData)
+    private volatile Settings settings;
+    private volatile IndexMetaData indexMetaData;
+
 
     /**
      * Creates a new {@link IndexSettings} instance
-     * @param index the index this settings object is associated with
-     * @param settings the actual settings including the node level settings
+     * @param indexMetaData the index this settings object is associated with
+     * @param nodeSettings the actual settings including the node level settings
      * @param updateListeners a collection of listeners / consumers that should be notified if one or more settings are updated
      */
-    public IndexSettings(Index index, Settings settings, Collection<Consumer<Settings>> updateListeners) {
-        this.settings = settings;
+    public IndexSettings(final IndexMetaData indexMetaData, final Settings nodeSettings, final Collection<Consumer<Settings>> updateListeners) {
+        this.nodeSettings = nodeSettings;
+        this.settings = Settings.builder().put(nodeSettings).put(indexMetaData.getSettings()).build();
         this.updateListeners = Collections.unmodifiableList(new ArrayList<>(updateListeners));
-        this.index = index;
+        this.index = new Index(indexMetaData.getIndex());
         version = Version.indexCreated(settings);
         uuid = settings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         logger = Loggers.getLogger(getClass(), settings, index);
         nodeName = settings.get("name", "");
+        this.indexMetaData = indexMetaData;
+        numberOfShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
+        isShadowReplicaIndex = IndexMetaData.isIndexUsingShadowReplicas(settings);
     }
 
     /**
      * Returns the settings for this index. These settings contain the node and index level settings where
      * settings that are specified on both index and node level are overwritten by the index settings.
      */
-    public Settings getSettings() {
-        return settings;
-    }
+    public Settings getSettings() { return settings; }
 
     /**
      * Returns the index this settings object belongs to
@@ -108,11 +117,54 @@ public final class IndexSettings {
     }
 
     /**
+     * Returns all settings update consumers
+     */
+    List<Consumer<Settings>> getUpdateListeners() { // for testing
+        return updateListeners;
+    }
+
+    /**
+     * Returns the current IndexMetaData for this index
+     */
+    public IndexMetaData getIndexMetaData() {
+        return indexMetaData;
+    }
+
+    /**
+     * Returns the number of shards this index has.
+     */
+    public int getNumberOfShards() { return numberOfShards; }
+
+    /**
+     * Returns the number of replicas this index has.
+     */
+    public int getNumberOfReplicas() {
+        return settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, null);
+    }
+
+    /**
+     * Returns <code>true</code> iff this index uses shadow replicas.
+     * @see IndexMetaData#isIndexUsingShadowReplicas(Settings)
+     */
+    public boolean isShadowReplicaIndex() {
+        return isShadowReplicaIndex;
+    }
+
+    /**
+     * Returns the node settings. The settings retured from {@link #getSettings()} are a merged version of the
+     * index settings and the node settings where node settings are overwritten by index settings.
+     */
+    public Settings getNodeSettings() {
+        return nodeSettings;
+    }
+
+    /**
      * Notifies  all registered settings consumers with the new settings iff at least one setting has changed.
      *
      * @return <code>true</code> iff any setting has been updated otherwise <code>false</code>.
      */
-    synchronized boolean updateIndexSettings(Settings newSettings) {
+    synchronized boolean updateIndexMetaData(IndexMetaData indexMetaData) {
+        final Settings newSettings = indexMetaData.getSettings();
         if (Version.indexCreated(newSettings) != version) {
             throw new IllegalArgumentException("version mismatch on settings update expected: " + version + " but was: " + Version.indexCreated(newSettings));
         }
@@ -120,12 +172,13 @@ public final class IndexSettings {
         if (newUUID.equals(getUUID()) == false) {
             throw new IllegalArgumentException("uuid mismatch on settings update expected: " + uuid + " but was: " + newUUID);
         }
+        this.indexMetaData = indexMetaData;
         final Settings existingSettings = this.settings;
         if (existingSettings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap().equals(newSettings.getByPrefix(IndexMetaData.INDEX_SETTING_PREFIX).getAsMap())) {
             // nothing to update, same settings
             return false;
         }
-        this.settings = Settings.builder().put(existingSettings).put(newSettings).build();
+        this.settings = Settings.builder().put(nodeSettings).put(newSettings).build();
         final Settings mergedSettings = this.settings;
         for (final Consumer<Settings> consumer : updateListeners) {
             try {
@@ -135,12 +188,5 @@ public final class IndexSettings {
             }
         }
         return true;
-    }
-
-    /**
-     * Returns all settings update consumers
-     */
-    List<Consumer<Settings>> getUpdateListeners() { // for testing
-        return updateListeners;
     }
 }

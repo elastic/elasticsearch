@@ -29,7 +29,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.IndexNameAndSettingsModule;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -42,7 +42,7 @@ public class AnalysisTestUtils {
                 .build();
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
         Injector injector = new ModulesBuilder().add(
-                new IndexNameAndSettingsModule(index, indexSettings),
+                new IndexSettingsModule(index, indexSettings),
                 new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)).addProcessor(new IcuAnalysisBinderProcessor()))
                 .createChildInjector(parentInjector);
 

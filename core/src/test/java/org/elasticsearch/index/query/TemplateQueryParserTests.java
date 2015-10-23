@@ -48,7 +48,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexNameAndSettingsModule;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -95,10 +95,10 @@ public class TemplateQueryParserTests extends ESTestCase {
                     }
                 },
                 new ScriptModule(settings),
-                new IndexNameAndSettingsModule(index, settings),
+                new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings, new IndicesAnalysisService(settings)),
-                new SimilarityModule(new IndexSettings(index, settings, Collections.EMPTY_LIST)),
+                new SimilarityModule(IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST)),
                 new AbstractModule() {
                     @Override
                     protected void configure() {

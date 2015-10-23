@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestRuleMarkFailure;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -172,10 +174,10 @@ public class MockFSDirectoryService extends FsDirectoryService {
     }
 
     private FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
-        Settings.Builder builder = Settings.settingsBuilder();
-        builder.put(indexSettings);
-        builder.put(IndexStoreModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexStoreModule.Type.values()).getSettingsKey());
-        return new FsDirectoryService(new IndexSettings(shardId.index(), builder.build(), Collections.EMPTY_LIST), indexStore, path);
+        final IndexSettings indexSettings = indexStore.getIndexSettings();
+        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(Settings.builder().put(indexSettings.getSettings()).put(IndexStoreModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexStoreModule.Type.values()).getSettingsKey())).build();
+        final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings(), Collections.EMPTY_LIST);
+        return new FsDirectoryService(newIndexSettings, indexStore, path);
     }
 
     public static final class ElasticsearchMockDirectoryWrapper extends MockDirectoryWrapper {

@@ -172,7 +172,7 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
             if (!storeType.contains("fs")) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);
             }
-            IndexSettings indexSettings = new IndexSettings(new Index(metaData.getIndex()), Settings.settingsBuilder().put(settings).put(metaData.getSettings()).build(), Collections.EMPTY_LIST);
+            final IndexSettings indexSettings = indexService != null ? indexService.getIndexSettings() : new IndexSettings(metaData, settings, Collections.EMPTY_LIST);
             final ShardPath shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
             if (shardPath == null) {
                 return new StoreFilesMetaData(false, shardId, Store.MetadataSnapshot.EMPTY);

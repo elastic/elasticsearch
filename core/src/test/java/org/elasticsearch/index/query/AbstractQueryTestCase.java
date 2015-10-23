@@ -79,7 +79,7 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexNameAndSettingsModule;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.cluster.TestClusterService;
@@ -212,10 +212,10 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
                     }
                 },
-                new IndexNameAndSettingsModule(index, indexSettings),
+                new IndexSettingsModule(index, indexSettings),
                 new IndexCacheModule(indexSettings),
                 new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
-                new SimilarityModule(new IndexSettings(index, indexSettings, Collections.EMPTY_LIST)),
+                new SimilarityModule(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST)),
         new AbstractModule() {
                     @Override
                     protected void configure() {

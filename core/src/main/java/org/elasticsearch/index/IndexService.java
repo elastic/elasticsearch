@@ -78,11 +78,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
-    private volatile IndexMetaData indexMetaData;
     private final IndexSettings indexSettings;
 
     @Inject
-    public IndexService(IndexSettings indexSettings, IndexMetaData indexMetaData, NodeEnvironment nodeEnv,
+    public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
                         AnalysisService analysisService,
                         IndexFieldDataService indexFieldData,
                         BitsetFilterCache bitSetFilterCache,
@@ -91,7 +90,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         IndexStore indexStore,
                         IndexEventListener eventListener) {
         super(indexSettings);
-        assert indexMetaData != null;
         this.indexSettings = indexSettings;
         this.analysisService = analysisService;
         this.indexFieldData = indexFieldData;
@@ -101,7 +99,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.nodeEnv = nodeEnv;
         this.indexServicesProvider = indexServicesProvider;
         this.indexStore = indexStore;
-        this.indexMetaData = indexMetaData;
         indexFieldData.setListener(new FieldDataCacheListener(this));
         bitSetFilterCache.setListener(new BitsetCacheListener(this));
     }
@@ -457,7 +454,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             return null;
         }
         final IndexQueryParserService indexQueryParser = queryParserService();
-        final ImmutableOpenMap<String, AliasMetaData> aliases = this.indexMetaData.getAliases();
+        final ImmutableOpenMap<String, AliasMetaData> aliases = indexSettings.getIndexMetaData().getAliases();
         if (aliasNames.length == 1) {
             AliasMetaData alias = aliases.get(aliasNames[0]);
             if (alias == null) {
@@ -502,13 +499,12 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     }
 
     public IndexMetaData getMetaData() {
-        return indexMetaData;
+        return indexSettings.getIndexMetaData();
     }
 
     public synchronized void updateMetaData(final IndexMetaData metadata) {
-        this.indexMetaData = metadata;
-        Settings settings = metadata.getSettings();
-        if (this.indexSettings.updateIndexSettings(metadata.getSettings())) {
+        if (indexSettings.updateIndexMetaData(metadata)) {
+            final Settings settings = indexSettings.getSettings();
             for (final IndexShard shard : this.shards.values()) {
                 try {
                     shard.onRefreshSettings(settings);

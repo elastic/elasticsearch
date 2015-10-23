@@ -30,7 +30,7 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
-import org.elasticsearch.test.IndexNameAndSettingsModule;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.nio.file.Path;
 
@@ -64,7 +64,7 @@ public class AnalysisTestsHelper {
         AnalysisModule analysisModule = new AnalysisModule(settings,
                 parentInjector.getInstance(IndicesAnalysisService.class));
 
-        Injector injector = new ModulesBuilder().add(new IndexNameAndSettingsModule(index, settings),
+        Injector injector = new ModulesBuilder().add(new IndexSettingsModule(index, settings),
                 analysisModule).createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);

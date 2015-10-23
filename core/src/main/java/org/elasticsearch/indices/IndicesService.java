@@ -290,37 +290,32 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
-        final Settings settings = indexMetaData.getSettings();
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
         Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);
         }
         logger.debug("creating Index [{}], shards [{}]/[{}{}]",
                 indexMetaData.getIndex(),
-                settings.get(SETTING_NUMBER_OF_SHARDS),
-                settings.get(SETTING_NUMBER_OF_REPLICAS),
-                IndexMetaData.isIndexUsingShadowReplicas(settings) ? "s" : "");
+                idxSettings.getNumberOfShards(),
+                idxSettings.getNumberOfReplicas(),
+                idxSettings.isShadowReplicaIndex() ? "s" : "");
 
-        Settings indexSettings = settingsBuilder()
-                .put(this.settings)
-                .put(indexMetaData.getSettings())
-                .build();
 
         ModulesBuilder modules = new ModulesBuilder();
         // plugin modules must be added here, before others or we can get crazy injection errors...
-        for (Module pluginModule : pluginsService.indexModules(indexSettings)) {
+        for (Module pluginModule : pluginsService.indexModules(idxSettings.getSettings())) {
             modules.add(pluginModule);
         }
-        final IndexSettings idxSettings = new IndexSettings(index, indexSettings, Collections.EMPTY_LIST);
-        final IndexModule indexModule = new IndexModule(idxSettings, indexMetaData);
+        final IndexModule indexModule = new IndexModule(idxSettings);
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
         indexModule.addIndexEventListener(oldShardsStats);
-        modules.add(new IndexStoreModule(indexSettings));
-        modules.add(new AnalysisModule(indexSettings, indicesAnalysisService));
+        modules.add(new IndexStoreModule(idxSettings.getSettings()));
+        modules.add(new AnalysisModule(idxSettings.getSettings(), indicesAnalysisService));
         modules.add(new SimilarityModule(idxSettings));
-        modules.add(new IndexCacheModule(indexSettings));
+        modules.add(new IndexCacheModule(idxSettings.getSettings()));
         modules.add(indexModule);
         pluginsService.processModules(modules);
         final IndexEventListener listener = indexModule.freeze();

@@ -30,6 +30,7 @@ import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -42,7 +43,7 @@ public class SimilarityModuleTests extends ModuleTestCase {
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put("index.similarity.my_similarity.key", "there is a key")
                 .build();
-        SimilarityModule module = new SimilarityModule(new IndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
+        SimilarityModule module = new SimilarityModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
         module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
             @Override
             public String name() {
@@ -71,7 +72,7 @@ public class SimilarityModuleTests extends ModuleTestCase {
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        SimilarityModule module = new SimilarityModule(new IndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
+        SimilarityModule module = new SimilarityModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
         try {
             assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
         } catch (IllegalArgumentException ex) {
@@ -85,7 +86,7 @@ public class SimilarityModuleTests extends ModuleTestCase {
                 .put("index.similarity.my_similarity.foo", "bar")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        SimilarityModule module = new SimilarityModule(new IndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
+        SimilarityModule module = new SimilarityModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
         try {
             assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
         } catch (IllegalArgumentException ex) {

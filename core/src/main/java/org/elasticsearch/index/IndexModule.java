@@ -39,7 +39,6 @@ import java.util.function.Consumer;
  */
 public class IndexModule extends AbstractModule {
 
-    private final IndexMetaData indexMetaData;
     private final IndexSettings indexSettings;
     // pkg private so tests can mock
     Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
@@ -49,8 +48,7 @@ public class IndexModule extends AbstractModule {
     private IndexEventListener listener;
 
 
-    public IndexModule(IndexSettings indexSettings, IndexMetaData indexMetaData) {
-        this.indexMetaData = indexMetaData;
+    public IndexModule(IndexSettings indexSettings) {
         this.indexSettings = indexSettings;
     }
 
@@ -124,12 +122,11 @@ public class IndexModule extends AbstractModule {
             bind(IndexSearcherWrapper.class).to(indexSearcherWrapper).asEagerSingleton();
         }
         bind(IndexEventListener.class).toInstance(freeze());
-        bind(IndexMetaData.class).toInstance(indexMetaData);
         bind(IndexService.class).asEagerSingleton();
         bind(IndexServicesProvider.class).asEagerSingleton();
         bind(MapperService.class).asEagerSingleton();
         bind(IndexFieldDataService.class).asEagerSingleton();
-        bind(IndexSettings.class).toInstance(new IndexSettings(indexSettings.getIndex(), indexSettings.getSettings(), settingsConsumers));
+        bind(IndexSettings.class).toInstance(new IndexSettings(indexSettings.getIndexMetaData(), indexSettings.getNodeSettings(), settingsConsumers));
     }
 
 }

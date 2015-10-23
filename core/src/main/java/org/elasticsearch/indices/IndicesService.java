@@ -319,7 +319,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         modules.add(indexModule);
         pluginsService.processModules(modules);
         final IndexEventListener listener = indexModule.freeze();
-        listener.beforeIndexCreated(index, settings);
+        listener.beforeIndexCreated(index, idxSettings.getSettings());
 
         Injector indexInjector;
         try {

@@ -75,6 +75,8 @@ public class InternalProfileTree {
         ProfileBreakdown queryTimings = new ProfileBreakdown();
         timings.add(token, queryTimings);
 
+        currentToken += 1;
+
         return queryTimings;
     }
 

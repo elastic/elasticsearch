@@ -21,7 +21,6 @@ package org.elasticsearch.index;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.Binder;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
@@ -34,9 +33,8 @@ import java.util.function.Consumer;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.nullValue;
 
-@ClusterScope(scope = SUITE, numDataNodes = 1, transportClientRatio = 0.0)
+@ClusterScope(scope = SUITE, numDataNodes = 1, numClientNodes = 0)
 public class SettingsListenerIT extends ESIntegTestCase {
 
     @Override
@@ -94,7 +92,8 @@ public class SettingsListenerIT extends ESIntegTestCase {
     }
 
     public static class SettingsTestingService implements Consumer<Settings> {
-        public volatile  int value;
+        public volatile int value;
+
         @Override
         public void accept(Settings settings) {
             value = settings.getAsInt("index.test.new.setting", -1);

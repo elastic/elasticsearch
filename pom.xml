@@ -290,7 +290,7 @@
             <dependency>
                 <groupId>com.spatial4j</groupId>
                 <artifactId>spatial4j</artifactId>
-                <version>0.4.1</version>
+                <version>0.5</version>
             </dependency>
             <dependency>
                 <groupId>com.vividsolutions</groupId>

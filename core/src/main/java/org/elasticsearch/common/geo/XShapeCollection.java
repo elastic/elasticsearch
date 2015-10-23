@@ -28,11 +28,7 @@ import java.util.Collection;
 import java.util.List;
 
 /**
- * Overrides bounding box logic in ShapeCollection base class to comply with
- * OGC OpenGIS Abstract Specification: An Object Model for Interoperable Geoprocessing.
- *
- * NOTE: This algorithm is O(N) and can possibly be improved O(log n) using an internal R*-Tree
- * data structure for a collection of bounding boxes
+ * Extends spatial4j ShapeCollection for points_only shape indexing support
  */
 public class XShapeCollection<S extends Shape> extends ShapeCollection<S> {
 
@@ -48,43 +44,5 @@ public class XShapeCollection<S extends Shape> extends ShapeCollection<S> {
 
   public void setPointsOnly(boolean pointsOnly) {
     this.pointsOnly = pointsOnly;
-  }
-
-  @Override
-  protected Rectangle computeBoundingBox(Collection<? extends Shape> shapes, SpatialContext ctx) {
-    Rectangle retBox = shapes.iterator().next().getBoundingBox();
-    for (Shape geom : shapes) {
-      retBox = expandBBox(retBox, geom.getBoundingBox());
-    }
-    return retBox;
-  }
-
-  /**
-   * Spatial4J shapes have no knowledge of directed edges. For this reason, a bounding box
-   * that wraps the dateline can have a min longitude that is mathematically &gt; than the
-   * Rectangles' minX value.  This is an issue for geometric collections (e.g., MultiPolygon
-   * and ShapeCollection) Until geometry logic can be cleaned up in Spatial4J, ES provides
-   * the following expansion algorithm for GeometryCollections
-   */
-  private Rectangle expandBBox(Rectangle bbox, Rectangle expand) {
-    if (bbox.equals(expand) || bbox.equals(SpatialContext.GEO.getWorldBounds())) {
-      return bbox;
-    }
-
-    double minX = bbox.getMinX();
-    double eMinX = expand.getMinX();
-    double maxX = bbox.getMaxX();
-    double eMaxX = expand.getMaxX();
-    double minY = bbox.getMinY();
-    double eMinY = expand.getMinY();
-    double maxY = bbox.getMaxY();
-    double eMaxY = expand.getMaxY();
-
-    bbox.reset(Math.min(Math.min(minX, maxX), Math.min(eMinX, eMaxX)),
-            Math.max(Math.max(minX, maxX), Math.max(eMinX, eMaxX)),
-            Math.min(Math.min(minY, maxY), Math.min(eMinY, eMaxY)),
-            Math.max(Math.max(minY, maxY), Math.max(eMinY, eMaxY)));
-
-    return bbox;
   }
 }

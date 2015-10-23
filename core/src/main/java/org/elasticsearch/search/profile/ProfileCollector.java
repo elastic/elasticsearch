@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.search;
+package org.elasticsearch.search.profile;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
@@ -29,7 +29,7 @@ import org.apache.lucene.search.Scorer;
 import java.io.IOException;
 
 /** A collector that profiles how much time is spent calling it. */
-public final class ProfileCollector extends FilterCollector {
+final class ProfileCollector extends FilterCollector {
 
     private long time;
 

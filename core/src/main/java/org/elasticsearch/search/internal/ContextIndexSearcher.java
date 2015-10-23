@@ -26,8 +26,8 @@ import org.apache.lucene.search.*;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.dfs.AggregatedDfs;
-import org.elasticsearch.common.lucene.search.ProfileWeight;
 import org.elasticsearch.search.profile.ProfileBreakdown;
+import org.elasticsearch.search.profile.ProfileWeight;
 import org.elasticsearch.search.profile.Profiler;
 
 import java.io.IOException;

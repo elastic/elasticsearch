@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.common.lucene.search;
+package org.elasticsearch.search.profile;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;

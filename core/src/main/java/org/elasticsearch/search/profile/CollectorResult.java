@@ -45,13 +45,6 @@ public interface CollectorResult {
     long getTime();
 
     /**
-     * Return the relative time (inclusive of children) of this Collector.
-     * This time is relative to all shards and is a good indicator of the
-     * "cost" of a Collector and it's children
-     */
-    double getRelativeTime();
-
-    /**
      * Return the reason "hint" for the Collector, to provide a little more
      * context to the end user why the Collector was added to the query.
      */

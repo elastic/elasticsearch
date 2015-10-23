@@ -52,15 +52,6 @@ public interface ProfileResult {
     long getTime();
 
     /**
-     * Returns the relative time (inclusive of children) for this query node.
-     * This time is relative to all shards and is a good indicator of the
-     * "cost" of a particular query on a single shard
-     *
-     * @return The relative elapsed time for this query
-     */
-    double getRelativeTime();
-
-    /**
      * Returns a list of all profiled children queries
      */
     List<ProfileResult> getProfiledChildren();

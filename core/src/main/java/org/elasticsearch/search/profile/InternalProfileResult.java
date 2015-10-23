@@ -50,7 +50,6 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
     private static final ParseField QUERY_TYPE = new ParseField("query_type");
     private static final ParseField LUCENE_DESCRIPTION = new ParseField("lucene");
     private static final ParseField NODE_TIME = new ParseField("time");
-    private static final ParseField RELATIVE_TIME = new ParseField("relative_time");
     private static final ParseField CHILDREN = new ParseField("children");
     private static final ParseField BREAKDOWN = new ParseField("breakdown");
 
@@ -58,7 +57,6 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
     private String luceneDescription;
     private Map<String, Long> timings;
     private long nodeTime = -1;     // Use -1 instead of Null so it can be serialized, and there should never be a negative time
-    private long globalTime;
     private ArrayList<InternalProfileResult> children;
 
     public InternalProfileResult(Query query, Map<String, Long> timings) {
@@ -89,57 +87,11 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
     }
 
     /**
-     * Sets the global time for the entire query (across all shards).  This is
-     * set retroactively on the coordinating node after all times have been aggregated,
-     * and is used to calculate the global relative time.
-     *
-     * Internally this calls setGlobalTime() recursively on all children to spread
-     * the time through the entire tre
-     *
-     * @param globalTime The global time to execute across all shards
-     */
-    public void setGlobalTime(long globalTime) {
-        this.globalTime = globalTime;
-        for (InternalProfileResult child : children) {
-            child.setGlobalTime(globalTime);
-        }
-    }
-
-    /**
      * Overwrite the current timings with a new set of timings
      * @param timings The new set of timings to use
      */
     public void setTimings(Map<String, Long> timings) {
         this.timings = timings;
-    }
-
-    /**
-     * Returns the total time spent at this node inclusive of children times
-     * @return Total node time
-     */
-    public long calculateNodeTime() {
-        if (nodeTime != -1) {
-            return nodeTime;
-        }
-
-        long nodeTime = 0;
-        for (long time : timings.values()) {
-            nodeTime += time;
-        }
-        // Collect our local timings
-        this.nodeTime = nodeTime;
-
-        // Then add up our children
-        for (InternalProfileResult child : children) {
-            child.calculateNodeTime();
-        }
-
-        return nodeTime;
-    }
-
-    @Override
-    public double getRelativeTime() {
-        return calculateNodeTime() / (double) globalTime;
     }
 
     @Override
@@ -159,6 +111,22 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
 
     @Override
     public long getTime() {
+        if (nodeTime != -1) {
+            return nodeTime;
+        }
+
+        long nodeTime = 0;
+        for (long time : timings.values()) {
+            nodeTime += time;
+        }
+        // Collect our local timings
+        this.nodeTime = nodeTime;
+
+        // Then add up our children
+        for (InternalProfileResult child : children) {
+            child.getTime();
+        }
+
         return nodeTime;
     }
 
@@ -190,7 +158,6 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         queryType = in.readString();
         luceneDescription = in.readString();
         nodeTime = in.readLong();
-        globalTime = in.readVLong();
         timings = readTimings(in);
         int size = in.readVInt();
         children = new ArrayList<>(size);
@@ -213,7 +180,6 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         out.writeString(queryType);
         out.writeString(luceneDescription);
         out.writeLong(nodeTime);            // not Vlong because can be negative
-        out.writeVLong(globalTime);
         writeTimings(timings, out);
         out.writeVInt(children.size());
         for (InternalProfileResult child : children) {
@@ -228,7 +194,6 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
                 .field(QUERY_TYPE.getPreferredName(), queryType)
                 .field(LUCENE_DESCRIPTION.getPreferredName(), luceneDescription)
                 .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double)(nodeTime / 1000000.0)))
-                .field(RELATIVE_TIME.getPreferredName(), String.format(Locale.US, "%.10g%%", getRelativeTime() * 100.0))
                 .field(BREAKDOWN.getPreferredName(), timings)
                 .startArray(CHILDREN.getPreferredName());
 

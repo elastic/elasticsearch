@@ -421,7 +421,6 @@ public class SearchPhaseController extends AbstractComponent {
                             entry.value.queryResult().profileResults(),
                             entry.value.queryResult().profileCollector());
                 }
-                profileResults.finalizeTimings();
             }
         }
 

@@ -55,7 +55,6 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField TIME = new ParseField("time");
-    private static final ParseField RELATIVE_TIME = new ParseField("relative_time");
     private static final ParseField CHILDREN = new ParseField("children");
 
     /**
@@ -142,20 +141,6 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
     }
 
     /**
-     * Set's the global time across all shards.  Should be called
-     * after the entire query (and aggregations!) have finished
-     * executing
-     *
-     * @param globalTime The total time for all Collectors across all Shards
-     */
-    public void setGlobalCollectorTime(long globalTime) {
-        this.globalTime = globalTime;
-        for (InternalProfileCollector child : children) {
-            child.setGlobalCollectorTime(globalTime);
-        }
-    }
-
-    /**
      * Returns the elapsed time for this Collector, inclusive of children
      */
     @Override
@@ -180,14 +165,6 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
             }
         }
         return totalTime;
-    }
-
-    /**
-     * Returns the elapsed time relative to the global time
-     */
-    @Override
-    public double getRelativeTime() {
-        return getTime() / (double) globalTime;
     }
 
     /**
@@ -221,7 +198,6 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
                 .field(NAME.getPreferredName(), toString())
                 .field(REASON.getPreferredName(), reason.toString())
                 .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)))
-                .field(RELATIVE_TIME.getPreferredName(), String.format(Locale.US, "%.10g%%", getRelativeTime() * 100.0))
                 .startArray(CHILDREN.getPreferredName());
 
         for (InternalProfileCollector child : children) {

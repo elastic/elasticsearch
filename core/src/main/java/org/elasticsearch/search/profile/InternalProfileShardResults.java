@@ -59,50 +59,6 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
         }
     }
 
-    /**
-     * "Finalizes" the profile results by calculating the total time across all shards,
-     * then calling setGlobalTime() on each individual shard result.  This will recursively
-     * populate the relative times in all query nodes across all shards.
-     *
-     * A similar process is done for Collector timings.
-     *
-     * This should be called after all shard results are added via addShardResult
-     */
-    // nocommit: not sure we should support adding up times across shards: this adds
-    // some complexity by forcing our classes to be mutable, and the global time is
-    // only available once everything is done. Instead we should focus on returning
-    // per-shard profiles and letting tools sum up profile times on top and compute
-    // relative times if it makes sense to them?
-    public void finalizeTimings() {
-        long totalTime = 0;
-        long totalCollectorTime = 0;
-
-        // Add up total query times
-        for (Map.Entry<SearchShardTarget, List<InternalProfileResult>> entry : results.entrySet()) {
-            for (InternalProfileResult p : entry.getValue()) {
-                totalTime += p.calculateNodeTime();
-            }
-        }
-
-        // Add up total collector times
-        for (Map.Entry<SearchShardTarget, InternalProfileCollector> entry : collectors.entrySet()) {
-            totalCollectorTime += entry.getValue().getTime();
-        }
-
-        // Set global time for all profiles
-        for (Map.Entry<SearchShardTarget, List<InternalProfileResult>> entry : results.entrySet()) {
-            for (InternalProfileResult p : entry.getValue()) {
-                p.setGlobalTime(totalTime);
-            }
-        }
-
-        // Set global time for all collectors
-        for (Map.Entry<SearchShardTarget, InternalProfileCollector> entry : collectors.entrySet()) {
-            entry.getValue().setGlobalCollectorTime(totalCollectorTime);
-        }
-
-    }
-
     @Override
     public Map<SearchShardTarget, List<ProfileResult>> queryProfilesAsMap() {
         Map<SearchShardTarget, List<ProfileResult>> profiles = new HashMap<>();

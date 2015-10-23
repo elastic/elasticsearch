@@ -91,12 +91,23 @@ public class ProfileTests extends ESTestCase {
         List<InternalProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.SCORE.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.MATCH.toString()).longValue(), equalTo(0L));
+
+        List<InternalProfileResult> rewrites = profiler.getRewriteList();
+        assertEquals(1, rewrites.size());
+        breakdown = rewrites.get(0).getTimeBreakdown();
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.SCORE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.MATCH.toString()).longValue(), equalTo(0L));
     }
 
@@ -108,10 +119,21 @@ public class ProfileTests extends ESTestCase {
         List<InternalProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.SCORE.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.MATCH.toString()).longValue(), equalTo(0L));
+
+        List<InternalProfileResult> rewrites = profiler.getRewriteList();
+        assertEquals(1, rewrites.size());
+        breakdown = rewrites.get(0).getTimeBreakdown();
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), equalTo(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.SCORE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.MATCH.toString()).longValue(), equalTo(0L));
@@ -123,10 +145,12 @@ public class ProfileTests extends ESTestCase {
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
         List<InternalProfileResult> results = profiler.getQueryTree();
-        assertEquals(1, results.size());
-        Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        // nocommit: the below assertion should not fail
-        //assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
+        assertEquals(0, results.size());
+
+        List<InternalProfileResult> rewrites = profiler.getRewriteList();
+        assertEquals(1, rewrites.size());
+        Map<String, Long> breakdown = rewrites.get(0).getTimeBreakdown();
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), equalTo(0L));
@@ -147,13 +171,28 @@ public class ProfileTests extends ESTestCase {
         List<InternalProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.SCORE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.MATCH.toString()).longValue(), greaterThan(0L));
+
+        List<InternalProfileResult> rewrites = profiler.getRewriteList();
+        assertThat(rewrites.size(), greaterThan(0));
+
+        for (InternalProfileResult rewrite : rewrites) {
+            breakdown = rewrite.getTimeBreakdown();
+            assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
+            assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), equalTo(0L));
+            assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), equalTo(0L));
+            assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), equalTo(0L));
+            assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
+            assertThat(breakdown.get(ProfileBreakdown.TimingType.SCORE.toString()).longValue(), equalTo(0L));
+            assertThat(breakdown.get(ProfileBreakdown.TimingType.MATCH.toString()).longValue(), equalTo(0L));
+        }
+
     }
 
     public void testCollector() throws IOException {

@@ -22,12 +22,11 @@ package org.elasticsearch.search.profile;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.SimpleCollector;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.lucene.search.ProfileCollector;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -36,7 +35,6 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Objects;
 
 /**
  * This class wraps a Lucene Collector and times the execution of:
@@ -53,16 +51,13 @@ import java.util.Objects;
  *
  * InternalProfiler facilitates the linking of the the Collector graph
  */
-public class InternalProfileCollector extends SimpleCollector implements CollectorResult, ToXContent, Streamable {
+public class InternalProfileCollector implements Collector, CollectorResult, ToXContent, Streamable {
 
     private static final ParseField NAME = new ParseField("name");
     private static final ParseField REASON = new ParseField("reason");
     private static final ParseField TIME = new ParseField("time");
     private static final ParseField RELATIVE_TIME = new ParseField("relative_time");
     private static final ParseField CHILDREN = new ParseField("children");
-
-    private Collector collector;
-    private LeafCollector leafCollector;
 
     /**
      * A more friendly representation of the Collector's class name
@@ -74,10 +69,15 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
      */
     private String reason;
 
+    /** The wrapped collector, or null when deserializing. */
+    private final ProfileCollector collector;
+
     /**
-     * The total elapsed time for this Collector
+     * The total elapsed time for this Collector, only relevant if
+     * {@code collector} is null, otherwise you need to read
+     * {@code collector.getTime()}.
      */
-    private long time;
+    private Long time;
 
     /**
      * The total elapsed time for all Collectors across all shards.  This is
@@ -88,14 +88,14 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     private List<InternalProfileCollector> children = new ArrayList<>(5);
 
     public InternalProfileCollector(Collector collector, String reason) {
-        this.collector = Objects.requireNonNull(collector);
+        this.collector = new ProfileCollector(collector);
         this.reason = reason;
-        this.collectorName = deriveCollectorName(this.collector);
+        this.collectorName = deriveCollectorName(collector);
     }
 
     /** For serialization. */
     public InternalProfileCollector() {
-        // no-op
+        this.collector = null;
     }
 
     /**
@@ -125,32 +125,13 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     }
 
     @Override
-    public void setScorer(Scorer scorer) throws IOException {
-        long start = System.nanoTime();
-        leafCollector.setScorer(scorer);
-        time += System.nanoTime() - start;
-    }
-
-    @Override
-    public void collect(int doc) throws IOException {
-        long start = System.nanoTime();
-        leafCollector.collect(doc);
-        time += System.nanoTime() - start;
-    }
-
-    @Override
-    public void doSetNextReader(LeafReaderContext atomicReaderContext) throws IOException {
-        long start = System.nanoTime();
-        leafCollector = collector.getLeafCollector(atomicReaderContext);
-        time += System.nanoTime() - start;
+    public LeafCollector getLeafCollector(LeafReaderContext context) throws IOException {
+        return collector.getLeafCollector(context);
     }
 
     @Override
     public boolean needsScores() {
-        long start = System.nanoTime();
-        boolean needsScores = collector.needsScores();
-        time += System.nanoTime() - start;
-        return needsScores;
+        return collector.needsScores();
     }
 
     /**
@@ -180,11 +161,13 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
      */
     @Override
     public long getTime() {
-        if (children.size() == 0) {
-            return time;
+        long totalTime;
+        if (collector == null) {
+            totalTime = time;
+        } else {
+            assert time == null;
+            totalTime = collector.getTime();
         }
-
-        long totalTime = time;
         for (InternalProfileCollector child : children) {
             // Global bucket collectors happen after the search, so they won't be
             // included in the time naturally
@@ -268,7 +251,12 @@ public class InternalProfileCollector extends SimpleCollector implements Collect
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(collectorName);
         out.writeString(reason);
-        out.writeLong(time);
+        if (collector != null) {
+            out.writeLong(collector.getTime());
+        } else {
+            assert time != null;
+            out.writeLong(time);
+        }
         out.writeLong(globalTime);
         out.writeVInt(children.size());
         for (InternalProfileCollector child : children) {

@@ -26,13 +26,16 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.RandomIndexWriter;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.LeafCollector;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.RandomApproximationQuery;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.profile.InternalProfileResult;
@@ -154,5 +157,19 @@ public class ProfileTests extends ESTestCase {
         assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.SCORE.toString()).longValue(), equalTo(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.MATCH.toString()).longValue(), greaterThan(0L));
+    }
+
+    public void testCollector() throws IOException {
+        TotalHitCountCollector collector = new TotalHitCountCollector();
+        ProfileCollector profileCollector = new ProfileCollector(collector);
+        assertEquals(0, profileCollector.getTime());
+        final LeafCollector leafCollector = profileCollector.getLeafCollector(reader.leaves().get(0));
+        assertThat(profileCollector.getTime(), greaterThan(0L));
+        long time = profileCollector.getTime();
+        leafCollector.setScorer(Lucene.illegalScorer("dummy scorer"));
+        assertThat(profileCollector.getTime(), greaterThan(time));
+        time = profileCollector.getTime();
+        leafCollector.collect(0);
+        assertThat(profileCollector.getTime(), greaterThan(time));
     }
 }

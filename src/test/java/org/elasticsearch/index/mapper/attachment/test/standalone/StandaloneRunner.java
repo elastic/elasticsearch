@@ -66,6 +66,15 @@ public class StandaloneRunner extends CliTool {
                         .cmds(TikaRunner.CMD)
                 .build();
 
+    static {
+        try {
+            Path tmp = Files.createTempDirectory("tika");
+            System.setProperty("es.path.home", tmp.getFileName().toString());
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
+
     static class TikaRunner extends Command {
         private static final String NAME = "tika";
         private final String url;
@@ -113,7 +122,7 @@ public class StandaloneRunner extends CliTool {
 
             terminal.println("## Extracted text");
             terminal.println("--------------------- BEGIN -----------------------");
-            terminal.println("%s", doc.get(docMapper.mappers().getMapper("file").fieldType().names().indexName()));
+            terminal.println("%s", doc.get("file.content"));
             terminal.println("---------------------- END ------------------------");
             terminal.println("## Metadata");
             printMetadataContent(doc, AttachmentMapper.FieldNames.AUTHOR);

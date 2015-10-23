@@ -43,23 +43,14 @@ import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -711,8 +702,8 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 .build();
         internalCluster().startNode(settings);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
-        BlockingTask block = new BlockingTask();
-        clusterService.submitStateUpdateTask("test", Priority.IMMEDIATE, block);
+        BlockingTask block = new BlockingTask(Priority.IMMEDIATE);
+        clusterService.submitStateUpdateTask("test", block);
         int taskCount = randomIntBetween(5, 20);
         Priority[] priorities = Priority.values();
 
@@ -721,7 +712,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         CountDownLatch latch = new CountDownLatch(taskCount);
         for (int i = 0; i < taskCount; i++) {
             Priority priority = priorities[randomIntBetween(0, priorities.length - 1)];
-            clusterService.submitStateUpdateTask("test", priority, new PrioritiezedTask(priority, latch, tasks));
+            clusterService.submitStateUpdateTask("test", new PrioritiezedTask(priority, latch, tasks));
         }
 
         block.release();
@@ -730,9 +721,9 @@ public class ClusterServiceIT extends ESIntegTestCase {
         Priority prevPriority = null;
         for (PrioritiezedTask task : tasks) {
             if (prevPriority == null) {
-                prevPriority = task.priority;
+                prevPriority = task.priority();
             } else {
-                assertThat(task.priority.sameOrAfter(prevPriority), is(true));
+                assertThat(task.priority().sameOrAfter(prevPriority), is(true));
             }
         }
     }
@@ -947,6 +938,10 @@ public class ClusterServiceIT extends ESIntegTestCase {
     private static class BlockingTask extends ClusterStateUpdateTask {
         private final CountDownLatch latch = new CountDownLatch(1);
 
+        public BlockingTask(Priority priority) {
+            super(priority);
+        }
+
         @Override
         public ClusterState execute(ClusterState currentState) throws Exception {
             latch.await();
@@ -965,12 +960,11 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
     private static class PrioritiezedTask extends ClusterStateUpdateTask {
 
-        private final Priority priority;
         private final CountDownLatch latch;
         private final List<PrioritiezedTask> tasks;
 
         private PrioritiezedTask(Priority priority, CountDownLatch latch, List<PrioritiezedTask> tasks) {
-            this.priority = priority;
+            super(priority);
             this.latch = latch;
             this.tasks = tasks;
         }

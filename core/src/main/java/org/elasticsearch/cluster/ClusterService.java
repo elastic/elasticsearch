@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.unit.TimeValue;
 
@@ -101,12 +100,16 @@ public interface ClusterService extends LifecycleComponent<ClusterService> {
     void add(@Nullable TimeValue timeout, TimeoutClusterStateListener listener);
 
     /**
-     * Submits a task that will update the cluster state.
+     * Submits a task that will update the cluster state, using the given config. result will communicated
+     * to the given listener
      */
-    void submitStateUpdateTask(final String source, Priority priority, final ClusterStateUpdateTask updateTask);
+    <T> void submitStateUpdateTask(final String source, final T task,
+                                   final ClusterStateTaskConfig config,
+                                   final ClusterStateTaskExecutor<T> executor,
+                                   final ClusterStateTaskListener listener);
 
     /**
-     * Submits a task that will update the cluster state (the task has a default priority of {@link Priority#NORMAL}).
+     * Submits a task that will update the cluster state;
      */
     void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask);
 

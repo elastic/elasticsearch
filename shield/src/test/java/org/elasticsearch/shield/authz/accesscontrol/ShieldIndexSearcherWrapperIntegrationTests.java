@@ -40,6 +40,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.transport.TransportRequest;
 import org.mockito.Matchers;
 import org.mockito.invocation.InvocationOnMock;
@@ -102,7 +103,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
         ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(
-                Settings.EMPTY, parserService, mapperService, bitsetFilterCache, licenseState
+                IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST), parserService, mapperService, bitsetFilterCache, licenseState
         );
 
         Directory directory = newDirectory();

@@ -401,7 +401,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 fieldType().getContextMappings().addField(context.doc(), fieldType().names().indexName(),
                         input, metaData.weight, metaData.contexts);
             } else {
-                context.doc().add(new org.apache.lucene.search.suggest.xdocument.SuggestField(fieldType().names().indexName(), input, metaData.weight));
+                context.doc().add(new SuggestField(fieldType().names().indexName(), input, metaData.weight));
             }
         }
         multiFields.parse(this, context);

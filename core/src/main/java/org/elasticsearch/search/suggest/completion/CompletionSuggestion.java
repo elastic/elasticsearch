@@ -237,6 +237,33 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
                     }
                 }
             }
+
+            @Override
+            public String toString() {
+                StringBuilder stringBuilder = new StringBuilder();
+                stringBuilder.append("text:");
+                stringBuilder.append(getText());
+                stringBuilder.append(" score:");
+                stringBuilder.append(getScore());
+                stringBuilder.append(" payload:[");
+                for (Map.Entry<String, List<Object>> entry : payload.entrySet()) {
+                    stringBuilder.append(" ");
+                    stringBuilder.append(entry.getKey());
+                    stringBuilder.append(":");
+                    stringBuilder.append(entry.getValue());
+                }
+                stringBuilder.append("]");
+                stringBuilder.append(" context:[");
+                for (Map.Entry<String, Set<CharSequence>> entry: contexts.entrySet()) {
+                    stringBuilder.append(" ");
+                    stringBuilder.append(entry.getKey());
+                    stringBuilder.append(":");
+                    stringBuilder.append(entry.getValue());
+                }
+                stringBuilder.append("]");
+                return stringBuilder.toString();
+            }
+
         }
     }
 

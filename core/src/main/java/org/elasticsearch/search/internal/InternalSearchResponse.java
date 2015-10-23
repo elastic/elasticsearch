@@ -98,7 +98,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
      * @return Profile results or null
      */
     public @Nullable Map<String, ProfileShardResult> profile() {
-        return profileResults.getShardResults();
+        return profileResults != null ? profileResults.getShardResults() : null;
     }
 
     @Override

@@ -67,12 +67,7 @@ public class StandaloneRunner extends CliTool {
                 .build();
 
     static {
-        try {
-            Path tmp = Files.createTempDirectory("tika");
-            System.setProperty("es.path.home", tmp.getFileName().toString());
-        } catch (IOException e) {
-            e.printStackTrace();
-        }
+        System.setProperty("es.path.home", "/tmp");
     }
 
     static class TikaRunner extends Command {

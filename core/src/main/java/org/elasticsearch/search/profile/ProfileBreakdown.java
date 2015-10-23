@@ -30,8 +30,6 @@ import java.util.Map;
  */
 public final class ProfileBreakdown {
 
-    public static final Map<String, Long> EMPTY_TIMINGS = new ProfileBreakdown(false).toTimingMap();
-
     /** Enumeration of all supported timing types. */
     public enum TimingType {
         REWRITE,
@@ -58,17 +56,9 @@ public final class ProfileBreakdown {
      */
     private long scratch;
 
-    /**
-     * Does this breakdown need to be "reconciled" later?  A breakdown
-     * needs to be reconciled if it was generated during the rewrite phase,
-     * because it will not have any of other timing scores recorded.
-     */
-    private boolean needsReconciling;
-
     /** Sole constructor. */
-    public ProfileBreakdown(boolean needsReconciling) {
+    public ProfileBreakdown() {
         timings = new long[TimingType.values().length];
-        this.needsReconciling = needsReconciling;
     }
 
     /**
@@ -103,25 +93,6 @@ public final class ProfileBreakdown {
             map.put(timingType.toString(), timings[timingType.ordinal()]);
         }
         return Collections.unmodifiableMap(map);
-    }
-
-    /**
-     * @return True if this Breakdown needs to have its timings reconciled
-     */
-    // nocommit: I'm concerned the reconciling logic is too complex and fragile.
-    // If we can't manage to simplify it, I'd be in favor of just having a global
-    // counter for the whole search request of how much time was spent in rewriting
-    // and then only track the rewritten query
-    public boolean needsReconciling() {
-        return needsReconciling;
-    }
-
-    /**
-     * Sets if this Breakdown needs to have its timing reconciled later
-     * @param needsReconciling True if the timing needs to be fixed later
-     */
-    public void setNeedsReconciling(boolean needsReconciling) {
-        this.needsReconciling = needsReconciling;
     }
 
     /**

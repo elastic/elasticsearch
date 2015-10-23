@@ -76,24 +76,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // Rewrite Breakdowns are "unattached" to the profiler...we must
             // call `addRewrittenQuery` after the rewrite or else this timing will be
             // go to the great /dev/null in the sky
-            profile = profiler.getUnattachedRewriteBreakdown(original);
+            profile = profiler.getRewriteBreakdown(original);
             profile.startTime(ProfileBreakdown.TimingType.REWRITE);
         }
 
-        Query rewritten = null;
         try {
-            return rewritten = in.rewrite(original);
+            return in.rewrite(original);
         } finally {
-            if (profiler != null) {
+            if (profiler != null && profile != null) {
                 profile.stopAndRecordTime(ProfileBreakdown.TimingType.REWRITE);
-
-                // Unlike "scoring" queries, the rewriting queries cannot use a stack model. So we
-                // have to retroactively provide the profiler with the finished timing, and it will
-                // decide how to merge the timing into the tree based on the (original, rewritten)
-                // tuple.
-                if (rewritten != null) {
-                    profiler.addRewrittenQuery(original, rewritten, profile);
-                }
             }
         }
     }

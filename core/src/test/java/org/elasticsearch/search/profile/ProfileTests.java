@@ -38,9 +38,6 @@ import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
-import org.elasticsearch.search.profile.InternalProfileResult;
-import org.elasticsearch.search.profile.ProfileBreakdown;
-import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
@@ -91,7 +88,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
-        List<InternalProfileResult> results = profiler.finalizeProfileResults();
+        List<InternalProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
@@ -108,7 +105,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
-        List<InternalProfileResult> results = profiler.finalizeProfileResults();
+        List<InternalProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));
@@ -125,7 +122,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
-        List<InternalProfileResult> results = profiler.finalizeProfileResults();
+        List<InternalProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         // nocommit: the below assertion should not fail
@@ -147,7 +144,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
-        List<InternalProfileResult> results = profiler.finalizeProfileResults();
+        List<InternalProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(ProfileBreakdown.TimingType.REWRITE.toString()).longValue(), greaterThan(0L));

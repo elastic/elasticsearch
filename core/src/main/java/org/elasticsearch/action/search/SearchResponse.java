@@ -33,7 +33,7 @@ import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.internal.InternalSearchResponse;
-import org.elasticsearch.search.profile.ProfileResults;
+import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -169,7 +169,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
      *
      * @return The profile results or null
      */
-    public @Nullable ProfileResults getProfileResults() {
+    public @Nullable Map<String, ProfileShardResult> getProfileResults() {
         return internalResponse.profile();
     }
 

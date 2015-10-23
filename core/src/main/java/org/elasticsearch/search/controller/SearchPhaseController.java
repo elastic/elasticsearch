@@ -40,10 +40,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.dfs.DfsSearchResult;
@@ -52,10 +52,11 @@ import org.elasticsearch.search.fetch.FetchSearchResultProvider;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
+import org.elasticsearch.search.profile.InternalProfileShardResults;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.profile.InternalProfileShardResults;
+import org.elasticsearch.search.profile.InternalProfileShardResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -412,15 +413,15 @@ public class SearchPhaseController extends AbstractComponent {
         }
 
         //Collect profile results
-        InternalProfileShardResults profileResults = null;
+        InternalProfileShardResults shardResults = null;
         if (!queryResults.isEmpty()) {
             if (firstResult.profileResults() != null) {
-                profileResults = new InternalProfileShardResults();
+                Map<String, InternalProfileShardResult> profileResults = new HashMap<>(queryResults.size());
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                    profileResults.addShardResult(entry.value.queryResult().shardTarget(),
-                            entry.value.queryResult().profileResults(),
-                            entry.value.queryResult().profileCollector());
+                    String key = entry.value.queryResult().shardTarget().toString();
+                    profileResults.put(key, entry.value.queryResult().profileResults());
                 }
+                shardResults = new InternalProfileShardResults(profileResults);
             }
         }
 
@@ -441,7 +442,7 @@ public class SearchPhaseController extends AbstractComponent {
 
         InternalSearchHits searchHits = new InternalSearchHits(hits.toArray(new InternalSearchHit[hits.size()]), totalHits, maxScore);
 
-        return new InternalSearchResponse(searchHits, aggregations, suggest, profileResults, timedOut, terminatedEarly);
+        return new InternalSearchResponse(searchHits, aggregations, suggest, shardResults, timedOut, terminatedEarly);
     }
 
 }

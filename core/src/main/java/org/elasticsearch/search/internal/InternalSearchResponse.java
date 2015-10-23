@@ -29,10 +29,11 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.InternalProfileShardResults;
-import org.elasticsearch.search.profile.ProfileResults;
+import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.Map;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
 
@@ -96,8 +97,8 @@ public class InternalSearchResponse implements Streamable, ToXContent {
      *
      * @return Profile results or null
      */
-    public @Nullable ProfileResults profile() {
-        return profileResults;
+    public @Nullable Map<String, ProfileShardResult> profile() {
+        return profileResults.getShardResults();
     }
 
     @Override

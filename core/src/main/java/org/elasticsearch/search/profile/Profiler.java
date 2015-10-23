@@ -49,18 +49,19 @@ public final class Profiler {
      * rewriting phase
      */
     public ProfileBreakdown getQueryBreakdown(Query query) {
-        return queryTree.getBreakDown(query, false);
+        return queryTree.getQueryBreakdown(query);
     }
 
     /**
-     * Get the {@link ProfileBreakdown} for the given query.  This breakdown is "unattached" to the profiler
-     * and will not record it's timing without a subsequent call to {@link #addRewrittenQuery(Query, Query, InternalProfileBreakdown)}.
+     * Get the {@link ProfileBreakdown} for the rewriting query.  This breakdown is not recorded in the
+     * main query tree, but a separate `rewrite` list because rewrites are too tricky to correctly
+     * integrate
      *
      * This should only be used for queries that will be undergoing rewriting.  Do not use it to profile
      * the scoring phase
      */
-    public ProfileBreakdown getUnattachedRewriteBreakdown(Query query) {
-        return queryTree.getBreakDown(query, true);
+    public ProfileBreakdown getRewriteBreakdown(Query query) {
+        return queryTree.getRewriteBreakDown(query);
     }
 
     /**
@@ -72,29 +73,17 @@ public final class Profiler {
     }
 
     /**
-     * Informs the profiler of how a query in the dependency tree was rewritten.  This allows
-     * the profiler to track how queries are rewritten, and later stitch them back into the
-     * overall profiling tree
-     *
-     * @param original   The original query
-     * @param rewritten  The rewritten query
-     */
-    public void addRewrittenQuery(Query original, Query rewritten, ProfileBreakdown breakdown) {
-        queryTree.setRewrittenQuery(original, rewritten, breakdown);
-    }
-
-    /**
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<InternalProfileResult> finalizeProfileResults() {
-        return queryTree.finalizeProfileResults();
+    public List<InternalProfileResult> getQueryTree() {
+        return queryTree.getQueryTree();
     }
 
     /**
-     * @return the profiled collector tree
+     * @return a list of profiled rewrites
      */
-    public InternalProfileCollector finalizeCollectors() {
-        return collector;
+    public List<InternalProfileResult> getRewriteList() {
+        return queryTree.getRewriteList();
     }
 
     /**

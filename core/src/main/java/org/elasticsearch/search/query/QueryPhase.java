@@ -52,10 +52,7 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.internal.ScrollContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.CollectorResult;
-import org.elasticsearch.search.profile.InternalProfileCollector;
-import org.elasticsearch.search.profile.InternalProfileResult;
-import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.*;
 import org.elasticsearch.search.rescore.RescorePhase;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.sort.SortParseElement;
@@ -136,9 +133,9 @@ public class QueryPhase implements SearchPhase {
 
         final Profiler profiler = searchContext.queryProfiler();
         if (profiler != null) {
-            List<InternalProfileResult> results = searchContext.queryProfiler().finalizeProfileResults();
-            InternalProfileCollector collector = searchContext.queryProfiler().finalizeCollectors();
-            searchContext.queryResult().profileResults(results, collector);
+            InternalProfileShardResult shardResults = new InternalProfileShardResult(
+                    profiler.getQueryTree(), profiler.getRewriteList(), profiler.getCollector());
+            searchContext.queryResult().profileResults(shardResults);
         }
     }
 
@@ -165,7 +162,7 @@ public class QueryPhase implements SearchPhase {
 
         final SearchType searchType = searchContext.searchType();
         boolean rescore = false;
-        Profiler profiler = searchContext.queryProfiler();
+        final Profiler profiler = searchContext.queryProfiler();
         try {
             queryResult.from(searchContext.from());
             queryResult.size(searchContext.size());
@@ -369,9 +366,9 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call());
 
             if (profiler != null) {
-                List<InternalProfileResult> pResults = profiler.finalizeProfileResults();
-                InternalProfileCollector pCollector = profiler.finalizeCollectors();
-                searchContext.queryResult().profileResults(pResults, pCollector);
+                InternalProfileShardResult shardResults = new InternalProfileShardResult(
+                        profiler.getQueryTree(), profiler.getRewriteList(), profiler.getCollector());
+                searchContext.queryResult().profileResults(shardResults);
             }
 
             return rescore;

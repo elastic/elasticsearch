@@ -33,17 +33,6 @@ import java.util.concurrent.LinkedBlockingDeque;
  */
 public class InternalProfileTree {
 
-    private static Map<String, Long> mergeTimings(Iterable<Map<String, Long>> timings) {
-        Iterator<Map<String, Long>> timingIt = timings.iterator();
-        Map<String, Long> merged = new HashMap<>(ProfileBreakdown.EMPTY_TIMINGS);
-        while (timingIt.hasNext()) {
-            for (Map.Entry<String, Long> entry : timingIt.next().entrySet()) {
-                merged.put(entry.getKey(), merged.get(entry.getKey()) + entry.getValue());
-            }
-        }
-        return Collections.unmodifiableMap(merged);
-    }
-
     private ArrayList<ProfileBreakdown> timings;
 
     /** Maps the Query to it's list of children.  This is basically the dependency tree */
@@ -55,8 +44,8 @@ public class InternalProfileTree {
     /** A list of top-level "roots".  Each root can have its own tree of profiles */
     private ArrayList<Integer> roots;
 
-    /** A map that translates a rewritten query to the original query's token */
-    private Map<RewrittenQuery, Integer> rewriteMap;
+    /** A list of queries that were rewritten */
+    private ArrayList<Integer> rewrites;
 
     /** A temporary stack used to record where we are in the dependency tree.  Only used by scoring queries */
     private Deque<Integer> stack;
@@ -69,12 +58,24 @@ public class InternalProfileTree {
         tree = new ArrayList<>(10);
         queries = new ArrayList<>(10);
         roots = new ArrayList<>(10);
-        rewriteMap = new HashMap<>(5);
+        rewrites = new ArrayList<>(10);
     }
 
-    /** Get the {@link ProfileBreakdown} for the given query, potentially creating it if it did not exist. */
-    public ProfileBreakdown getBreakDown(Query query, boolean rewrite) {
-        return rewrite ? new ProfileBreakdown(true) : getQueryBreakdown(query);
+    public ProfileBreakdown getRewriteBreakDown(Query query) {
+        int token = currentToken;
+
+        rewrites.add(token);
+
+        // Rewrites don't have a tree
+        tree.add(null);
+
+        // Save our query for lookup later
+        queries.add(query);
+
+        ProfileBreakdown queryTimings = new ProfileBreakdown();
+        timings.add(token, queryTimings);
+
+        return queryTimings;
     }
 
     /**
@@ -88,29 +89,13 @@ public class InternalProfileTree {
      * @param query The scoring query we wish to profile
      * @return      A ProfileBreakdown for this query
      */
-    private ProfileBreakdown getQueryBreakdown(Query query) {
+    public ProfileBreakdown getQueryBreakdown(Query query) {
         int token = currentToken;
 
         boolean stackEmpty = stack.size() == 0;
 
-        // If the stack is empty, we are either a new root query or we are the first
-        // scoring query after rewriting
+        // If the stack is empty, we are a new root query
         if (stackEmpty) {
-            Integer parentToken = getRewrittenParentToken(query);
-
-            // If we find a rewritten query that is identical to us, we need to use
-            // the Breakdown generated during the rewrite phase instead of creating
-            // a new one
-            if (parentToken != null) {
-
-                stack.add(parentToken);
-                ProfileBreakdown breakdown = timings.get(parentToken);
-
-                // This breakdown no longer needs reconciling, since it will receive
-                // scoring times directly
-                breakdown.setNeedsReconciling(false);
-                return breakdown;
-            }
 
             // We couldn't find a rewritten query to attach to, so just add it as a
             // top-level root. This is just a precaution: it really shouldn't happen.
@@ -122,7 +107,7 @@ public class InternalProfileTree {
             currentToken += 1;
             stack.add(token);
 
-            return addDependencyNode(query, token, false);
+            return addDependencyNode(query, token);
         }
 
         updateParent(token);
@@ -131,7 +116,7 @@ public class InternalProfileTree {
         currentToken += 1;
         stack.add(token);
 
-        return addDependencyNode(query, token, false);
+        return addDependencyNode(query, token);
     }
 
     /**
@@ -143,10 +128,9 @@ public class InternalProfileTree {
      *
      * @param query             The query to profile
      * @param token             The assigned token for this query
-     * @param needsReconciling  Whether this timing breakdown needs reconciliation after profiling completes
      * @return                  A ProfileBreakdown to profile this query
      */
-    private ProfileBreakdown addDependencyNode(Query query, int token, boolean needsReconciling) {
+    private ProfileBreakdown addDependencyNode(Query query, int token) {
 
         // Add a new slot in the dependency tree
         tree.add(new ArrayList<>(5));
@@ -154,47 +138,9 @@ public class InternalProfileTree {
         // Save our query for lookup later
         queries.add(query);
 
-        ProfileBreakdown queryTimings = new ProfileBreakdown(needsReconciling);
+        ProfileBreakdown queryTimings = new ProfileBreakdown();
         timings.add(token, queryTimings);
         return queryTimings;
-    }
-
-    /**
-     * Attaches a dangling Breakdown to the profiling timing tree.  This method should be used
-     * to attach Breakdowns generated for rewrites -- it should not be used for "scoring" queries
-     * as they are already part of the timing tree
-     *
-     * This method inspects the (original, rewritten) tuple to determine if the query rewrote
-     * into itself, if the original is a child of a previous rewrite, or if the rewrite is a new
-     * "root" query
-     *
-     * @param original   The original query
-     * @param rewritten  The query after rewriting
-     */
-    public void setRewrittenQuery(Query original, Query rewritten, ProfileBreakdown breakdown) {
-
-        RewrittenQuery r = new RewrittenQuery(original, rewritten);
-
-        // If the rewrite maps to itself, merge the timing in with the existin entry
-        if (rewriteMap.containsKey(r)) {
-            int token = rewriteMap.get(r);
-            ProfileBreakdown timing = timings.get(token);
-            timing.merge(breakdown);
-            return;
-        }
-
-        // If the rewrite pair wasn't found, see if there is an entry whose rewritten
-        // is our original
-
-        Integer parentToken = getRewrittenParentToken(original);
-        if (parentToken != null) {
-            // Found a "parent" rewrite, add as a child
-            addRewriteToTree(r, parentToken, breakdown);
-            return;
-        }
-
-        // No parent, so this will add it as a root
-        addRewriteToTree(r, breakdown);
     }
 
     /**
@@ -211,10 +157,10 @@ public class InternalProfileTree {
      *
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<InternalProfileResult> finalizeProfileResults() {
+    public List<InternalProfileResult> getQueryTree() {
         ArrayList<InternalProfileResult> results = new ArrayList<>(5);
         for (Integer root : roots) {
-            results.add(doFinalizeProfileResults(root));
+            results.add(doGetQueryTree(root));
         }
         return results;
     }
@@ -224,39 +170,28 @@ public class InternalProfileTree {
      * @param token  The node we are currently finalizing
      * @return       A hierarchical representation of the tree inclusive of children at this level
      */
-    private InternalProfileResult doFinalizeProfileResults(int token) {
+    private InternalProfileResult doGetQueryTree(int token) {
 
         Query query = queries.get(token);
         ProfileBreakdown breakdown = timings.get(token);
         InternalProfileResult rootNode =  new InternalProfileResult(query, breakdown.toTimingMap());
         ArrayList<Integer> children = tree.get(token);
 
-        // If a Breakdown was generated during the rewrite phase, it will only
-        // have timings for the rewrite.  We need to "reconcile" those timings by
-        // merging our time with the time of our children
-        boolean needsReconciling = breakdown.needsReconciling();
-        List<Map<String, Long>> timings = null;
-
-        if (needsReconciling) {
-            timings = new ArrayList<>();
-        }
-
         for (Integer child : children) {
-            InternalProfileResult childNode = doFinalizeProfileResults(child);
+            InternalProfileResult childNode = doGetQueryTree(child);
             rootNode.addChild(childNode);
-
-            if (needsReconciling) {
-                timings.add(childNode.getTimeBreakdown());
-            }
-        }
-
-        if (needsReconciling) {
-            rootNode.setTimings(mergeTimings(timings));
         }
 
         return rootNode;
     }
 
+    public List<InternalProfileResult> getRewriteList() {
+        ArrayList<InternalProfileResult> results = new ArrayList<>(5);
+        for (Integer root : rewrites) {
+            results.add(doGetQueryTree(root));
+        }
+        return results;
+    }
 
     /**
      * Internal helper to add a child to the current parent node
@@ -269,123 +204,4 @@ public class InternalProfileTree {
         parentNode.add(childToken);
         tree.set(parent, parentNode);
     }
-
-    /**
-     * Convenience overload for {@link #addRewriteToTree(RewrittenQuery, Integer, ProfileBreakdown)}
-     * when there is no parent to the query
-     *
-     * @see #addRewriteToTree(RewrittenQuery, Integer, ProfileBreakdown) for more details
-     */
-    private void addRewriteToTree(RewrittenQuery r, ProfileBreakdown breakdown) {
-        addRewriteToTree(r, null, breakdown);
-    }
-
-    /**
-     * Adds the rewritten query to the dependency tree as a child to `parentToken`, or as a root if
-     * `parentToken` is null.
-     *
-     * @param r            The (original, rewritten) tuple to add
-     * @param parentToken  The parent to this rewritten query, or null if there are no parents
-     * @param breakdown    The profiled timings for this query
-     */
-    private void addRewriteToTree(RewrittenQuery r, Integer parentToken, ProfileBreakdown breakdown) {
-
-        int token = currentToken;
-        currentToken += 1;
-
-        if (parentToken != null) {
-            // Update our parent, and add ourselves to the tree
-            ArrayList<Integer> parentNode = tree.get(parentToken);
-            parentNode.add(token);
-            tree.set(parentToken, parentNode);
-            tree.add(new ArrayList<>(5));
-        } else {
-            roots.add(token);
-        }
-
-        // Save the query and retroactively add ourself ot the timing list
-        tree.add(new ArrayList<>(5));
-        queries.add(r.original);
-        timings.add(token, breakdown);
-        rewriteMap.put(r, token);
-    }
-
-    /**
-     * Searches through the rewrite map to see if the query exists as a
-     * rewritten version of a different query (which means the current query
-     * is a child of a previous one).
-     *
-     * It does this by linearly iterating over the entrySet and evaluating
-     * each key.  There is probably a more clever way to do this
-     *
-     * @param query The query we wish to check for rewritten parents
-     * @return      The integer token of our parent, or null if there is no parent
-     */
-    private @Nullable Integer getRewrittenParentToken(Query query) {
-        return getRewrittenParentToken(query, -1, 0);
-    }
-
-    private @Nullable Integer getRewrittenParentToken(Query query, int lastToken, int level) {
-
-        // Recursion safeguard, just in case pathological queries are provided.
-        // Returning null will just mess up the hierarchy, all the various
-        // components will still be recorded correctly
-        if (level > 10) {
-            return null;
-        }
-
-        // TODO better way to do this?
-        for (Map.Entry<RewrittenQuery, Integer> entry : rewriteMap.entrySet()) {
-            if (entry.getKey().rewritten.equals(query) && entry.getValue() > lastToken) {
-                // Found a matching query, but we need to check if there is a
-                // "descendant" rewrite that would be more appropriate to embed under
-                Integer descendant = getRewrittenParentToken(entry.getKey().rewritten, entry.getValue(), level + 1);
-
-                return descendant != null ? descendant : entry.getValue();
-            }
-        }
-
-        return null;
-    }
-
-    /**
-     * A utility tuple class which allows us to store (original, rewritten)
-     * tuples in the map.  Equality and hashcode are based on the underlying
-     * queries.
-     */
-    public class RewrittenQuery {
-        public Query original;
-        public Query rewritten;
-
-        public RewrittenQuery(Query original, Query rewritten) {
-            this.original = original;
-            this.rewritten = rewritten;
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-
-            if (obj == null) {
-                return false;
-            }
-
-            if (obj == this) {
-                return true;
-            }
-
-            if (!(obj instanceof RewrittenQuery)) {
-                return false;
-            }
-
-            RewrittenQuery r = (RewrittenQuery) obj;
-
-            return r.original.equals(original) && r.rewritten.equals(rewritten);
-        }
-
-        @Override
-        public int hashCode() {
-            return original.hashCode() + rewritten.hashCode();
-        }
-    }
-
 }

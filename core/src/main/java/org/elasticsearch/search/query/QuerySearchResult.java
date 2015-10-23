@@ -30,8 +30,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.search.profile.InternalProfileCollector;
-import org.elasticsearch.search.profile.InternalProfileResult;
+import org.elasticsearch.search.profile.InternalProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -56,8 +55,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private List<InternalProfileResult> profileResults;
-    private InternalProfileCollector profileCollector;
+    private InternalProfileShardResult profileShardResults;
 
     public QuerySearchResult() {
 
@@ -129,21 +127,17 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Returns the profiled results for this search, or null if it was not profiled
      * @return The profiled results, or null
      */
-    public @Nullable List<InternalProfileResult> profileResults() {
-        return profileResults;
-    }
-
-    public @Nullable InternalProfileCollector profileCollector() {
-        return profileCollector;
+    public @Nullable
+    InternalProfileShardResult profileResults() {
+        return profileShardResults;
     }
 
     /**
      * Sets the finalized profiling results for this query
-     * @param profileResults The finalized profile
+     * @param shardResults The finalized profile
      */
-    public void profileResults(List<InternalProfileResult> profileResults, InternalProfileCollector collector) {
-        this.profileResults = profileResults;
-        this.profileCollector = collector;
+    public void profileResults(InternalProfileShardResult shardResults) {
+        this.profileShardResults = shardResults;
     }
 
     public List<SiblingPipelineAggregator> pipelineAggregators() {
@@ -220,15 +214,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
         // nocommit TODO need version check here?
         if (in.readBoolean()) {
-            int numProfiles = in.readVInt();
-            profileResults = new ArrayList<>(numProfiles);
-            for (int i = 0; i < numProfiles; i++) {
-                profileResults.add(InternalProfileResult.readProfileResult(in));
-            }
-
-            if (in.readBoolean()) {
-                profileCollector = InternalProfileCollector.readProfileCollectorFromStream(in);
-            }
+            profileShardResults = InternalProfileShardResult.readProfileShardResults(in);
         }
     }
 
@@ -270,22 +256,11 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         out.writeOptionalBoolean(terminatedEarly);
 
         // nocommit TODO need version check here?
-        if (profileResults == null) {
+        if (profileShardResults == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            out.writeVInt(profileResults.size());
-            for (InternalProfileResult p : profileResults) {
-                p.writeTo(out);
-            }
-
-            if (profileCollector == null) {
-                out.writeBoolean(false);
-            } else {
-                out.writeBoolean(true);
-                profileCollector.writeTo(out);
-            }
-
+            profileShardResults.writeTo(out);
         }
     }
 }

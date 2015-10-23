@@ -86,14 +86,6 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         return children;
     }
 
-    /**
-     * Overwrite the current timings with a new set of timings
-     * @param timings The new set of timings to use
-     */
-    public void setTimings(Map<String, Long> timings) {
-        this.timings = timings;
-    }
-
     @Override
     public String getLuceneDescription() {
         return luceneDescription;

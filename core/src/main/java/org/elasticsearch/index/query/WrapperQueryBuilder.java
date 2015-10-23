@@ -116,11 +116,6 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     }
 
     @Override
-    protected void setFinalBoost(Query query) {
-        //no-op this query doesn't support boost
-    }
-
-    @Override
     protected WrapperQueryBuilder doReadFrom(StreamInput in) throws IOException {
         return new WrapperQueryBuilder(in.readByteArray());
     }

@@ -215,8 +215,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         if (innerQuery == null) {
             return null;
         }
-        innerQuery.setBoost(boost);
-
         DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
         if (childDocMapper == null) {
             throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
@@ -286,8 +284,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
-            if (getBoost() != 1.0F) {
-                return super.rewrite(reader);
+            Query rewritten = super.rewrite(reader);
+            if (rewritten != this) {
+                return rewritten;
             }
             if (reader instanceof DirectoryReader) {
                 String joinField = ParentFieldMapper.joinField(parentType);
@@ -310,8 +309,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
             if (!super.equals(o)) return false;
 
             LateParsingQuery that = (LateParsingQuery) o;
@@ -326,14 +323,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public int hashCode() {
-            int result = super.hashCode();
-            result = 31 * result + toQuery.hashCode();
-            result = 31 * result + innerQuery.hashCode();
-            result = 31 * result + minChildren;
-            result = 31 * result + maxChildren;
-            result = 31 * result + parentType.hashCode();
-            result = 31 * result + scoreMode.hashCode();
-            return result;
+            return Objects.hash(super.hashCode(), toQuery, innerQuery, minChildren, maxChildren, parentType, scoreMode);
         }
 
         @Override

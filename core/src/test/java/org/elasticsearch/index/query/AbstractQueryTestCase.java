@@ -23,8 +23,12 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanBoostQuery;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -104,9 +108,7 @@ import java.lang.reflect.Proxy;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -501,18 +503,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertThat(namedQuery, equalTo(query));
         }
         if (query != null) {
-            assertBoost(queryBuilder, query);
+            if (queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(SpanBoostQuery.class)));
+                if (query instanceof SpanBoostQuery) {
+                    SpanBoostQuery spanBoostQuery = (SpanBoostQuery) query;
+                    assertThat(spanBoostQuery.getBoost(), equalTo(queryBuilder.boost()));
+                    query = spanBoostQuery.getQuery();
+                } else {
+                    BoostQuery boostQuery = (BoostQuery) query;
+                    assertThat(boostQuery.getBoost(), equalTo(queryBuilder.boost()));
+                    query = boostQuery.getQuery();
+                }
+            }
         }
         doAssertLuceneQuery(queryBuilder, query, context);
-    }
-
-    /**
-     * Allows to override boost assertions for queries that don't have the default behaviour
-     */
-    protected void assertBoost(QB queryBuilder, Query query) throws IOException {
-        // workaround https://bugs.openjdk.java.net/browse/JDK-8056984
-        float boost = queryBuilder.boost();
-        assertThat(query.getBoost(), equalTo(boost));
     }
 
     /**
@@ -520,6 +524,23 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Contains the query specific checks to be implemented by subclasses.
      */
     protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
+
+    protected static void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
+        if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
+            assertThat(query, instanceOf(BoostQuery.class));
+            BoostQuery boostQuery = (BoostQuery) query;
+            assertThat(boostQuery.getBoost(), equalTo(fieldBoost));
+            query = boostQuery.getQuery();
+        }
+        assertTermQuery(query, field, value);
+    }
+
+    protected static void assertTermQuery(Query query, String field, String value) {
+        assertThat(query, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) query;
+        assertThat(termQuery.getTerm().field(), equalTo(field));
+        assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(value.toLowerCase(Locale.ROOT)));
+    }
 
     /**
      * Test serialization and deserialization of the test query.

@@ -548,12 +548,6 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
         return query;
     }
 
-    @Override
-    protected void setFinalBoost(Query query) {
-        // we need to preserve the boost that came out of the parsing phase
-        query.setBoost(boost * query.getBoost());
-    }
-
     private static Map<String, Float> handleFieldsMatchPattern(MapperService mapperService, Map<String, Float> fieldsBoosts) {
         Map<String, Float> newFieldsBoosts = new TreeMap<>();
         for (Map.Entry<String, Float> fieldBoost : fieldsBoosts.entrySet()) {

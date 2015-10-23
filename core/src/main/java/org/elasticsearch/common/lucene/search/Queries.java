@@ -70,7 +70,7 @@ public class Queries {
             .build();
     }
 
-    public static boolean isNegativeQuery(Query q) {
+    private static boolean isNegativeQuery(Query q) {
         if (!(q instanceof BooleanQuery)) {
             return false;
         }
@@ -107,7 +107,7 @@ public class Queries {
         return false;
     }
 
-    public static BooleanQuery applyMinimumShouldMatch(BooleanQuery query, @Nullable String minimumShouldMatch) {
+    public static Query applyMinimumShouldMatch(BooleanQuery query, @Nullable String minimumShouldMatch) {
         if (minimumShouldMatch == null) {
             return query;
         }
@@ -127,10 +127,13 @@ public class Queries {
             }
             builder.setMinimumNumberShouldMatch(msm);
             BooleanQuery bq = builder.build();
-            bq.setBoost(query.getBoost());
-            query = bq;
+            if (query.getBoost() != 1f) {
+                return new BoostQuery(bq, query.getBoost());
+            }
+            return bq;
+        } else {
+            return query;
         }
-        return query;
     }
 
     private static Pattern spaceAroundLessThanPattern = Pattern.compile("(\\s+<\\s*)|(\\s*<\\s+)");

@@ -120,8 +120,9 @@ public class MultiPhrasePrefixQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        if (getBoost() != 1.0F) {
-            return super.rewrite(reader);
+        Query rewritten = super.rewrite(reader);
+        if (rewritten != this) {
+            return rewritten;
         }
         if (termArrays.isEmpty()) {
             return new MatchNoDocsQuery();
@@ -145,7 +146,6 @@ public class MultiPhrasePrefixQuery extends Query {
             return Queries.newMatchNoDocsQuery();
         }
         query.add(terms.toArray(Term.class), position);
-        query.setBoost(getBoost());
         return query.rewrite(reader);
     }
 
@@ -233,10 +233,11 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof MultiPhrasePrefixQuery)) return false;
+        if (super.equals(o) == false) {
+            return false;
+        }
         MultiPhrasePrefixQuery other = (MultiPhrasePrefixQuery) o;
-        return this.getBoost() == other.getBoost()
-                && this.slop == other.slop
+        return this.slop == other.slop
                 && termArraysEquals(this.termArrays, other.termArrays)
                 && this.positions.equals(other.positions);
     }
@@ -246,11 +247,10 @@ public class MultiPhrasePrefixQuery extends Query {
      */
     @Override
     public int hashCode() {
-        return Float.floatToIntBits(getBoost())
+        return super.hashCode()
                 ^ slop
                 ^ termArraysHashCode()
-                ^ positions.hashCode()
-                ^ 0x4AC65113;
+                ^ positions.hashCode();
     }
 
     // Breakout calculation of the termArrays hashcode

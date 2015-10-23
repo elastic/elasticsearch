@@ -23,13 +23,7 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -41,12 +35,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.support.QueryParsers;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
@@ -148,8 +137,7 @@ public class MapperQueryParser extends QueryParser {
                     Query q = getFieldQuerySingle(mField, queryText, quoted);
                     if (q != null) {
                         added = true;
-                        applyBoost(mField, q);
-                        disMaxQuery.add(q);
+                        disMaxQuery.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
@@ -161,8 +149,7 @@ public class MapperQueryParser extends QueryParser {
                 for (String mField : fields) {
                     Query q = getFieldQuerySingle(mField, queryText, quoted);
                     if (q != null) {
-                        applyBoost(mField, q);
-                        clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                        clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
                 if (clauses.size() == 0)  // happens for stopwords
@@ -250,9 +237,8 @@ public class MapperQueryParser extends QueryParser {
                     Query q = super.getFieldQuery(mField, queryText, slop);
                     if (q != null) {
                         added = true;
-                        applyBoost(mField, q);
                         q = applySlop(q, slop);
-                        disMaxQuery.add(q);
+                        disMaxQuery.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
@@ -264,9 +250,8 @@ public class MapperQueryParser extends QueryParser {
                 for (String mField : fields) {
                     Query q = super.getFieldQuery(mField, queryText, slop);
                     if (q != null) {
-                        applyBoost(mField, q);
                         q = applySlop(q, slop);
-                        clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                        clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
                 if (clauses.size() == 0)  // happens for stopwords
@@ -305,8 +290,7 @@ public class MapperQueryParser extends QueryParser {
                 Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
                 if (q != null) {
                     added = true;
-                    applyBoost(mField, q);
-                    disMaxQuery.add(q);
+                    disMaxQuery.add(applyBoost(mField, q));
                 }
             }
             if (!added) {
@@ -318,8 +302,7 @@ public class MapperQueryParser extends QueryParser {
             for (String mField : fields) {
                 Query q = getRangeQuerySingle(mField, part1, part2, startInclusive, endInclusive);
                 if (q != null) {
-                    applyBoost(mField, q);
-                    clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                    clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                 }
             }
             if (clauses.size() == 0)  // happens for stopwords
@@ -371,8 +354,7 @@ public class MapperQueryParser extends QueryParser {
                     Query q = getFuzzyQuerySingle(mField, termStr, minSimilarity);
                     if (q != null) {
                         added = true;
-                        applyBoost(mField, q);
-                        disMaxQuery.add(q);
+                        disMaxQuery.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
@@ -383,8 +365,9 @@ public class MapperQueryParser extends QueryParser {
                 List<BooleanClause> clauses = new ArrayList<>();
                 for (String mField : fields) {
                     Query q = getFuzzyQuerySingle(mField, termStr, minSimilarity);
-                    applyBoost(mField, q);
-                    clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                    if (q != null) {
+                        clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
+                    }
                 }
                 return getBooleanQuery(clauses, true);
             }
@@ -434,8 +417,7 @@ public class MapperQueryParser extends QueryParser {
                     Query q = getPrefixQuerySingle(mField, termStr);
                     if (q != null) {
                         added = true;
-                        applyBoost(mField, q);
-                        disMaxQuery.add(q);
+                        disMaxQuery.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
@@ -447,8 +429,7 @@ public class MapperQueryParser extends QueryParser {
                 for (String mField : fields) {
                     Query q = getPrefixQuerySingle(mField, termStr);
                     if (q != null) {
-                        applyBoost(mField, q);
-                        clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                        clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
                 if (clauses.size() == 0)  // happens for stopwords
@@ -566,8 +547,7 @@ public class MapperQueryParser extends QueryParser {
                     Query q = getWildcardQuerySingle(mField, termStr);
                     if (q != null) {
                         added = true;
-                        applyBoost(mField, q);
-                        disMaxQuery.add(q);
+                        disMaxQuery.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
@@ -579,8 +559,7 @@ public class MapperQueryParser extends QueryParser {
                 for (String mField : fields) {
                     Query q = getWildcardQuerySingle(mField, termStr);
                     if (q != null) {
-                        applyBoost(mField, q);
-                        clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                        clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
                 if (clauses.size() == 0)  // happens for stopwords
@@ -697,8 +676,7 @@ public class MapperQueryParser extends QueryParser {
                     Query q = getRegexpQuerySingle(mField, termStr);
                     if (q != null) {
                         added = true;
-                        applyBoost(mField, q);
-                        disMaxQuery.add(q);
+                        disMaxQuery.add(applyBoost(mField, q));
                     }
                 }
                 if (!added) {
@@ -710,8 +688,7 @@ public class MapperQueryParser extends QueryParser {
                 for (String mField : fields) {
                     Query q = getRegexpQuerySingle(mField, termStr);
                     if (q != null) {
-                        applyBoost(mField, q);
-                        clauses.add(new BooleanClause(q, BooleanClause.Occur.SHOULD));
+                        clauses.add(new BooleanClause(applyBoost(mField, q), BooleanClause.Occur.SHOULD));
                     }
                 }
                 if (clauses.size() == 0)  // happens for stopwords
@@ -761,11 +738,12 @@ public class MapperQueryParser extends QueryParser {
         return fixNegativeQueryIfNeeded(q);
     }
 
-    private void applyBoost(String field, Query q) {
+    private Query applyBoost(String field, Query q) {
         Float fieldBoost = settings.fieldsAndWeights().get(field);
-        if (fieldBoost != null) {
-            q.setBoost(fieldBoost);
+        if (fieldBoost != null && fieldBoost != 1f) {
+            return new BoostQuery(q, fieldBoost);
         }
+        return q;
     }
 
     private Query applySlop(Query q, int slop) {
@@ -779,7 +757,9 @@ public class MapperQueryParser extends QueryParser {
                 builder.add(terms[i], positions[i]);
             }
             pq = builder.build();
-            pq.setBoost(q.getBoost());
+            //make sure that the boost hasn't been set beforehand, otherwise we'd lose it
+            assert q.getBoost() == 1f;
+            assert q instanceof BoostQuery == false;
             return pq;
         } else if (q instanceof MultiPhraseQuery) {
             ((MultiPhraseQuery) q).setSlop(slop);

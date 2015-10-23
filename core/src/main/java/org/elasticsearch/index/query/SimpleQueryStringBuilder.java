@@ -300,11 +300,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     }
 
     @Override
-    protected void setFinalBoost(Query query) {
-        query.setBoost(boost * query.getBoost());
-    }
-
-    @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
 

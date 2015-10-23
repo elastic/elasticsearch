@@ -301,8 +301,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     /**
-     * Get the setting for handling zero terms queries.
-     * @see #zeroTermsQuery(ZeroTermsQuery)
+     * Returns the setting for handling zero terms queries.
      */
     public MatchQuery.ZeroTermsQuery zeroTermsQuery() {
         return this.zeroTermsQuery;

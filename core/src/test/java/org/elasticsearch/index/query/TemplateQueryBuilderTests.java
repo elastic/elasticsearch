@@ -68,11 +68,6 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         }
     }
 
-    @Override
-    protected void assertBoost(TemplateQueryBuilder queryBuilder, Query query) throws IOException {
-        //no-op boost is checked already above as part of doAssertLuceneQuery as we rely on lucene equals impl
-    }
-
     /**
      * Override superclass test since template query doesn't support boost and queryName, so
      * we need to mutate other existing field in the test query.

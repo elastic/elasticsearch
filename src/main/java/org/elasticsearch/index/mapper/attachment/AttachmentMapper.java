@@ -496,10 +496,6 @@ public class AttachmentMapper extends FieldMapper {
             // Set the maximum length of strings returned by the parseToString method, -1 sets no limit
             parsedContent = tika.parseToString(StreamInput.wrap(content), metadata, indexedChars);
         } catch (Throwable e) {
-            // It could happen that Tika adds a System property `sun.font.fontmanager` which should not happen
-            // TODO Remove when this will be fixed in Tika. See https://issues.apache.org/jira/browse/TIKA-1548
-            System.clearProperty("sun.font.fontmanager");
-
             // #18: we could ignore errors when Tika does not parse data
             if (!ignoreErrors) {
                 logger.trace("exception caught", e);

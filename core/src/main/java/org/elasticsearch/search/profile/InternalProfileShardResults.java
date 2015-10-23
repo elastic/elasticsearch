@@ -68,6 +68,11 @@ public class InternalProfileShardResults implements ProfileResults, Streamable, 
      *
      * This should be called after all shard results are added via addShardResult
      */
+    // nocommit: not sure we should support adding up times across shards: this adds
+    // some complexity by forcing our classes to be mutable, and the global time is
+    // only available once everything is done. Instead we should focus on returning
+    // per-shard profiles and letting tools sum up profile times on top and compute
+    // relative times if it makes sense to them?
     public void finalizeTimings() {
         long totalTime = 0;
         long totalCollectorTime = 0;

@@ -24,7 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * A record of timings for ithe various operations that may happen during query execution.
+ * A record of timings for the various operations that may happen during query execution.
  * A node's time may be composed of several internal attributes (rewriting, weighting,
  * scoring, etc).
  */
@@ -108,6 +108,10 @@ public final class ProfileBreakdown {
     /**
      * @return True if this Breakdown needs to have its timings reconciled
      */
+    // nocommit: I'm concerned the reconciling logic is too complex and fragile.
+    // If we can't manage to simplify it, I'd be in favor of just having a global
+    // counter for the whole search request of how much time was spent in rewriting
+    // and then only track the rewritten query
     public boolean needsReconciling() {
         return needsReconciling;
     }

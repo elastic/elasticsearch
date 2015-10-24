@@ -20,18 +20,13 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
-
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
@@ -41,15 +36,13 @@ import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -58,24 +51,13 @@ import org.elasticsearch.script.ScriptService;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.emptyMap;
-import static java.util.Collections.emptySet;
-import static java.util.Collections.unmodifiableMap;
-import static java.util.Collections.unmodifiableSet;
+import static java.util.Collections.*;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 
 /**
@@ -124,18 +106,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile Set<String> parentTypes = emptySet();
 
     @Inject
-    public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
+    public MapperService(IndexSettings indexSettings, AnalysisService analysisService,
                          SimilarityService similarityService,
                          ScriptService scriptService) {
-        super(index, indexSettings);
+        super(indexSettings);
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, scriptService);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
-
-        this.dynamic = indexSettings.getAsBoolean("index.mapper.dynamic", true);
+    
+        this.dynamic = this.indexSettings.getSettings().getAsBoolean("index.mapper.dynamic", true);
         defaultPercolatorMappingSource = "{\n" +
             "\"_default_\":{\n" +
                 "\"properties\" : {\n" +
@@ -146,7 +128,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 "}\n" +
             "}\n" +
         "}";
-        if (index.getName().equals(ScriptService.SCRIPT_INDEX)){
+        if (index().getName().equals(ScriptService.SCRIPT_INDEX)){
             defaultMappingSource =  "{" +
                 "\"_default_\": {" +
                     "\"properties\": {" +
@@ -238,7 +220,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             if (mapper.type().length() == 0) {
                 throw new InvalidTypeNameException("mapping type name is empty");
             }
-            if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
                 throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
             }
             if (mapper.type().charAt(0) == '_') {
@@ -254,7 +236,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
             }
             if (typeNameStartsWithIllegalDot(mapper)) {
-                if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1)) {
+                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                     throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
                 } else {
                     logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
@@ -378,7 +360,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             return new DocumentMapperForType(mapper, null);
         }
         if (!dynamic) {
-            throw new TypeMissingException(index, type, "trying to auto create mapping, but dynamic mapping is disabled");
+            throw new TypeMissingException(index(), type, "trying to auto create mapping, but dynamic mapping is disabled");
         }
         mapper = parse(type, null, true);
         return new DocumentMapperForType(mapper, mapper.mapping());
@@ -547,7 +529,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 throw new IllegalArgumentException("No mapper found for type [" + type + "]");
             }
             final Mapper.Builder<?, ?> builder = typeParser.parse("__anonymous_" + type, emptyMap(), parserContext);
-            final BuilderContext builderContext = new BuilderContext(indexSettings, new ContentPath(1));
+            final BuilderContext builderContext = new BuilderContext(indexSettings.getSettings(), new ContentPath(1));
             fieldType = ((FieldMapper)builder.build(builderContext)).fieldType();
 
             // There is no need to synchronize writes here. In the case of concurrent access, we could just

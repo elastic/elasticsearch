@@ -16,31 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.test;
 
-package org.elasticsearch.index.settings;
-
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 
-/**
- *
- */
+import java.util.Collection;
+import java.util.Collections;
+import java.util.function.Consumer;
+
 public class IndexSettingsModule extends AbstractModule {
 
     private final Index index;
-
     private final Settings settings;
 
     public IndexSettingsModule(Index index, Settings settings) {
-        this.index = index;
         this.settings = settings;
-    }
+        this.index = index;
 
+    }
     @Override
     protected void configure() {
-        IndexSettingsService indexSettingsService = new IndexSettingsService(index, settings);
-        bind(IndexSettingsService.class).toInstance(indexSettingsService);
-        bind(Settings.class).annotatedWith(IndexSettings.class).toProvider(new IndexSettingsProvider(indexSettingsService));
+        bind(IndexSettings.class).toInstance(newIndexSettings(index, settings, Collections.EMPTY_LIST));
+    }
+
+    public static IndexSettings newIndexSettings(Index index, Settings settings, Collection<Consumer<Settings>> updateListeners) {
+        Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                .put(settings)
+                .build();
+        IndexMetaData metaData = IndexMetaData.builder(index.getName()).settings(build).build();
+        return new IndexSettings(metaData, Settings.EMPTY, Collections.EMPTY_LIST);
     }
 }

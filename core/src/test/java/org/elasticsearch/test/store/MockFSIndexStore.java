@@ -25,10 +25,8 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
@@ -37,7 +35,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.EnumSet;
+import java.util.*;
 
 public class MockFSIndexStore extends IndexStore {
 
@@ -62,7 +60,7 @@ public class MockFSIndexStore extends IndexStore {
         }
 
         public void onModule(IndexModule module) {
-            Settings indexSettings = module.getIndexSettings();
+            Settings indexSettings = module.getSettings();
             if ("mock".equals(indexSettings.get(IndexStoreModule.STORE_TYPE))) {
                 if (indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true)) {
                     module.addIndexEventListener(new Listener());
@@ -72,9 +70,9 @@ public class MockFSIndexStore extends IndexStore {
     }
 
     @Inject
-    public MockFSIndexStore(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+    public MockFSIndexStore(IndexSettings indexSettings,
                             IndicesStore indicesStore, IndicesService indicesService) {
-        super(index, indexSettings, indexSettingsService, indicesStore);
+        super(indexSettings, indicesStore);
         this.indicesService = indicesService;
     }
 
@@ -86,11 +84,23 @@ public class MockFSIndexStore extends IndexStore {
             IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY
     );
     private static final class Listener implements IndexEventListener {
+
+        private final Map<IndexShard, Boolean> shardSet = Collections.synchronizedMap(new IdentityHashMap<>());
+        @Override
+        public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+            if (indexShard != null) {
+                Boolean remove = shardSet.remove(indexShard);
+                if (remove == Boolean.TRUE) {
+                    ESLogger logger = Loggers.getLogger(getClass(), indexShard.indexSettings(), indexShard.shardId());
+                    MockFSDirectoryService.checkIndex(logger, indexShard.store(), indexShard.shardId());
+                }
+            }
+        }
+
         @Override
         public void indexShardStateChanged(IndexShard indexShard, @Nullable IndexShardState previousState, IndexShardState currentState, @Nullable String reason) {
             if (currentState == IndexShardState.CLOSED && validCheckIndexStates.contains(previousState) && IndexMetaData.isOnSharedFilesystem(indexShard.indexSettings()) == false) {
-                ESLogger logger = Loggers.getLogger(getClass(), indexShard.indexSettings(), indexShard.shardId());
-                MockFSDirectoryService.checkIndex(logger, indexShard.store(), indexShard.shardId());
+               shardSet.put(indexShard, Boolean.TRUE);
             }
 
         }

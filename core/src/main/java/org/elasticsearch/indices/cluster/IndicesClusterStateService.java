@@ -47,7 +47,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.indices.IndicesService;
@@ -172,7 +171,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             applyDeletedIndices(event);
             applyNewIndices(event);
             applyMappings(event);
-            applyAliases(event);
             applyNewOrUpdatedShards(event);
             applyDeletedShards(event);
             applyCleanedIndices(event);
@@ -231,7 +229,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             final Settings indexSettings;
             final IndexService idxService = indicesService.indexService(index);
             if (idxService != null) {
-                indexSettings = idxService.getIndexSettings();
+                indexSettings = idxService.getIndexSettings().getSettings();
                 deleteIndex(index, "index no longer part of the metadata");
             } else {
                 final IndexMetaData metaData = previousState.metaData().index(index);
@@ -328,8 +326,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 // already deleted on us, ignore it
                 continue;
             }
-            IndexSettingsService indexSettingsService = indexService.settingsService();
-            indexSettingsService.refreshSettings(indexMetaData.getSettings());
+            indexService.updateMetaData(indexMetaData);
         }
     }
 
@@ -443,26 +440,6 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
         return requiresRefresh;
     }
 
-    private boolean aliasesChanged(ClusterChangedEvent event) {
-        return !event.state().metaData().equalsAliases(event.previousState().metaData()) ||
-                !event.state().routingTable().equals(event.previousState().routingTable());
-    }
-
-    private void applyAliases(ClusterChangedEvent event) {
-        // check if aliases changed
-        if (aliasesChanged(event)) {
-            // go over and update aliases
-            for (IndexMetaData indexMetaData : event.state().metaData()) {
-                String index = indexMetaData.getIndex();
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService == null) {
-                    // we only create / update here
-                    continue;
-                }
-                indexService.updateMetaData(indexMetaData);
-            }
-        }
-    }
 
     private void applyNewOrUpdatedShards(final ClusterChangedEvent event) {
         if (!indicesService.changesAllowed()) {

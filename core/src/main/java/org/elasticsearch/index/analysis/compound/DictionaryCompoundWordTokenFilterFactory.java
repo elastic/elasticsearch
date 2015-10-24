@@ -23,14 +23,12 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.compound.DictionaryCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.Lucene43DictionaryCompoundWordTokenFilter;
 import org.apache.lucene.util.Version;
-
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisSettingsRequired;
-import org.elasticsearch.index.settings.IndexSettings;
 
 
 /**
@@ -42,8 +40,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class DictionaryCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
     @Inject
-    public DictionaryCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, env, name, settings);
+    public DictionaryCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, env, name, settings);
     }
 
     @Override

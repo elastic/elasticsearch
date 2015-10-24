@@ -23,9 +23,7 @@ import org.apache.lucene.analysis.cn.smart.SmartChineseAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  */
@@ -34,8 +32,8 @@ public class SmartChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<
     private final SmartChineseAnalyzer analyzer;
 
     @Inject
-    public SmartChineseAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public SmartChineseAnalyzerProvider(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
 
         analyzer = new SmartChineseAnalyzer(SmartChineseAnalyzer.getDefaultStopSet());
     }

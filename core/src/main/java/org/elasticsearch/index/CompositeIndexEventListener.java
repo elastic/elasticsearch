@@ -24,7 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -43,14 +42,14 @@ final class CompositeIndexEventListener implements IndexEventListener {
     private final List<IndexEventListener> listeners;
     private final ESLogger logger;
 
-    CompositeIndexEventListener(String index, Settings indexSettings, Collection<IndexEventListener> listeners) {
+    CompositeIndexEventListener(IndexSettings indexSettings, Collection<IndexEventListener> listeners) {
         for (IndexEventListener listener : listeners) {
             if (listener == null) {
                 throw new IllegalArgumentException("listeners must be non-null");
             }
         }
         this.listeners = Collections.unmodifiableList(new ArrayList<>(listeners));
-        this.logger = Loggers.getLogger(getClass(), indexSettings, index);
+        this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings(), indexSettings.getIndex());
     }
 
     @Override
@@ -139,7 +138,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+    public void beforeIndexCreated(Index index, Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
                 listener.beforeIndexCreated(index, indexSettings);
@@ -199,7 +198,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+    public void afterIndexDeleted(Index index, Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
                 listener.afterIndexDeleted(index, indexSettings);
@@ -211,7 +210,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+    public void afterIndexClosed(Index index, Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
                 listener.afterIndexClosed(index, indexSettings);
@@ -224,7 +223,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
 
     @Override
     public void beforeIndexShardDeleted(ShardId shardId,
-                                        @IndexSettings Settings indexSettings) {
+                                        Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
                 listener.beforeIndexShardDeleted(shardId, indexSettings);
@@ -237,7 +236,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
 
     @Override
     public void afterIndexShardDeleted(ShardId shardId,
-                                       @IndexSettings Settings indexSettings) {
+                                       Settings indexSettings) {
         for (IndexEventListener listener : listeners) {
             try {
                 listener.afterIndexShardDeleted(shardId, indexSettings);
@@ -249,7 +248,7 @@ final class CompositeIndexEventListener implements IndexEventListener {
     }
 
     @Override
-    public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+    public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
         for (IndexEventListener listener  : listeners) {
             try {
                 listener.beforeIndexAddedToCluster(index, indexSettings);

@@ -24,8 +24,7 @@ import org.apache.lucene.analysis.miscellaneous.ASCIIFoldingFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * Factory for ASCIIFoldingFilter.
@@ -34,8 +33,8 @@ public class ASCIIFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean preserveOriginal;
 
     @Inject
-    public ASCIIFoldingTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public ASCIIFoldingTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         preserveOriginal = settings.getAsBoolean("preserve_original", false);
     }
 

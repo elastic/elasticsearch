@@ -26,8 +26,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
@@ -90,12 +89,12 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Inject
-    public NGramTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public NGramTokenizerFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);
         this.matcher = parseTokenChars(settings.getAsArray("token_chars"));
-        this.esVersion = org.elasticsearch.Version.indexCreated(indexSettings);
+        this.esVersion = indexSettings.getIndexVersionCreated();
     }
 
     @SuppressWarnings("deprecation")

@@ -27,12 +27,14 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.script.ScriptService;
 
+import java.util.Collections;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
@@ -213,14 +215,15 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
      * Checks the mappings for compatibility with the current version
      */
     private void checkMappingsCompatibility(IndexMetaData indexMetaData) {
-        Index index = new Index(indexMetaData.getIndex());
-        Settings settings = indexMetaData.getSettings();
         try {
-            SimilarityService similarityService = new SimilarityService(index, settings);
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
-            try (AnalysisService analysisService = new FakeAnalysisService(index, settings)) {
-                try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityService, scriptService)) {
+            IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
+            SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
+
+
+            try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
+                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, scriptService)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
                         mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
@@ -253,8 +256,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             }
         };
 
-        public FakeAnalysisService(Index index, Settings indexSettings) {
-            super(index, indexSettings);
+        public FakeAnalysisService(IndexSettings indexSettings) {
+            super(indexSettings);
         }
 
         @Override

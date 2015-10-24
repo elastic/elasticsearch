@@ -27,10 +27,9 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
@@ -50,7 +49,6 @@ public class CharFilterTests extends ESTokenStreamTestCase {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
                 new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
                 .createChildInjector(parentInjector);
 
@@ -75,7 +73,6 @@ public class CharFilterTests extends ESTokenStreamTestCase {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
                 new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
                 .createChildInjector(parentInjector);
 

@@ -31,32 +31,66 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 
 import java.util.HashSet;
-import java.util.List;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  *
  */
 public class IndexModule extends AbstractModule {
 
-    private final IndexMetaData indexMetaData;
-    private final Settings settings;
+    private final IndexSettings indexSettings;
     // pkg private so tests can mock
     Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
     Class<? extends IndexSearcherWrapper> indexSearcherWrapper = null;
+    private final Set<Consumer<Settings>> settingsConsumers = new HashSet<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private IndexEventListener listener;
 
 
-    public IndexModule(Settings settings, IndexMetaData indexMetaData) {
-        this.indexMetaData = indexMetaData;
-        this.settings = settings;
+    public IndexModule(IndexSettings indexSettings) {
+        this.indexSettings = indexSettings;
     }
 
-    public Settings getIndexSettings() {
-        return settings;
+    /**
+     * Adds a settings consumer for this index
+     */
+    public void addIndexSettingsListener(Consumer<Settings> listener) {
+        if (listener == null) {
+            throw new IllegalArgumentException("listener must not be null");
+        }
+
+        if (settingsConsumers.contains(listener)) {
+            throw new IllegalStateException("listener already registered");
+        }
+        settingsConsumers.add(listener);
     }
 
+    /**
+     * Returns the index {@link Settings} for this index
+     */
+    public Settings getSettings() {
+        return indexSettings.getSettings();
+    }
+
+    /**
+     * Returns the index this module is associated with
+     */
+    public Index getIndex() {
+        return indexSettings.getIndex();
+    }
+
+    /**
+     * Adds an {@link IndexEventListener} for this index. All listeners added here
+     * are maintained for the entire index lifecycle on this node. Once an index is closed or deleted these
+     * listeners go out of scope.
+     * <p>
+     * Note: an index might be created on a node multiple times. For instance if the last shard from an index is
+     * relocated to another node the internal representation will be destroyed which includes the registered listeners.
+     * Once the node holds at least one shard of an index all modules are reloaded and listeners are registered again.
+     * Listeners can't be unregistered they will stay alive for the entire time the index is allocated on a node.
+     * </p>
+     */
     public void addIndexEventListener(IndexEventListener listener) {
         if (this.listener != null) {
             throw new IllegalStateException("can't add listener after listeners are frozen");
@@ -74,7 +108,7 @@ public class IndexModule extends AbstractModule {
     public IndexEventListener freeze() {
         // TODO somehow we need to make this pkg private...
         if (listener == null) {
-            listener = new CompositeIndexEventListener(indexMetaData.getIndex(), settings, indexEventListeners);
+            listener = new CompositeIndexEventListener(indexSettings, indexEventListeners);
         }
         return listener;
     }
@@ -88,10 +122,11 @@ public class IndexModule extends AbstractModule {
             bind(IndexSearcherWrapper.class).to(indexSearcherWrapper).asEagerSingleton();
         }
         bind(IndexEventListener.class).toInstance(freeze());
-        bind(IndexMetaData.class).toInstance(indexMetaData);
         bind(IndexService.class).asEagerSingleton();
         bind(IndexServicesProvider.class).asEagerSingleton();
         bind(MapperService.class).asEagerSingleton();
         bind(IndexFieldDataService.class).asEagerSingleton();
+        bind(IndexSettings.class).toInstance(new IndexSettings(indexSettings.getIndexMetaData(), indexSettings.getNodeSettings(), settingsConsumers));
     }
+
 }

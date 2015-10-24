@@ -55,6 +55,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexServicesProvider;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
@@ -80,8 +81,6 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.store.Store.MetadataSnapshot;
@@ -119,7 +118,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 
-public class IndexShard extends AbstractIndexShardComponent implements IndexSettingsService.Listener {
+public class IndexShard extends AbstractIndexShardComponent {
 
     private final ThreadPool threadPool;
     private final MapperService mapperService;
@@ -197,7 +196,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     private final IndexingMemoryController indexingMemoryController;
 
     @Inject
-    public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) {
+    public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) {
         super(shardId, indexSettings);
         this.codecService = provider.getCodecService();
         this.warmer = provider.getWarmer();
@@ -207,14 +206,14 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.engineFactory = provider.getFactory();
         this.store = store;
         this.indexEventListener = provider.getIndexEventListener();
-        this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
+        this.mergeSchedulerConfig = new MergeSchedulerConfig(this.indexSettings);
         this.threadPool = provider.getThreadPool();
         this.mapperService = provider.getMapperService();
         this.indexCache = provider.getIndexCache();
         this.indexingService = new ShardIndexingService(shardId, indexSettings);
-        this.getService = new ShardGetService(this, mapperService);
+        this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.termVectorsService =  provider.getTermVectorsService();
-        this.searchService = new ShardSearchStats(indexSettings);
+        this.searchService = new ShardSearchStats(this.indexSettings);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesQueryCache =  provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
@@ -222,29 +221,29 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.indexFieldDataService =  provider.getIndexFieldDataService();
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
-        this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
-        this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
+        this.refreshInterval = this.indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
+        this.flushOnClose = this.indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
         this.path = path;
-        this.mergePolicyConfig = new MergePolicyConfig(logger, indexSettings);
+        this.mergePolicyConfig = new MergePolicyConfig(logger, this.indexSettings);
         /* create engine config */
 
         logger.debug("state: [CREATED]");
 
-        this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, indexSettings, Translog.Durabilty.REQUEST),
+        this.checkIndexOnStartup = this.indexSettings.get("index.shard.check_on_startup", "false");
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, this.indexSettings, Translog.Durabilty.REQUEST),
                 provider.getBigArrays(), threadPool);
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
-        if (indexSettings.getAsBoolean(IndexCacheModule.QUERY_CACHE_EVERYTHING, false)) {
+        if (this.indexSettings.getAsBoolean(IndexCacheModule.QUERY_CACHE_EVERYTHING, false)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
-        this.flushThresholdOperations = indexSettings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, indexSettings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
-        this.flushThresholdSize = indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
-        this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
+        this.flushThresholdOperations = this.indexSettings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, this.indexSettings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
+        this.flushThresholdSize = this.indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
+        this.disableFlush = this.indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
         this.indexingMemoryController = provider.getIndexingMemoryController();
 
@@ -1005,7 +1004,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             long iwBytesUsed = engine.indexWriterRAMBytesUsed();
 
             String message = LoggerMessageFormat.format("updating index_buffer_size from [{}] to [{}]; IndexWriter now using [{}] bytes",
-                                                        preValue, shardIndexingBufferSize, iwBytesUsed);
+                    preValue, shardIndexingBufferSize, iwBytesUsed);
 
             if (iwBytesUsed > shardIndexingBufferSize.bytes()) {
                 // our allowed buffer was changed to less than we are currently using; we ask IW to refresh
@@ -1102,7 +1101,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         return false;
     }
 
-    @Override
     public void onRefreshSettings(Settings settings) {
         boolean change = false;
         synchronized (mutex) {

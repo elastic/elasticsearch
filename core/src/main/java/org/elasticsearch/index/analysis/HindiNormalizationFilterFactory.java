@@ -23,8 +23,7 @@ import org.apache.lucene.analysis.hi.HindiNormalizationFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * Factory for {@link HindiNormalizationFilter}
@@ -32,8 +31,8 @@ import org.elasticsearch.index.settings.IndexSettings;
 public class HindiNormalizationFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject
-    public HindiNormalizationFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public HindiNormalizationFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
     }
 
     @Override

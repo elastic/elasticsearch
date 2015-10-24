@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -56,18 +55,17 @@ public class MergePolicySettingsTests extends ESTestCase {
 
     public void testUpdateSettings() throws IOException {
         {
-            IndexSettingsService service = new IndexSettingsService(new Index("test"), EMPTY_SETTINGS);
             MergePolicyConfig mp = new MergePolicyConfig(logger, EMPTY_SETTINGS);
-            assertThat(((TieredMergePolicy) mp.getMergePolicy()).getNoCFSRatio(), equalTo(0.1));
+            assertThat((mp.getMergePolicy()).getNoCFSRatio(), equalTo(0.1));
 
             mp.onRefreshSettings(build(1.0));
-            assertThat(((TieredMergePolicy) mp.getMergePolicy()).getNoCFSRatio(), equalTo(1.0));
+            assertThat((mp.getMergePolicy()).getNoCFSRatio(), equalTo(1.0));
 
             mp.onRefreshSettings(build(0.1));
-            assertThat(((TieredMergePolicy) mp.getMergePolicy()).getNoCFSRatio(), equalTo(0.1));
+            assertThat((mp.getMergePolicy()).getNoCFSRatio(), equalTo(0.1));
 
             mp.onRefreshSettings(build(0.0));
-            assertThat(((TieredMergePolicy) mp.getMergePolicy()).getNoCFSRatio(), equalTo(0.0));
+            assertThat((mp.getMergePolicy()).getNoCFSRatio(), equalTo(0.0));
         }
 
 

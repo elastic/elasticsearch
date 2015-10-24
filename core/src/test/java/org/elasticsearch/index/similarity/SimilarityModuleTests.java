@@ -24,20 +24,26 @@ import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.TermStatistics;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
+import java.util.Collections;
 
 public class SimilarityModuleTests extends ModuleTestCase {
 
     public void testAddSimilarity() {
         Settings indexSettings = Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put("index.similarity.my_similarity.key", "there is a key")
                 .build();
-        SimilarityModule module = new SimilarityModule(new Index("foo"), indexSettings);
+        SimilarityModule module = new SimilarityModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
         module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
             @Override
             public String name() {
@@ -64,8 +70,9 @@ public class SimilarityModuleTests extends ModuleTestCase {
     public void testSetupUnknownSimilarity() {
         Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.type", "test_similarity")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        SimilarityModule module = new SimilarityModule(new Index("foo"), indexSettings);
+        SimilarityModule module = new SimilarityModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
         try {
             assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
         } catch (IllegalArgumentException ex) {
@@ -77,8 +84,9 @@ public class SimilarityModuleTests extends ModuleTestCase {
     public void testSetupWithoutType() {
         Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.foo", "bar")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        SimilarityModule module = new SimilarityModule(new Index("foo"), indexSettings);
+        SimilarityModule module = new SimilarityModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST));
         try {
             assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
         } catch (IllegalArgumentException ex) {

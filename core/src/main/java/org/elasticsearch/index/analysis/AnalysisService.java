@@ -188,7 +188,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         if (indicesAnalysisService != null) {
             for (Map.Entry<String, PreBuiltAnalyzerProviderFactory> entry : indicesAnalysisService.analyzerProviderFactories().entrySet()) {
                 String name = entry.getKey();
-                Version indexVersion = Version.indexCreated(this.indexSettings.getSettings());
+                Version indexVersion = indexSettings.getIndexVersionCreated();
                 if (!analyzerProviders.containsKey(name)) {
                     analyzerProviders.put(name, entry.getValue().create(name, Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
                 }
@@ -220,7 +220,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
              * and 100 afterwards so we override the positionIncrementGap if it
              * doesn't match here.
              */
-            int overridePositionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(Version.indexCreated(this.indexSettings.getSettings()));
+            int overridePositionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(indexSettings.getIndexVersionCreated());
             if (analyzerFactory instanceof CustomAnalyzerProvider) {
                 ((CustomAnalyzerProvider) analyzerFactory).build(this);
                 /*

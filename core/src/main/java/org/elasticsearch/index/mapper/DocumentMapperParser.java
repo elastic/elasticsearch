@@ -118,7 +118,7 @@ public class DocumentMapperParser {
         rootTypeParsers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
         this.rootTypeParsers = unmodifiableMap(rootTypeParsers);
         additionalRootMappers = Collections.emptySortedMap();
-        indexVersionCreated = Version.indexCreated(this.indexSettings);
+        indexVersionCreated = indexSettings.getIndexVersionCreated();
     }
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {

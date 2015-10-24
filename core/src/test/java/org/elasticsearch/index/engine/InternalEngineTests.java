@@ -28,16 +28,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.LogByteSizeMergePolicy;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TieredMergePolicy;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.TermQuery;
@@ -791,6 +782,43 @@ public class InternalEngineTests extends ESTestCase {
                     Engine.SyncedFlushResult.SUCCESS);
             assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
             assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+        }
+    }
+
+    public void testRenewSyncFlush() throws IOException {
+        try (Store store = createStore();
+             InternalEngine engine = new InternalEngine(config(defaultSettings, store, createTempDir(), new MergeSchedulerConfig(defaultSettings),
+                     new LogDocMergePolicy()), false)) {
+            final String syncId = randomUnicodeOfCodepointLengthBetween(10, 20);
+            ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            engine.index(new Engine.Index(newUid("1"), doc));
+            engine.flush();
+            engine.index(new Engine.Index(newUid("2"), doc));
+            engine.flush();
+            engine.index(new Engine.Index(newUid("3"), doc));
+            Engine.CommitId commitID = engine.flush();
+            assertEquals("should succeed to flush commit with right id and no pending doc", engine.syncFlush(syncId, commitID),
+                    Engine.SyncedFlushResult.SUCCESS);
+            assertEquals(3, engine.segments(false).size());
+            engine.engineConfig.setFlushWhenLastMergeFinished(randomBoolean());
+            engine.forceMerge(false, 1, false, false, false);
+            if (engine.engineConfig.isFlushWhenLastMergeFinished() == false) {
+                engine.refresh("make all segments visible");
+                assertEquals(4, engine.segments(false).size());
+                assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+                assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+                assertTrue(engine.tryRenewSyncCommit());
+            }
+            engine.refresh("let old segments go");
+            assertEquals(1, engine.segments(false).size());
+            assertEquals(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+            assertEquals(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID), syncId);
+
+            engine.index(new Engine.Index(newUid("4"), doc));
+            assertFalse(engine.tryRenewSyncCommit());
+            engine.flush();
+            assertNull(store.readLastCommittedSegmentsInfo().getUserData().get(Engine.SYNC_COMMIT_ID));
+            assertNull(engine.getLastCommittedSegmentInfos().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
     }
 

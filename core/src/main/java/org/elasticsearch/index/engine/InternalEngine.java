@@ -569,6 +569,24 @@ public class InternalEngine extends Engine {
         }
     }
 
+    final boolean tryRenewSyncCommit() {
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
+            if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+                logger.trace("start renewing sync commit [{}]", syncId);
+                commitIndexWriter(indexWriter, translog, syncId);
+                logger.debug("successfully sync committed. sync id [{}].", syncId);
+                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                return true;
+            }
+            return false;
+        } catch (IOException ex) {
+            maybeFailEngine("renew sync commit", ex);
+            throw new EngineException(shardId, "failed to renew sync commit", ex);
+        }
+    }
+
     @Override
     public CommitId flush() throws EngineException {
         return flush(false, false);
@@ -1053,6 +1071,21 @@ public class InternalEngine extends Engine {
                     logger.info("stop throttling indexing: numMergesInFlight={}, maxNumMerges={}", numMergesInFlight, maxNumMerges);
                     indexingService.throttlingDeactivated();
                     deactivateThrottling();
+                }
+            }
+            if (engineConfig.isFlushWhenLastMergeFinished() && indexWriter.hasPendingMerges() == false) {
+                // if we have no pending merges and we are supposed to flush once merges have finished
+                // we try to renew a sync commit which is the case when we are having a big merge after we
+                // are inactive. If that didn't work we go and do a real flush which is ok since it only doesn't work
+                // if we either have records in the translog or if we don't have a sync ID at all...
+                try {
+                    if (tryRenewSyncCommit() == false) {
+                        flush();
+                    }
+                } catch (EngineClosedException | EngineException ex) {
+                    if (isClosed.get() == false) {
+                        logger.warn("failed to flush after merge has finished");
+                    }
                 }
             }
         }

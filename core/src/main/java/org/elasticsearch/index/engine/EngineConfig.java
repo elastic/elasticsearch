@@ -57,6 +57,7 @@ public final class EngineConfig {
     private volatile boolean compoundOnFlush = true;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
+    private volatile boolean flushWhenLastMergeFinished = false;
     private final String codecName;
     private final ThreadPool threadPool;
     private final ShardIndexingService indexingService;
@@ -398,5 +399,19 @@ public final class EngineConfig {
      */
     public boolean isCreate() {
         return create;
+    }
+
+    /**
+     * Returns <code>true</code> iff then engine should be flushed once the last merged finished.
+     */
+    public boolean isFlushWhenLastMergeFinished() {
+        return flushWhenLastMergeFinished;
+    }
+
+    /**
+     * Set to <code>true</code> iff then engine should be flushed once the last merged finished.
+     */
+    public void setFlushWhenLastMergeFinished(boolean flushWhenLastMergeFinished) {
+        this.flushWhenLastMergeFinished = flushWhenLastMergeFinished;
     }
 }

@@ -912,6 +912,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     private void markLastWrite(Engine.Operation op) {
         lastWriteNS = op.startTime();
         if (active.getAndSet(true) == false) {
+            engineConfig.setFlushWhenLastMergeFinished(false);
             // We are currently inactive, but a new write operation just showed up, so we now notify IMC
             // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
             // be low, and it's rare this happens.
@@ -1032,6 +1033,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     public boolean checkIdle(long inactiveTimeNS) {
         if (System.nanoTime() - lastWriteNS >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
+            engineConfig.setFlushWhenLastMergeFinished(true);
             if (wasActive) {
                 updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
                 logger.debug("shard is now inactive");

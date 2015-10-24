@@ -562,6 +562,9 @@ public abstract class Engine implements Closeable {
 
 
     public interface EventListener {
+        /**
+         * Called when a fatal exception occurred
+         */
         default void onFailedEngine(String reason, @Nullable Throwable t) {}
     }
 

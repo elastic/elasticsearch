@@ -12,12 +12,12 @@ import org.apache.lucene.util.*;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -26,7 +26,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -61,9 +60,9 @@ public final class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
     private final ESLogger logger;
 
     @Inject
-    public ShieldIndexSearcherWrapper(@IndexSettings Settings indexSettings, IndexQueryParserService parserService,
+    public ShieldIndexSearcherWrapper(IndexSettings indexSettings, IndexQueryParserService parserService,
                                       MapperService mapperService, BitsetFilterCache bitsetFilterCache, ShieldLicenseState shieldLicenseState) {
-        this.logger = Loggers.getLogger(getClass(), indexSettings);
+        this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
         this.mapperService = mapperService;
         this.parserService = parserService;
         this.bitsetFilterCache = bitsetFilterCache;

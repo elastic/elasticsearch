@@ -22,6 +22,7 @@ package org.elasticsearch.action.admin.indices.segments;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Segment;
+import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Before;
@@ -36,7 +37,7 @@ public class IndicesSegmentsRequestTests extends ESSingleNodeTestCase {
     public void setupIndex() {
         Settings settings = Settings.builder()
             // don't allow any merges so that the num docs is the expected segments
-            .put("index.merge.policy.segments_per_tier", 1000000f)
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
             .build();
         createIndex("test", settings);
 

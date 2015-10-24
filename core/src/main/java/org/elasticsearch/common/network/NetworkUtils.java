@@ -27,12 +27,10 @@ import java.net.Inet6Address;
 import java.net.InetAddress;
 import java.net.NetworkInterface;
 import java.net.SocketException;
-import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashSet;
 import java.util.List;
 
 /**
@@ -109,7 +107,8 @@ public abstract class NetworkUtils {
      * @deprecated remove this when multihoming is really correct
      */
     @Deprecated
-    static void sortAddresses(List<InetAddress> list) {
+    // only public because of silly multicast
+    public static void sortAddresses(List<InetAddress> list) {
         Collections.sort(list, new Comparator<InetAddress>() {
             @Override
             public int compare(InetAddress left, InetAddress right) {
@@ -150,34 +149,79 @@ public abstract class NetworkUtils {
         return Constants.WINDOWS ? false : true;
     }
     
-    /** Returns addresses for all loopback interfaces that are up. */
+    /** Returns all interface-local scope (loopback) addresses for interfaces that are up. */
     static InetAddress[] getLoopbackAddresses() throws SocketException {
         List<InetAddress> list = new ArrayList<>();
         for (NetworkInterface intf : getInterfaces()) {
-            if (intf.isLoopback() && intf.isUp()) {
-                list.addAll(Collections.list(intf.getInetAddresses()));
+            if (intf.isUp()) {
+                // NOTE: some operating systems (e.g. BSD stack) assign a link local address to the loopback interface
+                // while technically not a loopback address, some of these treat them as one (e.g. OS X "localhost") so we must too,
+                // otherwise things just won't work out of box. So we include all addresses from loopback interfaces.
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    if (intf.isLoopback() || address.isLoopbackAddress()) {
+                        list.add(address);
+                    }
+                }
             }
         }
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("No up-and-running loopback interfaces found, got " + getInterfaces());
+            throw new IllegalArgumentException("No up-and-running loopback addresses found, got " + getInterfaces());
         }
-        sortAddresses(list);
         return list.toArray(new InetAddress[list.size()]);
     }
     
-    /** Returns addresses for the first non-loopback interface that is up. */
-    static InetAddress[] getFirstNonLoopbackAddresses() throws SocketException {
+    /** Returns all site-local scope (private) addresses for interfaces that are up. */
+    static InetAddress[] getSiteLocalAddresses() throws SocketException {
         List<InetAddress> list = new ArrayList<>();
         for (NetworkInterface intf : getInterfaces()) {
-            if (intf.isLoopback() == false && intf.isUp()) {
-                list.addAll(Collections.list(intf.getInetAddresses()));
-                break;
+            if (intf.isUp()) {
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    if (address.isSiteLocalAddress()) {
+                        list.add(address);
+                    }
+                }
             }
         }
         if (list.isEmpty()) {
-            throw new IllegalArgumentException("No up-and-running non-loopback interfaces found, got " + getInterfaces());
+            throw new IllegalArgumentException("No up-and-running site-local (private) addresses found, got " + getInterfaces());
         }
-        sortAddresses(list);
+        return list.toArray(new InetAddress[list.size()]);
+    }
+    
+    /** Returns all global scope addresses for interfaces that are up. */
+    static InetAddress[] getGlobalAddresses() throws SocketException {
+        List<InetAddress> list = new ArrayList<>();
+        for (NetworkInterface intf : getInterfaces()) {
+            if (intf.isUp()) {
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    if (address.isLoopbackAddress() == false && 
+                        address.isSiteLocalAddress() == false &&
+                        address.isLinkLocalAddress() == false) {
+                        list.add(address);
+                    }
+                }
+            }
+        }
+        if (list.isEmpty()) {
+            throw new IllegalArgumentException("No up-and-running global-scope (public) addresses found, got " + getInterfaces());
+        }
+        return list.toArray(new InetAddress[list.size()]);
+    }
+    
+    /** Returns all addresses (any scope) for interfaces that are up. 
+     *  This is only used to pick a publish address, when the user set network.host to a wildcard */
+    static InetAddress[] getAllAddresses() throws SocketException {
+        List<InetAddress> list = new ArrayList<>();
+        for (NetworkInterface intf : getInterfaces()) {
+            if (intf.isUp()) {
+                for (InetAddress address : Collections.list(intf.getInetAddresses())) {
+                    list.add(address);
+                }
+            }
+        }
+        if (list.isEmpty()) {
+            throw new IllegalArgumentException("No up-and-running addresses found, got " + getInterfaces());
+        }
         return list.toArray(new InetAddress[list.size()]);
     }
     
@@ -194,18 +238,7 @@ public abstract class NetworkUtils {
         if (list.isEmpty()) {
             throw new IllegalArgumentException("Interface '" + name + "' has no internet addresses");
         }
-        sortAddresses(list);
         return list.toArray(new InetAddress[list.size()]);
-    }
-    
-    /** Returns addresses for the given host, sorted by order of preference */
-    static InetAddress[] getAllByName(String host) throws UnknownHostException {
-        InetAddress addresses[] = InetAddress.getAllByName(host);
-        // deduplicate, in case of resolver misconfiguration
-        // stuff like https://bugzilla.redhat.com/show_bug.cgi?id=496300
-        List<InetAddress> unique = new ArrayList<>(new HashSet<>(Arrays.asList(addresses)));
-        sortAddresses(unique);
-        return unique.toArray(new InetAddress[unique.size()]);
     }
     
     /** Returns only the IPV4 addresses in {@code addresses} */

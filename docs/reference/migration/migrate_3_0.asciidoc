@@ -329,3 +329,9 @@ to index a document only if it doesn't already exist.
 Two cache concurrency level settings `indices.requests.cache.concurrency_level` and
 `indices.fielddata.cache.concurrency_level` because they no longer apply to the cache implementation used for the
 request cache and the field data cache.
+
+=== Remove bind option of `non_loopback`
+
+This setting would arbitrarily pick the first interface not marked as loopback. Instead, specify by address
+scope (e.g. `_local_,_site_` for all loopback and private network addresses) or by explicit interface names,
+hostnames, or addresses. 

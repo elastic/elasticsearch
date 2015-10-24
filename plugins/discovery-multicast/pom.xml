@@ -19,6 +19,7 @@
         <tests.jvms>1</tests.jvms>
         <tests.rest.suite>discovery_multicast</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+        <xlint.options>-Xlint:-deprecation</xlint.options>
     </properties>
 
     <build>

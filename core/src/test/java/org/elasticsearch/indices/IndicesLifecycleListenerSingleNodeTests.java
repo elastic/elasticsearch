@@ -31,7 +31,9 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -95,7 +97,9 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             ShardRoutingHelper.initialize(newRouting, nodeId);
             IndexShard shard = index.createShard(0, newRouting);
             shard.updateRoutingEntry(newRouting, true);
-            shard.recoverFromStore(newRouting, new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT));
+            final DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+            shard.markAsRecovering("store", new RecoveryState(shard.shardId(), newRouting.primary(), RecoveryState.Type.SNAPSHOT, newRouting.restoreSource(), localNode));
+            shard.recoverFromStore(localNode);
             newRouting = new ShardRouting(newRouting);
             ShardRoutingHelper.moveToStarted(newRouting);
             shard.updateRoutingEntry(newRouting, true);

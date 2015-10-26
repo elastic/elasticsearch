@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
@@ -62,7 +63,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
-        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, null, null, null, null, null, QueryCachingPolicy.ALWAYS_CACHE, null); // can't mock...
+        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, null, null, null, null, null, QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
 
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());

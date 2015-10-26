@@ -28,11 +28,10 @@ import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.SparseFixedBitSet;
-import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
@@ -145,7 +144,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testWrapSearcherWhenFeatureDisabled() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
-        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null); // can't mock...
+        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
 
         IndexSearcher indexSearcher = new IndexSearcher(esIn);
         IndexSearcher result = shieldIndexSearcherWrapper.wrap(engineConfig, indexSearcher);
@@ -245,7 +244,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testDelegateSimilarity() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
-        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null); // can't mock...
+        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
 
         BitsetFilterCache bitsetFilterCache = mock(BitsetFilterCache.class);
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());

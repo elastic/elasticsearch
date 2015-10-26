@@ -36,7 +36,7 @@
     <skip.unit.tests>true</skip.unit.tests>
     <elasticsearch.integ.antfile>${project.basedir}/integration-tests.xml</elasticsearch.integ.antfile>
     <tests.rest.load_packaged>false</tests.rest.load_packaged>
-    <xplugins.list>found-license-plugin,shield,watcher</xplugins.list>
+    <xplugins.list>found-license-plugin,shield,watcher,marvel-agent</xplugins.list>
     <tests.rest.blacklist>hijack/10_basic/*,array_compare_watch/10_basic/Basic array_compare watch</tests.rest.blacklist>
   </properties>
 
@@ -143,6 +143,14 @@
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>shield</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>marvel-agent</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

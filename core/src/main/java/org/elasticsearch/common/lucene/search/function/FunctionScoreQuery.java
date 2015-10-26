@@ -40,11 +40,13 @@ public class FunctionScoreQuery extends Query {
     final ScoreFunction function;
     final float maxBoost;
     final CombineFunction combineFunction;
+    private Float minScore;
 
-    public FunctionScoreQuery(Query subQuery, ScoreFunction function, CombineFunction combineFunction, float maxBoost) {
+    public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore, CombineFunction combineFunction, float maxBoost) {
         this.subQuery = subQuery;
         this.function = function;
         this.combineFunction = combineFunction;
+        this.minScore = minScore;
         this.maxBoost = maxBoost;
     }
 
@@ -131,7 +133,7 @@ public class FunctionScoreQuery extends Query {
             if (function != null) {
                 leafFunction = function.getLeafScoreFunction(context);
             }
-            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, needsScores);
+            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, minScore, needsScores);
         }
 
         @Override
@@ -154,15 +156,15 @@ public class FunctionScoreQuery extends Query {
         private final LeafScoreFunction function;
         private final boolean needsScores;
 
-        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, boolean needsScores)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore, boolean needsScores)
                 throws IOException {
-            super(w, scorer, maxBoost, scoreCombiner);
+            super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.function = function;
             this.needsScores = needsScores;
         }
 
         @Override
-        public float score() throws IOException {
+        public float innerScore() throws IOException {
             // Even if the weight is created with needsScores=false, it might
             // be costly to call score(), so we explicitly check if scores
             // are needed
@@ -195,11 +197,11 @@ public class FunctionScoreQuery extends Query {
         FunctionScoreQuery other = (FunctionScoreQuery) o;
         return Objects.equals(this.subQuery, other.subQuery) && Objects.equals(this.function, other.function)
                 && Objects.equals(this.combineFunction, other.combineFunction)
-                && this.maxBoost == other.maxBoost;
+                && Objects.equals(this.minScore, other.minScore) && this.maxBoost == other.maxBoost;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery.hashCode(), function, combineFunction, maxBoost);
+        return Objects.hash(super.hashCode(), subQuery.hashCode(), function, combineFunction, minScore, maxBoost);
     }
 }

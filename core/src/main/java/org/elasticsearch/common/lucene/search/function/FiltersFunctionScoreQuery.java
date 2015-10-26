@@ -100,15 +100,17 @@ public class FiltersFunctionScoreQuery extends Query {
     final FilterFunction[] filterFunctions;
     final ScoreMode scoreMode;
     final float maxBoost;
+    private final Float minScore;
 
     final protected CombineFunction combineFunction;
 
-    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, CombineFunction combineFunction) {
+    public FiltersFunctionScoreQuery(Query subQuery, ScoreMode scoreMode, FilterFunction[] filterFunctions, float maxBoost, Float minScore, CombineFunction combineFunction) {
         this.subQuery = subQuery;
         this.scoreMode = scoreMode;
         this.filterFunctions = filterFunctions;
         this.maxBoost = maxBoost;
         this.combineFunction = combineFunction;
+        this.minScore = minScore;
     }
 
     public Query getSubQuery() {
@@ -193,7 +195,7 @@ public class FiltersFunctionScoreQuery extends Query {
                 Scorer filterScorer = filterWeights[i].scorer(context);
                 docSets[i] = Lucene.asSequentialAccessBits(context.reader().maxDoc(), filterScorer);
             }
-            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, needsScores);
+            return new FiltersFunctionFactorScorer(this, subQueryScorer, scoreMode, filterFunctions, maxBoost, functions, docSets, combineFunction, minScore, needsScores);
         }
 
         @Override
@@ -242,8 +244,8 @@ public class FiltersFunctionScoreQuery extends Query {
         private final boolean needsScores;
 
         private FiltersFunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, ScoreMode scoreMode, FilterFunction[] filterFunctions,
-                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, boolean needsScores) throws IOException {
-            super(w, scorer, maxBoost, scoreCombiner);
+                                            float maxBoost, LeafScoreFunction[] functions, Bits[] docSets, CombineFunction scoreCombiner, Float minScore, boolean needsScores) throws IOException {
+            super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.scoreMode = scoreMode;
             this.filterFunctions = filterFunctions;
             this.functions = functions;
@@ -252,7 +254,7 @@ public class FiltersFunctionScoreQuery extends Query {
         }
 
         @Override
-        public float score() throws IOException {
+        public float innerScore() throws IOException {
             int docId = scorer.docID();
             // Even if the weight is created with needsScores=false, it might
             // be costly to call score(), so we explicitly check if scores
@@ -349,12 +351,12 @@ public class FiltersFunctionScoreQuery extends Query {
         }
         FiltersFunctionScoreQuery other = (FiltersFunctionScoreQuery) o;
         return Objects.equals(this.subQuery, other.subQuery) && this.maxBoost == other.maxBoost &&
-                Objects.equals(this.combineFunction, other.combineFunction) &&
+                Objects.equals(this.combineFunction, other.combineFunction) && Objects.equals(this.minScore, other.minScore) &&
                 Arrays.equals(this.filterFunctions, other.filterFunctions);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, filterFunctions);
+        return Objects.hash(super.hashCode(), subQuery, maxBoost, combineFunction, minScore, filterFunctions);
     }
 }

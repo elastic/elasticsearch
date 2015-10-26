@@ -240,12 +240,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
+
+        this.indexingMemoryController = provider.getIndexingMemoryController();
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.flushThresholdOperations = indexSettings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, indexSettings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
         this.flushThresholdSize = indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
         this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
-        this.indexingMemoryController = provider.getIndexingMemoryController();
 
         this.searcherWrapper = provider.getIndexSearcherWrapper();
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, provider.getQueryParserService(), indexingService, mapperService, indexFieldDataService);

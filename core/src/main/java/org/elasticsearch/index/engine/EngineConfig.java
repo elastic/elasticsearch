@@ -57,7 +57,7 @@ public final class EngineConfig {
     private volatile boolean compoundOnFlush = true;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
-    private final TimeValue flushMergesAfter = TimeValue.timeValueMinutes(5);
+    private final TimeValue flushMergesAfter;
     private final String codecName;
     private final ThreadPool threadPool;
     private final ShardIndexingService indexingService;
@@ -145,6 +145,7 @@ public final class EngineConfig {
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
+        this.flushMergesAfter = flushMergesAfter;
     }
 
     /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */

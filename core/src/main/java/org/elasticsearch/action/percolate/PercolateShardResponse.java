@@ -76,6 +76,9 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         return topDocs;
     }
 
+    /**
+     * Returns per match the percolator query id. The key is the Lucene docId of the matching percolator query.
+     */
     public Map<Integer, String> ids() {
         return ids;
     }
@@ -84,6 +87,9 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         return requestedSize;
     }
 
+    /**
+     * Returns per match the highlight snippets. The key is the Lucene docId of the matching percolator query.
+     */
     public Map<Integer, Map<String, HighlightField>> hls() {
         return hls;
     }

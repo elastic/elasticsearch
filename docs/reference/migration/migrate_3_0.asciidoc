@@ -78,6 +78,16 @@ format can't read from version `3.0.0` and onwards. The new format allows for a 
 scalable join between parent and child documents and the join data structures are stored on on disk
 data structures as opposed as before the join data structures were stored in the jvm heap space.
 
+==== Deprecated queries removed
+
+The following deprecated queries have been removed:
+* `filtered`: use `bool` query instead, which supports `filter` clauses too
+* `and`: use `must` clauses in a `bool` query instead
+* `or`: use should clauses in a `bool` query instead
+* `limit`: use `terminate_after` parameter instead
+* `fquery`: obsolete after filters and queries have been merged
+* `query`: obsolete after filters and queries have been merged
+
 ==== `score_type` has been removed
 
 The `score_type` option has been removed from the `has_child` and `has_parent` queries in favour of the `score_mode` option

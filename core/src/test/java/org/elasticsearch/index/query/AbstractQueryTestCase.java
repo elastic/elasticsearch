@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -73,12 +72,7 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
-import org.elasticsearch.script.MockScriptEngine;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptContextRegistry;
-import org.elasticsearch.script.ScriptEngineService;
-import org.elasticsearch.script.ScriptModule;
-import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -99,12 +93,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Method;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -220,8 +209,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST);
-                        SimilarityService service = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
+                        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.emptyList());
+                        SimilarityService service = new SimilarityService(idxSettings, Collections.emptyMap());
                         bind(SimilarityService.class).toInstance(service);
                         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));
                         bind(BitsetFilterCache.class).toInstance(bitsetFilterCache);
@@ -413,7 +402,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     /**
      * Few queries allow you to set the boost and queryName on the java api, although the corresponding parser doesn't parse them as they are not supported.
      * This method allows to disable boost and queryName related tests for those queries. Those queries are easy to identify: their parsers
-     * don't parse `boost` and `_name` as they don't apply to the specific query: filter query, wrapper query and match_none
+     * don't parse `boost` and `_name` as they don't apply to the specific query: wrapper query and match_none
      */
     protected boolean supportsBoostAndQueryName() {
         return true;

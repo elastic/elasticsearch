@@ -185,7 +185,7 @@ public class IndexModule extends AbstractModule {
             throw new IllegalArgumentException("provider must not be null");
         }
         if (queryCaches.containsKey(name)) {
-            throw new IllegalArgumentException("provider for name [" + name + "] is already registered");
+            throw new IllegalArgumentException("Can't register the same [query_cache] more than once for [" + name + "]");
         }
         queryCaches.put(name, provider);
     }

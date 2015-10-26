@@ -204,14 +204,23 @@ public class IndexModuleTests extends ModuleTestCase {
         IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
         try {
             module.registerQueryCache("index", IndexQueryCache::new);
+            fail("only once");
         } catch (IllegalArgumentException e) {
             assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [index]");
         }
 
         try {
             module.registerQueryCache("none", (settings, x) -> new NoneQueryCache(settings));
+            fail("only once");
         } catch (IllegalArgumentException e) {
             assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [none]");
+        }
+
+        try {
+            module.registerQueryCache("index", null);
+            fail("must not be null");
+        } catch (IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "provider must not be null");
         }
     }
 
@@ -223,6 +232,7 @@ public class IndexModuleTests extends ModuleTestCase {
         module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
         try {
             module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
+            fail("only once");
         } catch (IllegalArgumentException e) {
             assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [custom]");
         }

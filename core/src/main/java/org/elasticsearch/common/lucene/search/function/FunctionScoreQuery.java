@@ -23,6 +23,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
@@ -36,18 +37,29 @@ public class FunctionScoreQuery extends Query {
 
     Query subQuery;
     final ScoreFunction function;
-    final float maxBoost;
-    final CombineFunction combineFunction;
+    float maxBoost = Float.MAX_VALUE;
+    CombineFunction combineFunction;
+    private Float minScore = null;
 
-    public FunctionScoreQuery(Query subQuery, ScoreFunction function, CombineFunction combineFunction, float maxBoost) {
+    public FunctionScoreQuery(Query subQuery, ScoreFunction function, Float minScore) {
         this.subQuery = subQuery;
         this.function = function;
-        this.combineFunction = combineFunction;
-        this.maxBoost = maxBoost;
+        this.combineFunction = function == null? CombineFunction.MULT : function.getDefaultScoreCombiner();
+        this.minScore = minScore;
     }
 
     public FunctionScoreQuery(Query subQuery, ScoreFunction function) {
-        this(subQuery, function, function.getDefaultScoreCombiner(), Float.MAX_VALUE);
+        this.subQuery = subQuery;
+        this.function = function;
+        this.combineFunction = function.getDefaultScoreCombiner();
+    }
+
+    public void setCombineFunction(CombineFunction combineFunction) {
+        this.combineFunction = combineFunction;
+    }
+    
+    public void setMaxBoost(float maxBoost) {
+        this.maxBoost = maxBoost;
     }
 
     public float getMaxBoost() {
@@ -126,7 +138,7 @@ public class FunctionScoreQuery extends Query {
             if (function != null) {
                 leafFunction = function.getLeafScoreFunction(context);
             }
-            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, needsScores);
+            return new FunctionFactorScorer(this, subQueryScorer, leafFunction, maxBoost, combineFunction, minScore, needsScores);
         }
 
         @Override
@@ -149,15 +161,15 @@ public class FunctionScoreQuery extends Query {
         private final LeafScoreFunction function;
         private final boolean needsScores;
 
-        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, boolean needsScores)
+        private FunctionFactorScorer(CustomBoostFactorWeight w, Scorer scorer, LeafScoreFunction function, float maxBoost, CombineFunction scoreCombiner, Float minScore, boolean needsScores)
                 throws IOException {
-            super(w, scorer, maxBoost, scoreCombiner);
+            super(w, scorer, maxBoost, scoreCombiner, minScore);
             this.function = function;
             this.needsScores = needsScores;
         }
 
         @Override
-        public float score() throws IOException {
+        public float innerScore() throws IOException {
             // Even if the weight is created with needsScores=false, it might
             // be costly to call score(), so we explicitly check if scores
             // are needed
@@ -181,18 +193,15 @@ public class FunctionScoreQuery extends Query {
 
     @Override
     public boolean equals(Object o) {
-        if (super.equals(o) == false) {
+        if (o == null || getClass() != o.getClass())
             return false;
-        }
         FunctionScoreQuery other = (FunctionScoreQuery) o;
-        return Objects.equals(this.subQuery, other.subQuery)
-                && Objects.equals(this.function, other.function)
-                && Objects.equals(this.combineFunction, other.combineFunction)
+        return this.getBoost() == other.getBoost() && this.subQuery.equals(other.subQuery) && (this.function != null ? this.function.equals(other.function) : other.function == null)
                 && this.maxBoost == other.maxBoost;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), subQuery.hashCode(), function, combineFunction, maxBoost);
+        return subQuery.hashCode() + 31 * Objects.hashCode(function) ^ Float.floatToIntBits(getBoost());
     }
 }

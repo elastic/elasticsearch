@@ -29,7 +29,6 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.lucene.search.MinScoreQuery;
 import org.elasticsearch.common.lucene.search.function.*;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
@@ -298,7 +297,8 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public Explanation getFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction scoreFunction) throws IOException {
-        Query functionScoreQuery = new MinScoreQuery(new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, CombineFunction.AVG, 100), 0f);
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(new TermQuery(TERM), scoreFunction, 0.0f);
+        functionScoreQuery.setCombineFunction(CombineFunction.AVG);
         Weight weight = searcher.createNormalizedWeight(functionScoreQuery, true);
         Explanation explanation = weight.explain(searcher.getIndexReader().leaves().get(0), 0);
         return explanation.getDetails()[1];
@@ -363,22 +363,22 @@ public class FunctionScoreTests extends ESTestCase {
     }
 
     public Explanation getFiltersFunctionScoreExplanation(IndexSearcher searcher, ScoreFunction... scoreFunctions) throws IOException {
-        Query filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.Avg, CombineFunction.AVG, scoreFunctions);
+        FiltersFunctionScoreQuery filtersFunctionScoreQuery = getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode.Avg, scoreFunctions);
         return getExplanation(searcher, filtersFunctionScoreQuery).getDetails()[1];
     }
 
-    protected Explanation getExplanation(IndexSearcher searcher, Query filtersFunctionScoreQuery) throws IOException {
+    protected Explanation getExplanation(IndexSearcher searcher, FiltersFunctionScoreQuery filtersFunctionScoreQuery) throws IOException {
         Weight weight = searcher.createNormalizedWeight(filtersFunctionScoreQuery, true);
         return weight.explain(searcher.getIndexReader().leaves().get(0), 0);
     }
 
-    public Query getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode scoreMode, CombineFunction combineFunction, ScoreFunction... scoreFunctions) {
+    public FiltersFunctionScoreQuery getFiltersFunctionScoreQuery(FiltersFunctionScoreQuery.ScoreMode scoreMode, ScoreFunction... scoreFunctions) {
         FiltersFunctionScoreQuery.FilterFunction[] filterFunctions = new FiltersFunctionScoreQuery.FilterFunction[scoreFunctions.length];
         for (int i = 0; i < scoreFunctions.length; i++) {
             filterFunctions[i] = new FiltersFunctionScoreQuery.FilterFunction(
                     new TermQuery(TERM), scoreFunctions[i]);
         }
-        return new MinScoreQuery(new FiltersFunctionScoreQuery(new TermQuery(TERM), scoreMode, filterFunctions, Float.MAX_VALUE, combineFunction), Float.MAX_VALUE * -1);
+        return new FiltersFunctionScoreQuery(new TermQuery(TERM), scoreMode, filterFunctions, Float.MAX_VALUE, Float.MAX_VALUE * -1);
     }
 
     public void checkFiltersFunctionScoreExplanation(Explanation randomExplanation, String functionExpl, int whichFunction) {
@@ -449,11 +449,11 @@ public class FunctionScoreTests extends ESTestCase {
             weightFunctionStubs[i] = new WeightFactorFunction(weights[i], scoreFunctionStubs[i]);
         }
 
-        Query filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
+        FiltersFunctionScoreQuery filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Multiply
-                , CombineFunction.REPLACE
                 , weightFunctionStubs
         );
+        filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
         TopDocs topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         float scoreWithWeight = topDocsWithWeights.scoreDocs[0].score;
@@ -467,9 +467,9 @@ public class FunctionScoreTests extends ESTestCase {
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Sum
-                , CombineFunction.REPLACE
                 , weightFunctionStubs
         );
+        filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
         topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         scoreWithWeight = topDocsWithWeights.scoreDocs[0].score;
@@ -483,9 +483,9 @@ public class FunctionScoreTests extends ESTestCase {
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Avg
-                , CombineFunction.REPLACE
                 , weightFunctionStubs
         );
+        filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
         topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         scoreWithWeight = topDocsWithWeights.scoreDocs[0].score;
@@ -501,9 +501,9 @@ public class FunctionScoreTests extends ESTestCase {
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Min
-                , CombineFunction.REPLACE
                 , weightFunctionStubs
         );
+        filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
         topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         scoreWithWeight = topDocsWithWeights.scoreDocs[0].score;
@@ -517,9 +517,9 @@ public class FunctionScoreTests extends ESTestCase {
 
         filtersFunctionScoreQueryWithWeights = getFiltersFunctionScoreQuery(
                 FiltersFunctionScoreQuery.ScoreMode.Max
-                , CombineFunction.REPLACE
                 , weightFunctionStubs
         );
+        filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.REPLACE);
 
         topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         scoreWithWeight = topDocsWithWeights.scoreDocs[0].score;
@@ -532,8 +532,10 @@ public class FunctionScoreTests extends ESTestCase {
         assertThat(explainedScore / scoreWithWeight, is(1f));
     }
 
+    @Test
     public void checkWeightOnlyCreatesBoostFunction() throws IOException {
-        Query filtersFunctionScoreQueryWithWeights = new MinScoreQuery(new FunctionScoreQuery(new MatchAllDocsQuery(), new WeightFactorFunction(2), CombineFunction.MULT, 100), 0f);
+        FunctionScoreQuery filtersFunctionScoreQueryWithWeights = new FunctionScoreQuery(new MatchAllDocsQuery(), new WeightFactorFunction(2));
+        filtersFunctionScoreQueryWithWeights.setCombineFunction(CombineFunction.MULT);
         TopDocs topDocsWithWeights = searcher.search(filtersFunctionScoreQueryWithWeights, 1);
         float score = topDocsWithWeights.scoreDocs[0].score;
         assertThat(score, equalTo(2.0f));

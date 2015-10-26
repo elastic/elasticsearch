@@ -143,6 +143,10 @@ public class QueryPhaseTests extends ESTestCase {
     }
 
     public void testMinScoreDisablesCountOptimization() throws Exception {
+        TestSearchContext context = new TestSearchContext();
+        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
+        context.setSize(0);
+
         final AtomicBoolean collected = new AtomicBoolean();
         IndexSearcher contextSearcher = new IndexSearcher(new MultiReader()) {
             protected void search(List<LeafReaderContext> leaves, Weight weight, Collector collector) throws IOException {
@@ -151,19 +155,11 @@ public class QueryPhaseTests extends ESTestCase {
             }
         };
 
-        TestSearchContext context = new TestSearchContext();
-        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        context.setSize(0);
-        context.preProcess();
         QueryPhase.execute(context, contextSearcher);
         assertEquals(0, context.queryResult().topDocs().totalHits);
         assertFalse(collected.get());
 
-        context = new TestSearchContext();
-        context.parsedQuery(new ParsedQuery(new MatchAllDocsQuery()));
-        context.setSize(0);
         context.minimumScore(1);
-        context.preProcess();
         QueryPhase.execute(context, contextSearcher);
         assertEquals(0, context.queryResult().topDocs().totalHits);
         assertTrue(collected.get());

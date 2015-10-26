@@ -422,4 +422,8 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     private static enum ShardStatusChangeType {
         ADDED, DELETED, BECAME_ACTIVE, BECAME_INACTIVE
     }
+
+    public TimeValue getInactiveTime() {
+        return inactiveTime;
+    }
 }

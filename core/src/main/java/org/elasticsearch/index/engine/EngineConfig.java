@@ -57,7 +57,7 @@ public final class EngineConfig {
     private volatile boolean compoundOnFlush = true;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
-    private volatile boolean flushWhenLastMergeFinished = false;
+    private final TimeValue flushMergesAfter = TimeValue.timeValueMinutes(5);
     private final String codecName;
     private final ThreadPool threadPool;
     private final ShardIndexingService indexingService;
@@ -119,7 +119,7 @@ public final class EngineConfig {
                         Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
@@ -402,16 +402,10 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns <code>true</code> iff then engine should be flushed once the last merged finished.
+     * Returns a {@link TimeValue} at what time interval after the last write modification to the engine finished merges
+     * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
+     * are written after the engine became inactive from an indexing perspective.
      */
-    public boolean isFlushWhenLastMergeFinished() {
-        return flushWhenLastMergeFinished;
-    }
+    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
 
-    /**
-     * Set to <code>true</code> iff then engine should be flushed once the last merged finished.
-     */
-    public void setFlushWhenLastMergeFinished(boolean flushWhenLastMergeFinished) {
-        this.flushWhenLastMergeFinished = flushWhenLastMergeFinished;
-    }
 }

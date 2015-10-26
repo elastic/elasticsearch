@@ -32,7 +32,6 @@ import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitDocIdSet;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.cache.RemovalListener;
@@ -50,7 +49,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -222,10 +220,10 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         }
     }
 
-    final class BitSetProducerWarmer extends IndicesWarmer.Listener {
+    final class BitSetProducerWarmer implements IndicesWarmer.Listener {
 
         @Override
-        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final Engine.Searcher searcher, ThreadPool threadPool) {
+        public IndicesWarmer.TerminationHandle warmNewReaders(final IndexShard indexShard, final Engine.Searcher searcher) {
             if (!loadRandomAccessFiltersEagerly) {
                 return TerminationHandle.NO_WAIT;
             }
@@ -251,7 +249,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
                 warmUp.add(Queries.newNonNestedFilter());
             }
 
-            final Executor executor = threadPool.executor(executor());
+            final Executor executor = indicesWarmer.getExecutor();
             final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
             for (final LeafReaderContext ctx : searcher.reader().leaves()) {
                 for (final Query filterToWarm : warmUp) {
@@ -274,7 +272,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         }
 
         @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, Engine.Searcher searcher, ThreadPool threadPool) {
+        public TerminationHandle warmTopReader(IndexShard indexShard, Engine.Searcher searcher) {
             return TerminationHandle.NO_WAIT;
         }
 

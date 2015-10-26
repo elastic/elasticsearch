@@ -263,6 +263,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         return this.store;
     }
 
+    public IndexSettings getIndexSettings() {
+        return idxSettings;
+    }
+
     /** returns true if this shard supports indexing (i.e., write) operations. */
     public boolean canIndex() {
         return true;
@@ -680,7 +684,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                 luceneVersion = segment.getVersion();
             }
         }
-        return luceneVersion == null ? Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
+        return luceneVersion == null ? idxSettings.getIndexVersionCreated().luceneVersion : luceneVersion;
     }
 
     /**

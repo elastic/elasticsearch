@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -80,9 +81,9 @@ public final class IndicesWarmer extends AbstractComponent {
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
             if (isTopReader) {
-                terminationHandles.add(listener.warmTopReader(shard, indexMetaData, searcher, threadPool));
+                terminationHandles.add(listener.warmTopReader(shard, searcher));
             } else {
-                terminationHandles.add(listener.warmNewReaders(shard, indexMetaData, searcher, threadPool));
+                terminationHandles.add(listener.warmNewReaders(shard, searcher));
             }
         }
         // wait for termination
@@ -110,6 +111,13 @@ public final class IndicesWarmer extends AbstractComponent {
         }
     }
 
+    /**
+     * Returns an executor for async warmer tasks
+     */
+    public Executor getExecutor() {
+        return threadPool.executor(ThreadPool.Names.WARMER);
+    }
+
     /** A handle on the execution of  warm-up action. */
     public interface TerminationHandle {
 
@@ -118,16 +126,11 @@ public final class IndicesWarmer extends AbstractComponent {
         /** Wait until execution of the warm-up action completes. */
         void awaitTermination() throws InterruptedException;
     }
-    public static abstract class Listener {
-
-        public String executor() {
-            return ThreadPool.Names.WARMER;
-        }
-
+    public interface Listener {
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
-        public abstract TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, Engine.Searcher searcher, ThreadPool threadPool);
+        TerminationHandle warmNewReaders(IndexShard indexShard, Engine.Searcher searcher);
 
-        public abstract TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, Engine.Searcher searcher, ThreadPool threadPool);
+        TerminationHandle warmTopReader(IndexShard indexShard, Engine.Searcher searcher);
     }
 
 }

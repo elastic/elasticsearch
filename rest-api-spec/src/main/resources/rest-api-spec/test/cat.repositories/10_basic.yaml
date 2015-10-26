@@ -21,25 +21,25 @@
 
   - do:
       snapshot.create_repository:
-        repository: repo1
+        repository: test_cat_repo_1
         body:
           type: fs
           settings:
-            location: "repo1_loc"
+            location: "test_cat_repo_1_loc"
 
   - do:
       snapshot.create_repository:
-        repository: repo2
+        repository: test_cat_repo_2
         body:
           type: fs
           settings:
-            location: "repo2_loc"
+            location: "test_cat_repo_2_loc"
 
   - do:
       cat.repositories: {}
 
   - match:
       $body: |
-               /^   repo1\s+ fs\s*\n
-                    repo2\s+ fs\s*\n
+               /^   test_cat_repo_1\s+ fs\s*\n
+                    test_cat_repo_2\s+ fs\s*\n
                $/

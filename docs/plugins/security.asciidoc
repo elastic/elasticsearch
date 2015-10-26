@@ -18,7 +18,10 @@ mind when it comes to protecting your data.
 [float]
 === Community contributed security plugins
 
-The following plugin has been contributed by our community:
+The following plugins have been contributed by our community:
+
+* https://github.com/codecentric/elasticsearch-shield-kerberos-realm[Kerberos/SPNEGO Realm]:
+  Custom Shield realm to Authenticate HTTP and Transport requests via Kerberos/SPNEGO (by codecentric AG)
 
 * https://github.com/sscarduzio/elasticsearch-readonlyrest-plugin[Readonly REST]:
   High performance access control for Elasticsearch native REST API (by Simone Scarduzio)

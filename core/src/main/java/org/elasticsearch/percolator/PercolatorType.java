@@ -20,7 +20,6 @@
 package org.elasticsearch.percolator;
 
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -36,7 +35,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.concurrent.ConcurrentMap;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -66,7 +64,7 @@ abstract class PercolatorType<C extends Collector> {
         C typeCollector = getCollector(size);
         PercolatorQuery.Builder builder = new PercolatorQuery.Builder(percolateSearcher, queriesRegistry.getPercolateQueries(), percolateTypeQuery);
         if (queriesRegistry.indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
-            builder.setQueriesMetaDataQuery(queriesRegistry.getQueryMetadataService());
+            builder.extractQueryMetadata();
         }
         if (percolateQuery != null || aliasQuery != null) {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();

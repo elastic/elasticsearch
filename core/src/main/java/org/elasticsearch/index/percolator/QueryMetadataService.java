@@ -33,7 +33,7 @@ import java.util.*;
 /**
  * Utility to extract query terms from queries and create queries from documents.
  */
-public class QueryMetadataService {
+public final class QueryMetadataService {
 
     public static String QUERY_METADATA = "_query_metadata_";
     public static String QUERY_METADATA_FIELD_PREFIX = QUERY_METADATA + "field_";
@@ -46,10 +46,13 @@ public class QueryMetadataService {
         QUERY_METADATA_FIELD_TYPE.freeze();
     }
 
+    private QueryMetadataService() {
+    }
+
     /**
      * Extracts all terms from the specified query and adds it to the specified document.
      */
-    public void extractQueryMetadata(Query query, ParseContext.Document document) {
+    public static void extractQueryMetadata(Query query, ParseContext.Document document) {
         Set<Term> queryTerms;
         try {
             queryTerms = extractQueryMetadata(query);
@@ -71,8 +74,9 @@ public class QueryMetadataService {
      * If from part of the query, no query terms can be extracted then term extraction is stopped and
      * an UnsupportedQueryException is thrown.
      */
-    public Set<Term> extractQueryMetadata(Query query) {
+    public static Set<Term> extractQueryMetadata(Query query) {
         // TODO: add support for the TermsQuery when it has methods to access the actual terms it encapsulates
+        // TODO: add support for span queries
         if (query instanceof TermQuery) {
             return Collections.singleton(((TermQuery) query).getTerm());
         } else if (query instanceof PhraseQuery) {
@@ -142,7 +146,7 @@ public class QueryMetadataService {
         }
     }
 
-    Set<Term> selectTermListWithTheLongestShortestTerm(Set<Term> terms1, Set<Term> terms2) {
+    static Set<Term> selectTermListWithTheLongestShortestTerm(Set<Term> terms1, Set<Term> terms2) {
         if (terms1 == null) {
             return terms2;
         } else if (terms2 == null) {
@@ -159,7 +163,7 @@ public class QueryMetadataService {
         }
     }
 
-    private int minTermLength(Set<Term> terms) {
+    private static int minTermLength(Set<Term> terms) {
         int min = Integer.MAX_VALUE;
         for (Term term : terms) {
             min = Math.min(min, term.bytes().length);
@@ -170,7 +174,7 @@ public class QueryMetadataService {
     /**
      * Creates a boolean query with a should clause for each term on all fields of the specified index reader.
      */
-    public Query createQueryMetadataQuery(IndexReader indexReader) throws IOException {
+    public static Query createQueryMetadataQuery(IndexReader indexReader) throws IOException {
         List<Term> extractedTerms = new ArrayList<>();
         extractedTerms.add(new Term(QUERY_METADATA_FIELD_UNKNOWN));
         Fields fields = MultiFields.getFields(indexReader);
@@ -191,7 +195,7 @@ public class QueryMetadataService {
     /**
      * Exception indicating that none or some query terms couldn't extracted from a percolator query.
      */
-    public class UnsupportedQueryException extends RuntimeException {
+    public static class UnsupportedQueryException extends RuntimeException {
 
         private final Query unsupportedQuery;
 

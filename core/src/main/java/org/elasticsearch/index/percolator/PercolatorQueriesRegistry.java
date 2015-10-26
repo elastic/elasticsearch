@@ -82,7 +82,6 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
-    private final QueryMetadataService queryMetadataService;
     private boolean mapUnmappedFieldsAsString;
     private final MeanMetric percolateMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
@@ -97,16 +96,11 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         this.indexingService = indexingService;
         this.indexFieldDataService = indexFieldDataService;
         this.mapUnmappedFieldsAsString = indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
-        this.queryMetadataService = new QueryMetadataService();
         mapperService.addTypeListener(percolateTypeListener);
     }
 
     public ConcurrentMap<BytesRef, Query> getPercolateQueries() {
         return percolateQueries;
-    }
-
-    public QueryMetadataService getQueryMetadataService() {
-        return queryMetadataService;
     }
 
     @Override
@@ -255,7 +249,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
             if (PercolatorService.TYPE_NAME.equals(create.type())) {
                 Query query = parsePercolatorDocument(create.id(), create.source());
                 if (indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
-                    queryMetadataService.extractQueryMetadata(query, create.parsedDoc().rootDoc());
+                    QueryMetadataService.extractQueryMetadata(query, create.parsedDoc().rootDoc());
                 }
             }
             return create;
@@ -275,7 +269,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
             if (PercolatorService.TYPE_NAME.equals(index.type())) {
                 Query query = parsePercolatorDocument(index.id(), index.source());
                 if (indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
-                    queryMetadataService.extractQueryMetadata(query, index.parsedDoc().rootDoc());
+                    QueryMetadataService.extractQueryMetadata(query, index.parsedDoc().rootDoc());
                 }
             }
             return index;

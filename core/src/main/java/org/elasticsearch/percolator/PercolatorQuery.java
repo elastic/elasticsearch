@@ -71,8 +71,8 @@ final class PercolatorQuery extends Query {
          * Optionally sets a query that reduces the number of queries to percolate based on extracted terms from
          * the document to be percolated.
          */
-        void setQueriesMetaDataQuery(QueryMetadataService metadataService) throws IOException {
-            this.queriesMetaDataQuery = metadataService.createQueryMetadataQuery(percolatorIndexSearcher.getIndexReader());
+        void extractQueryMetadata() throws IOException {
+            this.queriesMetaDataQuery = QueryMetadataService.createQueryMetadataQuery(percolatorIndexSearcher.getIndexReader());
         }
 
         PercolatorQuery build() {

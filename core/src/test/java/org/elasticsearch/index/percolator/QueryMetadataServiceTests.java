@@ -34,11 +34,9 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class QueryMetadataServiceTests extends ESTestCase {
 
-    private QueryMetadataService queryMetadataService = new QueryMetadataService();
-
     public void testExtractQueryMetadata_termQuery() {
         TermQuery termQuery = new TermQuery(new Term("_field", "_term"));
-        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(termQuery));
+        List<Term> terms = new ArrayList<>(QueryMetadataService.extractQueryMetadata(termQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery.getTerm().bytes()));
@@ -46,7 +44,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
 
     public void testExtractQueryMetadata_phraseQuery() {
         PhraseQuery phraseQuery = new PhraseQuery("_field", "_term1", "term2");
-        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(phraseQuery));
+        List<Term> terms = new ArrayList<>(QueryMetadataService.extractQueryMetadata(phraseQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
@@ -67,7 +65,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(booleanQuery));
+        List<Term> terms = new ArrayList<>(QueryMetadataService.extractQueryMetadata(booleanQuery));
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(3));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
@@ -93,7 +91,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(subBuilder.build(), BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(booleanQuery));
+        List<Term> terms = new ArrayList<>(QueryMetadataService.extractQueryMetadata(booleanQuery));
         Collections.sort(terms);
         assertThat(terms.size(), equalTo(4));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
@@ -114,7 +112,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         builder.add(phraseQuery, BooleanClause.Occur.SHOULD);
 
         BooleanQuery booleanQuery = builder.build();
-        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(booleanQuery));
+        List<Term> terms = new ArrayList<>(QueryMetadataService.extractQueryMetadata(booleanQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(phraseQuery.getTerms()[0].field()));
         assertThat(terms.get(0).bytes(), equalTo(phraseQuery.getTerms()[0].bytes()));
@@ -123,7 +121,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_constantScoreQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         ConstantScoreQuery constantScoreQuery = new ConstantScoreQuery(termQuery1);
-        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(constantScoreQuery));
+        List<Term> terms = new ArrayList<>(QueryMetadataService.extractQueryMetadata(constantScoreQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -132,7 +130,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
     public void testExtractQueryMetadata_boostQuery() {
         TermQuery termQuery1 = new TermQuery(new Term("_field", "_term"));
         BoostQuery constantScoreQuery = new BoostQuery(termQuery1, 1f);
-        List<Term> terms = new ArrayList<>(queryMetadataService.extractQueryMetadata(constantScoreQuery));
+        List<Term> terms = new ArrayList<>(QueryMetadataService.extractQueryMetadata(constantScoreQuery));
         assertThat(terms.size(), equalTo(1));
         assertThat(terms.get(0).field(), equalTo(termQuery1.getTerm().field()));
         assertThat(terms.get(0).bytes(), equalTo(termQuery1.getTerm().bytes()));
@@ -142,7 +140,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         TermRangeQuery termRangeQuery = new TermRangeQuery("_field", null, null, true, false);
 
         try {
-            queryMetadataService.extractQueryMetadata(termRangeQuery);
+            QueryMetadataService.extractQueryMetadata(termRangeQuery);
             fail("UnsupportedQueryException expected");
         } catch (QueryMetadataService.UnsupportedQueryException e) {
             assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
@@ -155,7 +153,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         BooleanQuery bq = builder.build();
 
         try {
-            queryMetadataService.extractQueryMetadata(bq);
+            QueryMetadataService.extractQueryMetadata(bq);
             fail("UnsupportedQueryException expected");
         } catch (QueryMetadataService.UnsupportedQueryException e) {
             assertThat(e.getUnsupportedQuery(), sameInstance(termRangeQuery));
@@ -170,7 +168,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
         memoryIndex.addField("field4", "123", new WhitespaceAnalyzer());
 
         IndexReader indexReader = memoryIndex.createSearcher().getIndexReader();
-        Query query = queryMetadataService.createQueryMetadataQuery(indexReader);
+        Query query = QueryMetadataService.createQueryMetadataQuery(indexReader);
         assertThat(query, instanceOf(TermsQuery.class));
 
         // no easy way to get to the terms in TermsQuery,
@@ -211,7 +209,7 @@ public class QueryMetadataServiceTests extends ESTestCase {
             sumTermLength -= length;
         }
 
-        Set<Term> result = queryMetadataService.selectTermListWithTheLongestShortestTerm(terms1, terms2);
+        Set<Term> result = QueryMetadataService.selectTermListWithTheLongestShortestTerm(terms1, terms2);
         assertThat(result, sameInstance(terms2));
     }
 

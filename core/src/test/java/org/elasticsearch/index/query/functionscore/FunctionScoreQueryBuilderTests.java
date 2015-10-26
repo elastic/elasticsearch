@@ -26,11 +26,8 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.lucene.search.function.CombineFunction;
-import org.elasticsearch.common.lucene.search.function.FieldValueFactorFunction;
-import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.FunctionScoreQuery;
-import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
+import org.elasticsearch.common.lucene.search.MinScoreQuery;
+import org.elasticsearch.common.lucene.search.function.*;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
@@ -182,6 +179,12 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
 
     @Override
     protected void doAssertLuceneQuery(FunctionScoreQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        if (queryBuilder.getMinScore() != null) {
+            assertThat(query, instanceOf(MinScoreQuery.class));
+            MinScoreQuery msq = (MinScoreQuery) query;
+            assertEquals(queryBuilder.getMinScore(), msq.getMinScore(), 0f);
+            query = msq.getQuery();
+        }
         assertThat(query, either(instanceOf(FunctionScoreQuery.class)).or(instanceOf(FiltersFunctionScoreQuery.class)));
     }
 

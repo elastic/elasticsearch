@@ -318,11 +318,6 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Float minimumScore() {
-        return in.minimumScore();
-    }
-
-    @Override
     public SearchContext sort(Sort sort) {
         return in.sort(sort);
     }

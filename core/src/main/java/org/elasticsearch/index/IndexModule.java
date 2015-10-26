@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
@@ -29,9 +28,11 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.indices.store.IndicesStore;
 
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
@@ -39,16 +40,20 @@ import java.util.function.Consumer;
  */
 public class IndexModule extends AbstractModule {
 
+    public static final String STORE_TYPE = "index.store.type";
     private final IndexSettings indexSettings;
+    private final IndicesStore indicesStore;
     // pkg private so tests can mock
     Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
     Class<? extends IndexSearcherWrapper> indexSearcherWrapper = null;
     private final Set<Consumer<Settings>> settingsConsumers = new HashSet<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private IndexEventListener listener;
+    private final Map<String, BiFunction<IndexSettings, IndicesStore, IndexStore>> storeTypes = new HashMap<>();
 
 
-    public IndexModule(IndexSettings indexSettings) {
+    public IndexModule(IndexSettings indexSettings, IndicesStore indicesStore) {
+        this.indicesStore = indicesStore;
         this.indexSettings = indexSettings;
     }
 
@@ -105,12 +110,38 @@ public class IndexModule extends AbstractModule {
         this.indexEventListeners.add(listener);
     }
 
+    /**
+     * Adds an {@link IndexStore} type to this index module. Typically stores are registered with a refrence to
+     * it's constructor:
+     * <pre>
+     *     indexModule.addIndexStore("my_store_type", MyStore::new);
+     * </pre>
+     *
+     * @param type the type to register
+     * @param provider the instance provider / factory method
+     */
+    public void addIndexStore(String type, BiFunction<IndexSettings, IndicesStore, IndexStore> provider) {
+        if (storeTypes.containsKey(type)) {
+            throw new IllegalArgumentException("key [" + type +"] already registerd");
+        }
+        storeTypes.put(type, provider);
+    }
+
     public IndexEventListener freeze() {
         // TODO somehow we need to make this pkg private...
         if (listener == null) {
             listener = new CompositeIndexEventListener(indexSettings, indexEventListeners);
         }
         return listener;
+    }
+
+    private static boolean isBuiltinType(String storeType) {
+        for (Type type : Type.values()) {
+            if (type.match(storeType)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override
@@ -126,7 +157,41 @@ public class IndexModule extends AbstractModule {
         bind(IndexServicesProvider.class).asEagerSingleton();
         bind(MapperService.class).asEagerSingleton();
         bind(IndexFieldDataService.class).asEagerSingleton();
-        bind(IndexSettings.class).toInstance(new IndexSettings(indexSettings.getIndexMetaData(), indexSettings.getNodeSettings(), settingsConsumers));
+        final IndexSettings settings = new IndexSettings(indexSettings.getIndexMetaData(), indexSettings.getNodeSettings(), settingsConsumers);
+        bind(IndexSettings.class).toInstance(settings);
+
+        final String storeType = settings.getSettings().get(STORE_TYPE);
+        final IndexStore store;
+        if (storeType == null || isBuiltinType(storeType)) {
+            store = new IndexStore(settings, indicesStore);
+        } else {
+            BiFunction<IndexSettings, IndicesStore, IndexStore> factory = storeTypes.get(storeType);
+            if (factory == null) {
+                throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
+            }
+            store = factory.apply(settings, indicesStore);
+            if (store == null) {
+                throw new IllegalStateException("store must not be null");
+            }
+        }
+        bind(IndexStore.class).toInstance(store);
     }
 
+    public enum Type {
+        NIOFS,
+        MMAPFS,
+        SIMPLEFS,
+        FS,
+        DEFAULT;
+
+        public String getSettingsKey() {
+            return this.name().toLowerCase(Locale.ROOT);
+        }
+        /**
+         * Returns true iff this settings matches the type.
+         */
+        public boolean match(String setting) {
+            return getSettingsKey().equals(setting);
+        }
+    }
 }

@@ -21,7 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -38,7 +38,7 @@ public class PluginsServiceTests extends ESTestCase {
         }
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "1").put(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.MMAPFS.getSettingsKey()).build();
+            return Settings.builder().put("foo.bar", "1").put(IndexModule.STORE_TYPE, IndexModule.Type.MMAPFS.getSettingsKey()).build();
         }
     }
     public static class AdditionalSettingsPlugin2 extends Plugin {
@@ -64,12 +64,12 @@ public class PluginsServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("my.setting", "test")
-            .put(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.SIMPLEFS.getSettingsKey()).build();
+            .put(IndexModule.STORE_TYPE, IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        assertEquals(IndexStoreModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexStoreModule.STORE_TYPE)); // does not override pre existing settings
+        assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.STORE_TYPE)); // does not override pre existing settings
     }
 
     public void testAdditionalSettingsClash() {

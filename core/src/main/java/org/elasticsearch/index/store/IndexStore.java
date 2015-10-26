@@ -20,7 +20,6 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
@@ -43,7 +42,6 @@ public class IndexStore extends AbstractIndexComponent {
 
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
 
-    @Inject
     public IndexStore(IndexSettings indexSettings, IndicesStore indicesStore) {
         super(indexSettings);
         this.indicesStore = indicesStore;

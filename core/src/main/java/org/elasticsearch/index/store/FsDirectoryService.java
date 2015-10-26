@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
 
@@ -100,18 +101,18 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
 
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
-        final String storeType = indexSettings.get(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.DEFAULT.getSettingsKey());
-        if (IndexStoreModule.Type.FS.match(storeType) || IndexStoreModule.Type.DEFAULT.match(storeType)) {
+        final String storeType = indexSettings.get(IndexModule.STORE_TYPE, IndexModule.Type.DEFAULT.getSettingsKey());
+        if (IndexModule.Type.FS.match(storeType) || IndexModule.Type.DEFAULT.match(storeType)) {
             final FSDirectory open = FSDirectory.open(location, lockFactory); // use lucene defaults
             if (open instanceof MMapDirectory && Constants.WINDOWS == false) {
                 return newDefaultDir(location, (MMapDirectory) open, lockFactory);
             }
             return open;
-        } else if (IndexStoreModule.Type.SIMPLEFS.match(storeType)) {
+        } else if (IndexModule.Type.SIMPLEFS.match(storeType)) {
             return new SimpleFSDirectory(location, lockFactory);
-        } else if (IndexStoreModule.Type.NIOFS.match(storeType)) {
+        } else if (IndexModule.Type.NIOFS.match(storeType)) {
             return new NIOFSDirectory(location, lockFactory);
-        } else if (IndexStoreModule.Type.MMAPFS.match(storeType)) {
+        } else if (IndexModule.Type.MMAPFS.match(storeType)) {
             return new MMapDirectory(location, lockFactory);
         }
         throw new IllegalArgumentException("No directory found for type [" + storeType + "]");

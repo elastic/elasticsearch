@@ -44,7 +44,6 @@ public class MarvelClusterInfoIT extends ESIntegTestCase {
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
         awaitIndexExists(".marvel-es-data");
-        ensureGreen(".marvel-es-data");
         awaitMarvelDocsCount(equalTo(1L), "cluster_info");
         GetResponse response = client().prepareGet(".marvel-es-data", "cluster_info", clusterUUID).get();
         assertTrue(".marvel-es-data" + " document does not exist", response.isExists());

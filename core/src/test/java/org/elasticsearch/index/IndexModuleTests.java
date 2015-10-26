@@ -39,7 +39,7 @@ import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.engine.MockEngineFactory;
 
@@ -240,8 +240,8 @@ public class IndexModuleTests extends ModuleTestCase {
 
     public static final class FooStore extends IndexStore {
 
-        public FooStore(IndexSettings indexSettings, IndicesStore indicesStore) {
-            super(indexSettings, indicesStore);
+        public FooStore(IndexSettings indexSettings, IndexStoreConfig config) {
+            super(indexSettings, config);
         }
     }
 

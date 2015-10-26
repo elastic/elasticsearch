@@ -25,8 +25,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.indices.store.IndicesStore;
-
 /**
  *
  */
@@ -35,16 +33,16 @@ public class IndexStore extends AbstractIndexComponent {
     public static final String INDEX_STORE_THROTTLE_TYPE = "index.store.throttle.type";
     public static final String INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC = "index.store.throttle.max_bytes_per_sec";
 
-    protected final IndicesStore indicesStore;
+    protected final IndexStoreConfig indexStoreConfig;
     private volatile String rateLimitingType;
     private volatile ByteSizeValue rateLimitingThrottle;
     private volatile boolean nodeRateLimiting;
 
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
 
-    public IndexStore(IndexSettings indexSettings, IndicesStore indicesStore) {
+    public IndexStore(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig) {
         super(indexSettings);
-        this.indicesStore = indicesStore;
+        this.indexStoreConfig = indexStoreConfig;
 
         this.rateLimitingType = indexSettings.getSettings().get(INDEX_STORE_THROTTLE_TYPE, "none");
         if (rateLimitingType.equalsIgnoreCase("node")) {
@@ -64,7 +62,7 @@ public class IndexStore extends AbstractIndexComponent {
      * the node level one (defaults to the node level one).
      */
     public StoreRateLimiting rateLimiting() {
-        return nodeRateLimiting ? indicesStore.rateLimiting() : this.rateLimiting;
+        return nodeRateLimiting ? indexStoreConfig.getNodeRateLimiter() : this.rateLimiting;
     }
 
     /**

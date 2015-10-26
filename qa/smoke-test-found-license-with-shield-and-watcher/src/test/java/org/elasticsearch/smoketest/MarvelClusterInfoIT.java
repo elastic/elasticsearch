@@ -44,7 +44,7 @@ public class MarvelClusterInfoIT extends ESIntegTestCase {
         final String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
         assertTrue(Strings.hasText(clusterUUID));
         awaitIndexExists(".marvel-es-data");
-        ensureMarvelIndicesGreen();
+        ensureGreen(".marvel-es-data");
         awaitMarvelDocsCount(equalTo(1L), "cluster_info");
         GetResponse response = client().prepareGet(".marvel-es-data", "cluster_info", clusterUUID).get();
         assertTrue(".marvel-es-data" + " document does not exist", response.isExists());
@@ -54,14 +54,6 @@ public class MarvelClusterInfoIT extends ESIntegTestCase {
 
         Object licenseObj = source.get("license");
         assertThat(licenseObj, nullValue());
-    }
-
-    protected void ensureMarvelIndicesGreen() {
-        try {
-            ensureGreen(".marvel-es-*");
-        } catch (IndexNotFoundException e) {
-            // might happen with shield...
-        }
     }
 
     protected void awaitMarvelDocsCount(Matcher<Long> matcher, String... types) throws Exception {
@@ -77,7 +69,7 @@ public class MarvelClusterInfoIT extends ESIntegTestCase {
 
     protected void assertMarvelDocsCount(Matcher<Long> matcher, String... types) {
         try {
-            long count = client().prepareSearch(".marvel-es-*").setSize(0)
+            long count = client().prepareSearch(".marvel-es-data").setSize(0)
                     .setTypes(types).get().getHits().totalHits();
             logger.trace("--> searched for [{}] documents, found [{}]", Strings.arrayToCommaDelimitedString(types), count);
             assertThat(count, matcher);

@@ -19,7 +19,13 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.FieldInvertState;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.CollectionStatistics;
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.similarities.BM25Similarity;
+import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
@@ -30,11 +36,14 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.engine.MockEngineFactory;
 
+import java.io.IOException;
 import java.util.Collections;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
@@ -128,8 +137,92 @@ public class IndexModuleTests extends ModuleTestCase {
         }
         assertInstanceBinding(module, IndexSettings.class, (x) -> x.getUpdateListeners().size() == 1);
         assertInstanceBinding(module, IndexSettings.class, (x) -> x.getUpdateListeners().get(0) == listener);
+    }
+
+    public void testAddSimilarity() {
+        Settings indexSettings = Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("index.similarity.my_similarity.type", "test_similarity")
+                .put("index.similarity.my_similarity.key", "there is a key")
+                .build();
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null);
+        module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
+            @Override
+            public String name() {
+                return string;
+            }
+
+            @Override
+            public Similarity get() {
+                return new TestSimilarity(settings.get("key"));
+            }
+        });
+        assertInstanceBinding(module, SimilarityService.class, (inst) -> {
+            if (inst instanceof SimilarityService) {
+                assertNotNull(inst.getSimilarity("my_similarity"));
+                assertTrue(inst.getSimilarity("my_similarity").get() instanceof TestSimilarity);
+                assertEquals("my_similarity", inst.getSimilarity("my_similarity").name());
+                assertEquals("there is a key" , ((TestSimilarity)inst.getSimilarity("my_similarity").get()).key);
+                return true;
+            }
+            return false;
+        });
+    }
+
+    public void testSetupUnknownSimilarity() {
+        Settings indexSettings = Settings.settingsBuilder()
+                .put("index.similarity.my_similarity.type", "test_similarity")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null);
+        try {
+            assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Unknown Similarity type [test_similarity] for [my_similarity]", ex.getMessage());
+        }
+    }
 
 
+    public void testSetupWithoutType() {
+        Settings indexSettings = Settings.settingsBuilder()
+                .put("index.similarity.my_similarity.foo", "bar")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .build();
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null);
+        try {
+            assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
+        } catch (IllegalArgumentException ex) {
+            assertEquals("Similarity [my_similarity] must have an associated type", ex.getMessage());
+        }
+    }
+
+
+    private static class TestSimilarity extends Similarity {
+        private final Similarity delegate = new BM25Similarity();
+        private final String key;
+
+
+        public TestSimilarity(String key) {
+            if (key == null) {
+                throw new AssertionError("key is null");
+            }
+            this.key = key;
+        }
+
+        @Override
+        public long computeNorm(FieldInvertState state) {
+            return delegate.computeNorm(state);
+        }
+
+        @Override
+        public SimWeight computeWeight(CollectionStatistics collectionStats, TermStatistics... termStats) {
+            return delegate.computeWeight(collectionStats, termStats);
+        }
+
+        @Override
+        public SimScorer simScorer(SimWeight weight, LeafReaderContext context) throws IOException {
+            return delegate.simScorer(weight, context);
+        }
     }
 
     public static final class Wrapper extends IndexSearcherWrapper {

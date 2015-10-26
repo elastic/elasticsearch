@@ -21,9 +21,9 @@ package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -33,9 +33,6 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-/**
- *
- */
 public class SimilarityService extends AbstractIndexComponent {
 
     public final static String DEFAULT_SIMILARITY = "default";
@@ -43,7 +40,7 @@ public class SimilarityService extends AbstractIndexComponent {
     private final Similarity baseSimilarity;
     private final Map<String, SimilarityProvider> similarities;
     static final Map<String, BiFunction<String, Settings, SimilarityProvider>> DEFAULTS;
-    static final Map<String, BiFunction<String, Settings, SimilarityProvider>> BUILT_IN;
+    public static final Map<String, BiFunction<String, Settings, SimilarityProvider>> BUILT_IN;
     static {
         Map<String, BiFunction<String, Settings, SimilarityProvider>> defaults = new HashMap<>();
         Map<String, BiFunction<String, Settings, SimilarityProvider>> buildIn = new HashMap<>();
@@ -59,11 +56,10 @@ public class SimilarityService extends AbstractIndexComponent {
         BUILT_IN = Collections.unmodifiableMap(buildIn);
     }
 
-    @Inject
     public SimilarityService(IndexSettings indexSettings, Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities) {
         super(indexSettings);
         Map<String, SimilarityProvider> providers = new HashMap<>(similarities.size());
-        Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(SimilarityModule.SIMILARITY_SETTINGS_PREFIX);
+        Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(IndexModule.SIMILARITY_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
             Settings settings = entry.getValue();

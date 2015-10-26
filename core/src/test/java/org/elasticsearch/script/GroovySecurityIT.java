@@ -72,6 +72,8 @@ public class GroovySecurityIT extends ESIntegTestCase {
         assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\\\"value\\\", v)");
         // Times
         assertSuccess("def t = Instant.now().getMillis()");
+        // groovy time
+        assertSuccess("use(groovy.time.TimeCategory) { new Date(123456789).format('HH') }");
         // GroovyCollections
         assertSuccess("def n = [1,2,3]; GroovyCollections.max(n)");
 

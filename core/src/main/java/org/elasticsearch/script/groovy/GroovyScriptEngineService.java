@@ -68,7 +68,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      * <code>indy</code> jar needs to be replaced by the non-<code>indy</code> variant of it on the classpath (e.g.,
      * <code>groovy-all-2.4.4-indy.jar</code> should be replaced by <code>groovy-all-2.4.4.jar</code>).
      * <p>
-     * Defaults to {@code true}.
+     * Defaults to {@code false} in 2.0 and will be {@code true} in 2.1.
      */
     public static final String GROOVY_INDY_ENABLED = "script.groovy.indy";
     /**
@@ -93,7 +93,7 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
 
         // Implicitly requires Java 7u60 or later to get valid support
-        if (settings.getAsBoolean(GROOVY_INDY_ENABLED, true)) {
+        if (settings.getAsBoolean(GROOVY_INDY_ENABLED, false)) {
             // maintain any default optimizations
             config.getOptimizationOptions().put(GROOVY_INDY_SETTING_NAME, true);
         }

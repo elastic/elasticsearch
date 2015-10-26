@@ -63,7 +63,7 @@ abstract class PercolatorType<C extends Collector> {
         }
         C typeCollector = getCollector(size);
         PercolatorQuery.Builder builder = new PercolatorQuery.Builder(percolateSearcher, queriesRegistry.getPercolateQueries(), percolateTypeQuery);
-        if (queriesRegistry.indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
+        if (queriesRegistry.indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_3_0_0)) {
             builder.extractQueryMetadata();
         }
         if (percolateQuery != null || aliasQuery != null) {

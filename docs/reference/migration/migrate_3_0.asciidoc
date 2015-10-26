@@ -266,3 +266,15 @@ of string values: see `FilterFunctionScoreQuery.ScoreMode` and `CombineFunction`
 
 For simplicity, only one way of adding the ids to the existing list (empty by default)  is left: `addIds(String...)`
 
+=== Percolator
+
+Adding percolator queries and modifications to existing percolator queries are no longer visible in immediately
+to the percolator. A refresh is required to run before the changes are visible to the percolator.
+
+The reason that this has changed is that on newly created indices the percolator automatically indexes the query terms
+and these query terms are used at percolate time to reduce the amount of queries the percolate API needs evaluate.
+This optimization didn't work in the percolate API mode where modifications to queries are immediately visible.
+
+The percolator by defaults sets the `size` option to `10` whereas before this was set to unlimited.
+
+The percolate api can no longer accept documents that have fields that don't exist in the mapping.

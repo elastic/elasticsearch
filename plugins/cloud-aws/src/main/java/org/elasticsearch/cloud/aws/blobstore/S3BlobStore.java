@@ -22,10 +22,13 @@ package org.elasticsearch.cloud.aws.blobstore;
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.model.AmazonS3Exception;
+import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.CreateBucketRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
 import com.amazonaws.services.s3.model.ObjectListing;
 import com.amazonaws.services.s3.model.S3ObjectSummary;
+
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -57,8 +60,10 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final int numberOfRetries;
 
+    private final CannedAccessControlList cannedACL;
+
     public S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, boolean serverSideEncryption,
-                       ByteSizeValue bufferSize, int maxRetries) {
+                       ByteSizeValue bufferSize, int maxRetries, String cannedACL) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
@@ -70,6 +75,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
             throw new BlobStoreException("Detected a buffer_size for the S3 storage lower than [" + MIN_BUFFER_SIZE + "]");
         }
 
+        this.cannedACL = initCannedACL(cannedACL);
         this.numberOfRetries = maxRetries;
 
         // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
@@ -81,11 +87,14 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
         while (retry <= maxRetries) {
             try {
                 if (!client.doesBucketExist(bucket)) {
+                    CreateBucketRequest request = null;
                     if (region != null) {
-                        client.createBucket(bucket, region);
+                        request = new CreateBucketRequest(bucket, region);
                     } else {
-                        client.createBucket(bucket);
+                        request = new CreateBucketRequest(bucket);
                     }
+                    request.setCannedAcl(this.cannedACL);
+                    client.createBucket(request);
                 }
                 break;
             } catch (AmazonClientException e) {
@@ -181,5 +190,26 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     @Override
     public void close() {
+    }
+
+    public CannedAccessControlList getCannedACL() {
+        return cannedACL;
+    }
+
+    /**
+     * Constructs canned acl from string
+     */
+    public static CannedAccessControlList initCannedACL(String cannedACL) {
+        if (cannedACL == null || cannedACL.equals("")) {
+            return CannedAccessControlList.Private;
+        }
+
+        for (CannedAccessControlList cur : CannedAccessControlList.values()) {
+            if (cur.toString().equalsIgnoreCase(cannedACL)) {
+                return cur;
+            }
+        }
+
+        throw new BlobStoreException("cannedACL is not valid: [" + cannedACL + "]");
     }
 }

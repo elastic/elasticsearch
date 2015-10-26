@@ -11,6 +11,7 @@
               bucket: "my_bucket_name"
               access_key: "AKVAIQBF2RECL7FJWGJQ"
               secret_key: "vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br"
+              canned_acl: "public-read"
 
     # Get repositry
     - do:
@@ -21,3 +22,4 @@
     - is_true: test_repo_s3_1.settings.bucket
     - is_false: test_repo_s3_1.settings.access_key
     - is_false: test_repo_s3_1.settings.secret_key
+    - match: {test_repo_s3_1.settings.canned_acl : "public-read"}

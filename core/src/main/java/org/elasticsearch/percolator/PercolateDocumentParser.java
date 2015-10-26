@@ -206,29 +206,19 @@ public class PercolateDocumentParser {
     }
 
     private ParsedDocument parseFetchedDoc(PercolateContext context, BytesReference fetchedDoc, MapperService mapperService, String index, String type) {
-        ParsedDocument doc = null;
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(fetchedDoc).createParser(fetchedDoc);
+        try (XContentParser parser = XContentFactory.xContent(fetchedDoc).createParser(fetchedDoc)) {
             DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(type);
-            doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(type).flyweight(true));
-
+            ParsedDocument doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(type).flyweight(true));
+            if (doc == null) {
+                throw new ElasticsearchParseException("No doc to percolate in the request");
+            }
             if (context.highlight() != null) {
                 doc.setSource(fetchedDoc);
             }
+            return doc;
         } catch (Throwable e) {
             throw new ElasticsearchParseException("failed to parse request", e);
-        } finally {
-            if (parser != null) {
-                parser.close();
-            }
         }
-
-        if (doc == null) {
-            throw new ElasticsearchParseException("No doc to percolate in the request");
-        }
-
-        return doc;
     }
 
 }

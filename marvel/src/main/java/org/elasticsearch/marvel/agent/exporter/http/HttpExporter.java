@@ -381,8 +381,6 @@ public class HttpExporter extends Exporter {
      * @return true if template exists or was uploaded successfully.
      */
     private boolean checkAndUploadIndexTemplate(final String host) {
-        boolean updateTemplate = true;
-
         String url = "_template/marvel";
         if (templateCheckTimeout != null) {
             url += "?timeout=" + templateCheckTimeout;
@@ -416,31 +414,9 @@ public class HttpExporter extends Exporter {
                 Version remoteVersion = MarvelTemplateUtils.parseTemplateVersion(remoteTemplate);
                 logger.debug("detected existing remote template in version [{}] on host [{}]", remoteVersion, host);
 
-                if (remoteVersion == null) {
-                    logger.warn("marvel template version cannot be found: template will be updated to version [{}]", templateVersion);
-                } else {
-
-                    if (remoteVersion.before(MIN_SUPPORTED_TEMPLATE_VERSION)) {
-                        logger.error("marvel template version [{}] is below the minimum compatible version [{}] on host [{}]: "
-                                        + "please manually update the marvel template to a more recent version"
-                                        + "and delete the current active marvel index (don't forget to back up it first if needed)",
-                                remoteVersion, MIN_SUPPORTED_TEMPLATE_VERSION, host);
-                        return false;
-                    }
-
-                    // Compares the remote template version with the built-in template
-                    if (templateVersion.after(remoteVersion)) {
-                        logger.info("marvel template version will be updated to a newer version [remote:{}, built-in:{}]", remoteVersion, templateVersion);
-                        updateTemplate = true;
-
-                    } else if (templateVersion.equals(remoteVersion)) {
-                        logger.debug("marvel template version is up-to-date [remote:{}, built-in:{}]", remoteVersion, templateVersion);
-                        // Always update a snapshot version
-                        updateTemplate = templateVersion.snapshot();
-                    } else {
-                        logger.debug("marvel template version is newer than the one required by the marvel agent [remote:{}, built-in:{}]", remoteVersion, templateVersion);
-                        updateTemplate = false;
-                    }
+                if ((remoteVersion != null) && (remoteVersion.onOrAfter(MIN_SUPPORTED_TEMPLATE_VERSION))) {
+                    logger.debug("remote template in version [{}] is compatible with the min. supported version [{}]", remoteVersion, MIN_SUPPORTED_TEMPLATE_VERSION);
+                    return true;
                 }
             }
         } catch (IOException e) {
@@ -456,43 +432,40 @@ public class HttpExporter extends Exporter {
             }
         }
 
-        if (updateTemplate) {
-            try {
-                connection = openConnection(host, "PUT", url, XContentType.JSON.restContentType());
-
-                if (connection == null) {
-                    logger.debug("no available connection to update marvel template");
-                    return false;
-                }
-
-                logger.debug("loading marvel pre-configured template");
-                byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
-
-                // Uploads the template and closes the outputstream
-                Streams.copy(template, connection.getOutputStream());
-
-                if (!(connection.getResponseCode() == 200 || connection.getResponseCode() == 201)) {
-                    logConnectionError("error adding the marvel template to [" + host + "]", connection);
-                    return false;
-                }
-
-                logger.info("marvel template updated to version [{}]", templateVersion);
-            } catch (IOException e) {
-                logger.error("failed to update the marvel template to [{}]:\n{}", host, e.getMessage());
+        try {
+            connection = openConnection(host, "PUT", url, XContentType.JSON.restContentType());
+            if (connection == null) {
+                logger.debug("no available connection to update marvel template");
                 return false;
+            }
 
-            } finally {
-                if (connection != null) {
-                    try {
-                        connection.getInputStream().close();
-                    } catch (IOException e) {
-                        // Ignore
-                    }
+            logger.debug("loading marvel pre-configured template");
+            byte[] template = MarvelTemplateUtils.loadDefaultTemplate();
+
+            // Uploads the template and closes the outputstream
+            Streams.copy(template, connection.getOutputStream());
+
+            if (connection.getResponseCode() != 200 && connection.getResponseCode() != 201) {
+                logConnectionError("error adding the marvel template to [" + host + "]", connection);
+                return false;
+            }
+
+            logger.info("marvel template updated to version [{}]", templateVersion);
+        } catch (IOException e) {
+            logger.error("failed to update the marvel template to [{}]:\n{}", host, e.getMessage());
+            return false;
+
+        } finally {
+            if (connection != null) {
+                try {
+                    connection.getInputStream().close();
+                } catch (IOException e) {
+                    // Ignore
                 }
             }
         }
 
-        return updateTemplate;
+        return true;
     }
 
     private void logConnectionError(String msg, HttpURLConnection conn) {

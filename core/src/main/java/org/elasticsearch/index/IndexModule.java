@@ -32,7 +32,7 @@ import org.elasticsearch.index.similarity.BM25SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.index.store.IndexStoreConfig;
 
 import java.util.*;
 import java.util.function.BiFunction;
@@ -55,19 +55,19 @@ public class IndexModule extends AbstractModule {
     public static final String STORE_TYPE = "index.store.type";
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
     private final IndexSettings indexSettings;
-    private final IndicesStore indicesStore;
+    private final IndexStoreConfig indexStoreConfig;
     // pkg private so tests can mock
     Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
     Class<? extends IndexSearcherWrapper> indexSearcherWrapper = null;
     private final Set<Consumer<Settings>> settingsConsumers = new HashSet<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private IndexEventListener listener;
-    private final Map<String, BiFunction<IndexSettings, IndicesStore, IndexStore>> storeTypes = new HashMap<>();
     private final Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities = new HashMap<>();
+    private final Map<String, BiFunction<IndexSettings, IndexStoreConfig, IndexStore>> storeTypes = new HashMap<>();
 
 
-    public IndexModule(IndexSettings indexSettings, IndicesStore indicesStore) {
-        this.indicesStore = indicesStore;
+    public IndexModule(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig) {
+        this.indexStoreConfig = indexStoreConfig;
         this.indexSettings = indexSettings;
     }
 
@@ -134,7 +134,7 @@ public class IndexModule extends AbstractModule {
      * @param type the type to register
      * @param provider the instance provider / factory method
      */
-    public void addIndexStore(String type, BiFunction<IndexSettings, IndicesStore, IndexStore> provider) {
+    public void addIndexStore(String type, BiFunction<IndexSettings, IndexStoreConfig, IndexStore> provider) {
         if (storeTypes.containsKey(type)) {
             throw new IllegalArgumentException("key [" + type +"] already registerd");
         }
@@ -192,13 +192,13 @@ public class IndexModule extends AbstractModule {
         final String storeType = settings.getSettings().get(STORE_TYPE);
         final IndexStore store;
         if (storeType == null || isBuiltinType(storeType)) {
-            store = new IndexStore(settings, indicesStore);
+            store = new IndexStore(settings, indexStoreConfig);
         } else {
-            BiFunction<IndexSettings, IndicesStore, IndexStore> factory = storeTypes.get(storeType);
+            BiFunction<IndexSettings, IndexStoreConfig, IndexStore> factory = storeTypes.get(storeType);
             if (factory == null) {
                 throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
             }
-            store = factory.apply(settings, indicesStore);
+            store = factory.apply(settings, indexStoreConfig);
             if (store == null) {
                 throw new IllegalStateException("store must not be null");
             }

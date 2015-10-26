@@ -59,9 +59,10 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
@@ -117,15 +118,18 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
 
     private final OldShardsStats oldShardsStats = new OldShardsStats();
+    private final IndexStoreConfig indexStoreConfig;
 
     @Inject
-    public IndicesService(Settings settings, IndicesAnalysisService indicesAnalysisService, Injector injector, PluginsService pluginsService,  NodeEnvironment nodeEnv) {
+    public IndicesService(Settings settings, IndicesAnalysisService indicesAnalysisService, Injector injector, PluginsService pluginsService,  NodeEnvironment nodeEnv,  NodeSettingsService nodeSettingsService) {
         super(settings);
         this.indicesAnalysisService = indicesAnalysisService;
         this.injector = injector;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
+        this.indexStoreConfig = new IndexStoreConfig(settings);
+        nodeSettingsService.addListener(indexStoreConfig);
     }
 
     @Override
@@ -140,16 +144,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         Set<String> indices = new HashSet<>(this.indices.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
         for (final String index : indices) {
-            indicesStopExecutor.execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        removeIndex(index, "shutdown", false);
-                    } catch (Throwable e) {
-                        logger.warn("failed to remove index on stop [" + index + "]", e);
-                    } finally {
-                        latch.countDown();
-                    }
+            indicesStopExecutor.execute(() -> {
+                try {
+                    removeIndex(index, "shutdown", false);
+                } catch (Throwable e) {
+                    logger.warn("failed to remove index on stop [" + index + "]", e);
+                } finally {
+                    latch.countDown();
                 }
             });
         }
@@ -288,7 +289,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
 
-        final IndicesStore indicesStore = injector.getInstance(IndicesStore.class); // TODO remove this circular dep!!
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
         Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
@@ -306,7 +306,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         for (Module pluginModule : pluginsService.indexModules(idxSettings.getSettings())) {
             modules.add(pluginModule);
         }
-        final IndexModule indexModule = new IndexModule(idxSettings, indicesStore);
+        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig);
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }

@@ -62,8 +62,8 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -446,11 +446,11 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndexCacheModule.QUERY_CACHE_TYPE, random.nextBoolean() ? IndexCacheModule.INDEX_QUERY_CACHE : IndexCacheModule.NONE_QUERY_CACHE);
+            builder.put(IndexModule.QUERY_CACHE_TYPE, random.nextBoolean() ? IndexModule.INDEX_QUERY_CACHE : IndexModule.NONE_QUERY_CACHE);
         }
 
         if (random.nextBoolean()) {
-            builder.put(IndexCacheModule.QUERY_CACHE_EVERYTHING, random.nextBoolean());
+            builder.put(IndexModule.QUERY_CACHE_EVERYTHING, random.nextBoolean());
         }
 
         if (random.nextBoolean()) {

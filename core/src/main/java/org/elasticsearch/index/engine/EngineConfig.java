@@ -61,8 +61,7 @@ public final class EngineConfig {
     private final String codecName;
     private final ThreadPool threadPool;
     private final ShardIndexingService indexingService;
-    @Nullable
-    private final IndicesWarmer warmer;
+    private final Engine.Warmer warmer;
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
@@ -116,7 +115,7 @@ public final class EngineConfig {
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
     public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
-                        Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
+                        Settings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
                         TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
@@ -124,7 +123,7 @@ public final class EngineConfig {
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.indexingService = indexingService;
-        this.warmer = warmer;
+        this.warmer = warmer == null ? (a,b) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
@@ -267,11 +266,9 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns an {@link org.elasticsearch.indices.IndicesWarmer} used to warm new searchers before they are used for searching.
-     * Note: This method might retrun <code>null</code>
+     * Returns an {@link org.elasticsearch.index.engine.Engine.Warmer} used to warm new searchers before they are used for searching.
      */
-    @Nullable
-    public IndicesWarmer getWarmer() {
+    public Engine.Warmer getWarmer() {
         return warmer;
     }
 

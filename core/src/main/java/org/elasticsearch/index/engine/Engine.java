@@ -1056,4 +1056,18 @@ public abstract class Engine implements Closeable {
     public long getLastWriteNanos() {
         return this.lastWriteNanos;
     }
+
+    /**
+     * Called for each new opened engine searcher to warm new segments
+     * @see EngineConfig#getWarmer()
+     */
+    public interface Warmer {
+        /**
+         * Called once a new Searcher is opened.
+         * @param searcher the searcer to warm
+         * @param isTopLevelReader <code>true</code> iff the searcher is build from a top-level reader.
+         *                         Otherwise the searcher might be build from a leaf reader to warm in isolation
+         */
+        void warm(Engine.Searcher searcher, boolean isTopLevelReader);
+    }
 }

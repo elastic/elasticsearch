@@ -21,15 +21,16 @@ package org.elasticsearch.index;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FieldInvertState;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.CollectionStatistics;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.TermStatistics;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.cache.query.QueryCache;
+import org.elasticsearch.index.cache.query.index.IndexQueryCache;
+import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -40,6 +41,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.engine.MockEngineFactory;
 
@@ -49,13 +51,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
 public class IndexModuleTests extends ModuleTestCase {
-
+    private final IndicesWarmer warmer = new IndicesWarmer(Settings.EMPTY, null);
     public void testWrapperIsBound() {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null);
-        assertInstanceBinding(module, IndexSearcherWrapper.class,(x) -> x == null);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
+        assertInstanceBinding(module, IndexSearcherWrapper.class, (x) -> x == null);
         module.indexSearcherWrapper = Wrapper.class;
         assertBinding(module, IndexSearcherWrapper.class, Wrapper.class);
     }
@@ -64,7 +66,7 @@ public class IndexModuleTests extends ModuleTestCase {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
         assertBinding(module, EngineFactory.class, InternalEngineFactory.class);
         module.engineFactoryImpl = MockEngineFactory.class;
         assertBinding(module, EngineFactory.class, MockEngineFactory.class);
@@ -74,7 +76,7 @@ public class IndexModuleTests extends ModuleTestCase {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexModule.STORE_TYPE, "foo_store").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
         module.addIndexStore("foo_store", FooStore::new);
         assertInstanceBinding(module, IndexStore.class, (x) -> x.getClass() == FooStore.class);
         try {
@@ -96,7 +98,7 @@ public class IndexModuleTests extends ModuleTestCase {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
         Consumer<Settings> listener = (s) -> {};
         module.addIndexSettingsListener(listener);
         module.addIndexEventListener(eventListener);
@@ -117,7 +119,7 @@ public class IndexModuleTests extends ModuleTestCase {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
         Consumer<Settings> listener = (s) -> {
         };
         module.addIndexSettingsListener(listener);
@@ -145,7 +147,7 @@ public class IndexModuleTests extends ModuleTestCase {
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put("index.similarity.my_similarity.key", "there is a key")
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
         module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
             @Override
             public String name() {
@@ -174,7 +176,7 @@ public class IndexModuleTests extends ModuleTestCase {
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
         try {
             assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
         } catch (IllegalArgumentException ex) {
@@ -188,13 +190,73 @@ public class IndexModuleTests extends ModuleTestCase {
                 .put("index.similarity.my_similarity.foo", "bar")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
         try {
             assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
         } catch (IllegalArgumentException ex) {
             assertEquals("Similarity [my_similarity] must have an associated type", ex.getMessage());
         }
     }
+
+    public void testCannotRegisterProvidedImplementations() {
+        Settings indexSettings = Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        try {
+            module.registerQueryCache("index", IndexQueryCache::new);
+        } catch (IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [index]");
+        }
+
+        try {
+            module.registerQueryCache("none", (settings, x) -> new NoneQueryCache(settings));
+        } catch (IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [none]");
+        }
+    }
+
+    public void testRegisterCustomQueryCache() {
+        Settings indexSettings = Settings.settingsBuilder()
+                .put(IndexModule.QUERY_CACHE_TYPE, "custom")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
+        try {
+            module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
+        } catch (IllegalArgumentException e) {
+            assertEquals(e.getMessage(), "Can't register the same [query_cache] more than once for [custom]");
+        }
+        assertInstanceBinding(module, QueryCache.class, (x) -> x instanceof CustomQueryCache);
+    }
+
+    public void testDefaultQueryCacheImplIsSelected() {
+        Settings indexSettings = Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        assertInstanceBinding(module, QueryCache.class, (x) -> x instanceof IndexQueryCache);
+    }
+
+    class CustomQueryCache implements QueryCache {
+
+        @Override
+        public void clear(String reason) {
+        }
+
+        @Override
+        public void close() throws IOException {
+        }
+
+        @Override
+        public Index index() {
+            return new Index("test");
+        }
+
+        @Override
+        public Weight doCache(Weight weight, QueryCachingPolicy policy) {
+            return weight;
+        }
+    }
+
 
 
     private static class TestSimilarity extends Similarity {

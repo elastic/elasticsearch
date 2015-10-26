@@ -19,18 +19,15 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexReader;
-import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -46,68 +43,46 @@ public final class IndicesWarmer extends AbstractComponent {
 
     private final ThreadPool threadPool;
 
-    private final ClusterService clusterService;
-
-    private final IndicesService indicesService;
-
     private final CopyOnWriteArrayList<Listener> listeners = new CopyOnWriteArrayList<>();
 
     @Inject
-    public IndicesWarmer(Settings settings, ThreadPool threadPool, ClusterService clusterService, IndicesService indicesService) {
+    public IndicesWarmer(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;
-        this.clusterService = clusterService;
-        this.indicesService = indicesService;
     }
 
     public void addListener(Listener listener) {
         listeners.add(listener);
     }
-
     public void removeListener(Listener listener) {
         listeners.remove(listener);
     }
 
-    public void warmNewReaders(final WarmerContext context) {
-        warmInternal(context, false);
-    }
-
-    public void warmTopReader(WarmerContext context) {
-        warmInternal(context, true);
-    }
-
-    private void warmInternal(final WarmerContext context, boolean topReader) {
-        final IndexMetaData indexMetaData = clusterService.state().metaData().index(context.shardId().index().name());
-        if (indexMetaData == null) {
+    public void warm(Engine.Searcher searcher, IndexShard shard, IndexSettings settings, boolean isTopReader) {
+        if (shard.state() == IndexShardState.CLOSED) {
             return;
         }
-        if (!indexMetaData.getSettings().getAsBoolean(INDEX_WARMER_ENABLED, settings.getAsBoolean(INDEX_WARMER_ENABLED, true))) {
-            return;
-        }
-        IndexService indexService = indicesService.indexService(context.shardId().index().name());
-        if (indexService == null) {
-            return;
-        }
-        final IndexShard indexShard = indexService.getShardOrNull(context.shardId().id());
-        if (indexShard == null) {
+        final IndexMetaData indexMetaData = settings.getIndexMetaData();
+        final Settings indexSettings = settings.getSettings();
+        if (!indexSettings.getAsBoolean(INDEX_WARMER_ENABLED, settings.getNodeSettings().getAsBoolean(INDEX_WARMER_ENABLED, true))) {
             return;
         }
         if (logger.isTraceEnabled()) {
-            if (topReader) {
-                logger.trace("[{}][{}] top warming [{}]", context.shardId().index().name(), context.shardId().id(), context);
+            if (isTopReader) {
+                logger.trace("{} top warming [{}]", shard.shardId(), searcher.reader());
             } else {
-                logger.trace("[{}][{}] warming [{}]", context.shardId().index().name(), context.shardId().id(), context);
+                logger.trace("{} warming [{}]", shard.shardId(), searcher.reader());
             }
         }
-        indexShard.warmerService().onPreWarm();
+        shard.warmerService().onPreWarm();
         long time = System.nanoTime();
         final List<TerminationHandle> terminationHandles = new ArrayList<>();
         // get a handle on pending tasks
         for (final Listener listener : listeners) {
-            if (topReader) {
-                terminationHandles.add(listener.warmTopReader(indexShard, indexMetaData, context, threadPool));
+            if (isTopReader) {
+                terminationHandles.add(listener.warmTopReader(shard, indexMetaData, searcher, threadPool));
             } else {
-                terminationHandles.add(listener.warmNewReaders(indexShard, indexMetaData, context, threadPool));
+                terminationHandles.add(listener.warmNewReaders(shard, indexMetaData, searcher, threadPool));
             }
         }
         // wait for termination
@@ -116,7 +91,7 @@ public final class IndicesWarmer extends AbstractComponent {
                 terminationHandle.awaitTermination();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                if (topReader) {
+                if (isTopReader) {
                     logger.warn("top warming has been interrupted", e);
                 } else {
                     logger.warn("warming has been interrupted", e);
@@ -125,12 +100,12 @@ public final class IndicesWarmer extends AbstractComponent {
             }
         }
         long took = System.nanoTime() - time;
-        indexShard.warmerService().onPostWarm(took);
-        if (indexShard.warmerService().logger().isTraceEnabled()) {
-            if (topReader) {
-                indexShard.warmerService().logger().trace("top warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
+        shard.warmerService().onPostWarm(took);
+        if (shard.warmerService().logger().isTraceEnabled()) {
+            if (isTopReader) {
+                shard.warmerService().logger().trace("top warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
             } else {
-                indexShard.warmerService().logger().trace("warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
+                shard.warmerService().logger().trace("warming took [{}]", new TimeValue(took, TimeUnit.NANOSECONDS));
             }
         }
     }
@@ -138,10 +113,7 @@ public final class IndicesWarmer extends AbstractComponent {
     /** A handle on the execution of  warm-up action. */
     public interface TerminationHandle {
 
-        public static TerminationHandle NO_WAIT = new TerminationHandle() {
-            @Override
-            public void awaitTermination() {}
-        };
+        TerminationHandle NO_WAIT = () -> {};
 
         /** Wait until execution of the warm-up action completes. */
         void awaitTermination() throws InterruptedException;
@@ -153,41 +125,9 @@ public final class IndicesWarmer extends AbstractComponent {
         }
 
         /** Queue tasks to warm-up the given segments and return handles that allow to wait for termination of the execution of those tasks. */
-        public abstract TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+        public abstract TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, Engine.Searcher searcher, ThreadPool threadPool);
 
-        public abstract TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool);
+        public abstract TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, Engine.Searcher searcher, ThreadPool threadPool);
     }
 
-    public static final class WarmerContext {
-
-        private final ShardId shardId;
-        private final Engine.Searcher searcher;
-
-        public WarmerContext(ShardId shardId, Engine.Searcher searcher) {
-            this.shardId = shardId;
-            this.searcher = searcher;
-        }
-
-        public ShardId shardId() {
-            return shardId;
-        }
-
-        /** Return a searcher instance that only wraps the segments to warm. */
-        public Engine.Searcher searcher() {
-            return searcher;
-        }
-
-        public IndexReader reader() {
-            return searcher.reader();
-        }
-
-        public DirectoryReader getDirectoryReader() {
-            return searcher.getDirectoryReader();
-        }
-
-        @Override
-        public String toString() {
-            return "WarmerContext: " + searcher.reader();
-        }
-    }
 }

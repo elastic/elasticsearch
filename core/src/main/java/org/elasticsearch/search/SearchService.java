@@ -68,7 +68,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
-import org.elasticsearch.indices.IndicesWarmer.WarmerContext;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.script.ExecutableScript;
@@ -952,7 +951,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     static class NormsWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final Engine.Searcher searcher, ThreadPool threadPool) {
             final Loading defaultLoading = Loading.parse(indexMetaData.getSettings().get(NORMS_LOADING_KEY), Loading.LAZY);
             final MapperService mapperService = indexShard.mapperService();
             final ObjectSet<String> warmUp = new ObjectHashSet<>();
@@ -978,7 +977,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                         for (ObjectCursor<String> stringObjectCursor : warmUp) {
                             final String indexName = stringObjectCursor.value;
                             final long start = System.nanoTime();
-                            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
+                            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
                                 final NumericDocValues values = ctx.reader().getNormValues(indexName);
                                 if (values != null) {
                                     values.get(0);
@@ -1005,7 +1004,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
 
         @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, final Engine.Searcher searcher, ThreadPool threadPool) {
             return TerminationHandle.NO_WAIT;
         }
     }
@@ -1013,7 +1012,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     static class FieldDataWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warmNewReaders(final IndexShard indexShard, IndexMetaData indexMetaData, final Engine.Searcher searcher, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUp = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
@@ -1049,8 +1048,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
             final IndexFieldDataService indexFieldDataService = indexShard.indexFieldDataService();
             final Executor executor = threadPool.executor(executor());
-            final CountDownLatch latch = new CountDownLatch(context.searcher().reader().leaves().size() * warmUp.size());
-            for (final LeafReaderContext ctx : context.searcher().reader().leaves()) {
+            final CountDownLatch latch = new CountDownLatch(searcher.reader().leaves().size() * warmUp.size());
+            for (final LeafReaderContext ctx : searcher.reader().leaves()) {
                 for (final MappedFieldType fieldType : warmUp.values()) {
                     executor.execute(new Runnable() {
 
@@ -1081,7 +1080,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         }
 
         @Override
-        public TerminationHandle warmTopReader(final IndexShard indexShard, IndexMetaData indexMetaData, final WarmerContext context, ThreadPool threadPool) {
+        public TerminationHandle warmTopReader(final IndexShard indexShard, IndexMetaData indexMetaData, final Engine.Searcher searcher, ThreadPool threadPool) {
             final MapperService mapperService = indexShard.mapperService();
             final Map<String, MappedFieldType> warmUpGlobalOrdinals = new HashMap<>();
             for (DocumentMapper docMapper : mapperService.docMappers(false)) {
@@ -1123,7 +1122,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                         try {
                             final long start = System.nanoTime();
                             IndexFieldData.Global ifd = indexFieldDataService.getForField(fieldType);
-                            ifd.loadGlobal(context.getDirectoryReader());
+                            ifd.loadGlobal(searcher.getDirectoryReader());
                             if (indexShard.warmerService().logger().isTraceEnabled()) {
                                 indexShard.warmerService().logger().trace("warmed global ordinals for [{}], took [{}]", fieldType.names().fullName(), TimeValue.timeValueNanos(System.nanoTime() - start));
                             }
@@ -1147,16 +1146,16 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     class SearchWarmer extends IndicesWarmer.Listener {
 
         @Override
-        public TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
-            return internalWarm(indexShard, indexMetaData, context, threadPool, false);
+        public TerminationHandle warmNewReaders(IndexShard indexShard, IndexMetaData indexMetaData, final Engine.Searcher searcher, ThreadPool threadPool) {
+            return internalWarm(indexShard, indexMetaData, searcher, threadPool, false);
         }
 
         @Override
-        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, WarmerContext context, ThreadPool threadPool) {
-            return internalWarm(indexShard, indexMetaData, context, threadPool, true);
+        public TerminationHandle warmTopReader(IndexShard indexShard, IndexMetaData indexMetaData, final Engine.Searcher searcher, ThreadPool threadPool) {
+            return internalWarm(indexShard, indexMetaData, searcher, threadPool, true);
         }
 
-        public TerminationHandle internalWarm(final IndexShard indexShard, final IndexMetaData indexMetaData, final IndicesWarmer.WarmerContext warmerContext, ThreadPool threadPool, final boolean top) {
+        public TerminationHandle internalWarm(final IndexShard indexShard, final IndexMetaData indexMetaData, final Engine.Searcher searcher, ThreadPool threadPool, final boolean top) {
             IndexWarmersMetaData custom = indexMetaData.custom(IndexWarmersMetaData.TYPE);
             if (custom == null) {
                 return TerminationHandle.NO_WAIT;
@@ -1177,7 +1176,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                             ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexMetaData
                                     .getNumberOfShards(),
                                     SearchType.QUERY_THEN_FETCH, entry.source().build(queryParseContext), entry.types(), entry.requestCache());
-                            context = createContext(request, warmerContext.searcher());
+                            context = createContext(request, searcher);
                             // if we use sort, we need to do query to sort on
                             // it and load relevant field data
                             // if not, we might as well set size=0 (and cache

@@ -30,7 +30,7 @@ import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.query.HasChildQueryBuilder;
 import org.elasticsearch.index.query.IdsQueryBuilder;
@@ -97,8 +97,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 // aggressive filter caching so that we can assert on the filter cache size
-                .put(IndexCacheModule.QUERY_CACHE_TYPE, IndexCacheModule.INDEX_QUERY_CACHE)
-                .put(IndexCacheModule.QUERY_CACHE_EVERYTHING, true)
+                .put(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE)
+                .put(IndexModule.QUERY_CACHE_EVERYTHING, true)
                 .build();
     }
 

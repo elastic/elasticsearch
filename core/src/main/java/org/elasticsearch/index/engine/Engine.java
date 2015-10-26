@@ -80,7 +80,7 @@ public abstract class Engine implements Closeable {
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected volatile Throwable failedEngine = null;
-    protected volatile long lastWriteNanos;
+    protected volatile long lastWriteNanos = Long.MAX_VALUE; // no write yet!
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");

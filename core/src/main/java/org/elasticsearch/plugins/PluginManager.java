@@ -511,7 +511,7 @@ public class PluginManager {
         if (removed) {
             terminal.println("Removed %s", name);
         } else {
-            terminal.println("Plugin %s not found. Run plugin --list to get list of installed plugins.", name);
+            terminal.println("Plugin %s not found. Run \"plugin list\" to get list of installed plugins.", name);
         }
     }
 

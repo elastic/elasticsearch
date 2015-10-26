@@ -34,7 +34,6 @@ import java.nio.file.Path;
 
 public class SmbMmapFsDirectoryService extends FsDirectoryService {
 
-    @Inject
     public SmbMmapFsDirectoryService(IndexSettings indexSettings, IndexStore indexStore, ShardPath path) {
         super(indexSettings, indexStore, path);
     }

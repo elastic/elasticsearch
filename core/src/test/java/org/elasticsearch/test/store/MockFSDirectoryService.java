@@ -33,16 +33,15 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.Assert;
 
 import java.io.Closeable;
@@ -63,13 +62,12 @@ public class MockFSDirectoryService extends FsDirectoryService {
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
     private final MockDirectoryWrapper.Throttling throttle;
-    private final Settings indexSettings;
     private final boolean preventDoubleWrite;
     private final boolean noDeleteOpenFile;
     private final boolean crashIndex;
 
     @Inject
-    public MockFSDirectoryService(IndexSettings idxSettings, IndexStore indexStore, final IndicesService service, final ShardPath path) {
+    public MockFSDirectoryService(IndexSettings idxSettings, IndexStore indexStore, final ShardPath path) {
         super(idxSettings, indexStore, path);
         Settings indexSettings = idxSettings.getSettings();
         final long seed = indexSettings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
@@ -87,7 +85,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
             logger.debug("Using MockDirWrapper with seed [{}] throttle: [{}] crashIndex: [{}]", SeedUtils.formatSeed(seed),
                     throttle, crashIndex);
         }
-        this.indexSettings = indexSettings;
         delegateService = randomDirectorService(indexStore, path);
     }
 
@@ -175,7 +172,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
 
     private FsDirectoryService randomDirectorService(IndexStore indexStore, ShardPath path) {
         final IndexSettings indexSettings = indexStore.getIndexSettings();
-        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(Settings.builder().put(indexSettings.getSettings()).put(IndexStoreModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexStoreModule.Type.values()).getSettingsKey())).build();
+        final IndexMetaData build = IndexMetaData.builder(indexSettings.getIndexMetaData()).settings(Settings.builder().put(indexSettings.getSettings()).put(IndexModule.STORE_TYPE, RandomPicks.randomFrom(random, IndexModule.Type.values()).getSettingsKey())).build();
         final IndexSettings newIndexSettings = new IndexSettings(build, indexSettings.getNodeSettings(), Collections.EMPTY_LIST);
         return new FsDirectoryService(newIndexSettings, indexStore, path);
     }

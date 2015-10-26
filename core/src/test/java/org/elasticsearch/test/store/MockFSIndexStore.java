@@ -21,7 +21,6 @@ package org.elasticsearch.test.store;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
@@ -30,8 +29,6 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
-import org.elasticsearch.index.store.IndexStoreModule;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.Plugin;
 
@@ -40,7 +37,6 @@ import java.util.*;
 public class MockFSIndexStore extends IndexStore {
 
     public static final String CHECK_INDEX_ON_CLOSE = "index.store.mock.check_index_on_close";
-    private final IndicesService indicesService;
 
     public static class TestPlugin extends Plugin {
         @Override
@@ -51,33 +47,29 @@ public class MockFSIndexStore extends IndexStore {
         public String description() {
             return "a mock index store for testing";
         }
-        public void onModule(IndexStoreModule indexStoreModule) {
-            indexStoreModule.addIndexStore("mock", MockFSIndexStore.class);
-        }
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put(IndexStoreModule.STORE_TYPE, "mock").build();
+            return Settings.builder().put(IndexModule.STORE_TYPE, "mock").build();
         }
 
         public void onModule(IndexModule module) {
             Settings indexSettings = module.getSettings();
-            if ("mock".equals(indexSettings.get(IndexStoreModule.STORE_TYPE))) {
+            if ("mock".equals(indexSettings.get(IndexModule.STORE_TYPE))) {
                 if (indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true)) {
                     module.addIndexEventListener(new Listener());
                 }
+                module.addIndexStore("mock", MockFSIndexStore::new);
             }
         }
     }
 
-    @Inject
-    public MockFSIndexStore(IndexSettings indexSettings,
-                            IndicesStore indicesStore, IndicesService indicesService) {
+    MockFSIndexStore(IndexSettings indexSettings,
+                            IndicesStore indicesStore) {
         super(indexSettings, indicesStore);
-        this.indicesService = indicesService;
     }
 
     public DirectoryService newDirectoryService(ShardPath path) {
-        return new MockFSDirectoryService(indexSettings, this, indicesService, path);
+        return new MockFSDirectoryService(indexSettings, this, path);
     }
 
     private static final EnumSet<IndexShardState> validCheckIndexStates = EnumSet.of(

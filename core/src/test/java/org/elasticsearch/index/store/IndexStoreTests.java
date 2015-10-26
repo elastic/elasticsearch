@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -42,9 +43,9 @@ public class IndexStoreTests extends ESTestCase {
 
     public void testStoreDirectory() throws IOException {
         final Path tempDir = createTempDir().resolve("foo").resolve("0");
-        final IndexStoreModule.Type[] values = IndexStoreModule.Type.values();
-        final IndexStoreModule.Type type = RandomPicks.randomFrom(random(), values);
-        Settings settings = Settings.settingsBuilder().put(IndexStoreModule.STORE_TYPE, type.name().toLowerCase(Locale.ROOT))
+        final IndexModule.Type[] values = IndexModule.Type.values();
+        final IndexModule.Type type = RandomPicks.randomFrom(random(), values);
+        Settings settings = Settings.settingsBuilder().put(IndexModule.STORE_TYPE, type.name().toLowerCase(Locale.ROOT))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo"), settings, Collections.EMPTY_LIST);
         FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));

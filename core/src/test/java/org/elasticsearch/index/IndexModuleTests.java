@@ -30,6 +30,8 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.engine.MockEngineFactory;
 
@@ -43,7 +45,7 @@ public class IndexModuleTests extends ModuleTestCase {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings);
+        IndexModule module = new IndexModule(indexSettings, null);
         assertInstanceBinding(module, IndexSearcherWrapper.class,(x) -> x == null);
         module.indexSearcherWrapper = Wrapper.class;
         assertBinding(module, IndexSearcherWrapper.class, Wrapper.class);
@@ -53,10 +55,25 @@ public class IndexModuleTests extends ModuleTestCase {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings);
+        IndexModule module = new IndexModule(indexSettings, null);
         assertBinding(module, EngineFactory.class, InternalEngineFactory.class);
         module.engineFactoryImpl = MockEngineFactory.class;
         assertBinding(module, EngineFactory.class, MockEngineFactory.class);
+    }
+
+    public void testRegisterIndexStore() {
+        final Index index = new Index("foo");
+        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexModule.STORE_TYPE, "foo_store").build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexModule module = new IndexModule(indexSettings, null);
+        module.addIndexStore("foo_store", FooStore::new);
+        assertInstanceBinding(module, IndexStore.class, (x) -> x.getClass() == FooStore.class);
+        try {
+            module.addIndexStore("foo_store", FooStore::new);
+            fail("already registered");
+        } catch (IllegalArgumentException ex) {
+            // fine
+        }
     }
 
     public void testOtherServiceBound() {
@@ -70,16 +87,20 @@ public class IndexModuleTests extends ModuleTestCase {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings);
+        IndexModule module = new IndexModule(indexSettings, null);
         Consumer<Settings> listener = (s) -> {};
         module.addIndexSettingsListener(listener);
         module.addIndexEventListener(eventListener);
         assertBinding(module, IndexService.class, IndexService.class);
         assertBinding(module, IndexServicesProvider.class, IndexServicesProvider.class);
-        assertInstanceBinding(module, IndexEventListener.class, (x) -> {x.beforeIndexDeleted(null); return atomicBoolean.get();});
+        assertInstanceBinding(module, IndexEventListener.class, (x) -> {
+            x.beforeIndexDeleted(null);
+            return atomicBoolean.get();
+        });
         assertInstanceBinding(module, IndexSettings.class, (x) -> x.getSettings().getAsMap().equals(indexSettings.getSettings().getAsMap()));
         assertInstanceBinding(module, IndexSettings.class, (x) -> x.getIndex().equals(indexSettings.getIndex()));
         assertInstanceBinding(module, IndexSettings.class, (x) -> x.getUpdateListeners().get(0) == listener);
+        assertInstanceBinding(module, IndexStore.class, (x) -> x.getClass() == IndexStore.class);
     }
 
 
@@ -87,7 +108,7 @@ public class IndexModuleTests extends ModuleTestCase {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings);
+        IndexModule module = new IndexModule(indexSettings, null);
         Consumer<Settings> listener = (s) -> {
         };
         module.addIndexSettingsListener(listener);
@@ -121,6 +142,13 @@ public class IndexModuleTests extends ModuleTestCase {
         @Override
         public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
             return null;
+        }
+    }
+
+    public static final class FooStore extends IndexStore {
+
+        public FooStore(IndexSettings indexSettings, IndicesStore indicesStore) {
+            super(indexSettings, indicesStore);
         }
     }
 

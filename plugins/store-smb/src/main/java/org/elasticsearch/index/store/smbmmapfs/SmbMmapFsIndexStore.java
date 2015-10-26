@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.store.smbmmapfs;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.DirectoryService;
@@ -28,7 +27,6 @@ import org.elasticsearch.indices.store.IndicesStore;
 
 public class SmbMmapFsIndexStore extends IndexStore {
 
-    @Inject
     public SmbMmapFsIndexStore(IndexSettings indexSettings, IndicesStore indicesStore) {
         super(indexSettings, indicesStore);
     }

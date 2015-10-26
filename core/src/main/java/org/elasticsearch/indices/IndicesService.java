@@ -60,9 +60,9 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityModule;
-import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.plugins.PluginsService;
 
 import java.io.Closeable;
@@ -77,8 +77,6 @@ import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -290,6 +288,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
+
+        final IndicesStore indicesStore = injector.getInstance(IndicesStore.class); // TODO remove this circular dep!!
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
         Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
@@ -307,12 +307,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         for (Module pluginModule : pluginsService.indexModules(idxSettings.getSettings())) {
             modules.add(pluginModule);
         }
-        final IndexModule indexModule = new IndexModule(idxSettings);
+        final IndexModule indexModule = new IndexModule(idxSettings, indicesStore);
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
         indexModule.addIndexEventListener(oldShardsStats);
-        modules.add(new IndexStoreModule(idxSettings.getSettings()));
         modules.add(new AnalysisModule(idxSettings.getSettings(), indicesAnalysisService));
         modules.add(new SimilarityModule(idxSettings));
         modules.add(new IndexCacheModule(idxSettings.getSettings()));

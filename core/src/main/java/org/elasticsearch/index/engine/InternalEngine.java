@@ -588,7 +588,7 @@ public class InternalEngine extends Engine {
             throw new EngineException(shardId, "failed to renew sync commit", ex);
         }
         if (renewed) { // refresh outside of the write lock
-            refresh("version_table_flush");
+            refresh("renew sync commit");
         }
 
         return renewed;

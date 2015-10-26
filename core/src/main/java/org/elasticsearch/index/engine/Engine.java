@@ -1047,12 +1047,11 @@ public abstract class Engine implements Closeable {
     }
 
     /**
-     * Retuns the timestamp of the last write in nanoseconds.
+     * Returns the timestamp of the last write in nanoseconds.
      * Note: this time might not be absolutely accurate since the {@link Operation#startTime()} is used which might be
      * slightly inaccurate.
      * @see System#nanoTime()
      * @see Operation#startTime()
-     * @return
      */
     public long getLastWriteNanos() {
         return this.lastWriteNanos;

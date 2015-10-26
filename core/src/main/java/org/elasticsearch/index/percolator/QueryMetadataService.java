@@ -106,13 +106,9 @@ public final class QueryMetadataService {
             if (hasRequiredClauses) {
                 Set<Term> bestClause = null;
                 for (BooleanClause clause : clauses) {
-                    if (clause.isProhibited()) {
-                        // we don't need to remember the things that do *not* match...
-                        continue;
-                    }
-                    if (clause.getOccur() == BooleanClause.Occur.SHOULD) {
-                        // this bq has must clauses, so we don't need to remember should clauses,
-                        // since they are completely optional.
+                    if (clause.isRequired() == false) {
+                        // skip must_not clauses, we don't need to remember the things that do *not* match...
+                        // skip should clauses, this bq has must clauses, so we don't need to remember should clauses, since they are completely optional.
                         continue;
                     }
 

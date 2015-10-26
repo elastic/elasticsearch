@@ -88,23 +88,12 @@ public class TemplateQueryIT extends ESIntegTestCase {
     }
 
     public void testTemplateInBodyWithSize() throws IOException {
-        String request = "{\n" +
-                "    \"size\":0," +
-                "    \"query\": {\n" +
-                "        \"template\": {\n" +
-                "            \"query\": {\"match_{{template}}\": {}},\n" +
-                "            \"params\" : {\n" +
-                "                \"template\" : \"all\"\n" +
-                "            }\n" +
-                "        }\n" +
-                "    }\n" +
-                "}";
         Map<String, Object> params = new HashMap<>();
         params.put("template", "all");
         SearchResponse sr = client().prepareSearch()
                 .setSource(
                         new SearchSourceBuilder().size(0).query(
-                                QueryBuilders.templateQuery(new Template("{ \"query\": { \"match_{{template}}\": {} } }",
+                                QueryBuilders.templateQuery(new Template("{ \"match_{{template}}\": {} }",
                                         ScriptType.INLINE, null, null, params)))).execute()
                 .actionGet();
         assertNoFailures(sr);

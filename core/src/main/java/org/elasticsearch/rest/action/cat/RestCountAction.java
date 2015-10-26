@@ -28,7 +28,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
@@ -71,9 +70,7 @@ public class RestCountAction extends AbstractCatAction {
         SearchSourceBuilder searchSourceBuilder = new SearchSourceBuilder().size(0);
         countRequest.source(searchSourceBuilder);
         if (source != null) {
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            context.parseFieldMatcher(parseFieldMatcher);
-            searchSourceBuilder.query(RestActions.getQueryContent(new BytesArray(source), context));
+            searchSourceBuilder.query(RestActions.getQueryContent(new BytesArray(source), indicesQueriesRegistry, parseFieldMatcher));
         } else {
             QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
             if (queryBuilder != null) {

@@ -724,8 +724,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, TRACK_SCORES_FIELD)) {
                     builder.trackScores = parser.booleanValue();
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    FetchSourceContext fetchSourceContext = FetchSourceContext.parse(parser, context);
-                    builder.fetchSourceContext = fetchSourceContext;
+                    builder.fetchSourceContext = FetchSourceContext.parse(parser, context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     List<String> fieldNames = new ArrayList<>();
                     fieldNames.add(parser.text());
@@ -742,8 +741,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                 } else if (context.parseFieldMatcher().match(currentFieldName, POST_FILTER_FIELD)) {
                     builder.postQueryBuilder = context.parseInnerQueryBuilder();
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    FetchSourceContext fetchSourceContext = FetchSourceContext.parse(parser, context);
-                    builder.fetchSourceContext = fetchSourceContext;
+                    builder.fetchSourceContext = FetchSourceContext.parse(parser, context);
                 } else if (context.parseFieldMatcher().match(currentFieldName, SCRIPT_FIELDS_FIELD)) {
                     List<ScriptField> scriptFields = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -886,8 +884,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     }
                     builder.stats = stats;
                 } else if (context.parseFieldMatcher().match(currentFieldName, _SOURCE_FIELD)) {
-                    FetchSourceContext fetchSourceContext = FetchSourceContext.parse(parser, context);
-                    builder.fetchSourceContext = fetchSourceContext;
+                    builder.fetchSourceContext = FetchSourceContext.parse(parser, context);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",
                             parser.getTokenLocation());

@@ -236,14 +236,6 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
         private volatile License license;
 
         @Override
-        public void registerLicense(PutLicenseRequest request, ActionListener<LicensesService.LicensesUpdateResponse> listener) {
-        }
-
-        @Override
-        public void removeLicense(DeleteLicenseRequest request, ActionListener<ClusterStateUpdateResponse> listener) {
-        }
-
-        @Override
         public List<String> licenseesWithState(LicenseState state) {
             return null;
         }

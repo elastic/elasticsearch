@@ -240,8 +240,8 @@
     },
     "index_recovery": {
       "properties": {
-        "shards": {
-          "type": "object"
+        "index_recovery": {
+          "enabled": false
         }
       }
     },

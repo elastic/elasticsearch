@@ -7,8 +7,10 @@ package org.elasticsearch.marvel.agent.renderer.indices;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.indices.IndexRecoveryCollector;
+import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -18,7 +20,9 @@ import org.junit.After;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
@@ -67,12 +71,19 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
 
         awaitMarvelDocsCount(greaterThan(0L), IndexRecoveryCollector.TYPE);
 
+        String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
+        assertTrue(Strings.hasText(clusterUUID));
+
         logger.debug("--> searching for marvel documents of type [{}]", IndexRecoveryCollector.TYPE);
-        SearchResponse response = client().prepareSearch(MarvelSettings.MARVEL_INDICES_PREFIX + "*").setTypes(IndexRecoveryCollector.TYPE).get();
+        SearchResponse response = client().prepareSearch(MarvelSettings.MARVEL_INDICES_PREFIX + "*")
+                .setTypes(IndexRecoveryCollector.TYPE)
+                .get();
         assertThat(response.getHits().getTotalHits(), greaterThan(0L));
 
         logger.debug("--> checking that every document contains the expected fields");
         String[] filters = {
+                AbstractRenderer.Fields.CLUSTER_UUID.underscore().toString(),
+                AbstractRenderer.Fields.TIMESTAMP.underscore().toString(),
                 IndexRecoveryRenderer.Fields.INDEX_RECOVERY.underscore().toString(),
                 IndexRecoveryRenderer.Fields.INDEX_RECOVERY.underscore().toString() + "." + IndexRecoveryRenderer.Fields.SHARDS.underscore().toString(),
         };
@@ -83,6 +94,32 @@ public class IndexRecoveryTests extends MarvelIntegTestCase {
             for (String filter : filters) {
                 assertContains(filter, fields);
             }
+        }
+
+        securedFlush();
+        securedRefresh();
+
+        logger.debug("--> checking that cluster_uuid field is correctly indexed");
+        response = client().prepareSearch().setTypes(IndexRecoveryCollector.TYPE).setSize(0).setQuery(existsQuery("cluster_uuid")).get();
+        assertThat(response.getHits().getTotalHits(), greaterThan(0L));
+
+        logger.debug("--> checking that timestamp field is correctly indexed");
+        response = client().prepareSearch().setTypes(IndexRecoveryCollector.TYPE).setSize(0).setQuery(existsQuery("timestamp")).get();
+        assertThat(response.getHits().getTotalHits(), greaterThan(0L));
+
+        logger.debug("--> checking that other fields are not indexed");
+        String[] fields = {
+                "index_recovery.shards.primary",
+                "index_recovery.shards.id",
+                "index_recovery.shards.stage",
+                "index_recovery.shards.index_name",
+                "index_recovery.shards.source.host",
+                "index_recovery.shards.source.name",
+        };
+
+        for (String field : fields) {
+            response = client().prepareSearch().setTypes(IndexRecoveryCollector.TYPE).setSize(0).setQuery(existsQuery(field)).get();
+            assertHitCount(response, 0L);
         }
 
         logger.debug("--> index recovery successfully collected");

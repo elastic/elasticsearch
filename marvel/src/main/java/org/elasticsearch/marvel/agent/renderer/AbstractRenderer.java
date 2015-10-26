@@ -76,8 +76,8 @@ public abstract class AbstractRenderer<T extends MarvelDoc> implements Renderer<
         return filters;
     }
 
-    static final class Fields {
-        static final XContentBuilderString CLUSTER_UUID = new XContentBuilderString("cluster_uuid");
-        static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
+    public static final class Fields {
+        public static final XContentBuilderString CLUSTER_UUID = new XContentBuilderString("cluster_uuid");
+        public static final XContentBuilderString TIMESTAMP = new XContentBuilderString("timestamp");
     }
 }

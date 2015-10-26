@@ -42,6 +42,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
 
 @ESIntegTestCase.ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class HttpExporterTests extends MarvelIntegTestCase {
@@ -191,8 +192,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         logger.info("--> exporting data");
         HttpExporter exporter = getExporter(agentNode);
+        assertThat(exporter.supportedClusterVersion, is(false));
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
+        assertThat(exporter.supportedClusterVersion, is(true));
         assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(4));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
@@ -290,8 +293,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         logger.info("--> exporting data");
         HttpExporter exporter = getExporter(agentNode);
+        assertThat(exporter.supportedClusterVersion, is(false));
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
+        assertThat(exporter.supportedClusterVersion, is(true));
         assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(3));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
@@ -301,6 +306,33 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
         assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
+    }
+
+    public void testUnsupportedClusterVersion() throws Exception {
+        Settings.Builder builder = Settings.builder()
+                .put(MarvelSettings.INTERVAL, "-1")
+                .put("marvel.agent.exporters._http.type", "http")
+                .put("marvel.agent.exporters._http.host", webServer.getHostName() + ":" + webServer.getPort())
+                .put("marvel.agent.exporters._http.connection.keep_alive", false);
+
+        logger.info("--> starting node");
+
+        // returning an unsupported cluster version
+        enqueueGetClusterVersionResponse(randomFrom(Version.V_0_18_0, Version.V_1_0_0, Version.V_1_4_0));
+
+        String agentNode = internalCluster().startNode(builder);
+
+        logger.info("--> exporting data");
+        HttpExporter exporter = getExporter(agentNode);
+        assertThat(exporter.supportedClusterVersion, is(false));
+        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+
+        assertThat(exporter.supportedClusterVersion, is(false));
+        assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(1));
+
+        RecordedRequest recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getMethod(), equalTo("GET"));
+        assertThat(recordedRequest.getPath(), equalTo("/"));
     }
 
     public void testDynamicIndexFormatChange() throws Exception {

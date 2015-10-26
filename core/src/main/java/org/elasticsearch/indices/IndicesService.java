@@ -59,7 +59,6 @@ import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
@@ -313,7 +312,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         indexModule.addIndexEventListener(oldShardsStats);
         modules.add(new AnalysisModule(idxSettings.getSettings(), indicesAnalysisService));
-        modules.add(new SimilarityModule(idxSettings));
         modules.add(new IndexCacheModule(idxSettings.getSettings()));
         modules.add(indexModule);
         pluginsService.processModules(modules);

@@ -28,6 +28,9 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
+import org.elasticsearch.index.similarity.BM25SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityProvider;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.store.IndicesStore;
 
@@ -36,11 +39,21 @@ import java.util.function.BiFunction;
 import java.util.function.Consumer;
 
 /**
- *
+ * IndexModule represents the central extension point for index level custom implementations like:
+ * <ul>
+ *     <li>{@link SimilarityProvider} - New {@link SimilarityProvider} implementations can be registered through {@link #addSimilarity(String, BiFunction)}
+ *         while existing Providers can be referenced through Settings under the {@link IndexModule#SIMILARITY_SETTINGS_PREFIX} prefix
+ *         along with the "type" value.  For example, to reference the {@link BM25SimilarityProvider}, the configuration
+ *         <tt>"index.similarity.my_similarity.type : "BM25"</tt> can be used.</li>
+ *      <li>{@link IndexStore} - Custom {@link IndexStore} instances can be registered via {@link #addIndexStore(String, BiFunction)}</li>
+ *      <li>{@link IndexEventListener} - Custom {@link IndexEventListener} instances can be registered via {@link #addIndexEventListener(IndexEventListener)}</li>
+ *      <li>Settings update listener - Custom settings update listener can be registered via {@link #addIndexSettingsListener(Consumer)}</li>
+ * </ul>
  */
 public class IndexModule extends AbstractModule {
 
     public static final String STORE_TYPE = "index.store.type";
+    public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
     private final IndexSettings indexSettings;
     private final IndicesStore indicesStore;
     // pkg private so tests can mock
@@ -50,6 +63,7 @@ public class IndexModule extends AbstractModule {
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private IndexEventListener listener;
     private final Map<String, BiFunction<IndexSettings, IndicesStore, IndexStore>> storeTypes = new HashMap<>();
+    private final Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities = new HashMap<>();
 
 
     public IndexModule(IndexSettings indexSettings, IndicesStore indicesStore) {
@@ -127,6 +141,21 @@ public class IndexModule extends AbstractModule {
         storeTypes.put(type, provider);
     }
 
+
+    /**
+     * Registers the given {@link SimilarityProvider} with the given name
+     *
+     * @param name Name of the SimilarityProvider
+     * @param similarity SimilarityProvider to register
+     */
+    public void addSimilarity(String name, BiFunction<String, Settings, SimilarityProvider> similarity) {
+        if (similarities.containsKey(name) || SimilarityService.BUILT_IN.containsKey(name)) {
+            throw new IllegalArgumentException("similarity for name: [" + name + " is already registered");
+        }
+        similarities.put(name, similarity);
+    }
+
+
     public IndexEventListener freeze() {
         // TODO somehow we need to make this pkg private...
         if (listener == null) {
@@ -175,6 +204,7 @@ public class IndexModule extends AbstractModule {
             }
         }
         bind(IndexStore.class).toInstance(store);
+        bind(SimilarityService.class).toInstance(new SimilarityService(settings, similarities));
     }
 
     public enum Type {

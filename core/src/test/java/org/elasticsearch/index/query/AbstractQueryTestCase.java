@@ -65,7 +65,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
-import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -215,10 +215,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 new IndexSettingsModule(index, indexSettings),
                 new IndexCacheModule(indexSettings),
                 new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
-                new SimilarityModule(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST)),
-        new AbstractModule() {
+                new AbstractModule() {
                     @Override
                     protected void configure() {
+                        SimilarityService service = new SimilarityService(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), Collections.EMPTY_MAP);
+                        bind(SimilarityService.class).toInstance(service);
                         bind(Client.class).toInstance(proxy);
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ScoreFunctionParserMapper.class).asEagerSingleton();

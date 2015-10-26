@@ -37,11 +37,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -98,10 +97,11 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings, new IndicesAnalysisService(settings)),
-                new SimilarityModule(IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST)),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
+                        SimilarityService service = new SimilarityService(IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST), Collections.EMPTY_MAP);
+                        bind(SimilarityService.class).toInstance(service);
                         bind(Client.class).toInstance(proxy); // not needed here
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));

@@ -68,19 +68,25 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             return doAuthenticate(token);
         }
 
-        CacheLoader<String, UserWithHash> callback = key -> {
-            if (logger.isDebugEnabled()) {
-                logger.debug("user not found in cache, proceeding with normal authentication");
-            }
-            User user = doAuthenticate(token);
-            if (user == null) {
-                throw Exceptions.authenticationError("could not authenticate [{}]", token.principal());
-            }
-            return new UserWithHash(user, token.credentials(), hasher);
-        };
-
         try {
-            UserWithHash userWithHash = cache.computeIfAbsent(token.principal(), callback);
+            UserWithHash userWithHash = cache.get(token.principal());
+            if (userWithHash == null) {
+                if (logger.isDebugEnabled()) {
+                    logger.debug("user not found in cache, proceeding with normal authentication");
+                }
+                User user = doAuthenticate(token);
+                if (user == null) {
+                    return null;
+                }
+                userWithHash = new UserWithHash(user, token.credentials(), hasher);
+                // it doesn't matter if we already computed it elsewhere
+                cache.put(token.principal(), userWithHash);
+                if (logger.isDebugEnabled()) {
+                    logger.debug("authenticated user [{}], with roles [{}]", token.principal(), user.roles());
+                }
+                return user;
+            }
+
             final boolean hadHash = userWithHash.hasHash();
             if (hadHash) {
                 if (userWithHash.verify(token.credentials())) {
@@ -91,9 +97,14 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
                 }
             }
             //this handles when a user's password has changed or the user was looked up for run as and not authenticated
-            expire(token.principal());
-            userWithHash = cache.computeIfAbsent(token.principal(), callback);
-
+            cache.invalidate(token.principal());
+            User user = doAuthenticate(token);
+            if (user == null) {
+                return null;
+            }
+            userWithHash = new UserWithHash(user, token.credentials(), hasher);
+            // it doesn't matter if we already computed it elsewhere
+            cache.put(token.principal(), userWithHash);
             if (logger.isDebugEnabled()) {
                 if (hadHash) {
                     logger.debug("cached user's password changed. authenticated user [{}], with roles [{}]", token.principal(), userWithHash.user.roles());
@@ -103,7 +114,7 @@ public abstract class CachingUsernamePasswordRealm extends UsernamePasswordRealm
             }
             return userWithHash.user;
             
-        } catch (ExecutionException ee) {
+        } catch (Exception ee) {
             if (logger.isTraceEnabled()) {
                 logger.trace("realm [" + type() + "] could not authenticate [" + token.principal() + "]", ee);
             } else if (logger.isDebugEnabled()) {

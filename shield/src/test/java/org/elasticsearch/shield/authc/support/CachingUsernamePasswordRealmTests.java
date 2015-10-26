@@ -13,6 +13,9 @@ import org.elasticsearch.shield.authc.RealmConfig;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.ArrayList;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.hamcrest.Matchers.arrayContaining;
@@ -168,6 +171,67 @@ public class CachingUsernamePasswordRealmTests extends ESTestCase {
         realm.lookupUser("c");
 
         assertThat(realm.lookupInvocationCounter.intValue(), is(0));
+    }
+
+    public void testCacheConcurrency() throws Exception {
+        final String username = "username";
+        final SecuredString password = new SecuredString("changeme".toCharArray());
+        final SecuredString randomPassword = new SecuredString(randomAsciiOfLength(password.length()).toCharArray());
+
+        final String passwordHash = new String(Hasher.BCRYPT.hash(password));
+        RealmConfig config = new RealmConfig("test_realm", Settings.EMPTY, globalSettings);
+        final CachingUsernamePasswordRealm realm = new CachingUsernamePasswordRealm("test", config) {
+            @Override
+            protected User doAuthenticate(UsernamePasswordToken token) {
+                // do something slow
+                if (BCrypt.checkpw(token.credentials(), passwordHash)) {
+                    return new User.Simple(username, new String[]{"r1", "r2", "r3"});
+                }
+                return null;
+            }
+
+            @Override
+            protected User doLookupUser(String username) {
+                throw new UnsupportedOperationException("this method should not be called");
+            }
+
+            @Override
+            public boolean userLookupSupported() {
+                return false;
+            }
+        };
+
+        final CountDownLatch latch = new CountDownLatch(1);
+        final int numberOfThreads = randomIntBetween(8, 24);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < numberOfThreads; i++) {
+            final boolean invalidPassword = randomBoolean();
+            threads.add(new Thread() {
+                @Override
+                public void run() {
+                    try {
+                        latch.await();
+                        for (int i = 0; i < 100; i++) {
+                            User user = realm.authenticate(new UsernamePasswordToken(username, invalidPassword ? randomPassword : password));
+                            if (invalidPassword && user != null) {
+                                throw new RuntimeException("invalid password led to an authenticated user: " + user.toString());
+                            } else if (invalidPassword == false && user == null) {
+                                throw new RuntimeException("proper password led to a null user!");
+                            }
+                        }
+
+                    } catch (InterruptedException e) {}
+                }
+            });
+        }
+
+        for (Thread thread : threads) {
+            thread.start();
+        }
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
     }
 
     static class FailingAuthenticationRealm extends CachingUsernamePasswordRealm {

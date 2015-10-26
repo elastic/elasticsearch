@@ -5,9 +5,6 @@
  */
 package org.elasticsearch.marvel.license;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
-import com.carrotsearch.randomizedtesting.SysGlobals;
-
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
@@ -17,6 +14,7 @@ import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
+import org.elasticsearch.license.plugin.core.LicensesManagerService;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
@@ -107,10 +105,11 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         protected void configure() {
             bind(MockLicenseService.class).asEagerSingleton();
             bind(LicenseeRegistry.class).to(MockLicenseService.class);
+            bind(LicensesManagerService.class).to(MockLicenseService.class);
         }
     }
 
-    public static class MockLicenseService extends AbstractComponent implements LicenseeRegistry {
+    public static class MockLicenseService extends AbstractComponent implements LicenseeRegistry, LicensesManagerService {
 
         private final List<Licensee> licensees = new ArrayList<>();
 
@@ -136,6 +135,20 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
             for (Licensee licensee : licensees) {
                 licensee.onChange(new Licensee.Status(License.OperationMode.BASIC, LicenseState.DISABLED));
             }
+        }
+
+        @Override
+        public List<String> licenseesWithState(LicenseState state) {
+            List<String> licenseesWithState = new ArrayList<>();
+            for (Licensee licensee : licensees) {
+                licenseesWithState.add(licensee.id());
+            }
+            return licenseesWithState;
+        }
+
+        @Override
+        public License getLicense() {
+            return null;
         }
     }
 }

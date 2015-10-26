@@ -66,7 +66,7 @@ import java.util.concurrent.Executor;
  * and require that it should always be around should use this cache, otherwise the
  * {@link org.elasticsearch.index.cache.query.QueryCache} should be used instead.
  */
-public class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
+public final class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
     private static final Listener DEFAULT_NOOP_LISTENER =  new Listener() {
@@ -83,8 +83,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     private final Cache<Object, Cache<Query, Value>> loadedFilters;
     private volatile Listener listener = DEFAULT_NOOP_LISTENER;
     private final BitSetProducerWarmer warmer;
-
-    private IndicesWarmer indicesWarmer;
+    private final IndicesWarmer indicesWarmer;
 
     public BitsetFilterCache(IndexSettings indexSettings, IndicesWarmer indicesWarmer) {
         super(indexSettings);
@@ -94,6 +93,7 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
         this.indicesWarmer = indicesWarmer;
         indicesWarmer.addListener(warmer);
     }
+    
     /**
      * Sets a listener that is invoked for all subsequent cache and removal events.
      * @throws IllegalStateException if the listener is set more than once
@@ -120,10 +120,11 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
 
     @Override
     public void close() {
-        if (indicesWarmer != null) {
+        try {
             indicesWarmer.removeListener(warmer);
+        } finally {
+            clear("close");
         }
-        clear("close");
     }
 
     public void clear(String reason) {

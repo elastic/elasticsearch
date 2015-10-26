@@ -53,6 +53,8 @@ Elasticsearch, but they are no longer supported in Elasticsearch 2.0.
   A high performance consistency checker to compare what you've indexed
   with your source of truth content (e.g. DB)
 
+* https://github.com/salyh/elasticsearch-imap[IMAP/POP3/Mail importer]:
+  The Mail importer allows to fetch data from IMAP and POP3 servers for indexing into Elasticsearch (by Hendrik Saly)
 
 [float]
 [[deployment]]

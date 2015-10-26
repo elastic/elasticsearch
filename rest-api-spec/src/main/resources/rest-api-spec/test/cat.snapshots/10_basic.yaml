@@ -2,7 +2,7 @@
 "Help":
   - do:
       cat.snapshots:
-        repository: repo1
+        repository: test_cat_snapshots_1
         help: true
 
   - match:
@@ -24,15 +24,15 @@
 
   - do:
       snapshot.create_repository:
-        repository: repo1
+        repository: test_cat_snapshots_1
         body:
           type: fs
           settings:
-            location: "repo1_loc"
+            location: "test_cat_snapshots_1_loc"
 
   - do:
       cat.snapshots:
-        repository: repo1
+        repository: test_cat_snapshots_1
 
   - match:
       $body: |
@@ -58,19 +58,19 @@
 
   - do:
         snapshot.create:
-          repository: repo1
+          repository: test_cat_snapshots_1
           snapshot: snap1
           wait_for_completion: true
 
   - do:
         snapshot.create:
-          repository: repo1
+          repository: test_cat_snapshots_1
           snapshot: snap2
           wait_for_completion: true
 
   - do:
       cat.snapshots:
-        repository: repo1
+        repository: test_cat_snapshots_1
 
   - match:
       $body: |

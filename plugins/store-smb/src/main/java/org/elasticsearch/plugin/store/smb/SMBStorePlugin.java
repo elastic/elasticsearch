@@ -20,7 +20,6 @@
 package org.elasticsearch.plugin.store.smb;
 
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.store.IndexStoreModule;
 import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
 import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
 import org.elasticsearch.plugins.Plugin;

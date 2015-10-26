@@ -219,16 +219,16 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
         List<String> contexts = Arrays.asList("type1", "type2", "type3", "type4");
         List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
         for (int i = 0; i < numDocs; i++) {
+            XContentBuilder source = jsonBuilder()
+                    .startObject()
+                    .startObject(FIELD)
+                    .field("input", "suggestion" + i)
+                    .field("weight", i + 1)
+                    .endObject()
+                    .field("cat", contexts)
+                    .endObject();
             indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
-                    .setSource(jsonBuilder()
-                                    .startObject()
-                                    .startObject(FIELD)
-                                    .field("input", "suggestion" + i)
-                                    .field("weight", i + 1)
-                                    .endObject()
-                                    .field("cat", contexts)
-                                    .endObject()
-                    ));
+                    .setSource(source));
         }
         indexRandom(true, indexRequestBuilders);
         ensureYellow(INDEX);

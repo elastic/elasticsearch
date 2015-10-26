@@ -22,7 +22,6 @@ package org.elasticsearch.search.suggest.completion.context;
 import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
 import org.apache.lucene.search.suggest.xdocument.ContextQuery;
 import org.apache.lucene.search.suggest.xdocument.ContextSuggestField;
-import org.apache.lucene.search.suggest.xdocument.TopSuggestDocs;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;

@@ -32,7 +32,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
 [[data-integrations]]
 === Data import/export and validation
 
-NOTE: Rivers were used to import data from external systems into Elasticsearch prior to the 2.0 release. Elasticsearch 
+NOTE: Rivers were used to import data from external systems into Elasticsearch prior to the 2.0 release. Elasticsearch
 releases 2.0 and later do not support rivers.
 
 [float]
@@ -45,7 +45,7 @@ releases 2.0 and later do not support rivers.
 * https://www.elastic.co/guide/en/logstash/current/plugins-filters-elasticsearch.html[Elasticsearch event filtering in Logstash]
   The Logstash `elasticearch` filter plugin.
 * https://www.elastic.co/guide/en/logstash/current/plugins-codecs-es_bulk.html[Elasticsearch bulk codec]
-  The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events. 
+  The Logstash `es_bulk` plugin decodes the Elasticsearch bulk format into individual events.
 
 [float]
 ==== Supported by the community:
@@ -61,7 +61,10 @@ releases 2.0 and later do not support rivers.
 
 * https://github.com/Aconex/scrutineer[Scrutineer]:
   A high performance consistency checker to compare what you've indexed
-  with your source of truth content
+  with your source of truth content (e.g. DB)
+
+* https://github.com/salyh/elasticsearch-imap[IMAP/POP3/Mail importer]:
+  The Mail importer allows to fetch data from IMAP and POP3 servers for indexing into Elasticsearch (by Hendrik Saly)
 
 [float]
 [[deployment]]

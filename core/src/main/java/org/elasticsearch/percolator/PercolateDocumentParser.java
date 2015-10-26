@@ -187,6 +187,10 @@ public class PercolateDocumentParser {
         }
 
         if (request.docSource() != null && request.docSource().length() != 0) {
+            if (doc != null) {
+                throw new IllegalArgumentException("Can't specify the document to percolate in the source of the request and as document id");
+            }
+
             doc = parseFetchedDoc(context, request.docSource(), mapperService, request.shardId().getIndex(), request.documentType());
         }
 

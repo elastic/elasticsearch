@@ -89,7 +89,7 @@ public class PercolateShardRequest extends BroadcastShardRequest {
         this.source = source;
     }
 
-    void docSource(BytesReference docSource) {
+    public void docSource(BytesReference docSource) {
         this.docSource = docSource;
     }
 

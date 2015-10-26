@@ -127,4 +127,58 @@ public class PercolateDocumentParserTests extends ESTestCase {
         assertThat(context.sort(), nullValue());
     }
 
+    public void testParseDocSource() throws Exception {
+        XContentBuilder source = jsonBuilder().startObject()
+                .startObject("query")
+                .startObject("term").field("field1", "value1").endObject()
+                .endObject()
+                .field("track_scores", true)
+                .field("size", 123)
+                .startObject("sort").startObject("_score").endObject().endObject()
+                .endObject();
+        XContentBuilder docSource = jsonBuilder().startObject()
+                .field("field1", "value1")
+                .endObject();
+        PercolateShardRequest request = new PercolateShardRequest(new ShardId(index, 0), null);
+        request.documentType("type");
+        request.source(source.bytes());
+        request.docSource(docSource.bytes());
+
+        PercolateContext context = new PercolateContext(request, new SearchShardTarget("_node", "_index", 0), mapperService);
+        ParsedDocument parsedDocument = parser.parse(request, context, mapperService, indexQueryParserService);
+        assertThat(parsedDocument.rootDoc().get("field1"), equalTo("value1"));
+        assertThat(context.percolateQuery(), equalTo(new TermQuery(new Term("field1", "value1"))));
+        assertThat(context.trackScores(), is(true));
+        assertThat(context.size(), is(123));
+        assertThat(context.sort(), nullValue());
+    }
+
+    public void testParseDocSourceAndSource() throws Exception {
+        XContentBuilder source = jsonBuilder().startObject()
+                .startObject("doc")
+                .field("field1", "value1")
+                .endObject()
+                .startObject("query")
+                .startObject("term").field("field1", "value1").endObject()
+                .endObject()
+                .field("track_scores", true)
+                .field("size", 123)
+                .startObject("sort").startObject("_score").endObject().endObject()
+                .endObject();
+        XContentBuilder docSource = jsonBuilder().startObject()
+                .field("field1", "value1")
+                .endObject();
+        PercolateShardRequest request = new PercolateShardRequest(new ShardId(index, 0), null);
+        request.documentType("type");
+        request.source(source.bytes());
+        request.docSource(docSource.bytes());
+
+        PercolateContext context = new PercolateContext(request, new SearchShardTarget("_node", "_index", 0), mapperService);
+        try {
+            parser.parse(request, context, mapperService, indexQueryParserService);
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Can't specify the document to percolate in the source of the request and as document id"));
+        }
+    }
+
 }

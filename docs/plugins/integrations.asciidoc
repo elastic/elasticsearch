@@ -63,7 +63,7 @@ releases 2.0 and later do not support rivers.
   A high performance consistency checker to compare what you've indexed
   with your source of truth content
   
-* https://github.com/salyh/elasticsearch-river-imap[IMAP/POP3/Mail importer]:
+* https://github.com/salyh/elasticsearch-imap[IMAP/POP3/Mail importer]:
   The Mail importer allows to fetch data from IMAP and POP3 servers for indexing into Elasticsearch (by Hendrik Saly)
 
 [float]

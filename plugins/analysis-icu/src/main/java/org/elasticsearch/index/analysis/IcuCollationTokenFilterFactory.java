@@ -28,8 +28,7 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.nio.charset.Charset;
@@ -49,8 +48,8 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Collator collator;
 
     @Inject
-    public IcuCollationTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment environment, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
 
         Collator collator;
         String rules = settings.get("rules");

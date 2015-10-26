@@ -37,11 +37,10 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
@@ -49,6 +48,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -56,6 +56,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -97,8 +98,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings, new IndicesAnalysisService(settings)),
-                new SimilarityModule(index, settings),
-                new IndexNameModule(index),
+                new SimilarityModule(IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST)),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
@@ -111,7 +111,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         ).createInjector();
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryShardContext(index, queryParserService);
+        context = new QueryShardContext(queryParserService);
     }
 
     @Override

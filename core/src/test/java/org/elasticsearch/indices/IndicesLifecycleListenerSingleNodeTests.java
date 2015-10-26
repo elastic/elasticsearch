@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -52,7 +51,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         final AtomicInteger counter = new AtomicInteger(1);
         IndexEventListener countingListener = new IndexEventListener() {
             @Override
-            public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexClosed(Index index, Settings indexSettings) {
                 assertEquals(counter.get(), 5);
                 counter.incrementAndGet();
             }
@@ -64,7 +63,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexDeleted(Index index, Settings indexSettings) {
                 assertEquals(counter.get(), 6);
                 counter.incrementAndGet();
             }

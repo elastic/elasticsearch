@@ -20,11 +20,9 @@
 package org.elasticsearch.index.mapper.externalvalues;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 public class RegisterExternalTypes extends AbstractIndexComponent {
     public static final String EXTERNAL = "external";
@@ -32,8 +30,8 @@ public class RegisterExternalTypes extends AbstractIndexComponent {
     public static final String EXTERNAL_UPPER = "external_upper";
 
     @Inject
-    public RegisterExternalTypes(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
-        super(index, indexSettings);
+    public RegisterExternalTypes(IndexSettings indexSettings, MapperService mapperService) {
+        super(indexSettings);
 
         mapperService.documentMapperParser().putRootTypeParser(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser());
         mapperService.documentMapperParser().putTypeParser(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));

@@ -27,8 +27,7 @@ import org.apache.lucene.analysis.tr.TurkishLowerCaseFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * Factory for {@link LowerCaseFilter} and some language-specific variants
@@ -44,8 +43,8 @@ public class LowerCaseTokenFilterFactory extends AbstractTokenFilterFactory {
     private final String lang;
 
     @Inject
-    public LowerCaseTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public LowerCaseTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         this.lang = settings.get("language", null);
     }
 

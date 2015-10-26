@@ -28,10 +28,12 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
+
+import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
@@ -48,7 +50,6 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
                 new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
                 .createChildInjector(parentInjector);
 
@@ -69,7 +70,7 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
 
     public void testNoPatterns() {
         try {
-            new PatternCaptureGroupTokenFilterFactory(new Index("test"), settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
+            new PatternCaptureGroupTokenFilterFactory(IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY, Collections.EMPTY_LIST), "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
             fail ("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("required setting 'patterns' is missing"));

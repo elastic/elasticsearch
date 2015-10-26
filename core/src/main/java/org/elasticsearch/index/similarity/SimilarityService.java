@@ -24,10 +24,9 @@ import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -59,19 +58,12 @@ public class SimilarityService extends AbstractIndexComponent {
         DEFAULTS = Collections.unmodifiableMap(defaults);
         BUILT_IN = Collections.unmodifiableMap(buildIn);
     }
-    public SimilarityService(Index index) {
-        this(index, Settings.Builder.EMPTY_SETTINGS);
-    }
-
-    public SimilarityService(Index index, Settings settings) {
-        this(index, settings, Collections.EMPTY_MAP);
-    }
 
     @Inject
-    public SimilarityService(Index index, @IndexSettings Settings indexSettings, Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities) {
-        super(index, indexSettings);
+    public SimilarityService(IndexSettings indexSettings, Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities) {
+        super(indexSettings);
         Map<String, SimilarityProvider> providers = new HashMap<>(similarities.size());
-        Map<String, Settings> similaritySettings = indexSettings.getGroups(SimilarityModule.SIMILARITY_SETTINGS_PREFIX);
+        Map<String, Settings> similaritySettings = this.indexSettings.getSettings().getGroups(SimilarityModule.SIMILARITY_SETTINGS_PREFIX);
         for (Map.Entry<String, Settings> entry : similaritySettings.entrySet()) {
             String name = entry.getKey();
             Settings settings = entry.getValue();

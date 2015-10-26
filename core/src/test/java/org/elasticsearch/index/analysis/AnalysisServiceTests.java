@@ -25,8 +25,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.VersionUtils;
 
 import java.util.Collections;
@@ -38,19 +40,14 @@ import static org.hamcrest.Matchers.instanceOf;
 public class AnalysisServiceTests extends ESTestCase {
 
     private static AnalyzerProviderFactory analyzerProvider(final String name) {
-        return new AnalyzerProviderFactory() {
-            @Override
-            public AnalyzerProvider create(String name, Settings settings) {
-                return new PreBuiltAnalyzerProvider(name, AnalyzerScope.INDEX, new EnglishAnalyzer());
-            }
-        };
+        return (name1, settings) -> new PreBuiltAnalyzerProvider(name1, AnalyzerScope.INDEX, new EnglishAnalyzer());
     }
 
     public void testDefaultAnalyzers() {
         Version version = VersionUtils.randomVersion(getRandom());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndicesAnalysisService indicesAnalysisService = new IndicesAnalysisService(settings);
-        AnalysisService analysisService = new AnalysisService(new Index("index"), settings, indicesAnalysisService,
+        AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.EMPTY_LIST), indicesAnalysisService,
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         assertThat(analysisService.defaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
         assertThat(analysisService.defaultSearchAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
@@ -61,7 +58,7 @@ public class AnalysisServiceTests extends ESTestCase {
         Version version = VersionUtils.randomVersion(getRandom());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndicesAnalysisService indicesAnalysisService = new IndicesAnalysisService(settings);
-        AnalysisService analysisService = new AnalysisService(new Index("index"), settings, indicesAnalysisService,
+        AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.EMPTY_LIST), indicesAnalysisService,
                 Collections.singletonMap("default", analyzerProvider("default")),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         assertThat(analysisService.defaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
@@ -74,7 +71,7 @@ public class AnalysisServiceTests extends ESTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndicesAnalysisService indicesAnalysisService = new IndicesAnalysisService(settings);
         try {
-            AnalysisService analysisService = new AnalysisService(new Index("index"), settings, indicesAnalysisService,
+            AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.EMPTY_LIST), indicesAnalysisService,
                     Collections.singletonMap("default_index", new PreBuiltAnalyzerProviderFactory("default_index", AnalyzerScope.INDEX, new EnglishAnalyzer())),
                     Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
             fail("Expected ISE");
@@ -88,7 +85,7 @@ public class AnalysisServiceTests extends ESTestCase {
         Version version = VersionUtils.randomVersionBetween(getRandom(), VersionUtils.getFirstVersion(), VersionUtils.getPreviousVersion(Version.V_3_0_0));
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndicesAnalysisService indicesAnalysisService = new IndicesAnalysisService(settings);
-        AnalysisService analysisService = new AnalysisService(new Index("index"), settings, indicesAnalysisService,
+        AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.EMPTY_LIST), indicesAnalysisService,
                 Collections.singletonMap("default_index", analyzerProvider("default_index")),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         assertThat(analysisService.defaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
@@ -100,7 +97,7 @@ public class AnalysisServiceTests extends ESTestCase {
         Version version = VersionUtils.randomVersion(getRandom());
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         IndicesAnalysisService indicesAnalysisService = new IndicesAnalysisService(settings);
-        AnalysisService analysisService = new AnalysisService(new Index("index"), settings, indicesAnalysisService,
+        AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.EMPTY_LIST), indicesAnalysisService,
                 Collections.singletonMap("default_search", analyzerProvider("default_search")),
                 Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         assertThat(analysisService.defaultIndexAnalyzer().analyzer(), instanceOf(StandardAnalyzer.class));
@@ -115,7 +112,7 @@ public class AnalysisServiceTests extends ESTestCase {
         Map<String, AnalyzerProviderFactory> analyzers = new HashMap<>();
         analyzers.put("default_index", analyzerProvider("default_index"));
         analyzers.put("default_search", analyzerProvider("default_search"));
-        AnalysisService analysisService = new AnalysisService(new Index("index"), settings, indicesAnalysisService,
+        AnalysisService analysisService = new AnalysisService(IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.EMPTY_LIST), indicesAnalysisService,
                 analyzers, Collections.emptyMap(), Collections.emptyMap(), Collections.emptyMap());
         assertThat(analysisService.defaultIndexAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));
         assertThat(analysisService.defaultSearchAnalyzer().analyzer(), instanceOf(EnglishAnalyzer.class));

@@ -27,9 +27,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.Closeable;
@@ -53,21 +52,21 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     private final NamedAnalyzer defaultSearchQuoteAnalyzer;
 
 
-    public AnalysisService(Index index, Settings indexSettings) {
-        this(index, indexSettings, null, null, null, null, null);
+    public AnalysisService(IndexSettings indexSettings) {
+        this(indexSettings, null, null, null, null, null);
     }
 
     @Inject
-    public AnalysisService(Index index, @IndexSettings Settings indexSettings, @Nullable IndicesAnalysisService indicesAnalysisService,
+    public AnalysisService(IndexSettings indexSettings, @Nullable IndicesAnalysisService indicesAnalysisService,
                            @Nullable Map<String, AnalyzerProviderFactory> analyzerFactoryFactories,
                            @Nullable Map<String, TokenizerFactoryFactory> tokenizerFactoryFactories,
                            @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
                            @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
-        super(index, indexSettings);
-        Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.indexCreated(indexSettings)).build();
+        super(indexSettings);
+        Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated()).build();
         Map<String, TokenizerFactory> tokenizers = new HashMap<>();
         if (tokenizerFactoryFactories != null) {
-            Map<String, Settings> tokenizersSettings = indexSettings.getGroups("index.analysis.tokenizer");
+            Map<String, Settings> tokenizersSettings = this.indexSettings.getSettings().getGroups("index.analysis.tokenizer");
             for (Map.Entry<String, TokenizerFactoryFactory> entry : tokenizerFactoryFactories.entrySet()) {
                 String tokenizerName = entry.getKey();
                 TokenizerFactoryFactory tokenizerFactoryFactory = entry.getValue();
@@ -102,7 +101,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         Map<String, CharFilterFactory> charFilters = new HashMap<>();
         if (charFilterFactoryFactories != null) {
-            Map<String, Settings> charFiltersSettings = indexSettings.getGroups("index.analysis.char_filter");
+            Map<String, Settings> charFiltersSettings = this.indexSettings.getSettings().getGroups("index.analysis.char_filter");
             for (Map.Entry<String, CharFilterFactoryFactory> entry : charFilterFactoryFactories.entrySet()) {
                 String charFilterName = entry.getKey();
                 CharFilterFactoryFactory charFilterFactoryFactory = entry.getValue();
@@ -137,7 +136,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         Map<String, TokenFilterFactory> tokenFilters = new HashMap<>();
         if (tokenFilterFactoryFactories != null) {
-            Map<String, Settings> tokenFiltersSettings = indexSettings.getGroups("index.analysis.filter");
+            Map<String, Settings> tokenFiltersSettings = this.indexSettings.getSettings().getGroups("index.analysis.filter");
             for (Map.Entry<String, TokenFilterFactoryFactory> entry : tokenFilterFactoryFactories.entrySet()) {
                 String tokenFilterName = entry.getKey();
                 TokenFilterFactoryFactory tokenFilterFactoryFactory = entry.getValue();
@@ -172,7 +171,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
 
         Map<String, AnalyzerProvider> analyzerProviders = new HashMap<>();
         if (analyzerFactoryFactories != null) {
-            Map<String, Settings> analyzersSettings = indexSettings.getGroups("index.analysis.analyzer");
+            Map<String, Settings> analyzersSettings = this.indexSettings.getSettings().getGroups("index.analysis.analyzer");
             for (Map.Entry<String, AnalyzerProviderFactory> entry : analyzerFactoryFactories.entrySet()) {
                 String analyzerName = entry.getKey();
                 AnalyzerProviderFactory analyzerFactoryFactory = entry.getValue();
@@ -189,7 +188,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         if (indicesAnalysisService != null) {
             for (Map.Entry<String, PreBuiltAnalyzerProviderFactory> entry : indicesAnalysisService.analyzerProviderFactories().entrySet()) {
                 String name = entry.getKey();
-                Version indexVersion = Version.indexCreated(indexSettings);
+                Version indexVersion = indexSettings.getIndexVersionCreated();
                 if (!analyzerProviders.containsKey(name)) {
                     analyzerProviders.put(name, entry.getValue().create(name, Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
                 }
@@ -201,7 +200,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
 
         if (!analyzerProviders.containsKey("default")) {
-            analyzerProviders.put("default", new StandardAnalyzerProvider(index, indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS));
+            analyzerProviders.put("default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS));
         }
         if (!analyzerProviders.containsKey("default_index")) {
             analyzerProviders.put("default_index", analyzerProviders.get("default"));
@@ -221,7 +220,7 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
              * and 100 afterwards so we override the positionIncrementGap if it
              * doesn't match here.
              */
-            int overridePositionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(Version.indexCreated(indexSettings));
+            int overridePositionIncrementGap = StringFieldMapper.Defaults.positionIncrementGap(indexSettings.getIndexVersionCreated());
             if (analyzerFactory instanceof CustomAnalyzerProvider) {
                 ((CustomAnalyzerProvider) analyzerFactory).build(this);
                 /*
@@ -250,13 +249,13 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             }
             analyzers.put(analyzerFactory.name(), analyzer);
             analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);
-            String strAliases = indexSettings.get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
+            String strAliases = this.indexSettings.getSettings().get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
             if (strAliases != null) {
                 for (String alias : Strings.commaDelimitedListToStringArray(strAliases)) {
                     analyzers.put(alias, analyzer);
                 }
             }
-            String[] aliases = indexSettings.getAsArray("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
+            String[] aliases = this.indexSettings.getSettings().getAsArray("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
             for (String alias : aliases) {
                 analyzers.put(alias, analyzer);
             }
@@ -267,11 +266,11 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
             throw new IllegalArgumentException("no default analyzer configured");
         }
         if (analyzers.containsKey("default_index")) {
-            final Version createdVersion = Version.indexCreated(indexSettings);
+            final Version createdVersion = indexSettings.getIndexVersionCreated();
             if (createdVersion.onOrAfter(Version.V_3_0_0)) {
-                throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index.getName() + "]");
+                throw new IllegalArgumentException("setting [index.analysis.analyzer.default_index] is not supported anymore, use [index.analysis.analyzer.default] instead for index [" + index().getName() + "]");
             } else {
-                deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index.getName());
+                deprecationLogger.deprecated("setting [index.analysis.analyzer.default_index] is deprecated, use [index.analysis.analyzer.default] instead for index [{}]", index().getName());
             }
         }
         defaultIndexAnalyzer = analyzers.containsKey("default_index") ? analyzers.get("default_index") : defaultAnalyzer;

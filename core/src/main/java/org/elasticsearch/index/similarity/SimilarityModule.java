@@ -21,7 +21,7 @@ package org.elasticsearch.index.similarity;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,13 +40,10 @@ public class SimilarityModule extends AbstractModule {
 
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
 
-    private final Settings settings;
     private final Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities = new HashMap<>();
-    private final Index index;
-
-    public SimilarityModule(Index index, Settings settings) {
-        this.settings = settings;
-        this.index = index;
+    private final IndexSettings indexSettings;
+    public SimilarityModule(IndexSettings indexSettings) {
+        this.indexSettings = indexSettings;
     }
 
     /**
@@ -64,7 +61,7 @@ public class SimilarityModule extends AbstractModule {
 
     @Override
     protected void configure() {
-        SimilarityService service = new SimilarityService(index, settings, new HashMap<>(similarities));
+        SimilarityService service = new SimilarityService(indexSettings, new HashMap<>(similarities));
         bind(SimilarityService.class).toInstance(service);
     }
 }

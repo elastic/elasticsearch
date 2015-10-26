@@ -24,8 +24,7 @@ import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
@@ -36,9 +35,9 @@ public class TruncateTokenFilterFactory extends AbstractTokenFilterFactory {
     private final int length;
 
     @Inject
-    public TruncateTokenFilterFactory(Index index, @IndexSettings Settings indexSettings,
+    public TruncateTokenFilterFactory(IndexSettings indexSettings,
                                       @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+        super(indexSettings, name, settings);
         this.length = settings.getAsInt("length", -1);
         if (length <= 0) {
             throw new IllegalArgumentException("length parameter must be provided");

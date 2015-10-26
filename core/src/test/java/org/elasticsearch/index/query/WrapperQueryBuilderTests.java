@@ -55,7 +55,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     @Override
     protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(queryBuilder.source()).createParser(queryBuilder.source())) {
-            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
+            final QueryShardContext contextCopy = new QueryShardContext(context.indexQueryParserService());
             contextCopy.reset(qSourceParser);
             QueryBuilder<?> innerQuery = contextCopy.parseContext().parseInnerQueryBuilder();
             Query expected = innerQuery.toQuery(context);

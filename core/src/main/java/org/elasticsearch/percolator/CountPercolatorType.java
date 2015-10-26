@@ -19,14 +19,17 @@
 
 package org.elasticsearch.percolator;
 
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHitCountCollector;
 import org.elasticsearch.action.percolate.PercolateShardResponse;
 import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 
+import java.util.Collections;
 import java.util.List;
 
 class CountPercolatorType extends PercolatorType<TotalHitCountCollector> {
@@ -59,7 +62,7 @@ class CountPercolatorType extends PercolatorType<TotalHitCountCollector> {
 
     @Override
     PercolateShardResponse processResults(PercolateContext context, PercolatorQueriesRegistry registry, TotalHitCountCollector collector) {
-        return new PercolateShardResponse(collector.getTotalHits(), context);
+        return new PercolateShardResponse(new TopDocs(collector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0f), Collections.emptyMap(), Collections.emptyMap(), context);
     }
 
 }

@@ -35,6 +35,7 @@ import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -57,6 +58,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 public class PercolatorService extends AbstractComponent {
@@ -156,7 +158,7 @@ public class PercolatorService extends AbstractComponent {
 
             PercolatorQueriesRegistry queriesRegistry = indexShard.percolateRegistry();
             if (queriesRegistry.getPercolateQueries().isEmpty()) {
-                return new PercolateShardResponse(context);
+                return new PercolateShardResponse(Lucene.EMPTY_TOP_DOCS, Collections.emptyMap(), Collections.emptyMap(), context);
             }
             if (context.size() < 0) {
                 context.size(0);

@@ -72,14 +72,6 @@ public class PercolateShardResponse extends BroadcastShardResponse {
         }
     }
 
-    public PercolateShardResponse(int count, PercolateContext context) {
-        this(new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0f), Collections.emptyMap(), Collections.emptyMap(), context);
-    }
-
-    public PercolateShardResponse(PercolateContext context) {
-        this(Lucene.EMPTY_TOP_DOCS, Collections.emptyMap(), Collections.emptyMap(), context);
-    }
-
     public TopDocs topDocs() {
         return topDocs;
     }

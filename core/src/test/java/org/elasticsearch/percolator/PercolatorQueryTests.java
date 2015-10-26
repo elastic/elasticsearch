@@ -29,6 +29,8 @@ import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.*;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.QueryMetadataService;
@@ -47,11 +49,13 @@ public class PercolatorQueryTests extends ESTestCase {
 
     private Directory directory;
     private IndexWriter indexWriter;
+    private Map<BytesRef, Query> queries;
     private DirectoryReader directoryReader;
 
     @Before
     public void init() throws Exception {
         directory = newDirectory();
+        queries = new HashMap<>();
         IndexWriterConfig config = new IndexWriterConfig(new WhitespaceAnalyzer());
         config.setMergePolicy(NoMergePolicy.INSTANCE);
         indexWriter = new IndexWriter(directory, config);
@@ -64,30 +68,29 @@ public class PercolatorQueryTests extends ESTestCase {
     }
 
     public void testVariousQueries() throws Exception {
-        Map<BytesRef, Query> queries = new HashMap<>();
-        addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), indexWriter, queries);
-        addPercolatorQuery("2", new TermQuery(new Term("field", "monkey")), indexWriter, queries);
-        addPercolatorQuery("3", new TermQuery(new Term("field", "fox")), indexWriter, queries);
+        addPercolatorQuery("1", new TermQuery(new Term("field", "brown")));
+        addPercolatorQuery("2", new TermQuery(new Term("field", "monkey")));
+        addPercolatorQuery("3", new TermQuery(new Term("field", "fox")));
         BooleanQuery.Builder bq1 = new BooleanQuery.Builder();
         bq1.add(new TermQuery(new Term("field", "fox")), BooleanClause.Occur.SHOULD);
         bq1.add(new TermQuery(new Term("field", "monkey")), BooleanClause.Occur.SHOULD);
-        addPercolatorQuery("4", bq1.build(), indexWriter, queries);
+        addPercolatorQuery("4", bq1.build());
         BooleanQuery.Builder bq2 = new BooleanQuery.Builder();
         bq2.add(new TermQuery(new Term("field", "fox")), BooleanClause.Occur.MUST);
         bq2.add(new TermQuery(new Term("field", "monkey")), BooleanClause.Occur.MUST);
-        addPercolatorQuery("5", bq2.build(), indexWriter, queries);
+        addPercolatorQuery("5", bq2.build());
         BooleanQuery.Builder bq3 = new BooleanQuery.Builder();
         bq3.add(new TermQuery(new Term("field", "fox")), BooleanClause.Occur.MUST);
         bq3.add(new TermQuery(new Term("field", "apes")), BooleanClause.Occur.MUST_NOT);
-        addPercolatorQuery("6", bq3.build(), indexWriter, queries);
+        addPercolatorQuery("6", bq3.build());
         BooleanQuery.Builder bq4 = new BooleanQuery.Builder();
         bq4.add(new TermQuery(new Term("field", "fox")), BooleanClause.Occur.MUST_NOT);
         bq4.add(new TermQuery(new Term("field", "apes")), BooleanClause.Occur.MUST);
-        addPercolatorQuery("7", bq4.build(), indexWriter, queries);
+        addPercolatorQuery("7", bq4.build());
         PhraseQuery.Builder pq1 = new PhraseQuery.Builder();
         pq1.add(new Term("field", "lazy"));
         pq1.add(new Term("field", "dog"));
-        addPercolatorQuery("8", pq1.build(), indexWriter, queries);
+        addPercolatorQuery("8", pq1.build());
 
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
@@ -114,8 +117,7 @@ public class PercolatorQueryTests extends ESTestCase {
     }
 
     public void testWithScoring() throws Exception {
-        Map<BytesRef, Query> queries = new HashMap<>();
-        addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), indexWriter, queries, "field", "value1");
+        addPercolatorQuery("1", new TermQuery(new Term("field", "brown")), "field", "value1");
 
         indexWriter.close();
         directoryReader = DirectoryReader.open(directory);
@@ -145,20 +147,86 @@ public class PercolatorQueryTests extends ESTestCase {
         assertThat(explanation.getValue(), equalTo(topDocs.scoreDocs[0].score));
     }
 
-    void addPercolatorQuery(String id, Query query, IndexWriter writer, Map<BytesRef, Query> queries, String... extraFields) throws IOException {
-        queries.put(new BytesRef(id), query);
-        Document document = new Document();
-        Set<Term> queryTerms = QueryMetadataService.extractQueryMetadata(query);
-        for (Term term : queryTerms) {
-            document.add(new Field(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
+    public void testDuel() throws Exception {
+        int numQueries = scaledRandomIntBetween(32, 256);
+        for (int i = 0; i < numQueries; i++) {
+            String id = Integer.toString(i);
+            Query query;
+            if (randomBoolean()) {
+                query = new PrefixQuery(new Term("field", id));
+            } else if (randomBoolean()) {
+                query = new WildcardQuery(new Term("field", id + "*"));
+            } else if (randomBoolean()) {
+                query = new CustomQuery(new Term("field", id + "*"));
+            } else {
+                query = new TermQuery(new Term("field", id));
+            }
+            addPercolatorQuery(id, query);
         }
+
+        indexWriter.close();
+        directoryReader = DirectoryReader.open(directory);
+        IndexSearcher shardSearcher = newSearcher(directoryReader);
+
+        for (int i = 0; i < numQueries; i++) {
+            MemoryIndex memoryIndex = new MemoryIndex();
+            String id = Integer.toString(i);
+            memoryIndex.addField("field", id, new WhitespaceAnalyzer());
+            IndexSearcher percolateSearcher = memoryIndex.createSearcher();
+
+            PercolatorQuery.Builder builder1 = new PercolatorQuery.Builder(
+                    percolateSearcher,
+                    queries,
+                    new MatchAllDocsQuery()
+            );
+            // enables the optimization that prevents queries from being evaluated that don't match
+            builder1.extractQueryMetadata();
+            TopDocs topDocs1 = shardSearcher.search(builder1.build(), 10);
+
+            PercolatorQuery.Builder builder2 = new PercolatorQuery.Builder(
+                    percolateSearcher,
+                    queries,
+                    new MatchAllDocsQuery()
+            );
+            TopDocs topDocs2 = shardSearcher.search(builder2.build(), 10);
+
+            assertThat(topDocs1.totalHits, equalTo(topDocs2.totalHits));
+            assertThat(topDocs1.scoreDocs.length, equalTo(topDocs2.scoreDocs.length));
+            for (int j = 0; j < topDocs1.scoreDocs.length; j++) {
+                assertThat(topDocs1.scoreDocs[j].doc, equalTo(topDocs2.scoreDocs[j].doc));
+            }
+        }
+    }
+
+    void addPercolatorQuery(String id, Query query, String... extraFields) throws IOException {
+        queries.put(new BytesRef(id), query);
+        ParseContext.Document document = new ParseContext.Document();
+        QueryMetadataService.extractQueryMetadata(query, document);
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
         assert extraFields.length % 2 == 0;
         for (int i = 0; i < extraFields.length; i++) {
             document.add(new StringField(extraFields[i], extraFields[++i], Field.Store.NO));
         }
+        indexWriter.addDocument(document);
+    }
 
-        writer.addDocument(document);
+    private final static class CustomQuery extends Query {
+
+        private final Term term;
+
+        private CustomQuery(Term term) {
+            this.term = term;
+        }
+
+        @Override
+        public Query rewrite(IndexReader reader) throws IOException {
+            return new TermQuery(term);
+        }
+
+        @Override
+        public String toString(String field) {
+            return "custom{" + field + "}";
+        }
     }
 
 }

@@ -197,15 +197,19 @@ final class PercolatorQuery extends Query {
                     public long cost() {
                         return approximation.cost();
                     }
+
+                    boolean matchDocId(int docId, LeafReader leafReader) throws IOException {
+                        SingleFieldsVisitor singleFieldsVisitor = new SingleFieldsVisitor(UidFieldMapper.NAME);
+                        leafReader.document(docId, singleFieldsVisitor);
+                        BytesRef percolatorQueryId = new BytesRef(singleFieldsVisitor.uid().id());
+                        return matchQuery(percolatorQueryId);
+                    }
                 };
             }
         };
     }
 
-    boolean matchDocId(int docId, LeafReader leafReader) throws IOException {
-        SingleFieldsVisitor singleFieldsVisitor = new SingleFieldsVisitor(UidFieldMapper.NAME);
-        leafReader.document(docId, singleFieldsVisitor);
-        BytesRef percolatorQueryId = new BytesRef(singleFieldsVisitor.uid().id());
+    boolean matchQuery(BytesRef percolatorQueryId) throws IOException {
         Query percolatorQuery = percolatorQueries.get(percolatorQueryId);
         if (percolatorQuery != null) {
             Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();

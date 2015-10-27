@@ -107,8 +107,8 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                     scanRequest.routing(request.routing());
                 }
 
+                scanRequest.source(request.source());
                 SearchSourceBuilder source = new SearchSourceBuilder()
-                        .query(request.source())
                         .fields("_routing", "_parent")
                         .sort("_doc") // important for performance
                         .fetchSource(false)
@@ -119,7 +119,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
                 if (request.timeout() != null) {
                     source.timeout(request.timeout());
                 }
-                scanRequest.source(source);
+                scanRequest.extraSource(source);
 
                 logger.trace("executing scan request");
                 searchAction.execute(scanRequest, new ActionListener<SearchResponse>() {
@@ -300,10 +300,6 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
         boolean hasTimedOut() {
             return request.timeout() != null && (threadPool.estimatedTimeInMillis() >= (startTime + request.timeout().millis()));
-        }
-
-        void addShardFailure(ShardOperationFailedException failure) {
-            addShardFailures(new ShardOperationFailedException[]{failure});
         }
 
         void addShardFailures(ShardOperationFailedException[] failures) {

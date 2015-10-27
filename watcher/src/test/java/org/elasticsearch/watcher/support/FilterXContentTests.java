@@ -12,15 +12,12 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
+import org.junit.Test;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -113,6 +110,29 @@ public class FilterXContentTests extends ESTestCase {
         assertThat(selectMap(filteredData, "leaf3", "key2").get("key1"), Matchers.<Object>equalTo("value1"));
         assertThat(selectMap(filteredData, "leaf3", "key2").get("key2"), Matchers.<Object>equalTo("value2"));
     }
+
+    // issue #852
+    public void testArraysAreNotCutOff() throws Exception {
+        XContentBuilder builder = jsonBuilder().startObject().startArray("buckets")
+                .startObject().startObject("foo").startObject("values").endObject().endObject().endObject()
+                .startObject().startObject("foo").startObject("values").endObject().endObject().endObject()
+                .endArray().endObject();
+
+        XContentParser parser = XContentHelper.createParser(builder.bytes());
+
+        Set<String> keys = new HashSet<>();
+        keys.add("buckets.foo.values");
+
+        Map<String, Object> filteredData = XContentFilterKeysUtils.filterMapOrdered(keys, parser);
+        assertThat(filteredData.get("buckets"), instanceOf(List.class));
+
+        // both buckets have to include the following keys
+        List<Map<String, Object>> buckets = (List<Map<String, Object>>) filteredData.get("buckets");
+        assertThat(buckets, hasSize(2));
+        assertThat(buckets.get(0).keySet(), containsInAnyOrder("foo"));
+        assertThat(buckets.get(1).keySet(), containsInAnyOrder("foo"));
+    }
+
 
     @SuppressWarnings("unchecked")
     private static Map<String, Object> selectMap(Map<String, Object> data, String... path) {

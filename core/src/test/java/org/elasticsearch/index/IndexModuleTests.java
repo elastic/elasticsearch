@@ -57,7 +57,7 @@ public class IndexModuleTests extends ModuleTestCase {
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
         IndexModule module = new IndexModule(indexSettings, null, null, warmer);
-        assertInstanceBinding(module, IndexSearcherWrapper.class, (x) -> x == null);
+        assertInstanceBinding(module, IndexModule.IndexSearcherWrapperFactory.class, (x) -> x.newWrapper(null) == null);
         module.setSearcherWrapper((s) ->  new Wrapper());
         assertInstanceBinding(module, IndexModule.IndexSearcherWrapperFactory.class, (x) -> x.newWrapper(null) instanceof Wrapper);
     }

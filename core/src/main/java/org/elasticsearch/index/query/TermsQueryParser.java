@@ -41,7 +41,6 @@ public class TermsQueryParser implements QueryParser {
     private static final ParseField MIN_SHOULD_MATCH_FIELD = new ParseField("min_match", "min_should_match", "minimum_should_match")
             .withAllDeprecated("Use [bool] query instead");
     private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord").withAllDeprecated("Use [bool] query instead");
-    private static final ParseField EXECUTION_FIELD = new ParseField("execution").withAllDeprecated("execution is deprecated and has no effect");
 
     @Override
     public String[] names() {
@@ -78,9 +77,7 @@ public class TermsQueryParser implements QueryParser {
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, EXECUTION_FIELD)) {
-                    // ignore
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MIN_SHOULD_MATCH_FIELD)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, MIN_SHOULD_MATCH_FIELD)) {
                     if (minShouldMatch != null) {
                         throw new IllegalArgumentException("[" + currentFieldName + "] is not allowed in a filter context for the [" + TermsQueryBuilder.NAME + "] query");
                     }

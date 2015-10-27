@@ -79,7 +79,7 @@ public class MovAvgModelStreams {
      * @param name The given name
      * @return The associated stream
      */
-    public static synchronized Stream stream(String name) {
+    private static synchronized Stream stream(String name) {
         return STREAMS.get(name);
     }
 

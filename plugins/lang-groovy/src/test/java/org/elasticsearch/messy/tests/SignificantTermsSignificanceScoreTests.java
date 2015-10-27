@@ -177,6 +177,10 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
 
     public static class CustomSignificanceHeuristicPlugin extends Plugin {
 
+        static {
+            SignificanceHeuristicStreams.registerStream(SimpleHeuristic.STREAM);
+        }
+
         @Override
         public String name() {
             return "test-plugin-significance-heuristic";
@@ -189,7 +193,6 @@ public class SignificantTermsSignificanceScoreTests extends ESIntegTestCase {
 
         public void onModule(SearchModule significanceModule) {
             significanceModule.registerHeuristicParser(SimpleHeuristic.SimpleHeuristicParser.class);
-            significanceModule.registerStream(SimpleHeuristic.STREAM);
         }
         public void onModule(ScriptModule module) {
             module.registerScript(NativeSignificanceScoreScriptNoParams.NATIVE_SIGNIFICANCE_SCORE_SCRIPT_NO_PARAMS, NativeSignificanceScoreScriptNoParams.Factory.class);

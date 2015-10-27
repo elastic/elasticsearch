@@ -143,7 +143,7 @@ public class TransportClient extends AbstractClient {
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
                 modules.add(new TransportModule(this.settings));
-                modules.add(new SearchModule(this.settings) {
+                modules.add(new SearchModule() {
                     @Override
                     protected void configure() {
                         // noop

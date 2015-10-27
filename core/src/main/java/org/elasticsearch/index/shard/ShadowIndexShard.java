@@ -37,8 +37,8 @@ import org.elasticsearch.index.translog.TranslogStats;
  */
 public final class ShadowIndexShard extends IndexShard {
 
-    public ShadowIndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) throws IOException {
-        super(shardId, indexSettings, path, store, provider);
+    public ShadowIndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexSearcherWrapper wrapper, IndexServicesProvider provider) throws IOException {
+        super(shardId, indexSettings, path, store, wrapper, provider);
     }
 
     /**

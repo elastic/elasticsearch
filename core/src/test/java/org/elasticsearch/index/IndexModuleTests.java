@@ -58,8 +58,8 @@ public class IndexModuleTests extends ModuleTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
         IndexModule module = new IndexModule(indexSettings, null, null, warmer);
         assertInstanceBinding(module, IndexSearcherWrapper.class, (x) -> x == null);
-        module.indexSearcherWrapper = Wrapper.class;
-        assertBinding(module, IndexSearcherWrapper.class, Wrapper.class);
+        module.setSearcherWrapper((s) ->  new Wrapper());
+        assertInstanceBinding(module, IndexModule.IndexSearcherWrapperFactory.class, (x) -> x.newWrapper(null) instanceof Wrapper);
     }
 
     public void testEngineFactoryBound() {

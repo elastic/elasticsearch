@@ -19,10 +19,9 @@
 
 package org.elasticsearch.index;
 
+import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -58,7 +57,7 @@ import java.util.function.Consumer;
  *      <li>Settings update listener - Custom settings update listener can be registered via {@link #addIndexSettingsListener(Consumer)}</li>
  * </ul>
  */
-public class IndexModule extends AbstractModule {
+public final class IndexModule extends AbstractModule {
 
     public static final String STORE_TYPE = "index.store.type";
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
@@ -72,7 +71,7 @@ public class IndexModule extends AbstractModule {
     private final IndicesQueryCache indicesQueryCache;
     // pkg private so tests can mock
     Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
-    Class<? extends IndexSearcherWrapper> indexSearcherWrapper = null;
+    private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<Consumer<Settings>> settingsConsumers = new HashSet<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
     private IndexEventListener listener;
@@ -180,7 +179,7 @@ public class IndexModule extends AbstractModule {
      * @param name the providers / caches name
      * @param provider the provider instance
      */
-    void registerQueryCache(String name, BiFunction<IndexSettings, IndicesQueryCache, QueryCache> provider) { // pkg private - no need to expose this
+    public void registerQueryCache(String name, BiFunction<IndexSettings, IndicesQueryCache, QueryCache> provider) {
         if (provider == null) {
             throw new IllegalArgumentException("provider must not be null");
         }
@@ -188,6 +187,14 @@ public class IndexModule extends AbstractModule {
             throw new IllegalArgumentException("Can't register the same [query_cache] more than once for [" + name + "]");
         }
         queryCaches.put(name, provider);
+    }
+
+    /**
+     * Sets a {@link org.elasticsearch.index.IndexModule.IndexSearcherWrapperFactory} that is called once the IndexService is fully constructed.
+     * Note: this method can only be called once per index. Multiple wrappers are not supported.
+     */
+    public void setSearcherWrapper(IndexSearcherWrapperFactory indexSearcherWrapperFactory) {
+        this.indexSearcherWrapper.set(indexSearcherWrapperFactory);
     }
 
     public IndexEventListener freeze() {
@@ -210,11 +217,7 @@ public class IndexModule extends AbstractModule {
     @Override
     protected void configure() {
         bind(EngineFactory.class).to(engineFactoryImpl).asEagerSingleton();
-        if (indexSearcherWrapper == null) {
-            bind(IndexSearcherWrapper.class).toProvider(Providers.of(null));
-        } else {
-            bind(IndexSearcherWrapper.class).to(indexSearcherWrapper).asEagerSingleton();
-        }
+        bind(IndexSearcherWrapperFactory.class).toInstance(indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get());
         bind(IndexEventListener.class).toInstance(freeze());
         bind(IndexService.class).asEagerSingleton();
         bind(IndexServicesProvider.class).asEagerSingleton();
@@ -266,5 +269,15 @@ public class IndexModule extends AbstractModule {
         public boolean match(String setting) {
             return getSettingsKey().equals(setting);
         }
+    }
+
+    /**
+     * Factory for creating new {@link IndexSearcherWrapper} instances
+     */
+    public interface IndexSearcherWrapperFactory {
+        /**
+         * Returns a new IndexSearcherWrapper. This method is called once per index per node
+         */
+        IndexSearcherWrapper newWrapper(final IndexService indexService);
     }
 }

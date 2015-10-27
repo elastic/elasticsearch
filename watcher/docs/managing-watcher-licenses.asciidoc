@@ -2,7 +2,7 @@
 == Managing Your License
 
 When you initially install Watcher, a 30 day trial license is installed that allows access to all 
-features. At the end of the trial period, you can https://www.elastic.co/subscriptions/watcher[purchase a subscription] to keep using the full functionality of Watcher along with Shield and Marvel. 
+features. At the end of the trial period, you can https://www.elastic.co/subscriptions/[purchase a subscription] to keep using the full functionality of Watcher along with Shield and Marvel. 
 
 IMPORTANT:  When your license expires, your watches will still be triggered but no actions will
 be performed. You will not be able to get existing watches or add new ones, but you can still

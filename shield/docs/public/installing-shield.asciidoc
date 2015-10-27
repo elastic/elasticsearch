@@ -32,8 +32,8 @@ To install the Shield and License plugins on a DEB/RPM package installation, you
 [source,shell]
 ----------------------------------------------------------
 cd /usr/share/elasticsearch
-sudo bin/plugin -i license
-sudo bin/plugin -i shield
+sudo bin/plugin install license
+sudo bin/plugin install shield
 ----------------------------------------------------------
 
 [float]

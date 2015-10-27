@@ -1,7 +1,7 @@
 [[license-management]]
 == Managing Your License
 
-When you initially install Shield, a 30 day trial license is installed that allows access to all features. At the end of the trial period, you can https://www.elastic.co/subscriptions/shield[purchase a subscription] to keep using the full functionality of Shield along with Marvel and Watcher. 
+When you initially install Shield, a 30 day trial license is installed that allows access to all features. At the end of the trial period, you can https://www.elastic.co/subscriptions/[purchase a subscription] to keep using the full functionality of Shield along with Marvel and Watcher. 
 
 IMPORTANT:  When your license expires, Shield operates in a degraded mode where access to the Elasticsearch cluster health, cluster stats, and index stats APIs is blocked. Shield keeps on protecting your cluster, but you won't be able to monitor its operation until you update your license. For more information, see  <<license-expiration, License Expiration>>.
 

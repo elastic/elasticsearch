@@ -73,8 +73,8 @@ To install the Watcher and License plugins on a DEB/RPM package installation, yo
 [source,shell]
 ----------------------------------------------------------
 cd /usr/share/elasticsearch
-sudo bin/plugin -i license
-sudo bin/plugin -i watcher
+sudo bin/plugin install license
+sudo bin/plugin install watcher
 ----------------------------------------------------------
 
 [float]

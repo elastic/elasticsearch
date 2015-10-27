@@ -45,13 +45,7 @@ bin/plugin remove watcher
 [[float]
 ==== 2.0.0
 
-.Bug fixes
-* Fixed an issue where the scheduler may get stuck during Watcher startup. This caused no watches to ever fire.
-
-[float]
-==== 2.0.0-rc1
-
-.Breaking
+.Breaking Changes
 * The dynamic index names support has been removed and Elasticsearch's date math index names support should be used instead.
   The only difference between Watcher's dynamic index names support and Elasticsearch's date math index names support is
   how timezones are expressed. In Watcher this is done via node settings, in Elasticsearch the timezone is part of the
@@ -60,16 +54,6 @@ bin/plugin remove watcher
   `watcher.dynamic_indices.time_zone` setting was set to `+01:00` and a watch has the following index name `<logstash-{now/d}>`
   then after the upgrade you need to update this watch to use the following index name `<logstash-{now/d{YYYY.MM.dd|+01:00}}>`.
 
-.Enhancements
-* If `action.auto_create_index` setting has been configured then Watcher will check if the setting is too restrictive.
-  If the `action.auto_create_index` is too restrictive then Watcher will fail during startup with a descriptive error message.
-
-.Bug Fixes
-* Fixed url encoding issue in http input and webhook output. The url params were url encoded twice.
-
-[float]
-==== 2.0.0-beta2
-
 .New Features
 * Added new <<actions-hipchat, HipChat Action>>
 * Added new <<actions-slack, Slack Action>>
@@ -77,17 +61,6 @@ bin/plugin remove watcher
   <<api-rest-activate-watch, activate>>/<<api-rest-deactivate-watch, deactivate>> registered watches.
 * Added new <<condition-array-compare, array-compare>>, that can compare an array of values in the
   <<watch-execution-context, Watch Execution Context Model>> to a given value.
-
-.Bug Fixes
-* If Watcher was installed with Shield then the Watcher index templates couldn't be stored and could lead
-  to Watcher behaving incorrectly. This was caused by Watcher not detecting correctly if Shield was installed.
-* Update `croneval` command line utility to properly handle whitespaces in the elasticsearch home path.
-
-[float]
-==== 2.0.0-beta1
-
-This release is primarily for compatibility with Elasticsearch 2.0.0-beta1 and the Watcher versioning has
-been aligned with the Elasticsearch versioning.
 
 .Enhancements
 * Watcher continuously checks if the index templates for `.watches`, `.triggered_watches`
@@ -99,6 +72,15 @@ been aligned with the Elasticsearch versioning.
 * During Watcher start up only wait for the shards of the `.watches` and `.triggered_watches`
   indices to be available. Before Watcher also waited for the shards of the `.watch_history-*`
   indices, which wasn't needed. This improved time it takes for Watcher to startup.
+* If `action.auto_create_index` setting has been configured then Watcher will check if the setting is too restrictive.
+  If the `action.auto_create_index` is too restrictive then Watcher will fail during startup with a descriptive error message.
+
+.Bug Fixes
+* If Watcher was installed with Shield then the Watcher index templates couldn't be stored and could lead
+  to Watcher behaving incorrectly. This was caused by Watcher not detecting correctly if Shield was installed.
+* Update `croneval` command line utility to properly handle whitespaces in the elasticsearch home path.
+* Fixed an issue where the scheduler may get stuck during Watcher startup. This caused no watches to ever fire.
+* Fixed url encoding issue in http input and webhook output. The url params were url encoded twice.
 
 [float]
 ==== 1.0.0

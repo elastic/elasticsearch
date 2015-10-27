@@ -381,7 +381,7 @@ public class HttpExporter extends Exporter {
      * @return true if template exists or was uploaded successfully.
      */
     private boolean checkAndUploadIndexTemplate(final String host) {
-        String url = "_template/marvel";
+        String url = "_template/" + MarvelTemplateUtils.INDEX_TEMPLATE_NAME;
         if (templateCheckTimeout != null) {
             url += "?timeout=" + templateCheckTimeout;
         }

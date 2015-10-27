@@ -96,11 +96,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
         assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
 
         recordedRequest = webServer.takeRequest();
@@ -160,11 +160,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
         assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
 
         recordedRequest = webServer.takeRequest();
@@ -201,11 +201,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
         assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
 
         recordedRequest = webServer.takeRequest();
@@ -254,11 +254,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
             recordedRequest = secondWebServer.takeRequest();
             assertThat(recordedRequest.getMethod(), equalTo("GET"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
 
             recordedRequest = secondWebServer.takeRequest();
             assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-            assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+            assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
             assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
 
             recordedRequest = secondWebServer.takeRequest();
@@ -300,7 +300,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
     }
 
     public void testDynamicIndexFormatChange() throws Exception {
@@ -332,11 +332,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
         assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
 
         recordedRequest = webServer.takeRequest();
@@ -379,11 +379,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("PUT"));
-        assertThat(recordedRequest.getPath(), equalTo("/_template/marvel"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
         assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
 
         recordedRequest = webServer.takeRequest();

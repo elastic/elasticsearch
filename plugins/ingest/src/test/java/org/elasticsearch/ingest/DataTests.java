@@ -58,4 +58,14 @@ public class DataTests extends ESTestCase {
         data.addField("a.b.c.d", "foo");
         assertThat(data.getProperty("a.b.c.d"), equalTo("foo"));
     }
+
+    public void testAddFieldOnExistingField() {
+        data.addField("foo", "newbar");
+        assertThat(data.getProperty("foo"), equalTo("newbar"));
+    }
+
+    public void testAddFieldOnExistingParent() {
+        data.addField("fizz.new", "bar");
+        assertThat(data.getProperty("fizz.new"), equalTo("bar"));
+    }
 }

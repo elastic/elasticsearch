@@ -22,8 +22,10 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
+import java.lang.reflect.Array;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -45,7 +47,6 @@ public final class Data {
         this.document = document;
     }
 
-    // TODO(talevy): support elements of lists
     @SuppressWarnings("unchecked")
     public <T> T getProperty(String path) {
         return (T) XContentMapValues.extractValue(path, document);
@@ -68,7 +69,9 @@ public final class Data {
         Map<String, Object> inner = document;
 
         for (int i = 0; i < pathElements.length - 1; i++) {
-            inner.putIfAbsent(pathElements[i], new HashMap<String, Object>());
+            if (!inner.containsKey(pathElements[i])) {
+                inner.put(pathElements[i], new HashMap<String, Object>());
+            }
             inner = (HashMap<String, Object>) inner.get(pathElements[i]);
         }
 

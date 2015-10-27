@@ -463,6 +463,25 @@ public class CacheTests extends ESTestCase {
         assertEquals(replacements, notifications);
     }
 
+    public void testComputeIfAbsentLoadsSuccessfully() {
+        Map<Integer, Integer> map = new HashMap<>();
+        Cache<Integer, Integer> cache = CacheBuilder.<Integer, Integer>builder().build();
+        for (int i = 0; i < numberOfEntries; i++) {
+            try {
+                cache.computeIfAbsent(i, k -> {
+                    int value = randomInt();
+                    map.put(k, value);
+                    return value;
+                });
+            } catch (ExecutionException e) {
+                fail(e.getMessage());
+            }
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertEquals(map.get(i), cache.get(i));
+        }
+    }
+
     public void testComputeIfAbsentCallsOnce() throws InterruptedException {
         int numberOfThreads = randomIntBetween(2, 200);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
@@ -595,6 +614,54 @@ public class CacheTests extends ESTestCase {
         scheduler.shutdown();
 
         assertFalse("deadlock", deadlock.get());
+    }
+
+    public void testCachePollution() throws InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 200);
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < numberOfThreads; i++) {
+            Thread thread = new Thread(() -> {
+                latch.countDown();
+                Random random = new Random(random().nextLong());
+                for (int j = 0; j < numberOfEntries; j++) {
+                    Integer key = random.nextInt(numberOfEntries);
+                    boolean first;
+                    boolean second;
+                    do {
+                        first = random.nextBoolean();
+                        second = random.nextBoolean();
+                    } while (first && second);
+                    if (first && !second) {
+                        try {
+                            cache.computeIfAbsent(key, k -> {
+                                if (random.nextBoolean()) {
+                                    return Integer.toString(k);
+                                } else {
+                                    throw new Exception("testCachePollution");
+                                }
+                            });
+                        } catch (ExecutionException e) {
+                            assertNotNull(e.getCause());
+                            assertThat(e.getCause(), instanceOf(Exception.class));
+                            assertEquals(e.getCause().getMessage(), "testCachePollution");
+                        }
+                    } else if (!first && second) {
+                        cache.invalidate(key);
+                    } else if (!first && !second) {
+                        cache.get(key);
+                    }
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
+        }
     }
 
     // test that the cache is not corrupted under lots of concurrent modifications, even hitting the same key

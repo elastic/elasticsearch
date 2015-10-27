@@ -153,12 +153,6 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
                         assertAcked(client().admin().indices().prepareDelete(concreteIndices.toArray(String.class)));
                     }
                 }
-            } catch (AssertionError ae) {
-                // Try to see what threads are doing when we hit the "Delete index failed - not acked":
-                logger.info("dump all threads on AssertionError");
-                ESTestCase.printStackDump(logger);
-                logger.info("done dump all threads on AssertionError");
-                throw ae;
             }
         }
     }

@@ -19,8 +19,6 @@
 
 package org.elasticsearch.common.xcontent;
 
-import java.nio.charset.StandardCharsets;
-
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -42,6 +40,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.util.Calendar;
 import java.util.Date;
@@ -138,6 +137,28 @@ public final class XContentBuilder implements BytesStream, Releasable {
 
     public boolean humanReadable() {
         return this.humanReadable;
+    }
+
+    public boolean useNamesAsKeys(ToXContent.Params params) {
+        return params == null || params.paramAsBoolean("keyed", true);
+    }
+
+    public XContentBuilder start(String name, ToXContent.Params params) throws IOException {
+        if (useNamesAsKeys(params)) {
+            startObject(name);
+        } else {
+            startArray(name);
+        }
+        return this;
+    }
+
+    public XContentBuilder end(ToXContent.Params params) throws IOException {
+        if (useNamesAsKeys(params)) {
+            endObject();
+        } else {
+            endArray();
+        }
+        return this;
     }
 
     public XContentBuilder field(String name, ToXContent xContent) throws IOException {
@@ -247,61 +268,6 @@ public final class XContentBuilder implements BytesStream, Releasable {
 
     public XContentBuilder endArray() throws IOException {
         generator.writeEndArray();
-        return this;
-    }
-
-    private boolean isKeyed(ToXContent.Params params) {
-        return params.paramAsBoolean("keyed", true);
-    }
-
-    public XContentBuilder startKeyedObjects(String name, ToXContent.Params params) throws IOException {
-        if (isKeyed(params)) {
-            startObject(name);
-        } else {
-            startArray(name);
-        }
-        return this;
-    }
-
-    public XContentBuilder endKeyedObjects(ToXContent.Params params) throws IOException {
-        if (isKeyed(params)) {
-            endObject();
-        } else {
-            endArray();
-        }
-        return this;
-    }
-
-    public XContentBuilder startKeyedObject(String key, String value, FieldCaseConversion conversion, ToXContent.Params params) throws IOException {
-        if (isKeyed(params)) {
-            startObject(value, conversion);
-        } else {
-            startObject();
-            field(key, value, conversion);
-        }
-        return this;
-    }
-
-    public XContentBuilder endKeyedObject(ToXContent.Params params) throws IOException {
-        endObject();
-        return this;
-    }
-
-    public XContentBuilder startKeyedArray(String key, String value, String array, FieldCaseConversion conversion, ToXContent.Params params) throws IOException {
-        if (isKeyed(params)) {
-            startArray(value, conversion);
-        } else {
-            startKeyedObject(key, value, conversion, params);
-            startArray(array);
-        }
-        return this;
-    }
-
-    public XContentBuilder endKeyedArray(ToXContent.Params params) throws IOException {
-        endArray();
-        if (isKeyed(params) == false) {
-            endKeyedObject(params);
-        }
         return this;
     }
 

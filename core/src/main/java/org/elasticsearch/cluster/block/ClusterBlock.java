@@ -102,7 +102,12 @@ public class ClusterBlock implements Streamable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(Integer.toString(id));
+        if (builder.useNamesAsKeys(params)) {
+            builder.startObject(Integer.toString(id));
+        } else {
+            builder.startObject();
+            builder.field("id", Integer.toString(id));
+        }
         builder.field("description", description);
         builder.field("retryable", retryable);
         if (disableStatePersistence) {

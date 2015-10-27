@@ -380,23 +380,36 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             builder.startObject("blocks");
 
             if (!blocks().global().isEmpty()) {
-                builder.startObject("global");
+                builder.start("global", params);
                 for (ClusterBlock block : blocks().global()) {
                     block.toXContent(builder, params);
                 }
-                builder.endObject();
+                builder.end(params);
             }
 
             if (!blocks().indices().isEmpty()) {
-                builder.startObject("indices");
+                builder.start("indices", params);
                 for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : blocks().indices()) {
-                    builder.startObject(entry.key);
+                    if (builder.useNamesAsKeys(params)) {
+                        builder.startObject(entry.key);
+                    } else {
+                        builder.startObject();
+                        builder.field("index", entry.key);
+                        builder.start("blocks", params);
+                    }
+
                     for (ClusterBlock block : entry.value) {
                         block.toXContent(builder, params);
                     }
-                    builder.endObject();
+
+                    if (builder.useNamesAsKeys(params)) {
+                        builder.endObject();
+                    } else {
+                        builder.end(params);
+                        builder.endObject();
+                    }
                 }
-                builder.endObject();
+                builder.end(params);
             }
 
             builder.endObject();
@@ -404,21 +417,26 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
 
         // nodes
         if (metrics.contains(Metric.NODES)) {
-            builder.startKeyedObjects("nodes", params);
+            builder.start("nodes", params);
             for (DiscoveryNode node : nodes) {
                 node.toXContent(builder, params);
             }
-            builder.endKeyedObjects(params);
+            builder.end(params);
         }
 
         // meta data
         if (metrics.contains(Metric.METADATA)) {
             builder.startObject("metadata");
             builder.field("cluster_uuid", metaData().clusterUUID());
-            builder.startObject("templates");
+            builder.start("templates", params);
             for (ObjectCursor<IndexTemplateMetaData> cursor : metaData().templates().values()) {
                 IndexTemplateMetaData templateMetaData = cursor.value;
-                builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+                if (builder.useNamesAsKeys(params)) {
+                    builder.startObject(templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+                } else {
+                    builder.startObject();
+                    builder.field("name", templateMetaData.name(), XContentBuilder.FieldCaseConversion.NONE);
+                }
 
                 builder.field("template", templateMetaData.template());
                 builder.field("order", templateMetaData.order());
@@ -442,14 +460,18 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 }
                 builder.endObject();
 
-
                 builder.endObject();
             }
-            builder.endObject();
+            builder.end(params);
 
-            builder.startKeyedObjects("indices", params);
+            builder.start("indices", params);
             for (IndexMetaData indexMetaData : metaData()) {
-                builder.startKeyedObject("index", indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE, params);
+                if (builder.useNamesAsKeys(params)) {
+                    builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                } else {
+                    builder.startObject();
+                    builder.field("index", indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
+                }
 
                 builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
@@ -478,9 +500,9 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
                 }
                 builder.endArray();
 
-                builder.endKeyedObject(params);
+                builder.endObject();
             }
-            builder.endKeyedObjects(params);
+            builder.end(params);
 
             for (ObjectObjectCursor<String, MetaData.Custom> cursor : metaData.customs()) {
                 builder.startObject(cursor.key);
@@ -494,21 +516,41 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
         // routing table
         if (metrics.contains(Metric.ROUTING_TABLE)) {
             builder.startObject("routing_table");
-            builder.startKeyedObjects("indices", params);
+            builder.start("indices", params);
             for (IndexRoutingTable indexRoutingTable : routingTable()) {
-                builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
-                builder.startObject("shards");
+                if (builder.useNamesAsKeys(params)) {
+                    builder.startObject(indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
+                } else {
+                    builder.startObject();
+                    builder.field("index", indexRoutingTable.index(), XContentBuilder.FieldCaseConversion.NONE);
+                }
+
+                builder.start("shards", params);
                 for (IndexShardRoutingTable indexShardRoutingTable : indexRoutingTable) {
-                    builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+
+                    if (builder.useNamesAsKeys(params)) {
+                        builder.startArray(Integer.toString(indexShardRoutingTable.shardId().id()));
+                    } else {
+                        builder.startObject();
+                        builder.field("id", Integer.toString(indexShardRoutingTable.shardId().id()));
+                        builder.startArray("shards");
+                    }
+
                     for (ShardRouting shardRouting : indexShardRoutingTable) {
                         shardRouting.toXContent(builder, params);
                     }
-                    builder.endArray();
+
+                    if (builder.useNamesAsKeys(params)) {
+                        builder.endArray();
+                    } else {
+                        builder.endArray();
+                        builder.endObject();
+                    }
                 }
+                builder.end(params);
                 builder.endObject();
-                builder.endKeyedObject(params);
             }
-            builder.endKeyedObjects(params);
+            builder.end(params);
             builder.endObject();
         }
 
@@ -521,15 +563,26 @@ public class ClusterState implements ToXContent, Diffable<ClusterState> {
             }
             builder.endArray();
 
-            builder.startKeyedObjects("nodes", params);
+            builder.start("nodes", params);
             for (RoutingNode routingNode : getRoutingNodes()) {
-                builder.startKeyedArray("id", routingNode.nodeId() == null ? "null" : routingNode.nodeId(), "shards", XContentBuilder.FieldCaseConversion.NONE, params);
+                if (builder.useNamesAsKeys(params)) {
+                    builder.startArray(routingNode.nodeId() == null ? "null" : routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
+                } else {
+                    builder.startObject();
+                    builder.field("id", routingNode.nodeId() == null ? "null" : routingNode.nodeId(), XContentBuilder.FieldCaseConversion.NONE);
+                    builder.startArray("shards");
+                }
                 for (ShardRouting shardRouting : routingNode) {
                     shardRouting.toXContent(builder, params);
                 }
-                builder.endKeyedArray(params);
+                if (builder.useNamesAsKeys(params)) {
+                    builder.endArray();
+                } else {
+                    builder.endArray();
+                    builder.endObject();
+                }
             }
-            builder.endKeyedObjects(params);
+            builder.end(params);
 
             builder.endObject();
         }

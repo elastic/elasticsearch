@@ -357,7 +357,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
         for (int i = 0; i < size; i++) {
             attributes.put(in.readString().intern(), in.readString().intern());
         }
-        attributes = builder.build();
+        this.attributes = attributes.build();
         version = Version.readVersion(in);
     }
 
@@ -414,7 +414,12 @@ public class DiscoveryNode implements Streamable, ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startKeyedObject("id", id(), XContentBuilder.FieldCaseConversion.NONE, params);
+        if (builder.useNamesAsKeys(params)) {
+            builder.startObject(id(), XContentBuilder.FieldCaseConversion.NONE);
+        } else {
+            builder.startObject();
+            builder.field("id", id(), XContentBuilder.FieldCaseConversion.NONE);
+        }
         builder.field("name", name());
         builder.field("transport_address", address().toString());
 
@@ -424,7 +429,7 @@ public class DiscoveryNode implements Streamable, ToXContent {
         }
         builder.endObject();
 
-        builder.endKeyedObject(params);
+        builder.endObject();
         return builder;
     }
 }

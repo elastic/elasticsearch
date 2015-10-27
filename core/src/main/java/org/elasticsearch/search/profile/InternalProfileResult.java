@@ -186,14 +186,17 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
                 .field(QUERY_TYPE.getPreferredName(), queryType)
                 .field(LUCENE_DESCRIPTION.getPreferredName(), luceneDescription)
                 .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double)(nodeTime / 1000000.0)))
-                .field(BREAKDOWN.getPreferredName(), timings)
-                .startArray(CHILDREN.getPreferredName());
+                .field(BREAKDOWN.getPreferredName(), timings);
 
-        for (InternalProfileResult child : children) {
-            builder = child.toXContent(builder, params);
+        if (children.isEmpty() == false) {
+            builder = builder.startArray(CHILDREN.getPreferredName());
+            for (InternalProfileResult child : children) {
+                builder = child.toXContent(builder, params);
+            }
+            builder = builder.endArray();
         }
 
-        builder = builder.endArray().endObject();
+        builder = builder.endObject();
         return builder;
     }
 }

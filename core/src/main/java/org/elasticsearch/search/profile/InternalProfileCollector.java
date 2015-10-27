@@ -197,13 +197,16 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
         builder = builder.startObject()
                 .field(NAME.getPreferredName(), toString())
                 .field(REASON.getPreferredName(), reason.toString())
-                .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)))
-                .startArray(CHILDREN.getPreferredName());
+                .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)));
 
-        for (InternalProfileCollector child : children) {
-            builder = child.toXContent(builder, params);
+        if (children.isEmpty() == false) {
+            builder = builder.startArray(CHILDREN.getPreferredName());
+            for (InternalProfileCollector child : children) {
+                builder = child.toXContent(builder, params);
+            }
+            builder = builder.endArray();
         }
-        builder = builder.endArray().endObject();
+        builder = builder.endObject();
         return builder;
     }
 

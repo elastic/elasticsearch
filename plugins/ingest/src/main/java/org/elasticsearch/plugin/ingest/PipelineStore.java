@@ -45,18 +45,18 @@ public class PipelineStore extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TimeValue pipelineUpdateInterval;
-    private final PipelineStoreClient configDocReader;
+    private final PipelineStoreClient client;
     private final Map<String, Processor.Builder.Factory> processorFactoryRegistry;
 
     private volatile Map<String, PipelineReference> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, ThreadPool threadPool, ClusterService clusterService, PipelineStoreClient configDocReader, Map<String, Processor.Builder.Factory> processors) {
+    public PipelineStore(Settings settings, ThreadPool threadPool, ClusterService clusterService, PipelineStoreClient client, Map<String, Processor.Builder.Factory> processors) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
-        this.configDocReader = configDocReader;
+        this.client = client;
         this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
         clusterService.add(new PipelineStoreListener());
     }
@@ -107,7 +107,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
         int changed = 0;
         Map<String, PipelineReference> newPipelines = new HashMap<>(pipelines);
-        for (SearchHit hit : configDocReader.readAllPipelines()) {
+        for (SearchHit hit : client.readAllPipelines()) {
             String pipelineId = hit.getId();
             BytesReference pipelineSource = hit.getSourceRef();
             PipelineReference previous = newPipelines.get(pipelineId);
@@ -125,7 +125,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
         int removed = 0;
         for (String existingPipelineId : pipelines.keySet()) {
-            if (!configDocReader.existPipeline(existingPipelineId)) {
+            if (!client.existPipeline(existingPipelineId)) {
                 newPipelines.remove(existingPipelineId);
                 removed++;
             }

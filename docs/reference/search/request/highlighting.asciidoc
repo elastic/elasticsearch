@@ -2,9 +2,9 @@
 === Highlighting
 
 Allows to highlight search results on one or more fields. The
-implementation uses either the lucene `highlighter`, `fast-vector-highlighter`
-or `postings-highlighter`. The following is an example of the  search request
-body:
+implementation uses either the lucene `plain` highlighter, the
+fast vector highlighter (`fvh`) or `postings` highlighter.
+The following is an example of the search request body:
 
 [source,js]
 --------------------------------------------------
@@ -285,7 +285,7 @@ is required. Note that `fragment_size` is ignored in this case.
 }
 --------------------------------------------------
 
-When using `fast-vector-highlighter` one can use `fragment_offset`
+When using `fvh` one can use `fragment_offset`
 parameter to control the margin to start highlighting from.
 
 In the case where there is no matching fragment to highlight, the default is
@@ -554,7 +554,7 @@ to
 
 [[phrase-limit]]
 ==== Phrase Limit
-The `fast-vector-highlighter` has a `phrase_limit` parameter that prevents
+The fast vector highlighter has a `phrase_limit` parameter that prevents
 it from analyzing too many phrases and eating tons of memory.  It defaults
 to 256 so only the first 256 matching phrases in the document scored
 considered.  You can raise the limit with the `phrase_limit` parameter but

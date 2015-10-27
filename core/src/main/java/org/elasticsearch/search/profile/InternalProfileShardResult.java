@@ -83,7 +83,6 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
             profileCollector.toXContent(builder, params);
             builder.endArray();
         }
-        builder.endObject();
         return builder;
     }
 

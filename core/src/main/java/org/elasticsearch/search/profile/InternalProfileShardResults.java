@@ -59,7 +59,7 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
         builder.startObject("profile").startArray("shards");
 
         for (Map.Entry<String, InternalProfileShardResult> entry : shardResults.entrySet()) {
-            builder.startObject(entry.getKey()).startObject();
+            builder.startObject().startObject(entry.getKey());
             entry.getValue().toXContent(builder, params);
             builder.endObject().endObject();
         }

@@ -28,11 +28,3 @@ You can use the `index` field to provide a single index.
 documents), and `all` (to match all). Defaults to `all`.
 
 `query` is mandatory, as well as `indices` (or `index`).
-
-[TIP]
-====================================================================
-The fields order is important: if the `indices` are provided before `query`
-or `no_match_query`, the related queries get parsed only against the indices
-that they are going to be executed on. This is useful to avoid parsing queries
-when it is not necessary and prevent potential mapping errors.
-====================================================================

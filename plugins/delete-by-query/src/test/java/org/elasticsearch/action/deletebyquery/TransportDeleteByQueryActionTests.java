@@ -30,6 +30,7 @@ import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.unit.TimeValue;
@@ -85,7 +86,7 @@ public class TransportDeleteByQueryActionTests extends ESSingleNodeTestCase {
         assertHitCount(client().prepareCount("test").get(), numDocs);
 
         final long limit = randomIntBetween(0, numDocs);
-        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices("test").source(boolQuery().must(rangeQuery("num").lte(limit)).buildAsBytes());
+        DeleteByQueryRequest delete = new DeleteByQueryRequest().indices("test").source(new QuerySourceBuilder().setQuery(boolQuery().must(rangeQuery("num").lte(limit))));
         TestActionListener listener = new TestActionListener();
 
         newAsyncAction(delete, listener).executeScan();

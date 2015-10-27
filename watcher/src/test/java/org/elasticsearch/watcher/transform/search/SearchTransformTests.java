@@ -169,8 +169,8 @@ public class SearchTransformTests extends ESIntegTestCase {
 
         // create a bad request
         SearchRequest request = Requests.searchRequest("idx").source(
-                new SearchSourceBuilder().query(QueryBuilders.wrapperQuery(jsonBuilder().startObject().startObject("query")
-                        .startObject("_unknown_query_").endObject().endObject().endObject().bytes())));
+                new SearchSourceBuilder().query(QueryBuilders.wrapperQuery(jsonBuilder().startObject()
+                        .startObject("_unknown_query_").endObject().endObject().bytes())));
         SearchTransform searchTransform = TransformBuilders.searchTransform(request).build();
         ExecutableSearchTransform transform = new ExecutableSearchTransform(searchTransform, logger, ClientProxy.of(client()), null);
 

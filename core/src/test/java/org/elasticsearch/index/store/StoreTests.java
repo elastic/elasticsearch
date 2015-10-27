@@ -23,7 +23,7 @@ import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.codecs.SegmentInfoFormat;
 import org.apache.lucene.codecs.lucene50.Lucene50SegmentInfoFormat;
-import org.apache.lucene.codecs.lucene53.Lucene53Codec;
+import org.apache.lucene.codecs.lucene54.Lucene54Codec;
 import org.apache.lucene.document.*;
 import org.apache.lucene.index.*;
 import org.apache.lucene.store.*;
@@ -257,7 +257,7 @@ public class StoreTests extends ESTestCase {
     private static final class OldSIMockingCodec extends FilterCodec {
 
         protected OldSIMockingCodec() {
-            super(new Lucene53Codec().getName(), new Lucene53Codec());
+            super(new Lucene54Codec().getName(), new Lucene54Codec());
         }
 
         @Override

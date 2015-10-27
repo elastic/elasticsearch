@@ -13,15 +13,18 @@ import org.elasticsearch.shield.support.AbstractShieldModule;
  */
 public class LicenseModule extends AbstractShieldModule.Node {
 
-    public LicenseModule(Settings settings) {
+    private final ShieldLicenseState shieldLicenseState;
+
+    public LicenseModule(Settings settings, ShieldLicenseState shieldLicenseState) {
         super(settings);
         verifyLicensePlugin();
+        this.shieldLicenseState = shieldLicenseState;
     }
 
     @Override
     protected void configureNode() {
         bind(ShieldLicensee.class).asEagerSingleton();
-        bind(ShieldLicenseState.class).asEagerSingleton();
+        bind(ShieldLicenseState.class).toInstance(shieldLicenseState);
     }
 
     private void verifyLicensePlugin() {

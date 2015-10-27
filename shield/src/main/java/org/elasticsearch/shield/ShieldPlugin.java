@@ -29,12 +29,13 @@ import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
-import org.elasticsearch.index.ProtectedServiceInstaller;
 import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
+import org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.shield.license.LicenseModule;
+import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.shield.license.ShieldLicensee;
 import org.elasticsearch.shield.rest.ShieldRestModule;
 import org.elasticsearch.shield.rest.action.RestShieldInfoAction;
@@ -68,6 +69,7 @@ public class ShieldPlugin extends Plugin {
     private final Settings settings;
     private final boolean enabled;
     private final boolean clientMode;
+    private final ShieldLicenseState shieldLicenseState = new ShieldLicenseState();
 
     public ShieldPlugin(Settings settings) {
         this.settings = settings;
@@ -99,7 +101,7 @@ public class ShieldPlugin extends Plugin {
         } else {
             return Arrays.<Module>asList(
                     new ShieldModule(settings),
-                    new LicenseModule(settings),
+                    new LicenseModule(settings, shieldLicenseState),
                     new CryptoModule(settings),
                     new AuthenticationModule(settings),
                     new AuthorizationModule(settings),
@@ -153,7 +155,10 @@ public class ShieldPlugin extends Plugin {
         if (enabled == false) {
             return;
         }
-        ProtectedServiceInstaller.install(module, clientMode);
+        module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(), indexService.queryParserService(), indexService.mapperService(), indexService.bitsetFilterCache(), shieldLicenseState));
+        if (clientMode == false) {
+            module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
+        }
     }
 
     public void onModule(ActionModule module) {

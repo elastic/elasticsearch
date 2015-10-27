@@ -14,7 +14,8 @@ Shield {version} is compatible with:
 === Upgrading Shield
 
 To upgrade Shield, just uninstall the current Shield plugin and install the new version of Shield. Your configuration
-will be preserved and you do this with a rolling upgrade of Elasticsearch. On each node, after you have stopped it run:
+will be preserved and you do this with a rolling upgrade of Elasticsearch when upgrading to a new minor version; a full
+cluster restart is required when upgrading from Elasticsearch 1.x. On each node, after you have stopped it run:
 
 [source,shell]
 ---------------------------------------------------
@@ -34,7 +35,8 @@ The default role definitions in the `roles.yml` file may need to be changed to e
 applications such as Marvel and Kibana. Any role changes will be found in `roles.yml.new` after upgrading to the new
 version of Shield. We recommend copying the changes listed below to your `roles.yml` file.
 
-* added[2.0.0-beta2] The permission on all the roles are updated to the verbose format to make it easier to enable field level and document level security. `transport_client` role updated to work with Elasticsearch 2.0.0-beta2. `kibana3`, `marvel_user`, and `marvel_agent` roles removed.
+* added[2.0.0] The permission on all the roles are updated to the verbose format to make it easier to enable field level and document level security. The `transport_client` role has been updated to work with Elasticsearch 2.0.0.
+ The `marvel_user` role has been updated to work with Marvel 2.0 and a `remote_marvel_agent` role has been added. The `kibana3` and `marvel_agent` roles have been removed.
 * added[1.1.0] `kibana4_server` role added that defines the minimum set of permissions necessary for the Kibana 4 server.
 * added[1.0.1] `kibana4` role updated to work with new features in Kibana 4 RC1
 
@@ -45,25 +47,6 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 [float]
 ==== 2.0.0
 
-.breaking changes
-* All files that Shield uses must be kept in the <<ref-shield-files-location, configuration directory>> due to the enhanced security of Elasticsearch 2.0.
-* The network format has been changed from all previous versions of Shield and a full cluster restart is required to upgrade to Shield 2.0.
-
-[float]
-==== 2.0.0-rc1
-
-.enhancements
-* Added a caching interface that can be used by <<custom-realms, custom authentication realms>> to integrate with the <<cache-eviction-api, cache eviction api>>.
-
-.bug fixes
-* <<configuring-auditing, Auditing>> now captures requests from nodes using a different system key as tampered requests.
-* The <<audit-index, index output for auditing>> stores the type of request when available.
-* <<ip-filtering, IP filtering>> could have allowed a user to block all access to their node if the system was incorrectly configured, but now explicitly
-allows connections from all addresses that the node is bound to so that connections coming from the node's host will not be blocked.
-
-[float]
-==== 2.0.0-beta2
-
 .new features
 * <<setting-up-field-and-document-level-security, Document and Field Level Security>> support has been added and can be
 configured per role.
@@ -72,13 +55,14 @@ configured per role.
 with the specified user's permissions.
 
 .bug fixes
+* <<configuring-auditing, Auditing>> now captures requests from nodes using a different system key as tampered requests.
+* The <<audit-index, index output for auditing>> stores the type of request when available.
 * `esusers` and `syskeygen` work when spaces are in the elasticsearch installation path.
 * Fixed a rare issue where authentication fails even when the username and password are correct.
 
-[float]
-==== 2.0.0-beta1
-
-This release is primarily for compatibility with Elasticsearch 2.0.0-beta1.
+.breaking changes
+* All files that Shield uses must be kept in the <<ref-shield-files-location, configuration directory>> due to the enhanced security of Elasticsearch 2.0.
+* The network format has been changed from all previous versions of Shield and a full cluster restart is required to upgrade to Shield 2.0.
 
 [float]
 ==== 1.3.2

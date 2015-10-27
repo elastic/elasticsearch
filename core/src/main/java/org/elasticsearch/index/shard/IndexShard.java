@@ -196,7 +196,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexingMemoryController indexingMemoryController;
 
     @Inject
-    public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) {
+    public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexSearcherWrapper indexSearcherWrapper, IndexServicesProvider provider) {
         super(shardId, indexSettings);
         this.idxSettings = indexSettings;
         this.codecService = provider.getCodecService();
@@ -249,7 +249,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.disableFlush = this.indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
 
-        this.searcherWrapper = provider.getIndexSearcherWrapper();
+        this.searcherWrapper = indexSearcherWrapper;
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, provider.getQueryParserService(), indexingService, mapperService, indexFieldDataService);
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             percolatorQueriesRegistry.enableRealTimePercolator();

@@ -12,11 +12,9 @@ import org.apache.lucene.util.*;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
@@ -59,7 +57,6 @@ public final class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
     private final ShieldLicenseState shieldLicenseState;
     private final ESLogger logger;
 
-    @Inject
     public ShieldIndexSearcherWrapper(IndexSettings indexSettings, IndexQueryParserService parserService,
                                       MapperService mapperService, BitsetFilterCache bitsetFilterCache, ShieldLicenseState shieldLicenseState) {
         this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());

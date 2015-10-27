@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.spatial.prefix.PrefixTreeStrategy;
 import org.apache.lucene.spatial.prefix.RecursivePrefixTreeStrategy;
@@ -70,7 +69,7 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     // and Equals so ShapeBuilder can be used here
     private BytesReference shapeBytes;
 
-    private SpatialStrategy strategy = null;
+    private SpatialStrategy strategy;
 
     private final String indexedShapeId;
     private final String indexedShapeType;
@@ -294,12 +293,12 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             // in this case, execute disjoint as exists && !intersects
             BooleanQuery.Builder bool = new BooleanQuery.Builder();
             Query exists = ExistsQueryBuilder.newFilter(context, fieldName);
-            Filter intersects = strategy.makeFilter(getArgs(shape, ShapeRelation.INTERSECTS));
+            Query intersects = strategy.makeQuery(getArgs(shape, ShapeRelation.INTERSECTS));
             bool.add(exists, BooleanClause.Occur.MUST);
             bool.add(intersects, BooleanClause.Occur.MUST_NOT);
             query = new ConstantScoreQuery(bool.build());
         } else {
-            query = strategy.makeQuery(getArgs(shape, relation));
+            query = new ConstantScoreQuery(strategy.makeQuery(getArgs(shape, relation)));
         }
         return query;
     }
@@ -429,7 +428,9 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             }
         }
         builder.relation = ShapeRelation.DISJOINT.readFrom(in);
-        builder.strategy = SpatialStrategy.RECURSIVE.readFrom(in);
+        if (in.readBoolean()) {
+            builder.strategy = SpatialStrategy.RECURSIVE.readFrom(in);
+        }
         return builder;
     }
 
@@ -447,7 +448,12 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             out.writeOptionalString(indexedShapePath);
         }
         relation.writeTo(out);
-        strategy.writeTo(out);
+        if (strategy == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            strategy.writeTo(out);
+        }
     }
 
     @Override

@@ -19,31 +19,33 @@
 
 package org.elasticsearch.common.cli;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.OK;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.is;
 
 /**
  *
  */
 public class CliToolTests extends CliToolTestCase {
-
-    @Test
     public void testOK() throws Exception {
         Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
@@ -60,7 +62,6 @@ public class CliToolTests extends CliToolTestCase {
         assertCommandHasBeenExecuted(executed);
     }
 
-    @Test
     public void testUsageError() throws Exception {
         Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
@@ -77,7 +78,6 @@ public class CliToolTests extends CliToolTestCase {
         assertCommandHasBeenExecuted(executed);
     }
 
-    @Test
     public void testIOError() throws Exception {
         Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
@@ -94,7 +94,6 @@ public class CliToolTests extends CliToolTestCase {
         assertCommandHasBeenExecuted(executed);
     }
 
-    @Test
     public void testCodeError() throws Exception {
         Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
@@ -111,7 +110,6 @@ public class CliToolTests extends CliToolTestCase {
         assertCommandHasBeenExecuted(executed);
     }
 
-    @Test
     public void testMultiCommand() {
         Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
@@ -139,8 +137,7 @@ public class CliToolTests extends CliToolTestCase {
         }
     }
 
-    @Test
-    public void testMultiCommand_UnknownCommand() {
+    public void testMultiCommandUnknownCommand() {
         Terminal terminal = new MockTerminal();
         int count = randomIntBetween(2, 7);
         final AtomicReference<Boolean>[] executed = new AtomicReference[count];
@@ -166,8 +163,7 @@ public class CliToolTests extends CliToolTestCase {
         }
     }
 
-    @Test
-    public void testSingleCommand_ToolHelp() throws Exception {
+    public void testSingleCommandToolHelp() throws Exception {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
         final NamedCommand cmd = new NamedCommand("cmd1", terminal) {
@@ -184,8 +180,7 @@ public class CliToolTests extends CliToolTestCase {
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
     }
 
-    @Test
-    public void testMultiCommand_ToolHelp() {
+    public void testMultiCommandToolHelp() {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         NamedCommand[] cmds = new NamedCommand[2];
         cmds[0] = new NamedCommand("cmd0", terminal) {
@@ -207,8 +202,7 @@ public class CliToolTests extends CliToolTestCase {
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("tool help")));
     }
 
-    @Test
-    public void testMultiCommand_CmdHelp() {
+    public void testMultiCommandCmdHelp() {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         NamedCommand[] cmds = new NamedCommand[2];
         cmds[0] = new NamedCommand("cmd0", terminal) {
@@ -230,7 +224,6 @@ public class CliToolTests extends CliToolTestCase {
         assertThat(terminal.getTerminalOutput(), hasItem(containsString("cmd1 help")));
     }
 
-    @Test
     public void testThatThrowExceptionCanBeLogged() throws Exception {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
         NamedCommand cmd = new NamedCommand("cmd", terminal) {
@@ -258,7 +251,6 @@ public class CliToolTests extends CliToolTestCase {
         }
     }
 
-    @Test
     public void testMultipleLaunch() throws Exception {
         Terminal terminal = new MockTerminal();
         final AtomicReference<Boolean> executed = new AtomicReference<>(false);
@@ -275,7 +267,6 @@ public class CliToolTests extends CliToolTestCase {
         tool.parse("cmd", Strings.splitStringByCommaToArray("--help"));
     }
 
-    @Test
     public void testPromptForSetting() throws Exception {
         final AtomicInteger counter = new AtomicInteger();
         final AtomicReference<String> promptedSecretValue = new AtomicReference<>(null);
@@ -318,7 +309,6 @@ public class CliToolTests extends CliToolTestCase {
         assertThat(promptedTextValue.get(), is("replaced"));
     }
 
-    @Test
     public void testStopAtNonOptionParsing() throws Exception {
         final CliToolConfig.Cmd lenientCommand = cmd("lenient", CliTool.Command.Exit.class).stopAtNonOption(true).build();
         final CliToolConfig.Cmd strictCommand = cmd("strict", CliTool.Command.Exit.class).stopAtNonOption(false).build();
@@ -387,11 +377,11 @@ public class CliToolTests extends CliToolTestCase {
             super(CliToolConfig.config(name, MultiCmdTool.class)
                     .cmds(cmds(commands))
                     .build(), terminal);
-            ImmutableMap.Builder<String, Command> commandByName = ImmutableMap.builder();
+            Map<String, Command> commandByName = new HashMap<>();
             for (int i = 0; i < commands.length; i++) {
                 commandByName.put(commands[i].name, commands[i]);
             }
-            this.commands = commandByName.build();
+            this.commands = unmodifiableMap(commandByName);
         }
 
         @Override

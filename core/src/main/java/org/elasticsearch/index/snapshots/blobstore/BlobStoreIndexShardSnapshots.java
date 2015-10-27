@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.snapshots.blobstore;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -37,6 +36,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Contains information about all snapshot for the given shard in repository
@@ -77,15 +78,15 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 physicalFileList.add(newFiles.get(fileInfo.name()));
             }
         }
-        ImmutableMap.Builder<String, List<FileInfo>> mapBuilder = ImmutableMap.builder();
+        Map<String, List<FileInfo>> mapBuilder = new HashMap<>();
         for (Map.Entry<String, List<FileInfo>> entry : physicalFiles.entrySet()) {
             mapBuilder.put(entry.getKey(), Collections.unmodifiableList(new ArrayList<>(entry.getValue())));
         }
-        this.physicalFiles = mapBuilder.build();
-        this.files = ImmutableMap.copyOf(newFiles);
+        this.physicalFiles = unmodifiableMap(mapBuilder);
+        this.files = unmodifiableMap(newFiles);
     }
 
-    private BlobStoreIndexShardSnapshots(ImmutableMap<String, FileInfo> files, List<SnapshotFiles> shardSnapshots) {
+    private BlobStoreIndexShardSnapshots(Map<String, FileInfo> files, List<SnapshotFiles> shardSnapshots) {
         this.shardSnapshots = shardSnapshots;
         this.files = files;
         Map<String, List<FileInfo>> physicalFiles = new HashMap<>();
@@ -99,11 +100,11 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                 physicalFileList.add(files.get(fileInfo.name()));
             }
         }
-        ImmutableMap.Builder<String, List<FileInfo>> mapBuilder = ImmutableMap.builder();
+        Map<String, List<FileInfo>> mapBuilder = new HashMap<>();
         for (Map.Entry<String, List<FileInfo>> entry : physicalFiles.entrySet()) {
             mapBuilder.put(entry.getKey(), Collections.unmodifiableList(new ArrayList<>(entry.getValue())));
         }
-        this.physicalFiles = mapBuilder.build();
+        this.physicalFiles = unmodifiableMap(mapBuilder);
     }
 
     private BlobStoreIndexShardSnapshots() {
@@ -232,13 +233,14 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
         return builder;
     }
 
+    @Override
     public BlobStoreIndexShardSnapshots fromXContent(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
         XContentParser.Token token = parser.currentToken();
         if (token == null) { // New parser
             token = parser.nextToken();
         }
         Map<String, List<String>> snapshotsMap = new HashMap<>();
-        ImmutableMap.Builder<String, FileInfo> filesBuilder = ImmutableMap.builder();
+        Map<String, FileInfo> files = new HashMap<>();
         if (token == XContentParser.Token.START_OBJECT) {
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token != XContentParser.Token.FIELD_NAME) {
@@ -252,7 +254,7 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
                     }
                     while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
                         FileInfo fileInfo = FileInfo.fromXContent(parser);
-                        filesBuilder.put(fileInfo.name(), fileInfo);
+                        files.put(fileInfo.name(), fileInfo);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT) {
                     if (parseFieldMatcher.match(currentFieldName, ParseFields.SNAPSHOTS) == false) {
@@ -288,7 +290,6 @@ public class BlobStoreIndexShardSnapshots implements Iterable<SnapshotFiles>, To
             }
         }
 
-        ImmutableMap<String, FileInfo> files = filesBuilder.build();
         List<SnapshotFiles> snapshots = new ArrayList<>();
         for (Map.Entry<String, List<String>> entry : snapshotsMap.entrySet()) {
             List<FileInfo> fileInfosBuilder = new ArrayList<>();

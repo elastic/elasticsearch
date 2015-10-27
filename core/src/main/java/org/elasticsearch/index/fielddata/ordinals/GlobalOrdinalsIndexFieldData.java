@@ -18,19 +18,17 @@
  */
 package org.elasticsearch.index.fielddata.ordinals;
 
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.AtomicOrdinalsFieldData;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.IndexOrdinalsFieldData;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -46,8 +44,8 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     private final FieldDataType fieldDataType;
     private final long memorySizeInBytes;
 
-    protected GlobalOrdinalsIndexFieldData(Index index, Settings settings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, long memorySizeInBytes) {
-        super(index, settings);
+    protected GlobalOrdinalsIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, long memorySizeInBytes) {
+        super(indexSettings);
         this.fieldNames = fieldNames;
         this.fieldDataType = fieldDataType;
         this.memorySizeInBytes = memorySizeInBytes;
@@ -59,12 +57,12 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         return this;
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return this;
     }
 
@@ -85,11 +83,6 @@ public abstract class GlobalOrdinalsIndexFieldData extends AbstractIndexComponen
 
     @Override
     public void clear() {
-        // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
-    }
-
-    @Override
-    public void clear(IndexReader reader) {
         // no need to clear, because this is cached and cleared in AbstractBytesIndexFieldData
     }
 

@@ -20,18 +20,15 @@
 package org.elasticsearch.common.rounding;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class RoundingTests extends ESTestCase {
-
     /**
      * simple test case to illustrate how Rounding.Interval works on readable input
      */
-    @Test
     public void testInterval() {
         int interval = 10;
         Rounding.Interval rounding = new Rounding.Interval(interval);
@@ -44,7 +41,6 @@ public class RoundingTests extends ESTestCase {
         assertEquals(message, 0, r % interval);
     }
 
-    @Test
     public void testIntervalRandom() {
         final long interval = randomIntBetween(1, 100);
         Rounding.Interval rounding = new Rounding.Interval(interval);
@@ -65,7 +61,6 @@ public class RoundingTests extends ESTestCase {
      * offset shifts input value back before rounding (so here 6 - 7 -&gt; -1)
      * then shifts rounded Value back  (here -10 -&gt; -3)
      */
-    @Test
     public void testOffsetRounding() {
         final long interval = 10;
         final long offset = 7;
@@ -86,7 +81,6 @@ public class RoundingTests extends ESTestCase {
     /**
      * test OffsetRounding with an internal interval rounding on random inputs
      */
-    @Test
     public void testOffsetRoundingRandom() {
         for (int i = 0; i < 1000; ++i) {
             final long interval = randomIntBetween(1, 100);

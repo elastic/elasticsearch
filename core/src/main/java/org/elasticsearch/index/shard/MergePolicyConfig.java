@@ -26,7 +26,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.settings.IndexSettingsService;
 
 /**
  * A shard in elasticsearch is a Lucene index, and a Lucene index is broken
@@ -114,7 +113,7 @@ import org.elasticsearch.index.settings.IndexSettingsService;
  * call for the index (try and aim to issue it on a low traffic time).
  */
 
-public final class MergePolicyConfig implements IndexSettingsService.Listener{
+public final class MergePolicyConfig {
     private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
     private final ESLogger logger;
     private final boolean mergesEnabled;
@@ -185,7 +184,6 @@ public final class MergePolicyConfig implements IndexSettingsService.Listener{
         return mergesEnabled ? mergePolicy : NoMergePolicy.INSTANCE;
     }
 
-    @Override
     public void onRefreshSettings(Settings settings) {
         final double oldExpungeDeletesPctAllowed = mergePolicy.getForceMergeDeletesPctAllowed();
         final double expungeDeletesPctAllowed = settings.getAsDouble(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED, oldExpungeDeletesPctAllowed);

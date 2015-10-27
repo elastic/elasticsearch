@@ -22,6 +22,7 @@ package org.elasticsearch.test.rest;
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
 import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
+
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
@@ -49,7 +50,6 @@ import org.elasticsearch.test.rest.support.FileUtils;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -158,7 +158,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
             .put("node.testattr", "test")
             .put(super.nodeSettings(nodeOrdinal)).build();
     }
-    
+
     public static Iterable<Object[]> createParameters(int id, int count) throws IOException, RestTestParseException {
         TestGroup testGroup = Rest.class.getAnnotation(TestGroup.class);
         String sysProperty = TestGroup.Utilities.getSysProperty(Rest.class);
@@ -217,7 +217,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
 
         return testCandidates;
     }
-    
+
     private static boolean mustExecute(String test, int id, int count) {
         int hash = (int) (Math.abs((long)test.hashCode()) % count);
         return hash == id;
@@ -239,13 +239,13 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
     @SuppressForbidden(reason = "proper use of URL, hack around a JDK bug")
     static FileSystem getFileSystem() throws IOException {
         // REST suite handling is currently complicated, with lots of filtering and so on
-        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents. 
+        // For now, to work embedded in a jar, return a ZipFileSystem over the jar contents.
         URL codeLocation = FileUtils.class.getProtectionDomain().getCodeSource().getLocation();
         boolean loadPackaged = RandomizedTest.systemPropertyAsBoolean(REST_LOAD_PACKAGED_TESTS, true);
         if (codeLocation.getFile().endsWith(".jar") && loadPackaged) {
             try {
                 // hack around a bug in the zipfilesystem implementation before java 9,
-                // its checkWritable was incorrect and it won't work without write permissions. 
+                // its checkWritable was incorrect and it won't work without write permissions.
                 // if we add the permission, it will open jars r/w, which is too scary! so copy to a safe r-w location.
                 Path tmp = Files.createTempFile(null, ".jar");
                 try (InputStream in = codeLocation.openStream()) {
@@ -352,7 +352,6 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
         return messageBuilder.toString();
     }
 
-    @Test
     public void test() throws IOException {
         //let's check that there is something to run, otherwise there might be a problem with the test section
         if (testCandidate.getTestSection().getExecutableSections().size() == 0) {

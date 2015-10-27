@@ -23,15 +23,14 @@ import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.settings.IndexSettings;
 
 public class MyFilterTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject
-    public MyFilterTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, String name) {
-        super(index, indexSettings, name, Settings.Builder.EMPTY_SETTINGS);
+    public MyFilterTokenFilterFactory(IndexSettings indexSettings, String name) {
+        super(indexSettings, name, Settings.Builder.EMPTY_SETTINGS);
     }
 
     @Override

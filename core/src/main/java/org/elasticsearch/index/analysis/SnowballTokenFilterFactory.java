@@ -24,8 +24,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  * Real work actually done here by Sebastian on the Elasticsearch mailing list
@@ -36,8 +35,8 @@ public class SnowballTokenFilterFactory extends AbstractTokenFilterFactory {
     private String language;
 
     @Inject
-    public SnowballTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public SnowballTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "English")));
     }
 

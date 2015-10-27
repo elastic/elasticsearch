@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -70,6 +68,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static java.util.Collections.emptyMap;
+
 /**
  *
  */
@@ -85,7 +85,7 @@ public class DocumentMapper implements ToXContent {
 
         private final RootObjectMapper rootObjectMapper;
 
-        private ImmutableMap<String, Object> meta = ImmutableMap.of();
+        private Map<String, Object> meta = emptyMap();
 
         private final Mapper.BuilderContext builderContext;
 
@@ -115,7 +115,7 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings, mapperService.fullName(FieldNamesFieldMapper.NAME)));
         }
 
-        public Builder meta(ImmutableMap<String, Object> meta) {
+        public Builder meta(Map<String, Object> meta) {
             this.meta = meta;
             return this;
         }
@@ -169,7 +169,7 @@ public class DocumentMapper implements ToXContent {
 
     public DocumentMapper(MapperService mapperService, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
-                          ImmutableMap<String, Object> meta,
+                          Map<String, Object> meta,
                           Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers,
                           List<SourceTransform> sourceTransforms,
                           ReentrantReadWriteLock mappingLock) {
@@ -234,7 +234,7 @@ public class DocumentMapper implements ToXContent {
         return this.typeText;
     }
 
-    public ImmutableMap<String, Object> meta() {
+    public Map<String, Object> meta() {
         return mapping.meta;
     }
 
@@ -329,17 +329,14 @@ public class DocumentMapper implements ToXContent {
                 continue;
             }
 
-            Filter filter = objectMapper.nestedTypeFilter();
+            Query filter = objectMapper.nestedTypeFilter();
             if (filter == null) {
                 continue;
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefor is guaranteed to be a live doc.
-            DocIdSet nestedTypeSet = filter.getDocIdSet(context, null);
-            if (nestedTypeSet == null) {
-                continue;
-            }
-            DocIdSetIterator iterator = nestedTypeSet.iterator();
+            final Weight nestedWeight = filter.createWeight(sc.searcher(), false);
+            DocIdSetIterator iterator = nestedWeight.scorer(context);
             if (iterator == null) {
                 continue;
             }

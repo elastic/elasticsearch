@@ -24,7 +24,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -32,8 +31,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testExternalValues() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
         mapperService.documentMapperParser().putRootTypeParser(ExternalMetadataMapper.CONTENT_TYPE,
@@ -72,7 +69,6 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
 
     }
 
-    @Test
     public void testExternalValuesWithMultifield() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
         mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
@@ -120,7 +116,6 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.field.raw").stringValue(), is("foo"));
     }
 
-    @Test
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
 

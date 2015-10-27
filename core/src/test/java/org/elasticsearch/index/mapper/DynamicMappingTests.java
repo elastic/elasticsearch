@@ -18,12 +18,15 @@
  */
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -31,6 +34,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
 
+import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -186,7 +190,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
 
     private String serialize(ToXContent mapper) throws Exception {
         XContentBuilder builder = XContentFactory.jsonBuilder().startObject();
-        mapper.toXContent(builder, new ToXContent.MapParams(ImmutableMap.<String, String>of()));
+        mapper.toXContent(builder, new ToXContent.MapParams(emptyMap()));
         return builder.endObject().string();
     }
 
@@ -197,7 +201,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         ctx.reset(XContentHelper.createParser(source.source()), new ParseContext.Document(), source);
         assertEquals(XContentParser.Token.START_OBJECT, ctx.parser().nextToken());
         ctx.parser().nextToken();
-        return DocumentParser.parseObject(ctx, mapper.root());
+        return DocumentParser.parseObject(ctx, mapper.root(), true);
     }
 
     public void testDynamicMappingsNotNeeded() throws Exception {
@@ -321,7 +325,7 @@ public class DynamicMappingTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type") .startObject("properties")
                 .startObject("foo").field("type", "object").endObject()
                 .endObject().endObject().endObject().string();
-        
+
         DocumentMapper mapper = parser.parse(mapping);
         assertEquals(mapping, serialize(mapper));
 

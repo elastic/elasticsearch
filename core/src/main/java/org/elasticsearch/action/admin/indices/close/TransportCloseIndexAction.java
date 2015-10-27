@@ -36,15 +36,15 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Arrays;
-
 /**
  * Close index action
  */
-public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
+public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> implements NodeSettingsService.Listener {
 
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
+    private volatile boolean closeIndexEnabled;
+    public static final String SETTING_CLUSTER_INDICES_CLOSE_ENABLE = "cluster.indices.close.enable";
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
@@ -54,6 +54,8 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
         super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CloseIndexRequest::new);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
+        this.closeIndexEnabled = settings.getAsBoolean(SETTING_CLUSTER_INDICES_CLOSE_ENABLE, true);
+        nodeSettingsService.addListener(this);
     }
 
     @Override
@@ -70,6 +72,9 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     @Override
     protected void doExecute(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
+        if (closeIndexEnabled == false) {
+            throw new IllegalStateException("closing indices is disabled - set [" + SETTING_CLUSTER_INDICES_CLOSE_ENABLE + ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
+        }
         super.doExecute(request, listener);
     }
 
@@ -98,5 +103,14 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
                 listener.onFailure(t);
             }
         });
+    }
+
+    @Override
+    public void onRefreshSettings(Settings settings) {
+        final boolean enable = settings.getAsBoolean(SETTING_CLUSTER_INDICES_CLOSE_ENABLE, this.closeIndexEnabled);
+        if (enable != this.closeIndexEnabled) {
+            logger.info("updating [{}] from [{}] to [{}]", SETTING_CLUSTER_INDICES_CLOSE_ENABLE, this.closeIndexEnabled, enable);
+            this.closeIndexEnabled = enable;
+        }
     }
 }

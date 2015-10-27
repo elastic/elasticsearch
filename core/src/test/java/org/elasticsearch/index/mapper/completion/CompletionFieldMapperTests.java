@@ -25,7 +25,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
@@ -35,8 +34,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
 public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testDefaultConfiguration() throws IOException {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -53,7 +50,6 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(completionFieldMapper.isStoringPayloads(), is(false));
     }
 
-    @Test
     public void testThatSerializationIncludesAllElements() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")
@@ -90,7 +86,6 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(Integer.valueOf(configMap.get("max_input_length").toString()), is(14));
     }
 
-    @Test
     public void testThatSerializationCombinesToOneAnalyzerFieldIfBothAreEqual() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("completion")

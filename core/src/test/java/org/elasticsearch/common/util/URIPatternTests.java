@@ -19,13 +19,10 @@
 package org.elasticsearch.common.util;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.net.URI;
 
 public class URIPatternTests extends ESTestCase {
-
-    @Test
     public void testURIPattern() throws Exception {
         assertTrue(new URIPattern("http://test.local/").match(new URI("http://test.local/")));
         assertFalse(new URIPattern("http://test.local/somepath").match(new URI("http://test.local/")));

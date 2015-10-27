@@ -19,11 +19,10 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.IndexReader;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -34,12 +33,12 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData implements IndexOrdinalsFieldData {
 
-    private final Settings indexSettings;
+    private final IndexSettings indexSettings;
     private final IndexFieldDataCache cache;
     private final CircuitBreakerService breakerService;
 
-    public SortedSetDVOrdinalsIndexFieldData(Index index, IndexFieldDataCache cache, Settings indexSettings, Names fieldNames, CircuitBreakerService breakerService, FieldDataType fieldDataType) {
-        super(index, fieldNames, fieldDataType);
+    public SortedSetDVOrdinalsIndexFieldData(IndexSettings indexSettings, IndexFieldDataCache cache, Names fieldNames, CircuitBreakerService breakerService, FieldDataType fieldDataType) {
+        super(indexSettings.getIndex(), fieldNames, fieldDataType);
         this.indexSettings = indexSettings;
         this.cache = cache;
         this.breakerService = breakerService;
@@ -61,7 +60,7 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
     }
 
     @Override
-    public IndexOrdinalsFieldData loadGlobal(IndexReader indexReader) {
+    public IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -72,13 +71,13 @@ public class SortedSetDVOrdinalsIndexFieldData extends DocValuesIndexFieldData i
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }
 
     @Override
-    public IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         return GlobalOrdinalsBuilder.build(indexReader, this, indexSettings, breakerService, logger);
     }
 }

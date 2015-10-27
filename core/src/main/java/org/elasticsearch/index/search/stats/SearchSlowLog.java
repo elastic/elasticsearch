@@ -189,23 +189,10 @@ public final class SearchSlowLog{
                 sb.append("], ");
             }
             sb.append("search_type[").append(context.searchType()).append("], total_shards[").append(context.numberOfShards()).append("], ");
-            if (context.request().source() != null && context.request().source().length() > 0) {
-                try {
-                    sb.append("source[").append(XContentHelper.convertToJson(context.request().source(), reformat)).append("], ");
-                } catch (IOException e) {
-                    sb.append("source[_failed_to_convert_], ");
-                }
+            if (context.request().source() != null) {
+                sb.append("source[").append(context.request().source()).append("], ");
             } else {
                 sb.append("source[], ");
-            }
-            if (context.request().extraSource() != null && context.request().extraSource().length() > 0) {
-                try {
-                    sb.append("extra_source[").append(XContentHelper.convertToJson(context.request().extraSource(), reformat)).append("], ");
-                } catch (IOException e) {
-                    sb.append("extra_source[_failed_to_convert_], ");
-                }
-            } else {
-                sb.append("extra_source[], ");
             }
             return sb.toString();
         }

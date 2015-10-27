@@ -23,16 +23,12 @@ import org.elasticsearch.common.xcontent.yaml.YamlXContent;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.parser.SetupSectionParser;
 import org.elasticsearch.test.rest.section.SetupSection;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SetupSectionParserTests extends AbstractParserTestCase {
-
-    @Test
     public void testParseSetupSection() throws Exception {
-
         parser = YamlXContent.yamlXContent.createParser(
                 "  - do:\n" +
                 "      index1:\n" +
@@ -58,9 +54,7 @@ public class SetupSectionParserTests extends AbstractParserTestCase {
         assertThat(setupSection.getDoSections().get(1).getApiCallSection().getApi(), equalTo("index2"));
     }
 
-    @Test
     public void testParseSetupAndSkipSectionNoSkip() throws Exception {
-
         parser = YamlXContent.yamlXContent.createParser(
                 "  - skip:\n" +
                         "      version:  \"0.90.0 - 0.90.7\"\n" +

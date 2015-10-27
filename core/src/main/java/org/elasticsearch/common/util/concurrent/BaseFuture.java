@@ -26,43 +26,6 @@ import java.util.Objects;
 import java.util.concurrent.*;
 import java.util.concurrent.locks.AbstractQueuedSynchronizer;
 
-/**
- * An abstract implementation of the {@link com.google.common.util.concurrent.ListenableFuture} interface. This
- * class is preferable to {@link java.util.concurrent.FutureTask} for two
- * reasons: It implements {@code ListenableFuture}, and it does not implement
- * {@code Runnable}. (If you want a {@code Runnable} implementation of {@code
- * ListenableFuture}, create a {@link com.google.common.util.concurrent.ListenableFutureTask}, or submit your
- * tasks to a {@link com.google.common.util.concurrent.ListeningExecutorService}.)
- * <p>
- * This class implements all methods in {@code ListenableFuture}.
- * Subclasses should provide a way to set the result of the computation through
- * the protected methods {@link #set(Object)} and
- * {@link #setException(Throwable)}. Subclasses may also override {@link
- * #interruptTask()}, which will be invoked automatically if a call to {@link
- * #cancel(boolean) cancel(true)} succeeds in canceling the future.
- * <p>
- * {@code AbstractFuture} uses an {@link AbstractQueuedSynchronizer} to deal
- * with concurrency issues and guarantee thread safety.
- * <p>
- * The state changing methods all return a boolean indicating success or
- * failure in changing the future's state.  Valid states are running,
- * completed, failed, or cancelled.
- * <p>
- * This class uses an {@link com.google.common.util.concurrent.ExecutionList} to guarantee that all registered
- * listeners will be executed, either when the future finishes or, for listeners
- * that are added after the future completes, immediately.
- * {@code Runnable}-{@code Executor} pairs are stored in the execution list but
- * are not necessarily executed in the order in which they were added.  (If a
- * listener is added after the Future is complete, it will be executed
- * immediately, even if earlier listeners have not been executed. Additionally,
- * executors need not guarantee FIFO execution, or different listeners may run
- * in different executors.)
- *
- * @author Sven Mawson
- * @since 1.0
- */
-// Same as AbstractFuture from Guava, but without the listeners and with
-// additional assertions
 public abstract class BaseFuture<V> implements Future<V> {
 
     /**

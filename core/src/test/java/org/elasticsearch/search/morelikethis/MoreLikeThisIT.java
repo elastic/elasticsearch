@@ -32,21 +32,28 @@ import org.elasticsearch.index.query.MoreLikeThisQueryBuilder;
 import org.elasticsearch.index.query.MoreLikeThisQueryBuilder.Item;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 
-import static org.elasticsearch.index.query.MoreLikeThisQueryBuilder.ids;
-import static org.elasticsearch.client.Requests.*;
+import static org.elasticsearch.client.Requests.indexAliasesRequest;
+import static org.elasticsearch.client.Requests.indexRequest;
+import static org.elasticsearch.client.Requests.refreshRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.index.query.MoreLikeThisQueryBuilder.ids;
 import static org.elasticsearch.index.query.QueryBuilders.moreLikeThisQuery;
 import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -54,8 +61,6 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 public class MoreLikeThisIT extends ESIntegTestCase {
-
-    @Test
     public void testSimpleMoreLikeThis() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
@@ -77,7 +82,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(response, 1l);
     }
 
-    @Test
     public void testSimpleMoreLikeOnLongField() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1", "some_long", "type=long"));
@@ -97,7 +101,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(response, 0l);
     }
 
-    @Test
     public void testMoreLikeThisWithAliases() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
@@ -142,7 +145,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(response.getHits().getAt(0).id(), equalTo("3"));
     }
 
-    @Test
     public void testMoreLikeThisIssue2197() throws Exception {
         Client client = client();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
@@ -166,8 +168,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(response, notNullValue());
     }
 
-    @Test
-    // See: https://github.com/elasticsearch/elasticsearch/issues/2489
+    // Issue #2489
     public void testMoreLikeWithCustomRouting() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
@@ -188,8 +189,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(response, notNullValue());
     }
 
-    @Test
-    // See issue: https://github.com/elasticsearch/elasticsearch/issues/3039
+    // Issue #3039
     public void testMoreLikeThisIssueRoutingNotSerialized() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("bar")
                 .startObject("properties")
@@ -211,8 +211,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertThat(response, notNullValue());
     }
 
-    @Test
-    // See issue https://github.com/elasticsearch/elasticsearch/issues/3252
+    // Issue #3252
     public void testNumericField() throws Exception {
         final String[] numericTypes = new String[]{"byte", "short", "integer", "long"};
         prepareCreate("test").addMapping("type", jsonBuilder()
@@ -272,7 +271,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0l);
     }
 
-    @Test
     public void testSimpleMoreLikeInclude() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
@@ -332,7 +330,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(mltResponse, 3l);
     }
 
-    @Test
     public void testSimpleMoreLikeThisIdsMultipleTypes() throws Exception {
         logger.info("Creating index test");
         int numOfTypes = randomIntBetween(2, 10);
@@ -365,7 +362,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(mltResponse, numOfTypes);
     }
 
-    @Test
     public void testMoreLikeThisMultiValueFields() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
@@ -398,7 +394,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMinimumShouldMatch() throws ExecutionException, InterruptedException {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
@@ -436,7 +431,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testMoreLikeThisArtificialDocs() throws Exception {
         int numFields = randomIntBetween(5, 10);
 
@@ -463,7 +457,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(response, 1);
     }
 
-    @Test
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
@@ -530,7 +523,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         assertHitCount(response, 1);
     }
 
-    @Test
     public void testMoreLikeThisUnlike() throws ExecutionException, InterruptedException, IOException {
         createIndex("test");
         ensureGreen();
@@ -578,7 +570,6 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSelectFields() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", "text", "type=string,analyzer=whitespace", "text1", "type=string,analyzer=whitespace"));

@@ -27,9 +27,10 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 
+import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -49,17 +50,9 @@ public class CodecService extends AbstractIndexComponent {
     /** the raw unfiltered lucene default. useful for testing */
     public final static String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    public CodecService(Index index) {
-        this(index, Settings.Builder.EMPTY_SETTINGS);
-    }
-
-    public CodecService(Index index, @IndexSettings Settings indexSettings) {
-        this(index, indexSettings, null);
-    }
-
     @Inject
-    public CodecService(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
-        super(index, indexSettings);
+    public CodecService(IndexSettings indexSettings, MapperService mapperService) {
+        super(indexSettings);
         this.mapperService = mapperService;
         MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {

@@ -20,7 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -68,7 +67,6 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
         //nothing to do here, boost check is already included in equality check done as part of doAssertLuceneQuery above
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new IndicesQueryBuilder(null, "index");

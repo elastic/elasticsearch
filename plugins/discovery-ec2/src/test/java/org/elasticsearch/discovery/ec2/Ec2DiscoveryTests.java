@@ -20,6 +20,7 @@
 package org.elasticsearch.discovery.ec2;
 
 import com.amazonaws.services.ec2.model.Tag;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cloud.aws.AwsEc2Service;
 import org.elasticsearch.cloud.aws.AwsEc2Service.DISCOVERY_EC2;
@@ -35,11 +36,11 @@ import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
@@ -86,8 +87,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         return discoveryNodes;
     }
 
-    @Test
-    public void defaultSettings() throws InterruptedException {
+    public void testDefaultSettings() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
                 .build();
@@ -95,8 +95,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(nodes));
     }
 
-    @Test
-    public void privateIp() throws InterruptedException {
+    public void testPrivateIp() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE, "private_ip")
@@ -112,8 +111,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void publicIp() throws InterruptedException {
+    public void testPublicIp() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE, "public_ip")
@@ -129,8 +127,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void privateDns() throws InterruptedException {
+    public void testPrivateDns() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE, "private_dns")
@@ -148,8 +145,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         }
     }
 
-    @Test
-    public void publicDns() throws InterruptedException {
+    public void testPublicDns() throws InterruptedException {
         int nodes = randomInt(10);
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE, "public_dns")
@@ -167,16 +163,19 @@ public class Ec2DiscoveryTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
-    public void invalidHostType() throws InterruptedException {
+    public void testInvalidHostType() throws InterruptedException {
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.HOST_TYPE, "does_not_exist")
                 .build();
-        buildDynamicNodes(nodeSettings, 1);
+        try {
+            buildDynamicNodes(nodeSettings, 1);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("No enum constant"));
+        }
     }
 
-    @Test
-    public void filterByTags() throws InterruptedException {
+    public void testFilterByTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
                 .put(DISCOVERY_EC2.TAG_PREFIX + "stage", "prod")
@@ -201,8 +200,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(prodInstances));
     }
 
-    @Test
-    public void filterByMultipleTags() throws InterruptedException {
+    public void testFilterByMultipleTags() throws InterruptedException {
         int nodes = randomIntBetween(5, 10);
         Settings nodeSettings = Settings.builder()
                 .putArray(DISCOVERY_EC2.TAG_PREFIX + "stage", "prod", "preprod")

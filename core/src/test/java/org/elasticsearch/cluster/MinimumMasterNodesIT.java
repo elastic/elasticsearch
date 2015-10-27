@@ -34,10 +34,10 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.disruption.NetworkDelaysPartition;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.junit.Test;
 
 import java.util.*;
 import java.util.concurrent.CountDownLatch;
@@ -47,7 +47,6 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -62,9 +61,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         return classes;
     }
 
-    @Test
     @TestLogging("cluster.service:TRACE,discovery.zen:TRACE,gateway:TRACE,transport.tracer:TRACE")
-    public void simpleMinimumMasterNodes() throws Exception {
+    public void testSimpleMinimumMasterNodes() throws Exception {
 
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
@@ -109,7 +107,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+            assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100l));
         }
 
         internalCluster().stopCurrentMasterNode();
@@ -140,7 +138,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we the data back after cluster reform");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
 
         internalCluster().stopRandomNonMasterNode();
@@ -173,12 +171,11 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
     }
 
-    @Test
-    public void multipleNodesShutdownNonMasterNodes() throws Exception {
+    public void testMultipleNodesShutdownNonMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put("discovery.zen.minimum_master_nodes", 3)
@@ -226,7 +223,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         refresh();
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
 
         internalCluster().stopRandomNonMasterNode();
@@ -250,12 +247,11 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         logger.info("--> verify we the data back");
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet(), 100);
         }
     }
 
-    @Test
-    public void dynamicUpdateMinimumMasterNodes() throws Exception {
+    public void testDynamicUpdateMinimumMasterNodes() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
                 .put(ZenDiscovery.SETTING_PING_TIMEOUT, "400ms")
@@ -312,7 +308,6 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         );
     }
 
-    @Test
     public void testCanNotBringClusterDown() throws ExecutionException, InterruptedException {
         int nodeCount = scaledRandomIntBetween(1, 5);
         Settings.Builder settings = settingsBuilder()
@@ -360,6 +355,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .put(DiscoverySettings.COMMIT_TIMEOUT, "100ms") // speed things up
                 .build();
         internalCluster().startNodesAsync(3, settings).get();
+        ensureGreen(); // ensure cluster state is recovered before we disrupt things
 
         final String master = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));

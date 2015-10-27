@@ -26,8 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
@@ -38,9 +37,9 @@ public class StandardHtmlStripAnalyzerProvider extends AbstractIndexAnalyzerProv
     private final Version esVersion;
 
     @Inject
-    public StandardHtmlStripAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env,  @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
-        this.esVersion = Version.indexCreated(indexSettings);
+    public StandardHtmlStripAnalyzerProvider(IndexSettings indexSettings, Environment env,  @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
+        this.esVersion = indexSettings.getIndexVersionCreated();
         final CharArraySet defaultStopwords;
         if (esVersion.onOrAfter(Version.V_1_0_0_RC1)) {
             defaultStopwords = CharArraySet.EMPTY_SET;

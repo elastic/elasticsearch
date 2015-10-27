@@ -38,8 +38,8 @@ setup:
   - do:
       indices.get_warmer: { index: _all, name: '*' }
 
-  - match: {test_index1.warmers.warmer.source.query.match_all: {}}
-  - match: {test_index2.warmers.warmer.source.query.match_all: {}}
+  - match: {test_index1.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_index2.warmers.warmer.source.query.match_all: {boost: 1.0}}
   - is_false: foo
 
 ---
@@ -54,9 +54,9 @@ setup:
   - do:
       indices.get_warmer: { index: _all, name: '*' }
 
-  - match: {test_index1.warmers.warmer.source.query.match_all: {}}
-  - match: {test_index2.warmers.warmer.source.query.match_all: {}}
-  - match: {foo.warmers.warmer.source.query.match_all: {}}
+  - match: {test_index1.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_index2.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {foo.warmers.warmer.source.query.match_all: {boost: 1.0}}
 
 ---
 "put warmer in * index":
@@ -70,9 +70,9 @@ setup:
   - do:
       indices.get_warmer: { index: _all, name: '*' }
 
-  - match: {test_index1.warmers.warmer.source.query.match_all: {}}
-  - match: {test_index2.warmers.warmer.source.query.match_all: {}}
-  - match: {foo.warmers.warmer.source.query.match_all: {}}
+  - match: {test_index1.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_index2.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {foo.warmers.warmer.source.query.match_all: {boost: 1.0}}
 
 ---
 "put warmer prefix* index":
@@ -86,8 +86,8 @@ setup:
   - do:
       indices.get_warmer: { index: _all, name: '*' }
 
-  - match: {test_index1.warmers.warmer.source.query.match_all: {}}
-  - match: {test_index2.warmers.warmer.source.query.match_all: {}}
+  - match: {test_index1.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_index2.warmers.warmer.source.query.match_all: {boost: 1.0}}
   - is_false: foo
 
 ---
@@ -102,8 +102,8 @@ setup:
   - do:
       indices.get_warmer: { index: _all, name: '*' }
 
-  - match: {test_index1.warmers.warmer.source.query.match_all: {}}
-  - match: {test_index2.warmers.warmer.source.query.match_all: {}}
+  - match: {test_index1.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_index2.warmers.warmer.source.query.match_all: {boost: 1.0}}
   - is_false: foo
 
 ---
@@ -117,9 +117,9 @@ setup:
   - do:
       indices.get_warmer: { index: _all, name: '*' }
 
-  - match: {test_index1.warmers.warmer.source.query.match_all: {}}
-  - match: {test_index2.warmers.warmer.source.query.match_all: {}}
-  - match: {foo.warmers.warmer.source.query.match_all: {}}
+  - match: {test_index1.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {test_index2.warmers.warmer.source.query.match_all: {boost: 1.0}}
+  - match: {foo.warmers.warmer.source.query.match_all: {boost: 1.0}}
 
 ---
 "put warmer with missing name":

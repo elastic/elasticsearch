@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import com.carrotsearch.hppc.cursors.ObjectIntCursor;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.XGeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -36,7 +35,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filter;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoHashGrid.Bucket;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -57,7 +55,6 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
     static ObjectIntMap<String> expectedDocCountsForGeoHash = null;
     static ObjectIntMap<String> multiValuedExpectedDocCountsForGeoHash = null;
-    static ObjectObjectMap<String, GeoPoint> expectedCentroidsForGeoHash = null;
     static int numDocs = 100;
 
     static String smallestGeoHash = null;
@@ -75,15 +72,6 @@ public class GeoHashGridIT extends ESIntegTestCase {
         return indexCity(index, name, Arrays.<String>asList(latLon));
     }
 
-    private GeoPoint updateCentroid(GeoPoint centroid, double lat, double lon, final int docCount) {
-        if (centroid == null) {
-            return new GeoPoint(lat, lon);
-        }
-        final double newLon = centroid.lon() + (lon - centroid.lon()) / docCount;
-        final double newLat = centroid.lat() + (lat - centroid.lat()) / docCount;
-        return centroid.reset(newLat, newLon);
-    }
-
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx_unmapped");
@@ -94,7 +82,6 @@ public class GeoHashGridIT extends ESIntegTestCase {
         List<IndexRequestBuilder> cities = new ArrayList<>();
         Random random = getRandom();
         expectedDocCountsForGeoHash = new ObjectIntHashMap<>(numDocs * 2);
-        expectedCentroidsForGeoHash = new ObjectObjectHashMap<>(numDocs *2);
         for (int i = 0; i < numDocs; i++) {
             //generate random point
             double lat = (180d * random.nextDouble()) - 90d;
@@ -103,8 +90,6 @@ public class GeoHashGridIT extends ESIntegTestCase {
             //Index at the highest resolution
             cities.add(indexCity("idx", randomGeoHash, lat + ", " + lng));
             expectedDocCountsForGeoHash.put(randomGeoHash, expectedDocCountsForGeoHash.getOrDefault(randomGeoHash, 0) + 1);
-            expectedCentroidsForGeoHash.put(randomGeoHash, updateCentroid(expectedCentroidsForGeoHash.getOrDefault(randomGeoHash,
-                    null), lat, lng, expectedDocCountsForGeoHash.get(randomGeoHash)));
             //Update expected doc counts for all resolutions..
             for (int precision = XGeoHashUtils.PRECISION - 1; precision > 0; precision--) {
                 String hash = XGeoHashUtils.stringEncode(lng, lat, precision);
@@ -112,8 +97,6 @@ public class GeoHashGridIT extends ESIntegTestCase {
                     smallestGeoHash = hash;
                 }
                 expectedDocCountsForGeoHash.put(hash, expectedDocCountsForGeoHash.getOrDefault(hash, 0) + 1);
-                expectedCentroidsForGeoHash.put(hash, updateCentroid(expectedCentroidsForGeoHash.getOrDefault(hash,
-                        null), lat, lng, expectedDocCountsForGeoHash.get(hash)));
             }
         }
         indexRandom(true, cities);
@@ -147,9 +130,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-
-    @Test
-    public void simple() throws Exception {
+    public void testSimple() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
                     .addAggregation(geohashGrid("geohashgrid")
@@ -170,13 +151,9 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
                 long bucketCount = cell.getDocCount();
                 int expectedBucketCount = expectedDocCountsForGeoHash.get(geohash);
-                GeoPoint centroid = cell.getCentroid();
-                GeoPoint expectedCentroid = expectedCentroidsForGeoHash.get(geohash);
                 assertNotSame(bucketCount, 0);
                 assertEquals("Geohash " + geohash + " has wrong doc count ",
                         expectedBucketCount, bucketCount);
-                assertEquals("Geohash " + geohash + " has wrong centroid ",
-                        expectedCentroid, centroid);
                 GeoPoint geoPoint = (GeoPoint) propertiesKeys[i];
                 assertThat(XGeoHashUtils.stringEncode(geoPoint.lon(), geoPoint.lat(), precision), equalTo(geohash));
                 assertThat((long) propertiesDocCounts[i], equalTo(bucketCount));
@@ -184,8 +161,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void multivalued() throws Exception {
+    public void testMultivalued() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("multi_valued_idx")
                     .addAggregation(geohashGrid("geohashgrid")
@@ -209,8 +185,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void filtered() throws Exception {
+    public void testFiltered() throws Exception {
         GeoBoundingBoxQueryBuilder bbox = new GeoBoundingBoxQueryBuilder("location");
         bbox.setCorners(smallestGeoHash, smallestGeoHash).queryName("bbox");
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
@@ -243,8 +218,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx_unmapped")
                     .addAggregation(geohashGrid("geohashgrid")
@@ -261,8 +235,7 @@ public class GeoHashGridIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                     .addAggregation(geohashGrid("geohashgrid")
@@ -286,7 +259,6 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testTopMatch() throws Exception {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             SearchResponse response = client().prepareSearch("idx")
@@ -319,9 +291,8 @@ public class GeoHashGridIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // making sure this doesn't runs into an OOME
-    public void sizeIsZero() {
+    public void testSizeIsZero() {
         for (int precision = 1; precision <= XGeoHashUtils.PRECISION; precision++) {
             final int size = randomBoolean() ? 0 : randomIntBetween(1, Integer.MAX_VALUE);
             final int shardSize = randomBoolean() ? -1 : 0;

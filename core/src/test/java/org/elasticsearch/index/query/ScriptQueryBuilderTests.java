@@ -23,7 +23,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -32,7 +31,6 @@ import java.util.Map;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBuilder> {
-
     @Override
     protected ScriptQueryBuilder doCreateTestQueryBuilder() {
         String script = "5";
@@ -45,7 +43,6 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         assertThat(query, instanceOf(ScriptQueryBuilder.ScriptQuery.class));
     }
 
-    @Test
     public void testIllegalConstructorArg() {
         try {
             new ScriptQueryBuilder(null);

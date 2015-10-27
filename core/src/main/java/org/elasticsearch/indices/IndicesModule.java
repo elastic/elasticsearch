@@ -52,18 +52,16 @@ import org.elasticsearch.indices.ttl.IndicesTTLService;
  */
 public class IndicesModule extends AbstractModule {
 
-    private final Settings settings;
 
     private final ExtensionPoint.ClassSet<QueryParser> queryParsers
         = new ExtensionPoint.ClassSet<>("query_parser", QueryParser.class);
     private final ExtensionPoint.InstanceMap<String, Dictionary> hunspellDictionaries
         = new ExtensionPoint.InstanceMap<>("hunspell_dictionary", String.class, Dictionary.class);
 
-    public IndicesModule(Settings settings) {
-        this.settings = settings;
+    public IndicesModule() {
         registerBuiltinQueryParsers();
     }
-    
+
     private void registerBuiltinQueryParsers() {
         registerQueryParser(MatchQueryParser.class);
         registerQueryParser(MultiMatchQueryParser.class);
@@ -108,7 +106,6 @@ public class IndicesModule extends AbstractModule {
         registerQueryParser(GeohashCellQuery.Parser.class);
         registerQueryParser(GeoPolygonQueryParser.class);
         registerQueryParser(QueryFilterParser.class);
-        registerQueryParser(NotQueryParser.class);
         registerQueryParser(ExistsQueryParser.class);
         registerQueryParser(MissingQueryParser.class);
         registerQueryParser(MatchNoneQueryParser.class);
@@ -131,7 +128,6 @@ public class IndicesModule extends AbstractModule {
         bindQueryParsersExtension();
         bindHunspellExtension();
 
-        bind(IndicesLifecycle.class).to(InternalIndicesLifecycle.class).asEagerSingleton();
         bind(IndicesService.class).asEagerSingleton();
         bind(RecoverySettings.class).asEagerSingleton();
         bind(RecoveryTarget.class).asEagerSingleton();

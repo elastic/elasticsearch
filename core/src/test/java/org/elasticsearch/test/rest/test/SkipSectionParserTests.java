@@ -25,13 +25,13 @@ import org.elasticsearch.test.rest.parser.RestTestParseException;
 import org.elasticsearch.test.rest.parser.RestTestSuiteParseContext;
 import org.elasticsearch.test.rest.parser.SkipSectionParser;
 import org.elasticsearch.test.rest.section.SkipSection;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 public class SkipSectionParserTests extends AbstractParserTestCase {
-
-    @Test
     public void testParseSkipSectionVersionNoFeature() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "version:     \" - 0.90.2\"\n" +
@@ -66,7 +66,6 @@ public class SkipSectionParserTests extends AbstractParserTestCase {
         assertThat(skipSection.getReason(), equalTo("Delete ignores the parent param"));
     }
 
-    @Test
     public void testParseSkipSectionFeatureNoVersion() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "features:     regex"
@@ -83,7 +82,6 @@ public class SkipSectionParserTests extends AbstractParserTestCase {
         assertThat(skipSection.getReason(), nullValue());
     }
 
-    @Test
     public void testParseSkipSectionFeaturesNoVersion() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "features:     [regex1,regex2,regex3]"
@@ -102,7 +100,6 @@ public class SkipSectionParserTests extends AbstractParserTestCase {
         assertThat(skipSection.getReason(), nullValue());
     }
 
-    @Test(expected = RestTestParseException.class)
     public void testParseSkipSectionBothFeatureAndVersion() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "version:     \" - 0.90.2\"\n" +
@@ -112,26 +109,39 @@ public class SkipSectionParserTests extends AbstractParserTestCase {
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
 
-        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+        try {
+            skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+            fail("Expected RestTestParseException");
+        } catch (RestTestParseException e) {
+            assertThat(e.getMessage(), is("version or features are mutually exclusive"));
+        }
     }
 
-    @Test(expected = RestTestParseException.class)
     public void testParseSkipSectionNoReason() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "version:     \" - 0.90.2\"\n"
         );
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
-        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+        try {
+            skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+            fail("Expected RestTestParseException");
+        } catch (RestTestParseException e) {
+            assertThat(e.getMessage(), is("reason is mandatory within skip version section"));
+        }
     }
 
-    @Test(expected = RestTestParseException.class)
     public void testParseSkipSectionNoVersionNorFeature() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "reason:      Delete ignores the parent param\n"
         );
 
         SkipSectionParser skipSectionParser = new SkipSectionParser();
-        skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+        try {
+            skipSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+            fail("Expected RestTestParseException");
+        } catch (RestTestParseException e) {
+            assertThat(e.getMessage(), is("version or features is mandatory within skip section"));
+        }
     }
 }

@@ -19,6 +19,6 @@
       indices.get_field_mapping:
         index: test_index
         type: test_type
-        field: not_existent
+        fields: not_existent
   
   - match: { '': {}}

@@ -23,8 +23,9 @@ import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.jboss.netty.handler.codec.http.HttpResponse;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -33,21 +34,17 @@ import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.http.netty.NettyHttpClient.returnOpaqueIds;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyPipeliningEnabledIT extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put(Node.HTTP_ENABLED, true).put("http.pipelining", true).build();
     }
 
-    @Test
     public void testThatNettyHttpServerSupportsPipelining() throws Exception {
         List<String> requests = Arrays.asList("/", "/_nodes/stats", "/", "/_cluster/state", "/");
 

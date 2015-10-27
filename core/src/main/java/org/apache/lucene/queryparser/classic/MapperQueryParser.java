@@ -19,14 +19,19 @@
 
 package org.apache.lucene.queryparser.classic;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
-import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.MultiPhraseQuery;
+import org.apache.lucene.search.PhraseQuery;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.util.IOUtils;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -38,9 +43,12 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfNeeded;
 
 /**
@@ -52,13 +60,13 @@ import static org.elasticsearch.common.lucene.search.Queries.fixNegativeQueryIfN
  */
 public class MapperQueryParser extends QueryParser {
 
-    public static final ImmutableMap<String, FieldQueryExtension> fieldQueryExtensions;
+    public static final Map<String, FieldQueryExtension> FIELD_QUERY_EXTENSIONS;
 
     static {
-        fieldQueryExtensions = ImmutableMap.<String, FieldQueryExtension>builder()
-                .put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension())
-                .put(MissingFieldQueryExtension.NAME, new MissingFieldQueryExtension())
-                .build();
+        Map<String, FieldQueryExtension> fieldQueryExtensions = new HashMap<>();
+        fieldQueryExtensions.put(ExistsFieldQueryExtension.NAME, new ExistsFieldQueryExtension());
+        fieldQueryExtensions.put(MissingFieldQueryExtension.NAME, new MissingFieldQueryExtension());
+        FIELD_QUERY_EXTENSIONS = unmodifiableMap(fieldQueryExtensions);
     }
 
     private final QueryShardContext context;
@@ -124,7 +132,7 @@ public class MapperQueryParser extends QueryParser {
 
     @Override
     public Query getFieldQuery(String field, String queryText, boolean quoted) throws ParseException {
-        FieldQueryExtension fieldQueryExtension = fieldQueryExtensions.get(field);
+        FieldQueryExtension fieldQueryExtension = FIELD_QUERY_EXTENSIONS.get(field);
         if (fieldQueryExtension != null) {
             return fieldQueryExtension.query(context, queryText);
         }
@@ -540,7 +548,7 @@ public class MapperQueryParser extends QueryParser {
                     return newMatchAllDocsQuery();
                 }
                 // effectively, we check if a field exists or not
-                return fieldQueryExtensions.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
+                return FIELD_QUERY_EXTENSIONS.get(ExistsFieldQueryExtension.NAME).query(context, actualField);
             }
         }
         if (lowercaseExpandedTerms) {

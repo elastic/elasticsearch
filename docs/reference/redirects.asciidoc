@@ -80,9 +80,7 @@ in ``query context'' and as a filter in ``filter context'' (see <<query-dsl>>).
 [role="exclude",id="query-dsl-not-filter"]
 === Not Filter
 
-The `not` filter has been replaced by the <<query-dsl-not-query>>.  It behaves
-as a query in ``query context'' and as a filter in ``filter context'' (see
-<<query-dsl>>).
+The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
 
 [role="exclude",id="query-dsl-bool-filter"]
 === Bool Filter
@@ -443,3 +441,8 @@ parameter of search requests.
 
 The `limit` filter is replaced in favour of the <<search-request-body,terminate_after>>
 parameter of search requests.
+
+[role="exclude",id="query-dsl-not-query"]
+=== Not query
+
+The `not` query has been replaced by using a `mustNot` clause in a Boolean query.

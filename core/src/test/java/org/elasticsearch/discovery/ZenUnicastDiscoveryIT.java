@@ -28,7 +28,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.List;
 import java.util.concurrent.ExecutionException;
@@ -51,7 +50,6 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
         discoveryConfig = null;
     }
 
-    @Test
     public void testNormalClusterForming() throws ExecutionException, InterruptedException {
         int currentNumNodes = randomIntBetween(3, 5);
 
@@ -74,7 +72,6 @@ public class ZenUnicastDiscoveryIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // Without the 'include temporalResponses responses to nodesToConnect' improvement in UnicastZenPing#sendPings this
     // test fails, because 2 nodes elect themselves as master and the health request times out b/c waiting_for_nodes=N
     // can't be satisfied.

@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.fieldvisitor;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.StoredFieldVisitor;
 import org.apache.lucene.index.StoredFieldVisitor;
@@ -47,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableSet;
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 
@@ -191,9 +190,7 @@ public class FieldsVisitor extends StoredFieldVisitor {
     }
 
     public Map<String, List<Object>> fields() {
-        return fieldsValues != null
-                ? fieldsValues
-                : ImmutableMap.<String, List<Object>>of();
+        return fieldsValues != null ? fieldsValues : emptyMap();
     }
 
     public void reset() {

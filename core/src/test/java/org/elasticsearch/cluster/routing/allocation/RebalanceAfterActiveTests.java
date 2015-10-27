@@ -33,13 +33,12 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import java.util.Collections;
-
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -48,10 +47,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class RebalanceAfterActiveTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(RebalanceAfterActiveTests.class);
 
-    @Test
     public void testRebalanceOnlyAfterAllShardsAreActive() {
         final long[] sizes = new long[5];
         for (int i =0; i < sizes.length; i++) {

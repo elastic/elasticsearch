@@ -41,15 +41,15 @@ There are several thread pools, but the important ones include:
 
 `snapshot`::
     For snapshot/restore operations. Defaults to `scaling` with a
-    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
+    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`, max at 5.
 
 `warmer`::
     For segment warm-up operations. Defaults to `scaling` with a
-    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
+    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`, max at 5.
 
 `refresh`::
     For refresh operations. Defaults to `scaling` with a
-    keep-alive of `5m` and a size of `min(10, (# of available processors)/2)`.
+    keep-alive of `5m` and a size of `min(10, (# of available processors)/2)`, max at 10.
 
 `listener`::
     Mainly for java client executing of action when listener threaded is set to true.

@@ -20,8 +20,6 @@
 package org.elasticsearch.index.similarity;
 
 import org.apache.lucene.search.similarities.DefaultSimilarity;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -37,8 +35,7 @@ public class DefaultSimilarityProvider extends AbstractSimilarityProvider {
 
     private final DefaultSimilarity similarity = new DefaultSimilarity();
 
-    @Inject
-    public DefaultSimilarityProvider(@Assisted String name, @Assisted Settings settings) {
+    public DefaultSimilarityProvider(String name, Settings settings) {
         super(name);
         boolean discountOverlaps = settings.getAsBoolean("discount_overlaps", true);
         this.similarity.setDiscountOverlaps(discountOverlaps);

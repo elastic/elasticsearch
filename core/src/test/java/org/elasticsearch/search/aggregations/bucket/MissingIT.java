@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.missing.Missing;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,8 +87,7 @@ public class MissingIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("unmapped_idx")
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();
@@ -103,8 +101,7 @@ public class MissingIT extends ESIntegTestCase {
         assertThat(missing.getDocCount(), equalTo((long) numDocsUnmapped));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "unmapped_idx")
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();
@@ -118,8 +115,7 @@ public class MissingIT extends ESIntegTestCase {
         assertThat(missing.getDocCount(), equalTo((long) numDocsMissing + numDocsUnmapped));
     }
 
-    @Test
-    public void simple() throws Exception {
+    public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(missing("missing_tag").field("tag"))
                 .execute().actionGet();
@@ -133,8 +129,7 @@ public class MissingIT extends ESIntegTestCase {
         assertThat(missing.getDocCount(), equalTo((long) numDocsMissing));
     }
 
-    @Test
-    public void withSubAggregation() throws Exception {
+    public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "unmapped_idx")
                 .addAggregation(missing("missing_tag").field("tag")
                         .subAggregation(avg("avg_value").field("value")))
@@ -165,9 +160,7 @@ public class MissingIT extends ESIntegTestCase {
         assertThat((double) missing.getProperty("avg_value.value"), equalTo((double) sum / (numDocsMissing + numDocsUnmapped)));
     }
 
-    @Test
-    public void withInheritedSubMissing() throws Exception {
-
+    public void testWithInheritedSubMissing() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "unmapped_idx")
                 .addAggregation(missing("top_missing").field("tag")
                         .subAggregation(missing("sub_missing")))
@@ -188,8 +181,7 @@ public class MissingIT extends ESIntegTestCase {
         assertThat(subMissing.getDocCount(), equalTo((long) numDocsMissing + numDocsUnmapped));
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)

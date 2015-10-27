@@ -34,17 +34,13 @@ import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.JLHScore;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.PercentageScore;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ScriptHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristic;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicBuilder;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParser;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicParserMapper;
-import org.elasticsearch.search.aggregations.bucket.significant.heuristics.SignificanceHeuristicStreams;
-import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TestSearchContext;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -79,8 +75,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
     }
 
     // test that stream output can actually be read - does not replace bwc test
-    @Test
-    public void streamResponse() throws Exception {
+    public void testStreamResponse() throws Exception {
         Version version = randomVersion(random());
         InternalSignificantTerms[] sigTerms = getRandomSignificantTerms(getRandomSignificanceheuristic());
 
@@ -108,13 +103,13 @@ public class SignificanceHeuristicTests extends ESTestCase {
             BytesRef term = new BytesRef("123.0");
             buckets.add(new SignificantLongTerms.Bucket(1, 2, 3, 4, 123, InternalAggregations.EMPTY, null));
             sTerms[0] = new SignificantLongTerms(10, 20, "some_name", null, 1, 1, heuristic, buckets,
-                    (List<PipelineAggregator>) Collections.EMPTY_LIST, null);
+                    Collections.EMPTY_LIST, null);
             sTerms[1] = new SignificantLongTerms();
         } else {
 
             BytesRef term = new BytesRef("someterm");
             buckets.add(new SignificantStringTerms.Bucket(term, 1, 2, 3, 4, InternalAggregations.EMPTY));
-            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, (List<PipelineAggregator>) Collections.EMPTY_LIST,
+            sTerms[0] = new SignificantStringTerms(10, 20, "some_name", 1, 1, heuristic, buckets, Collections.EMPTY_LIST,
                     null);
             sTerms[1] = new SignificantStringTerms();
         }
@@ -133,7 +128,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
     // test that
     // 1. The output of the builders can actually be parsed
     // 2. The parser does not swallow parameters after a significance heuristic was defined
-    @Test
     public void testBuilderAndParser() throws Exception {
 
         Set<SignificanceHeuristicParser> parsers = new HashSet<>();
@@ -308,7 +302,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testAssertions() throws Exception {
         testBackgroundAssertions(new MutualInformation(true, true), new MutualInformation(true, false));
         testBackgroundAssertions(new ChiSquare(true, true), new ChiSquare(true, false));
@@ -317,8 +310,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         testAssertions(JLHScore.INSTANCE);
     }
 
-    @Test
-    public void basicScoreProperties() {
+    public void testBasicScoreProperties() {
         basicScoreProperties(JLHScore.INSTANCE, true);
         basicScoreProperties(new GND(true), true);
         basicScoreProperties(PercentageScore.INSTANCE, true);
@@ -327,7 +319,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
     }
 
     public void basicScoreProperties(SignificanceHeuristic heuristic, boolean test0) {
-
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
         assertThat(heuristic.getScore(1, 1, 3, 4), lessThan(heuristic.getScore(1, 1, 2, 4)));
@@ -347,8 +338,7 @@ public class SignificanceHeuristicTests extends ESTestCase {
         assertThat(score, greaterThanOrEqualTo(0.0));
     }
 
-    @Test
-    public void scoreMutual() throws Exception {
+    public void testScoreMutual() throws Exception {
         SignificanceHeuristic heuristic = new MutualInformation(true, true);
         assertThat(heuristic.getScore(1, 1, 1, 3), greaterThan(0.0));
         assertThat(heuristic.getScore(1, 1, 2, 3), lessThan(heuristic.getScore(1, 1, 1, 3)));
@@ -384,7 +374,6 @@ public class SignificanceHeuristicTests extends ESTestCase {
         assertThat(score, lessThanOrEqualTo(1.0));
     }
 
-    @Test
     public void testGNDCornerCases() throws Exception {
         GND gnd = new GND(true);
         //term is only in the subset, not at all in the other set but that is because the other set is empty.

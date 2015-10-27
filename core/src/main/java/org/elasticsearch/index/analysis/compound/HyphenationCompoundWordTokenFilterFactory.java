@@ -24,17 +24,14 @@ import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.Lucene43HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.apache.lucene.util.Version;
-
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisSettingsRequired;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.xml.sax.InputSource;
 
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -49,8 +46,8 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
     private final HyphenationTree hyphenationTree;
 
     @Inject
-    public HyphenationCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, env, name, settings);
+    public HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, env, name, settings);
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
         if (hyphenationPatternsPath == null) {
@@ -62,7 +59,7 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
         try {
             hyphenationTree = HyphenationCompoundWordTokenFilter.getHyphenationTree(new InputSource(Files.newInputStream(hyphenationPatternsFile)));
         } catch (Exception e) {
-            throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path: " + e.getMessage());
+            throw new IllegalArgumentException("Exception while reading hyphenation_patterns_path.", e);
         }
     }
 

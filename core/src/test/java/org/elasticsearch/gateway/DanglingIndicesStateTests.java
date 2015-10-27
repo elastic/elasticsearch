@@ -26,26 +26,22 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
 
 /**
  */
 public class DanglingIndicesStateTests extends ESTestCase {
-
     private static Settings indexSettings = Settings.builder()
             .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .build();
 
-    @Test
     public void testCleanupWhenEmpty() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
@@ -58,7 +54,6 @@ public class DanglingIndicesStateTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testDanglingProcessing() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);
@@ -102,7 +97,6 @@ public class DanglingIndicesStateTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testRenameOfIndexState() throws Exception {
         try (NodeEnvironment env = newNodeEnvironment()) {
             MetaStateService metaStateService = new MetaStateService(Settings.EMPTY, env);

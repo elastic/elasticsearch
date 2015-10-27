@@ -20,7 +20,6 @@ package org.elasticsearch.test.rest.test;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.support.FileUtils;
-import org.junit.Test;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -32,8 +31,6 @@ import static org.hamcrest.CoreMatchers.notNullValue;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class FileUtilsTests extends ESTestCase {
-
-    @Test
     public void testLoadSingleYamlSuite() throws Exception {
         Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "/rest-api-spec/test/get/10_basic");
         assertSingleFile(yamlSuites, "get", "10_basic.yaml");
@@ -47,7 +44,6 @@ public class FileUtilsTests extends ESTestCase {
         assertSingleFile(yamlSuites, "get", "10_basic.yaml");
     }
 
-    @Test
     public void testLoadMultipleYamlSuites() throws Exception {
         //single directory
         Map<String,Set<Path>> yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "get");

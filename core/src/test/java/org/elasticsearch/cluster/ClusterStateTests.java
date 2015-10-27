@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.cluster;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;

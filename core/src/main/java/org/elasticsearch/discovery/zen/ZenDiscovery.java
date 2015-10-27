@@ -742,9 +742,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     // if its not the same version, only copy over new indices or ones that changed the version
                     MetaData.Builder metaDataBuilder = MetaData.builder(newClusterState.metaData()).removeAllIndices();
                     for (IndexMetaData indexMetaData : newClusterState.metaData()) {
-                        IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
-                        if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.indexUUID()) &&
-                                currentIndexMetaData.version() == indexMetaData.version()) {
+                        IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.getIndex());
+                        if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.getIndexUUID()) &&
+                                currentIndexMetaData.getVersion() == indexMetaData.getVersion()) {
                             // safe to reuse
                             metaDataBuilder.put(currentIndexMetaData, false);
                         } else {

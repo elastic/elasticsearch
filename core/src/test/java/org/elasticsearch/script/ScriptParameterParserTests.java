@@ -30,17 +30,22 @@ import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptParameterParser.ScriptParameterValue;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 
+import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class ScriptParameterParserTests extends ESTestCase {
-
-    @Test
     public void testTokenDefaultInline() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"script\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -61,7 +66,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenDefaultFile() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"script_file\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -84,7 +88,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenDefaultIndexed() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"script_id\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -107,7 +110,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenDefaultNotFound() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo\" : \"bar\" }"));
         Token token = parser.nextToken();
@@ -121,7 +123,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenSingleParameter() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -136,7 +137,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenSingleParameterFile() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo_file\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -151,7 +151,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenSingleParameterIndexed() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo_id\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -166,7 +165,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testTokenSingleParameterDelcaredTwiceInlineFile() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo\" : \"scriptValue\", \"foo_file\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -183,10 +181,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testTokenSingleParameterDelcaredTwiceInlineIndexed() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo\" : \"scriptValue\", \"foo_id\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -203,10 +205,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testTokenSingleParameterDelcaredTwiceFileInline() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo_file\" : \"scriptValue\", \"foo\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -223,10 +229,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testTokenSingleParameterDelcaredTwiceFileIndexed() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo_file\" : \"scriptValue\", \"foo_id\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -243,10 +253,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testTokenSingleParameterDelcaredTwiceIndexedInline() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo_id\" : \"scriptValue\", \"foo\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -263,10 +277,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testTokenSingleParameterDelcaredTwiceIndexedFile() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo_id\" : \"scriptValue\", \"foo_file\" : \"scriptValue\" }"));
         Token token = parser.nextToken();
@@ -283,10 +301,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         while (token != Token.VALUE_STRING) {
             token = parser.nextToken();
         }
-        paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.token(parser.currentName(), parser.currentToken(), parser, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test
     public void testTokenMultipleParameters() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo\" : \"fooScriptValue\", \"bar_file\" : \"barScriptValue\", \"baz_id\" : \"bazScriptValue\" }"));
         Set<String> parameters = new HashSet<>();
@@ -335,7 +357,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenMultipleParametersWithLang() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo\" : \"fooScriptValue\", \"bar_file\" : \"barScriptValue\", \"lang\" : \"myLang\", \"baz_id\" : \"bazScriptValue\" }"));
         Set<String> parameters = new HashSet<>();
@@ -395,7 +416,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), equalTo("myLang"));
     }
 
-    @Test
     public void testTokenMultipleParametersNotFound() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"other\" : \"scriptValue\" }"));
         Set<String> parameters = new HashSet<>();
@@ -423,7 +443,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenMultipleParametersSomeNotFound() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo\" : \"fooScriptValue\", \"other_file\" : \"barScriptValue\", \"baz_id\" : \"bazScriptValue\" }"));
         Set<String> parameters = new HashSet<>();
@@ -480,7 +499,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testTokenMultipleParametersWrongType() throws IOException {
         XContentParser parser = XContentHelper.createParser(new BytesArray("{ \"foo\" : \"fooScriptValue\", \"bar_file\" : \"barScriptValue\", \"baz_id\" : \"bazScriptValue\" }"));
         Set<String> parameters = new HashSet<>();
@@ -503,13 +521,15 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testReservedParameters() {
-        Set<String> parameterNames = Collections.singleton("lang");
-        new ScriptParameterParser(parameterNames );
+        try {
+            new ScriptParameterParser(singleton("lang"));
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("lang is reserved"));
+        }
     }
 
-    @Test
     public void testConfigDefaultInline() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("script", "scriptValue");
@@ -534,7 +554,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(config.isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testConfigDefaultFile() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("script_file", "scriptValue");
@@ -553,7 +572,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(config.isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testConfigDefaultIndexed() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("script_id", "scriptValue");
@@ -572,7 +590,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(config.isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testConfigDefaultIndexedNoRemove() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("script_id", "scriptValue");
@@ -593,7 +610,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat((String) config.get("scriptId"), equalTo("scriptValue"));
     }
 
-    @Test
     public void testConfigDefaultNotFound() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "bar");
@@ -606,7 +622,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat((String) config.get("foo"), equalTo("bar"));
     }
 
-    @Test
     public void testConfigSingleParameter() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "scriptValue");
@@ -619,7 +634,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(config.isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testConfigSingleParameterFile() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo_file", "scriptValue");
@@ -632,7 +646,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(config.isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testConfigSingleParameterIndexed() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo_id", "scriptValue");
@@ -645,7 +658,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(config.isEmpty(), equalTo(true));
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigSingleParameterDelcaredTwiceInlineFile() throws IOException {
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("foo", "scriptValue");
@@ -653,10 +665,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigSingleParameterDelcaredTwiceInlineIndexed() throws IOException {
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("foo", "scriptValue");
@@ -664,10 +680,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigSingleParameterDelcaredTwiceFileInline() throws IOException {
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("foo_file", "scriptValue");
@@ -675,10 +695,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigSingleParameterDelcaredTwiceFileIndexed() throws IOException {
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("foo_file", "scriptValue");
@@ -686,10 +710,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigSingleParameterDelcaredTwiceIndexedInline() throws IOException {
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("foo_id", "scriptValue");
@@ -697,10 +725,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigSingleParameterDelcaredTwiceIndexedFile() throws IOException {
         Map<String, Object> config = new LinkedHashMap<>();
         config.put("foo_id", "scriptValue");
@@ -708,10 +740,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         Set<String> parameters = Collections.singleton("foo");
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test
     public void testConfigMultipleParameters() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -738,7 +774,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(config.isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testConfigMultipleParametersWithLang() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -766,7 +801,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(config.isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testConfigMultipleParametersWithLangNoRemove() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -798,7 +832,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat((String) config.get("lang"), equalTo("myLang"));
     }
 
-    @Test
     public void testConfigMultipleParametersNotFound() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("other", "scriptValue");
@@ -825,7 +858,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat((String) config.get("other"), equalTo("scriptValue"));
     }
 
-    @Test
     public void testConfigMultipleParametersSomeNotFound() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -857,7 +889,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat((String) config.get("other_file"), equalTo("barScriptValue"));
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigMultipleParametersInlineWrongType() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", 1l);
@@ -875,10 +906,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Value must be of type String: [foo]"));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigMultipleParametersFileWrongType() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -896,10 +931,15 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Value must be of type String: [bar_file]"));
+        }
+
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigMultipleParametersIndexedWrongType() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -917,10 +957,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Value must be of type String: [baz_id]"));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testConfigMultipleParametersLangWrongType() throws IOException {
         Map<String, Object> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -938,10 +982,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.getScriptParameterValue("bar_file"), nullValue());
         assertThat(paramParser.getScriptParameterValue("baz_id"), nullValue());
         assertThat(paramParser.lang(), nullValue());
-        paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+        try {
+            paramParser.parseConfig(config, true, ParseFieldMatcher.STRICT);
+            fail("Expected ScriptParseException");
+        } catch (ScriptParseException e) {
+            assertThat(e.getMessage(), is("Value must be of type String: [lang]"));
+        }
     }
 
-    @Test
     public void testParamsDefaultInline() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("script", "scriptValue");
@@ -950,7 +998,7 @@ public class ScriptParameterParserTests extends ESTestCase {
         paramParser.parseParams(params);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
         assertThat(paramParser.lang(), nullValue());
-        
+
         paramParser = new ScriptParameterParser(null);
         paramParser.parseParams(params);
         assertDefaultParameterValue(paramParser, "scriptValue", ScriptType.INLINE);
@@ -962,7 +1010,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testParamsDefaultFile() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("script_file", "scriptValue");
@@ -973,7 +1020,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testParamsDefaultIndexed() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("script_id", "scriptValue");
@@ -984,7 +1030,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testParamsDefaultNotFound() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("foo", "bar");
@@ -996,7 +1041,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testParamsSingleParameter() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("foo", "scriptValue");
@@ -1009,7 +1053,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testParamsSingleParameterFile() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("foo_file", "scriptValue");
@@ -1022,7 +1065,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testParamsSingleParameterIndexed() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("foo_id", "scriptValue");
@@ -1035,7 +1077,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testParamsSingleParameterDelcaredTwiceInlineFile() throws IOException {
         Map<String, String> config = new LinkedHashMap<>();
         config.put("foo", "scriptValue");
@@ -1044,10 +1085,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         MapParams params = new MapParams(config);
-        paramParser.parseParams(params);
+        try {
+            paramParser.parseParams(params);
+            fail("Expected ScriptParseException");
+        } catch(ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testParamsSingleParameterDelcaredTwiceInlineIndexed() throws IOException {
         Map<String, String> config = new LinkedHashMap<>();
         config.put("foo", "scriptValue");
@@ -1056,10 +1101,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         MapParams params = new MapParams(config);
-        paramParser.parseParams(params);
+        try {
+            paramParser.parseParams(params);
+            fail("Expected ScriptParseException");
+        } catch(ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testParamsSingleParameterDelcaredTwiceFileInline() throws IOException {
         Map<String, String> config = new LinkedHashMap<>();
         config.put("foo_file", "scriptValue");
@@ -1068,10 +1117,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         MapParams params = new MapParams(config);
-        paramParser.parseParams(params);
+        try {
+            paramParser.parseParams(params);
+            fail("Expected ScriptParseException");
+        } catch(ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testParamsSingleParameterDelcaredTwiceFileIndexed() throws IOException {
         Map<String, String> config = new LinkedHashMap<>();
         config.put("foo_file", "scriptValue");
@@ -1080,10 +1133,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         MapParams params = new MapParams(config);
-        paramParser.parseParams(params);
+        try {
+            paramParser.parseParams(params);
+            fail("Expected ScriptParseException");
+        } catch(ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testParamsSingleParameterDelcaredTwiceIndexedInline() throws IOException {
         Map<String, String> config = new LinkedHashMap<>();
         config.put("foo_id", "scriptValue");
@@ -1092,10 +1149,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         MapParams params = new MapParams(config);
-        paramParser.parseParams(params);
+        try {
+            paramParser.parseParams(params);
+            fail("Expected ScriptParseException");
+        } catch(ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test(expected = ScriptParseException.class)
     public void testParamsSingleParameterDelcaredTwiceIndexedFile() throws IOException {
         Map<String, String> config = new LinkedHashMap<>();
         config.put("foo_id", "scriptValue");
@@ -1104,10 +1165,14 @@ public class ScriptParameterParserTests extends ESTestCase {
         ScriptParameterParser paramParser = new ScriptParameterParser(parameters);
         assertThat(paramParser.getScriptParameterValue("foo"), nullValue());
         MapParams params = new MapParams(config);
-        paramParser.parseParams(params);
+        try {
+            paramParser.parseParams(params);
+            fail("Expected ScriptParseException");
+        } catch(ScriptParseException e) {
+            assertThat(e.getMessage(), is("Only one of [foo, foo_file, foo_id] is allowed."));
+        }
     }
 
-    @Test
     public void testParamsMultipleParameters() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -1134,7 +1199,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testParamsMultipleParametersWithLang() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -1162,7 +1226,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), equalTo("myLang"));
     }
 
-    @Test
     public void testParamsMultipleParametersWithLangNoRemove() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("foo", "fooScriptValue");
@@ -1190,7 +1253,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), equalTo("myLang"));
     }
 
-    @Test
     public void testParamsMultipleParametersNotFound() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("other", "scriptValue");
@@ -1216,7 +1278,6 @@ public class ScriptParameterParserTests extends ESTestCase {
         assertThat(paramParser.lang(), nullValue());
     }
 
-    @Test
     public void testParamsMultipleParametersSomeNotFound() throws IOException {
         Map<String, String> config = new HashMap<>();
         config.put("foo", "fooScriptValue");

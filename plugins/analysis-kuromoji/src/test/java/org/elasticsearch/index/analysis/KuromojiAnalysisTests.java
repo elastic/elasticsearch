@@ -33,12 +33,10 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -55,8 +53,6 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  */
 public class KuromojiAnalysisTests extends ESTestCase {
-
-    @Test
     public void testDefaultsKuromojiAnalysis() throws IOException {
         AnalysisService analysisService = createAnalysisService();
 
@@ -90,7 +86,6 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
     }
 
-    @Test
     public void testBaseFormFilterFactory() throws IOException {
         AnalysisService analysisService = createAnalysisService();
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("kuromoji_pos");
@@ -102,7 +97,6 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected);
     }
 
-    @Test
     public void testReadingFormFilterFactory() throws IOException {
         AnalysisService analysisService = createAnalysisService();
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("kuromoji_rf");
@@ -123,7 +117,6 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
     }
 
-    @Test
     public void testKatakanaStemFilter() throws IOException {
         AnalysisService analysisService = createAnalysisService();
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("kuromoji_stemmer");
@@ -148,7 +141,7 @@ public class KuromojiAnalysisTests extends ESTestCase {
         expected_tokens_katakana = new String[]{"明後日", "パーティー", "に", "行く", "予定", "が", "ある", "図書館", "で", "資料", "を", "コピー", "し", "まし", "た"};
         assertSimpleTSOutput(tokenFilter.create(tokenizer), expected_tokens_katakana);
     }
-    @Test
+
     public void testIterationMarkCharFilter() throws IOException {
         AnalysisService analysisService = createAnalysisService();
         // test only kanji
@@ -182,7 +175,6 @@ public class KuromojiAnalysisTests extends ESTestCase {
         assertCharFilterEquals(charFilterFactory.create(new StringReader(source)), expected);
     }
 
-    @Test
     public void testJapaneseStopFilterFactory() throws IOException {
         AnalysisService analysisService = createAnalysisService();
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("ja_stop");
@@ -221,7 +213,6 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
                 analysisModule)
                 .createChildInjector(parentInjector);
 
@@ -256,7 +247,6 @@ public class KuromojiAnalysisTests extends ESTestCase {
         return buffer.toString();
     }
 
-    @Test
     public void testKuromojiUserDict() throws IOException {
         AnalysisService analysisService = createAnalysisService();
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_user_dict");
@@ -269,11 +259,9 @@ public class KuromojiAnalysisTests extends ESTestCase {
     }
 
     // fix #59
-    @Test
     public void testKuromojiEmptyUserDict() throws IOException {
         AnalysisService analysisService = createAnalysisService();
         TokenizerFactory tokenizerFactory = analysisService.tokenizer("kuromoji_empty_user_dict");
         assertThat(tokenizerFactory, instanceOf(KuromojiTokenizerFactory.class));
     }
-
 }

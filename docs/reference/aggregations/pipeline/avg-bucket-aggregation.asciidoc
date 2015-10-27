@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-avg-bucket-aggregation]]
 === Avg Bucket Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 A sibling pipeline aggregation which calculates the (mean) average value of a specified metric in a sibling aggregation. 

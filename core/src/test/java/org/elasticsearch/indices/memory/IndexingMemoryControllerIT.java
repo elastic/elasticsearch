@@ -24,21 +24,17 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class IndexingMemoryControllerIT extends ESIntegTestCase {
-
     private long getIWBufferSize(String indexName) {
         return client().admin().indices().prepareStats(indexName).get().getTotal().getSegments().getIndexWriterMaxMemoryInBytes();
     }
 
-    @Test
     public void testIndexBufferPushedToEngine() throws InterruptedException {
         createNode(Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "100000h",
                                           IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "32mb",
@@ -68,7 +64,6 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testInactivePushedToShard() throws InterruptedException {
         createNode(Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "100ms",
                 IndexingMemoryController.SHARD_INACTIVE_INTERVAL_TIME_SETTING, "100ms",
@@ -82,7 +77,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
         index("test1", "type", "1", "f", 1);
 
         // make shard the shard buffer was set to inactive size
-        final ByteSizeValue inactiveBuffer = EngineConfig.INACTIVE_SHARD_INDEXING_BUFFER;
+        final ByteSizeValue inactiveBuffer = IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
         if (awaitBusy(() -> getIWBufferSize("test1") == inactiveBuffer.bytes()) == false) {
             fail("failed to update shard indexing buffer size for test1 index to [" + inactiveBuffer + "]; got: " + getIWBufferSize("test1"));
         }

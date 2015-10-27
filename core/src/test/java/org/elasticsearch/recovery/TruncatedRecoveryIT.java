@@ -37,8 +37,10 @@ import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -56,7 +58,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 @SuppressCodecs("*") // test relies on exact file extensions
 public class TruncatedRecoveryIT extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
@@ -76,7 +77,6 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
      * we just throw an exception to make sure the recovery fails and we leave some half baked files on the target.
      * Later we allow full recovery to ensure we can still recover and don't run into corruptions.
      */
-    @Test
     public void testCancelRecoveryAndResume() throws Exception {
         NodesStatsResponse nodeStats = client().admin().cluster().prepareNodesStats().get();
         List<NodeStats> dataNodeStats = new ArrayList<>();
@@ -115,7 +115,7 @@ public class TruncatedRecoveryIT extends ESIntegTestCase {
         ensureGreen();
         // ensure we have flushed segments and make them a big one via optimize
         client().admin().indices().prepareFlush().setForce(true).setWaitIfOngoing(true).get();
-        client().admin().indices().prepareOptimize().setMaxNumSegments(1).setFlush(true).get();
+        client().admin().indices().prepareForceMerge().setMaxNumSegments(1).setFlush(true).get();
 
         final CountDownLatch latch = new CountDownLatch(1);
         final AtomicBoolean truncate = new AtomicBoolean(true);

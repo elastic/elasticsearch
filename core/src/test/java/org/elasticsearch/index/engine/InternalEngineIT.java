@@ -26,15 +26,12 @@ import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Set;
 
 public class InternalEngineIT extends ESIntegTestCase {
-
-    @Test
     public void testSetIndexCompoundOnFlush() {
         client().admin().indices().prepareCreate("test").setSettings(Settings.builder().put("number_of_replicas", 0).put("number_of_shards", 1)).get();
         ensureGreen();

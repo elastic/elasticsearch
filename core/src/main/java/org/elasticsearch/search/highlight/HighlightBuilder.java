@@ -227,9 +227,9 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * Set to true to cause a field to be highlighted only if a query matches that field. 
-     * Default is false meaning that terms are highlighted on all requested fields regardless 
-     * if the query matches specifically on them. 
+     * Set to true to cause a field to be highlighted only if a query matches that field.
+     * Default is false meaning that terms are highlighted on all requested fields regardless
+     * if the query matches specifically on them.
      */
     public HighlightBuilder requireFieldMatch(boolean requireFieldMatch) {
         this.requireFieldMatch = requireFieldMatch;
@@ -237,7 +237,7 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * When using the highlighterType <tt>fast-vector-highlighter</tt> this setting 
+     * When using the highlighterType <tt>fast-vector-highlighter</tt> this setting
      * controls how far to look for boundary characters, and defaults to 20.
      */
     public HighlightBuilder boundaryMaxScan(Integer boundaryMaxScan) {
@@ -246,8 +246,8 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * When using the highlighterType <tt>fast-vector-highlighter</tt> this setting 
-     * defines what constitutes a boundary for highlighting. It’s a single string with 
+     * When using the highlighterType <tt>fast-vector-highlighter</tt> this setting
+     * defines what constitutes a boundary for highlighting. It’s a single string with
      * each boundary character defined in it. It defaults to .,!? \t\n
      */
     public HighlightBuilder boundaryChars(char[] boundaryChars) {
@@ -258,7 +258,7 @@ public class HighlightBuilder implements ToXContent {
     /**
      * Set type of highlighter to use. Supported types
      * are <tt>highlighter</tt>, <tt>fast-vector-highlighter</tt> and <tt>postings-highlighter</tt>.
-     * The default option selected is dependent on the mappings defined for your index. 
+     * The default option selected is dependent on the mappings defined for your index.
      * Details of the different highlighter types are covered in the reference guide.
      */
     public HighlightBuilder highlighterType(String highlighterType) {
@@ -334,6 +334,13 @@ public class HighlightBuilder implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("highlight");
+        innerXContent(builder, params);
+        builder.endObject();
+        return builder;
+    }
+
+
+    public void innerXContent(XContentBuilder builder, Params params) throws IOException {
         if (tagsSchema != null) {
             builder.field("tags_schema", tagsSchema);
         }
@@ -465,8 +472,6 @@ public class HighlightBuilder implements ToXContent {
                 builder.endObject();
             }
         }
-        builder.endObject();
-        return builder;
     }
 
     public static class Field {

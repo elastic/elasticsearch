@@ -18,12 +18,14 @@
  */
 package org.elasticsearch.indices.flush;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Result for all copies of a shard
@@ -49,7 +51,7 @@ public class ShardsSyncedFlushResult {
     public ShardsSyncedFlushResult(ShardId shardId, int totalShards, String failureReason) {
         this.syncId = null;
         this.failureReason = failureReason;
-        this.shardResponses = ImmutableMap.of();
+        this.shardResponses = emptyMap();
         this.shardId = shardId;
         this.totalShards = totalShards;
     }
@@ -59,8 +61,7 @@ public class ShardsSyncedFlushResult {
      */
     public ShardsSyncedFlushResult(ShardId shardId, String syncId, int totalShards, Map<ShardRouting, SyncedFlushService.SyncedFlushResponse> shardResponses) {
         this.failureReason = null;
-        ImmutableMap.Builder<ShardRouting, SyncedFlushService.SyncedFlushResponse> builder = ImmutableMap.builder();
-        this.shardResponses = builder.putAll(shardResponses).build();
+        this.shardResponses = unmodifiableMap(new HashMap<>(shardResponses));
         this.syncId = syncId;
         this.totalShards = totalShards;
         this.shardId = shardId;

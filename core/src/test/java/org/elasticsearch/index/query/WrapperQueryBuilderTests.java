@@ -25,7 +25,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -56,7 +55,7 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
     @Override
     protected void doAssertLuceneQuery(WrapperQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         try (XContentParser qSourceParser = XContentFactory.xContent(queryBuilder.source()).createParser(queryBuilder.source())) {
-            final QueryShardContext contextCopy = new QueryShardContext(context.index(), context.indexQueryParserService());
+            final QueryShardContext contextCopy = new QueryShardContext(context.indexQueryParserService());
             contextCopy.reset(qSourceParser);
             QueryBuilder<?> innerQuery = contextCopy.parseContext().parseInnerQueryBuilder();
             Query expected = innerQuery.toQuery(context);
@@ -69,7 +68,6 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
         //no-op boost is checked already above as part of doAssertLuceneQuery as we rely on lucene equals impl
     }
 
-    @Test
     public void testIllegalArgument() {
         try {
             if (randomBoolean()) {

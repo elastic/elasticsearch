@@ -25,15 +25,17 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  */
@@ -88,7 +90,7 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
     }
 
     private GetFieldMappingsResponse merge(AtomicReferenceArray<Object> indexResponses) {
-        MapBuilder<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mergedResponses = MapBuilder.newMapBuilder();
+        Map<String, Map<String, Map<String, GetFieldMappingsResponse.FieldMappingMetaData>>> mergedResponses = new HashMap<>();
         for (int i = 0; i < indexResponses.length(); i++) {
             Object element = indexResponses.get(i);
             if (element instanceof GetFieldMappingsResponse) {
@@ -96,6 +98,6 @@ public class TransportGetFieldMappingsAction extends HandledTransportAction<GetF
                 mergedResponses.putAll(response.mappings());
             }
         }
-        return new GetFieldMappingsResponse(mergedResponses.immutableMap());
+        return new GetFieldMappingsResponse(unmodifiableMap(mergedResponses));
     }
 }

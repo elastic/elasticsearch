@@ -21,15 +21,12 @@ package org.elasticsearch.test.rest.test;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.test.rest.spec.RestApi;
 import org.elasticsearch.test.rest.spec.RestApiParser;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class RestApiParserTests extends AbstractParserTestCase {
-
-    @Test
     public void testParseRestSpecIndexApi() throws Exception {
         parser = JsonXContent.jsonXContent.createParser(REST_SPEC_INDEX_API);
         RestApi restApi = new RestApiParser().parse(parser);
@@ -52,7 +49,6 @@ public class RestApiParserTests extends AbstractParserTestCase {
         assertThat(restApi.isBodyRequired(), equalTo(true));
     }
 
-    @Test
     public void testParseRestSpecGetTemplateApi() throws Exception {
         parser = JsonXContent.jsonXContent.createParser(REST_SPEC_GET_TEMPLATE_API);
         RestApi restApi = new RestApiParser().parse(parser);
@@ -70,7 +66,6 @@ public class RestApiParserTests extends AbstractParserTestCase {
         assertThat(restApi.isBodyRequired(), equalTo(false));
     }
 
-    @Test
     public void testParseRestSpecCountApi() throws Exception {
         parser = JsonXContent.jsonXContent.createParser(REST_SPEC_COUNT_API);
         RestApi restApi = new RestApiParser().parse(parser);

@@ -25,8 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
@@ -36,8 +35,8 @@ public class CatalanAnalyzerProvider extends AbstractIndexAnalyzerProvider<Catal
     private final CatalanAnalyzer analyzer;
 
     @Inject
-    public CatalanAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public CatalanAnalyzerProvider(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         analyzer = new CatalanAnalyzer(Analysis.parseStopWords(env, settings, CatalanAnalyzer.getDefaultStopSet()),
                                        Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
         analyzer.setVersion(version);

@@ -27,19 +27,15 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTokenStreamTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
  */
 public class CharFilterTests extends ESTokenStreamTestCase {
-
-    @Test
     public void testMappingCharFilter() throws Exception {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
@@ -53,21 +49,19 @@ public class CharFilterTests extends ESTokenStreamTestCase {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
                 new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
                 .createChildInjector(parentInjector);
 
         AnalysisService analysisService = injector.getInstance(AnalysisService.class);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
-        
+
         assertTokenStreamContents(analyzer1.tokenStream("test", "jeff quit phish"), new String[]{"jeff", "qit", "fish"});
 
         // Repeat one more time to make sure that char filter is reinitialized correctly
         assertTokenStreamContents(analyzer1.tokenStream("test", "jeff quit phish"), new String[]{"jeff", "qit", "fish"});
     }
 
-    @Test
     public void testHtmlStripCharFilter() throws Exception {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
@@ -79,7 +73,6 @@ public class CharFilterTests extends ESTokenStreamTestCase {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
         Injector injector = new ModulesBuilder().add(
                 new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
                 new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
                 .createChildInjector(parentInjector);
 

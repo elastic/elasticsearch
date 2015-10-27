@@ -37,26 +37,27 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.util.Collections;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Test parsing and executing a template request.
@@ -85,7 +86,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesModule(settings) {
+                new IndicesModule() {
                     @Override
                     public void configure() {
                         // skip services
@@ -96,11 +97,11 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new IndexSettingsModule(index, settings),
                 new IndexCacheModule(settings),
                 new AnalysisModule(settings, new IndicesAnalysisService(settings)),
-                new SimilarityModule(settings),
-                new IndexNameModule(index),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
+                        SimilarityService service = new SimilarityService(IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST), Collections.EMPTY_MAP);
+                        bind(SimilarityService.class).toInstance(service);
                         bind(Client.class).toInstance(proxy); // not needed here
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
@@ -110,7 +111,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         ).createInjector();
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryShardContext(index, queryParserService);
+        context = new QueryShardContext(queryParserService);
     }
 
     @Override
@@ -120,7 +121,6 @@ public class TemplateQueryParserTests extends ESTestCase {
         terminate(injector.getInstance(ThreadPool.class));
     }
 
-    @Test
     public void testParser() throws IOException {
         String templateString = "{" + "\"query\":{\"match_{{template}}\": {}}," + "\"params\":{\"template\":\"all\"}" + "}";
 
@@ -133,7 +133,6 @@ public class TemplateQueryParserTests extends ESTestCase {
         assertTrue("Parsing template query failed.", query instanceof MatchAllDocsQuery);
     }
 
-    @Test
     public void testParseTemplateAsSingleStringWithConditionalClause() throws IOException {
         String templateString = "{" + "  \"inline\" : \"{ \\\"match_{{#use_it}}{{template}}{{/use_it}}\\\":{} }\"," + "  \"params\":{"
                 + "    \"template\":\"all\"," + "    \"use_it\": true" + "  }" + "}";
@@ -150,7 +149,6 @@ public class TemplateQueryParserTests extends ESTestCase {
      * expressed as a single string but still it expects only the query
      * specification (thus this test should fail with specific exception).
      */
-    @Test(expected = ParsingException.class)
     public void testParseTemplateFailsToParseCompleteQueryAsSingleString() throws IOException {
         String templateString = "{" + "  \"inline\" : \"{ \\\"size\\\": \\\"{{size}}\\\", \\\"query\\\":{\\\"match_all\\\":{}}}\","
                 + "  \"params\":{" + "    \"size\":2" + "  }\n" + "}";
@@ -159,10 +157,14 @@ public class TemplateQueryParserTests extends ESTestCase {
         context.reset(templateSourceParser);
 
         TemplateQueryParser parser = injector.getInstance(TemplateQueryParser.class);
-        parser.fromXContent(context.parseContext()).toQuery(context);
+        try {
+            parser.fromXContent(context.parseContext()).toQuery(context);
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("query malformed, no field after start_object"));
+        }
     }
 
-    @Test
     public void testParserCanExtractTemplateNames() throws Exception {
         String templateString = "{ \"file\": \"storedTemplate\" ,\"params\":{\"template\":\"all\" } } ";
 

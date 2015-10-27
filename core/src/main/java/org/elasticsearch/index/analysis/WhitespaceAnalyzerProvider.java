@@ -23,8 +23,7 @@ import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
@@ -34,8 +33,8 @@ public class WhitespaceAnalyzerProvider extends AbstractIndexAnalyzerProvider<Wh
     private final WhitespaceAnalyzer analyzer;
 
     @Inject
-    public WhitespaceAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public WhitespaceAnalyzerProvider(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name, settings);
         this.analyzer = new WhitespaceAnalyzer();
         this.analyzer.setVersion(version);
     }

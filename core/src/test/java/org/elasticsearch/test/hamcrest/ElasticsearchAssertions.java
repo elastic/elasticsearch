@@ -36,8 +36,6 @@ import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.count.CountResponse;
-import org.elasticsearch.action.exists.ExistsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -53,6 +51,8 @@ import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -82,13 +82,7 @@ import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.test.ESTestCase.assertArrayEquals;
-import static org.elasticsearch.test.ESTestCase.assertEquals;
-import static org.elasticsearch.test.ESTestCase.assertFalse;
-import static org.elasticsearch.test.ESTestCase.assertNotNull;
-import static org.elasticsearch.test.ESTestCase.assertTrue;
-import static org.elasticsearch.test.ESTestCase.fail;
-import static org.elasticsearch.test.ESTestCase.random;
+import static org.apache.lucene.util.LuceneTestCase.random;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.is;
@@ -102,6 +96,12 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNotNull;
+import static org.junit.Assert.assertTrue;
+import static org.junit.Assert.fail;
 
 /**
  *
@@ -204,17 +204,6 @@ public class ElasticsearchAssertions {
         return msg;
     }
 
-    /*
-     * assertions
-     */
-    public static void assertHitCount(SearchResponse searchResponse, long expectedHitCount) {
-        if (searchResponse.getHits().totalHits() != expectedHitCount) {
-            fail("Hit count is " + searchResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. "
-                    + formatShardStatus(searchResponse));
-        }
-        assertVersionSerializable(searchResponse);
-    }
-
     public static void assertNoSearchHits(SearchResponse searchResponse) {
         assertEquals(0, searchResponse.getHits().getHits().length);
     }
@@ -254,18 +243,11 @@ public class ElasticsearchAssertions {
         assertVersionSerializable(searchResponse);
     }
 
-    public static void assertHitCount(CountResponse countResponse, long expectedHitCount) {
-        if (countResponse.getCount() != expectedHitCount) {
-            fail("Count is " + countResponse.getCount() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
+    public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
+        if (countResponse.getHits().totalHits() != expectedHitCount) {
+            fail("Count is " + countResponse.getHits().totalHits() + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
         assertVersionSerializable(countResponse);
-    }
-
-    public static void assertExists(ExistsResponse existsResponse, boolean expected) {
-        if (existsResponse.exists() != expected) {
-            fail("Exist is " + existsResponse.exists() + " but " + expected + " was expected " + formatShardStatus(existsResponse));
-        }
-        assertVersionSerializable(existsResponse);
     }
 
     public static void assertMatchCount(PercolateResponse percolateResponse, long expectedHitCount) {
@@ -663,6 +645,10 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertVersionSerializable(Version version, Streamable streamable) {
+        assertVersionSerializable(version, streamable, null);
+    }
+
+    public static void assertVersionSerializable(Version version, Streamable streamable, NamedWriteableRegistry namedWriteableRegistry) {
         try {
             Streamable newInstance = tryCreateNewInstance(streamable);
             if (newInstance == null) {
@@ -674,10 +660,15 @@ public class ElasticsearchAssertions {
             }
             BytesReference orig = serialize(version, streamable);
             StreamInput input = StreamInput.wrap(orig);
+            if (namedWriteableRegistry != null) {
+                input = new NamedWriteableAwareStreamInput(input, namedWriteableRegistry);
+            }
             input.setVersion(version);
             newInstance.readFrom(input);
-            assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(), equalTo(0));
-            assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]", serialize(version, streamable), equalTo(orig));
+            assertThat("Stream should be fully read with version [" + version + "] for streamable [" + streamable + "]", input.available(),
+                    equalTo(0));
+            assertThat("Serialization failed with version [" + version + "] bytes should be equal for streamable [" + streamable + "]",
+                    serialize(version, streamable), equalTo(orig));
         } catch (Throwable ex) {
             throw new RuntimeException("failed to check serialization - version [" + version + "] for streamable [" + streamable + "]", ex);
         }

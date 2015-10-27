@@ -20,17 +20,29 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.*;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
 
@@ -83,7 +95,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         return result;
     }
 
-    @Test
     public void testDefaults() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
 
@@ -114,7 +125,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertEquals("Wrong default default locale field.", Locale.ROOT, SimpleQueryStringBuilder.DEFAULT_LOCALE);
     }
 
-    @Test
     public void testDefaultNullLocale() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.locale(null);
@@ -122,7 +132,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 qb.locale());
     }
 
-    @Test
     public void testDefaultNullComplainFlags() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.flags((SimpleQueryStringFlag[]) null);
@@ -130,7 +139,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 qb.flags());
     }
 
-    @Test
     public void testDefaultEmptyComplainFlags() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.flags(new SimpleQueryStringFlag[]{});
@@ -138,7 +146,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                 qb.flags());
     }
 
-    @Test
     public void testDefaultNullComplainOp() {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.");
         qb.defaultOperator(null);
@@ -147,7 +154,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     // Check operator handling, and default field handling.
-    @Test
     public void testDefaultOperatorHandling() throws IOException {
         SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(STRING_FIELD_NAME);
         QueryShardContext shardContext = createShardContext();
@@ -167,7 +173,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(shouldClauses(boolQuery), is(4));
     }
 
-    @Test
     public void testIllegalConstructorArg() {
         try {
             new SimpleQueryStringBuilder(null);
@@ -177,41 +182,60 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testFieldCannotBeNull() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        qb.field(null);
+        try {
+            qb.field(null);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("supplied field is null or empty."));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testFieldCannotBeNullAndWeighted() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        qb.field(null, AbstractQueryBuilder.DEFAULT_BOOST);
+        try {
+            qb.field(null, AbstractQueryBuilder.DEFAULT_BOOST);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("supplied field is null or empty."));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testFieldCannotBeEmpty() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        qb.field("");
+        try {
+            qb.field("");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("supplied field is null or empty."));
+        }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testFieldCannotBeEmptyAndWeighted() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        qb.field("", AbstractQueryBuilder.DEFAULT_BOOST);
+        try {
+            qb.field("", AbstractQueryBuilder.DEFAULT_BOOST);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("supplied field is null or empty."));
+        }
     }
 
     /**
      * The following should fail fast - never silently set the map containing
      * fields and weights to null but refuse to accept null instead.
      * */
-    @Test(expected = NullPointerException.class)
     public void testFieldsCannotBeSetToNull() {
         SimpleQueryStringBuilder qb = createTestQueryBuilder();
-        qb.fields(null);
+        try {
+            qb.fields(null);
+            fail("Expected NullPointerException");
+        } catch (NullPointerException e) {
+            assertThat(e.getMessage(), is("fields cannot be null"));
+        }
     }
 
-    @Test
     public void testDefaultFieldParsing() throws IOException {
         QueryParseContext context = createParseContext();
         String query = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
@@ -299,7 +323,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         //instead of trying to reparse the query and guess what the boost should be, we delegate boost checks to specific boost tests below
     }
 
-
     private int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
@@ -310,7 +333,6 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         return result;
     }
 
-    @Test
     public void testToQueryBoost() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
@@ -326,5 +348,15 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         query = simpleQueryStringBuilder.toQuery(shardContext);
         assertThat(query, instanceOf(TermQuery.class));
         assertThat(query.getBoost(), equalTo(10f));
+    }
+
+    public void testNegativeFlags() throws IOException {
+        String query = "{\"simple_query_string\": {\"query\": \"foo bar\", \"flags\": -1}}";
+        SimpleQueryStringBuilder builder = new SimpleQueryStringBuilder("foo bar");
+        builder.flags(SimpleQueryStringFlag.ALL);
+        assertParsedQuery(query, builder);
+        SimpleQueryStringBuilder otherBuilder = new SimpleQueryStringBuilder("foo bar");
+        otherBuilder.flags(-1);
+        assertThat(builder, equalTo(otherBuilder));
     }
 }

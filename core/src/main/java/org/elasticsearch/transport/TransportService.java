@@ -19,7 +19,6 @@
 
 package org.elasticsearch.transport;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.admin.cluster.node.liveness.TransportLivenessAction;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;

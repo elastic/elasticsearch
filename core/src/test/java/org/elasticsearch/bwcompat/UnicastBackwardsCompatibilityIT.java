@@ -22,12 +22,10 @@ package org.elasticsearch.bwcompat;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class UnicastBackwardsCompatibilityIT extends ESBackcompatTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         return Settings.builder()
@@ -46,7 +44,6 @@ public class UnicastBackwardsCompatibilityIT extends ESBackcompatTestCase {
                 .build();
     }
 
-    @Test
     public void testUnicastDiscovery() {
         ClusterHealthResponse healthResponse = client().admin().cluster().prepareHealth().get();
         assertThat(healthResponse.getNumberOfDataNodes(), equalTo(cluster().numDataNodes()));

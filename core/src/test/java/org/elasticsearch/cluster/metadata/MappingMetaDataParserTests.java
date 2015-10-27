@@ -24,15 +24,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class MappingMetaDataParserTests extends ESTestCase {
-
-    @Test
     public void testParseIdAlone() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
@@ -49,8 +46,7 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestamp(), nullValue());
         assertThat(parseContext.timestampResolved(), equalTo(false));
     }
-    
-    @Test
+
     public void testFailIfIdIsNoValue() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
@@ -65,7 +61,7 @@ public class MappingMetaDataParserTests extends ESTestCase {
         } catch (MapperParsingException ex) {
             // bogus its an array
         }
-        
+
         bytes = jsonBuilder().startObject().field("field1", "value1").field("field2", "value2")
                 .startObject("id").field("x", "id").endObject().field("routing", "routing_value").field("timestamp", "1").endObject().bytes().toBytes();
         parseContext = md.createParseContext(null, "routing_value", "1");
@@ -77,7 +73,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testParseRoutingAlone() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
@@ -95,7 +90,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestampResolved(), equalTo(false));
     }
 
-    @Test
     public void testParseTimestampAlone() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
@@ -113,7 +107,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestampResolved(), equalTo(true));
     }
 
-    @Test
     public void testParseTimestampEquals() throws Exception {
         MappingMetaData md1 = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
@@ -126,7 +119,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(md1, equalTo(md2));
     }
 
-    @Test
     public void testParseIdAndRoutingAndTimestamp() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
@@ -141,7 +133,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
-    @Test
     public void testParseIdAndRoutingAndTimestampWithPath() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
@@ -159,7 +150,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
-    @Test
     public void testParseIdWithPath() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
@@ -180,7 +170,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestampResolved(), equalTo(false));
     }
 
-    @Test
     public void testParseRoutingWithPath() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
@@ -201,7 +190,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestampResolved(), equalTo(false));
     }
 
-    @Test
     public void testParseTimestampWithPath() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
@@ -222,7 +210,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestampResolved(), equalTo(true));
     }
 
-    @Test
     public void testParseIdAndRoutingAndTimestampWithinSamePath() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
@@ -240,7 +227,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
-    @Test
     public void testParseIdAndRoutingAndTimestampWithinSamePathAndMoreLevels() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.obj0.id"),
@@ -268,8 +254,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
-
-    @Test
     public void testParseIdAndRoutingAndTimestampWithSameRepeatedObject() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("obj1.id"),
@@ -288,8 +272,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestamp(), equalTo("1"));
     }
 
-    //
-    @Test
     public void testParseIdRoutingTimestampWithRepeatedField() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("field1"),
@@ -312,7 +294,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestamp(), equalTo("foo"));
     }
 
-    @Test
     public void testParseNoIdRoutingWithRepeatedFieldAndObject() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id("id"),
@@ -335,7 +316,6 @@ public class MappingMetaDataParserTests extends ESTestCase {
         assertThat(parseContext.timestamp(), equalTo("foo"));
     }
 
-    @Test
     public void testParseRoutingWithRepeatedFieldAndValidRouting() throws Exception {
         MappingMetaData md = new MappingMetaData("type1", new CompressedXContent("{}"),
                 new MappingMetaData.Id(null),

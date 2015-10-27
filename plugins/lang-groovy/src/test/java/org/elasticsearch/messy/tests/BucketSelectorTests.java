@@ -33,7 +33,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +69,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -104,9 +103,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         return jsonBuilder;
     }
 
-    @Test
-    public void inlineScript() {
-
+    public void testInlineScript() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -140,9 +137,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptNoBucketsPruned() {
-
+    public void testInlineScriptNoBucketsPruned() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -176,9 +171,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptNoBucketsLeft() {
-
+    public void testInlineScriptNoBucketsLeft() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -201,9 +194,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         assertThat(buckets.size(), equalTo(0));
     }
 
-    @Test
-    public void inlineScript2() {
-
+    public void testInlineScript2() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -236,9 +227,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptSingleVariable() {
-
+    public void testInlineScriptSingleVariable() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -267,9 +256,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptNamedVars() {
-
+    public void testInlineScriptNamedVars() {
         Map<String, String> bucketPathsMap = new HashMap<>();
         bucketPathsMap.put("my_value1", "field2Sum");
         bucketPathsMap.put("my_value2", "field3Sum");
@@ -307,9 +294,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptWithParams() {
-
+    public void testInlineScriptWithParams() {
         Map<String, Object> params = new HashMap<>();
         params.put("threshold", 100);
         SearchResponse response = client()
@@ -345,9 +330,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptInsertZeros() {
-
+    public void testInlineScriptInsertZeros() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -380,9 +363,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void indexedScript() {
-
+    public void testIndexedScript() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -414,9 +395,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void unmapped() throws Exception {
-
+    public void testUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
@@ -439,9 +418,7 @@ public class BucketSelectorTests extends ESIntegTestCase {
         assertThat(deriv.getBuckets().size(), equalTo(0));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
-
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(

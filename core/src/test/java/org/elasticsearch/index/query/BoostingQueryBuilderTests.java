@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.BoostingQuery;
 import org.apache.lucene.search.Query;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -48,7 +47,6 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
         }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new BoostingQueryBuilder(null, new MatchAllQueryBuilder());

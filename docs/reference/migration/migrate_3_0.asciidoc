@@ -63,6 +63,11 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+==== search exists api removed
+
+The search exists api has been removed in favour of using the search api with
+`size` set to `0` and `terminate_after` set to `1`.
+
 === Parent/Child changes
 
 The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
@@ -90,6 +95,12 @@ are allowed to match. This has changed and `0` now really means to zero child do
 is needed then the `max_children` option shouldn't be defined at all on the `has_child` query.
 
 === Settings changes ===
+
+==== Analysis settings
+
+The `index.analysis.analyzer.default_index` analyzer is not supported anymore.
+If you wish to change the analyzer to use for indexing, change the
+`index.analysis.analyzer.default` analyzer instead.
 
 ==== Ping timeout settings
 
@@ -121,7 +132,42 @@ function that it supports and it's able to parse. The function object can then t
 function through the new `toFunction(QueryShardContext)` method, which returns a lucene function to be executed
 on the data node.
 
+==== Cloud AWS plugin
+
+Cloud AWS plugin has been split in two plugins:
+
+* {plugins}/discovery-ec2.html[Discovery EC2 plugin]
+* {plugins}/repository-s3.html[Repository S3 plugin]
+
+==== Cloud Azure plugin
+
+Cloud Azure plugin has been split in three plugins:
+
+* {plugins}/discovery-azure.html[Discovery Azure plugin]
+* {plugins}/repository-azure.html[Repository Azure plugin]
+* {plugins}/store-smb.html[Store SMB plugin]
+
+==== Cloud GCE plugin
+
+Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
+
 === Java-API
+
+==== Count api has been removed
+
+The deprecated count api has been removed from the Java api, use the search api instead and set size to 0.
+
+The following call
+
+```
+client.prepareCount(indices).setQuery(query).get();
+```
+
+can be replaced with
+
+```
+client.prepareSearch(indices).setSource(new SearchSourceBuilder().size(0).query(query)).get();
+```
 
 ==== BoostingQueryBuilder
 
@@ -244,6 +290,12 @@ The two individual setters for existence() and nullValue() were removed in favou
 optional constructor settings in order to better capture and validate their interdependent
 settings at construction time.
 
+==== NotQueryBuilder
+
+The NotQueryBuilder which was deprecated in 2.1.0 is removed. As a replacement use BoolQueryBuilder
+with added mustNot() clause. So instead of using `new NotQueryBuilder(filter)` now use 
+`new BoolQueryBuilder().mustNot(filter)`. 
+
 ==== TermsQueryBuilder
 
 Remove the setter for `termsLookup()`, making it only possible to either use a TermsLookup object or
@@ -262,3 +314,24 @@ of string values: see `FilterFunctionScoreQuery.ScoreMode` and `CombineFunction`
 
 `CombineFunction.MULT` has been renamed to `MULTIPLY`.
 
+==== IdsQueryBuilder
+
+For simplicity, only one way of adding the ids to the existing list (empty by default)  is left: `addIds(String...)`
+
+==== DocumentAlreadyExistsException removed
+
+`DocumentAlreadyExistsException` is removed and a `VersionConflictException` is thrown instead (with a better
+error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
+to index a document only if it doesn't already exist.
+
+=== Cache concurrency level settings removed
+
+Two cache concurrency level settings `indices.requests.cache.concurrency_level` and
+`indices.fielddata.cache.concurrency_level` because they no longer apply to the cache implementation used for the
+request cache and the field data cache.
+
+=== Remove bind option of `non_loopback`
+
+This setting would arbitrarily pick the first interface not marked as loopback. Instead, specify by address
+scope (e.g. `_local_,_site_` for all loopback and private network addresses) or by explicit interface names,
+hostnames, or addresses. 

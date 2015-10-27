@@ -34,7 +34,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.List;
@@ -76,7 +75,6 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         return 1;
     }
 
-    @Test
     public void testNetworkPartitionDuringReplicaIndexOp() throws Exception {
         final String INDEX = "testidx";
 

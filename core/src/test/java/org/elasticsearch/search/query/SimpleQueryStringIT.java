@@ -21,29 +21,36 @@ package org.elasticsearch.search.query;
 
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.Operator;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.SimpleQueryStringFlag;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Locale;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.simpleQueryStringQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirstHit;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  * Tests for the {@code simple_query_string} query
  */
 public class SimpleQueryStringIT extends ESIntegTestCase {
-
-    @Test
     public void testSimpleQueryString() throws ExecutionException, InterruptedException {
         createIndex("test");
         indexRandom(true, false,
@@ -93,7 +100,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "5", "6");
     }
 
-    @Test
     public void testSimpleQueryStringMinimumShouldMatch() throws Exception {
         createIndex("test");
         ensureGreen("test");
@@ -141,7 +147,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "6", "7", "8");
     }
 
-    @Test
     public void testSimpleQueryStringLowercasing() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("body", "Professional").get();
@@ -165,7 +170,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 0l);
     }
 
-    @Test
     public void testQueryStringLocale() {
         createIndex("test");
         client().prepareIndex("test", "type1", "1").setSource("body", "bılly").get();
@@ -186,7 +190,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1");
     }
 
-    @Test
     public void testNestedFieldSimpleQueryString() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", jsonBuilder()
@@ -226,7 +229,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1");
     }
 
-    @Test
     public void testSimpleQueryStringFlags() throws ExecutionException, InterruptedException {
         createIndex("test");
         indexRandom(true,
@@ -239,11 +241,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch().setQuery(
                 simpleQueryStringQuery("foo bar").flags(SimpleQueryStringFlag.ALL)).get();
-        assertHitCount(searchResponse, 3l);
-        assertSearchHits(searchResponse, "1", "2", "3");
-
-        // Sending a negative 'flags' value is the same as SimpleQueryStringFlag.ALL
-        searchResponse = client().prepareSearch().setQuery("{\"simple_query_string\": {\"query\": \"foo bar\", \"flags\": -1}}").get();
         assertHitCount(searchResponse, 3l);
         assertSearchHits(searchResponse, "1", "2", "3");
 
@@ -267,26 +264,22 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
                         .flags(SimpleQueryStringFlag.NONE)).get();
         assertHitCount(searchResponse, 0l);
 
-        searchResponse = client().prepareSearch().setSource(new BytesArray("{\n" +
-                "  \"query\": {\n" +
-                "    \"simple_query_string\": {\n" +
-                "      \"query\": \"foo|bar\",\n" +
-                "      \"default_operator\": \"AND\"," +
-                "      \"flags\": \"NONE\"\n" +
-                "    }\n" +
-                "  }\n" +
-                "}")).get();
+        searchResponse = client()
+                .prepareSearch()
+                .setSource(
+                        new SearchSourceBuilder().query(QueryBuilders.simpleQueryStringQuery("foo|bar").defaultOperator(Operator.AND)
+                                .flags(SimpleQueryStringFlag.NONE))).get();
         assertHitCount(searchResponse, 1l);
 
-        searchResponse = client().prepareSearch().setQuery(
-                simpleQueryStringQuery("baz | egg*")
-                        .defaultOperator(Operator.AND)
-                        .flags(SimpleQueryStringFlag.WHITESPACE, SimpleQueryStringFlag.PREFIX)).get();
+        searchResponse = client()
+                .prepareSearch()
+                .setQuery(
+                        simpleQueryStringQuery("baz | egg*").defaultOperator(Operator.AND).flags(SimpleQueryStringFlag.WHITESPACE,
+                                SimpleQueryStringFlag.PREFIX)).get();
         assertHitCount(searchResponse, 1l);
         assertFirstHit(searchResponse, hasId("4"));
     }
 
-    @Test
     public void testSimpleQueryStringLenient() throws ExecutionException, InterruptedException {
         createIndex("test1", "test2");
         indexRandom(true, client().prepareIndex("test1", "type1", "1").setSource("field", "foo"),
@@ -304,7 +297,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(searchResponse, "1");
     }
 
-    @Test // see: https://github.com/elasticsearch/elasticsearch/issues/7967
+    // Issue #7967
     public void testLenientFlagBeingTooLenient() throws Exception {
         indexRandom(true,
                 client().prepareIndex("test", "doc", "1").setSource("num", 1, "body", "foo bar baz"),
@@ -319,7 +312,6 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertSearchHits(resp, "1");
     }
 
-    @Test
     public void testSimpleQueryStringAnalyzeWildcard() throws ExecutionException, InterruptedException, IOException {
         String mapping = XContentFactory.jsonBuilder()
                 .startObject()
@@ -343,5 +335,4 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         assertHitCount(searchResponse, 1l);
         assertSearchHits(searchResponse, "1");
     }
-
 }

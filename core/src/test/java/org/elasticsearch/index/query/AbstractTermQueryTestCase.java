@@ -19,13 +19,12 @@
 
 package org.elasticsearch.index.query;
 
-import org.junit.Test;
+import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<QB>> extends AbstractQueryTestCase<QB> {
-
     @Override
     protected final QB doCreateTestQueryBuilder() {
         String fieldName = null;
@@ -45,7 +44,8 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
                     value = randomAsciiOfLengthBetween(1, 10);
                 } else {
                     // generate unicode string in 10% of cases
-                    value = randomUnicodeOfLength(10);
+                    JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+                    value = new String(encoder.quoteAsString(randomUnicodeOfLength(10)));
                 }
                 break;
             case 2:
@@ -72,7 +72,6 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
 
     protected abstract QB createQueryBuilder(String fieldName, Object value);
 
-    @Test
     public void testIllegalArguments() throws QueryShardException {
         try {
             if (randomBoolean()) {
@@ -99,7 +98,13 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
         QB tempQuery = createTestQueryBuilder();
         QB testQuery = createQueryBuilder(tempQuery.fieldName(), tempQuery.value());
         boolean isString = testQuery.value() instanceof String;
-        String value = (isString ? "\"" : "") + testQuery.value() + (isString ? "\"" : "");
+        Object value;
+        if (isString) {
+            JsonStringEncoder encoder = JsonStringEncoder.getInstance();
+            value = "\"" + new String(encoder.quoteAsString((String) testQuery.value())) + "\"";
+        } else {
+            value = testQuery.value();
+        }
         String contentString = "{\n" +
                 "    \"" + testQuery.getName() + "\" : {\n" +
                 "        \"" + testQuery.fieldName() + "\" : " + value + "\n" +

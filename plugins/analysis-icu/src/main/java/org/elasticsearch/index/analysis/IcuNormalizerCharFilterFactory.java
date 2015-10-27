@@ -25,8 +25,7 @@ import org.apache.lucene.analysis.icu.ICUNormalizer2CharFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.Reader;
 
@@ -44,8 +43,8 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory {
 
 
     @Inject
-    public IcuNormalizerCharFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+    public IcuNormalizerCharFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+        super(indexSettings, name);
         this.name = settings.get("name", "nfkc_cf");
         String mode = settings.get("mode");
         if (!"compose".equals(mode) && !"decompose".equals(mode)) {

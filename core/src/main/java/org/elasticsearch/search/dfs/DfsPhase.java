@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.dfs;
 
-import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
+import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.index.IndexReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
@@ -39,6 +39,8 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
+
 /**
  *
  */
@@ -46,7 +48,7 @@ public class DfsPhase implements SearchPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of();
+        return emptyMap();
     }
 
     @Override

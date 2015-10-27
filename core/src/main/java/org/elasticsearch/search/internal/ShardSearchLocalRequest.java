@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.script.Template;
 import org.elasticsearch.search.Scroll;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
@@ -65,9 +66,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     private Scroll scroll;
     private String[] types = Strings.EMPTY_ARRAY;
     private String[] filteringAliases;
-    private BytesReference source;
-    private BytesReference extraSource;
-    private BytesReference templateSource;
+    private SearchSourceBuilder source;
     private Template template;
     private Boolean requestCache;
     private long nowInMillis;
@@ -79,8 +78,6 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
                             String[] filteringAliases, long nowInMillis) {
         this(shardRouting.shardId(), numberOfShards, searchRequest.searchType(),
                 searchRequest.source(), searchRequest.types(), searchRequest.requestCache());
-        this.extraSource = searchRequest.extraSource();
-        this.templateSource = searchRequest.templateSource();
         this.template = searchRequest.template();
         this.scroll = searchRequest.scroll();
         this.filteringAliases = filteringAliases;
@@ -98,8 +95,8 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         this.filteringAliases = filteringAliases;
     }
 
-    public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType,
-                                   BytesReference source, String[] types, Boolean requestCache) {
+    public ShardSearchLocalRequest(ShardId shardId, int numberOfShards, SearchType searchType, SearchSourceBuilder source, String[] types,
+            Boolean requestCache) {
         this.index = shardId.getIndex();
         this.shardId = shardId.id();
         this.numberOfShards = numberOfShards;
@@ -125,18 +122,13 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     }
 
     @Override
-    public BytesReference source() {
+    public SearchSourceBuilder source() {
         return source;
     }
 
     @Override
-    public void source(BytesReference source) {
+    public void source(SearchSourceBuilder source) {
         this.source = source;
-    }
-
-    @Override
-    public BytesReference extraSource() {
-        return extraSource;
     }
 
     @Override
@@ -158,15 +150,9 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     public long nowInMillis() {
         return nowInMillis;
     }
-
     @Override
     public Template template() {
         return template;
-    }
-
-    @Override
-    public BytesReference templateSource() {
-        return templateSource;
     }
 
     @Override
@@ -188,18 +174,13 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         if (in.readBoolean()) {
             scroll = readScroll(in);
         }
-
-        source = in.readBytesReference();
-        extraSource = in.readBytesReference();
-
+        if (in.readBoolean()) {
+            source = SearchSourceBuilder.readSearchSourceFrom(in);
+        }
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
-
-        templateSource = in.readBytesReference();
-        if (in.readBoolean()) {
-            template = Template.readTemplate(in);
-        }
+        template = in.readOptionalStreamable(new Template());
         requestCache = in.readOptionalBoolean();
     }
 
@@ -216,20 +197,20 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
             out.writeBoolean(true);
             scroll.writeTo(out);
         }
-        out.writeBytesReference(source);
-        out.writeBytesReference(extraSource);
+        if (source == null) {
+            out.writeBoolean(false);
+        } else {
+            out.writeBoolean(true);
+            source.writeTo(out);
+
+        }
         out.writeStringArray(types);
         out.writeStringArrayNullable(filteringAliases);
         if (!asKey) {
             out.writeVLong(nowInMillis);
         }
 
-        out.writeBytesReference(templateSource);
-        boolean hasTemplate = template != null;
-        out.writeBoolean(hasTemplate);
-        if (hasTemplate) {
-            template.writeTo(out);
-        }
+        out.writeOptionalStreamable(template);
         out.writeOptionalBoolean(requestCache);
     }
 

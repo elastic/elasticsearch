@@ -1,8 +1,6 @@
 [[search-aggregations-pipeline-bucket-selector-aggregation]]
 === Bucket Selector Aggregation
 
-coming[2.0.0-beta1]
-
 experimental[]
 
 A parent pipeline aggregation which executes a script which determines whether the current bucket will be retained 

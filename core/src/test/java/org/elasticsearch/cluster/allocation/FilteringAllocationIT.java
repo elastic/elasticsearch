@@ -29,12 +29,11 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.hamcrest.Matchers.equalTo;
 
 @ClusterScope(scope= Scope.TEST, numDataNodes =0)
@@ -42,14 +41,13 @@ public class FilteringAllocationIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(FilteringAllocationIT.class);
 
-    @Test
     public void testDecommissionNodeNoReplicas() throws Exception {
         logger.info("--> starting 2 nodes");
         List<String> nodesIds = internalCluster().startNodesAsync(2).get();
         final String node_0 = nodesIds.get(0);
         final String node_1 = nodesIds.get(1);
         assertThat(cluster().size(), equalTo(2));
-        
+
         logger.info("--> creating an index with no replicas");
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder().put("index.number_of_replicas", 0))
@@ -60,7 +58,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100l));
 
         logger.info("--> decommission the second node");
         client().admin().cluster().prepareUpdateSettings()
@@ -79,10 +77,9 @@ public class FilteringAllocationIT extends ESIntegTestCase {
         }
 
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100l));
     }
 
-    @Test
     public void testDisablingAllocationFiltering() throws Exception {
         logger.info("--> starting 2 nodes");
         List<String> nodesIds = internalCluster().startNodesAsync(2).get();
@@ -102,7 +99,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("field", "value" + i).execute().actionGet();
         }
         client().admin().indices().prepareRefresh().execute().actionGet();
-        assertThat(client().prepareCount().setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getCount(), equalTo(100l));
+        assertThat(client().prepareSearch().setSize(0).setQuery(QueryBuilders.matchAllQuery()).execute().actionGet().getHits().totalHits(), equalTo(100l));
         ClusterState clusterState = client().admin().cluster().prepareState().execute().actionGet().getState();
         IndexRoutingTable indexRoutingTable = clusterState.routingTable().index("test");
         int numShardsOnNode1 = 0;
@@ -118,7 +115,7 @@ public class FilteringAllocationIT extends ESIntegTestCase {
             client().admin().cluster().prepareUpdateSettings()
             .setTransientSettings(settingsBuilder().put("cluster.routing.allocation.node_concurrent_recoveries", numShardsOnNode1)).execute().actionGet();
             // make sure we can recover all the nodes at once otherwise we might run into a state where one of the shards has not yet started relocating
-            // but we already fired up the request to wait for 0 relocating shards. 
+            // but we already fired up the request to wait for 0 relocating shards.
         }
         logger.info("--> remove index from the first node");
         client().admin().indices().prepareUpdateSettings("test")

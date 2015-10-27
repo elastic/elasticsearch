@@ -27,7 +27,10 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
+import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 
@@ -64,22 +67,22 @@ public class DummyQueryParserPlugin extends Plugin {
 
         @Override
         protected DummyQueryBuilder doReadFrom(StreamInput in) throws IOException {
-            return null;
+            return new DummyQueryBuilder();
         }
 
         @Override
         protected void doWriteTo(StreamOutput out) throws IOException {
-
-        }
-
-        @Override
-        protected boolean doEquals(DummyQueryBuilder other) {
-            return false;
+            // Do Nothing
         }
 
         @Override
         protected int doHashCode() {
             return 0;
+        }
+
+        @Override
+        protected boolean doEquals(DummyQueryBuilder other) {
+            return true;
         }
 
         @Override

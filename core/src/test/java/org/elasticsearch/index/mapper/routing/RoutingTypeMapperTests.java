@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -113,7 +114,7 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
         Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
-        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_timestamp", 2000000).endObject();
+        XContentBuilder doc = XContentFactory.jsonBuilder().startObject().field("_routing", "foo").endObject();
         MappingMetaData mappingMetaData = new MappingMetaData(docMapper);
         IndexRequest request = new IndexRequest("test", "type", "1").source(doc);
         request.process(MetaData.builder().build(), mappingMetaData, true, "test");
@@ -121,5 +122,18 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
         // _routing in a document never worked, so backcompat is ignoring the field
         assertNull(request.routing());
         assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_routing"));
+    }
+
+    public void testIncludeInObjectNotAllowed() throws Exception {
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
+        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        try {
+            docMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
+                .startObject().field("_routing", "foo").endObject().bytes());
+            fail("Expected failure to parse metadata field");
+        } catch (MapperParsingException e) {
+            assertTrue(e.getMessage(), e.getMessage().contains("Field [_routing] is a metadata field and cannot be added inside a document"));
+        }
     }
 }

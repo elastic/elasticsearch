@@ -19,9 +19,7 @@
 
 package org.elasticsearch.messy.tests;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.Base64;
@@ -33,6 +31,7 @@ import org.elasticsearch.common.joda.Joda;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
+import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.script.Script;
@@ -40,11 +39,11 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -75,13 +74,11 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class SearchFieldsTests extends ESIntegTestCase {
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
-    @Test
+
     public void testStoredFields() throws Exception {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
@@ -141,7 +138,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
     }
 
-    @Test
     public void testScriptDocAndFields() throws Exception {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
@@ -226,7 +222,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat((Double) response.getHits().getAt(2).fields().get("sNum1").values().get(0), equalTo(6.0));
     }
 
-    @Test
     public void testUidBasedScriptFields() throws Exception {
         prepareCreate("test").addMapping("type1", "num1", "type=long").execute().actionGet();
         ensureYellow();
@@ -303,7 +298,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testScriptFieldUsingSource() throws Exception {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
@@ -347,7 +341,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(((Map) sObj2Arr3.get(0)).get("arr3_field1").toString(), equalTo("arr3_value1"));
     }
 
-    @Test
     public void testPartialFields() throws Exception {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
@@ -367,7 +360,6 @@ public class SearchFieldsTests extends ESIntegTestCase {
         client().admin().indices().prepareRefresh().execute().actionGet();
     }
 
-    @Test
     public void testStoredFieldsWithoutSource() throws Exception {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
@@ -434,8 +426,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void testSearchFields_metaData() throws Exception {
+    public void testSearchFieldsMetaData() throws Exception {
         client().prepareIndex("my-index", "my-type1", "1")
                 .setRouting("1")
                 .setSource(jsonBuilder().startObject().field("field1", "value").endObject())
@@ -454,8 +445,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).field("_routing").getValue().toString(), equalTo("1"));
     }
 
-    @Test
-    public void testSearchFields_nonLeafField() throws Exception {
+    public void testSearchFieldsNonLeafField() throws Exception {
         client().prepareIndex("my-index", "my-type1", "1")
                 .setSource(jsonBuilder().startObject().startObject("field1").field("field2", "value1").endObject().endObject())
                 .setRefresh(true)
@@ -466,8 +456,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 containsString("field [field1] isn't a leaf field"));
     }
 
-    @Test
-    public void testGetFields_complexField() throws Exception {
+    public void testGetFieldsComplexField() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
@@ -524,28 +513,18 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).field(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
-    @Test // see #8203
+    // see #8203
     public void testSingleValueFieldDatatField() throws ExecutionException, InterruptedException {
         createIndex("test");
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("test_field", "foobar"));
         refresh();
-        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": \"test_field\"}"))).get();
+        SearchResponse searchResponse = client().prepareSearch("test").setTypes("type").setSource(
+                new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).fieldDataField("test_field")).get();
         assertHitCount(searchResponse, 1);
         Map<String,SearchHitField> fields = searchResponse.getHits().getHits()[0].getFields();
         assertThat((String)fields.get("test_field").value(), equalTo("foobar"));
     }
 
-    @Test(expected = SearchPhaseExecutionException.class)
-    public void testInvalidFieldDataField() throws ExecutionException, InterruptedException {
-        createIndex("test");
-        if (randomBoolean()) {
-            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": {}}"))).get();
-        } else {
-            client().prepareSearch("test").setTypes("type").setSource(new BytesArray(new BytesRef("{\"query\":{\"match_all\":{}},\"fielddata_fields\": 1.0}"))).get();
-        }
-    }
-
-    @Test
     public void testFieldsPulledFromFieldData() throws Exception {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();

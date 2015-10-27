@@ -87,7 +87,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     @Override
     protected MultiGetShardResponse shardOperation(MultiGetShardRequest request, ShardId shardId) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardId.id());
+        IndexShard indexShard = indexService.getShard(shardId.id());
 
         if (request.refresh() && !request.realtime()) {
             indexShard.refresh("refresh_flag_mget");

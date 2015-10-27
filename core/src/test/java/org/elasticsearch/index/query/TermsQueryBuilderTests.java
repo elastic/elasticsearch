@@ -39,15 +39,17 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
-
     private List<Object> randomTerms;
     private String termsPath;
 
@@ -128,21 +130,28 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testEmtpyFieldName() {
-        if (randomBoolean()) {
-            new TermsQueryBuilder(null, "term");
-        } else {
-            new TermsQueryBuilder("", "term");
+        try {
+            if (randomBoolean()) {
+                new TermsQueryBuilder(null, "term");
+            } else {
+                new TermsQueryBuilder("", "term");
+            }
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("field name cannot be null."));
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testEmtpyTermsLookup() {
-        new TermsQueryBuilder("field", (TermsLookup) null);
+        try {
+            new TermsQueryBuilder("field", (TermsLookup) null);
+            fail("Expected IllegalArgumentException");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("No value or termsLookup specified for terms query"));
+        }
     }
 
-    @Test
     public void testNullValues() {
         try {
             switch (randomInt(6)) {
@@ -174,7 +183,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testBothValuesAndLookupSet() throws IOException {
         String query = "{\n" +
                 "  \"terms\": {\n" +
@@ -190,7 +198,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        QueryBuilder termsQueryBuilder = parseQuery(query);
+        try {
+            parseQuery(query);
+            fail("Expected IllegalArgumentException");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("Both values and termsLookup specified for terms query"));
+        }
     }
 
     public void testDeprecatedXContent() throws IOException {
@@ -289,7 +302,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
-    @Test
     public void testTermsQueryWithMultipleFields() throws IOException {
         String query = XContentFactory.jsonBuilder().startObject()
                 .startObject("terms").array("foo", 123).array("bar", 456).endObject()

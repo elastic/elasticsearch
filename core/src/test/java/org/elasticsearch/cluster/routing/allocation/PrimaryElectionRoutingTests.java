@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -41,10 +40,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(PrimaryElectionRoutingTests.class);
 
-    @Test
     public void testBackupElectionToPrimaryWhenPrimaryCanBeAllocatedToAnotherNode() {
         AllocationService strategy = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 
@@ -95,7 +92,6 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test").shard(0).replicaShards().get(0).currentNodeId(), equalTo("node3"));
     }
 
-    @Test
     public void testRemovingInitializingReplicasIfPrimariesFails() {
         AllocationService allocation = createAllocationService(settingsBuilder().put("cluster.routing.allocation.concurrent_recoveries", 10).build());
 

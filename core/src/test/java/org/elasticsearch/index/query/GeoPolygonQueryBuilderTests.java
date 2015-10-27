@@ -32,7 +32,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -42,9 +41,9 @@ import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygonQueryBuilder> {
-
     @Override
     protected GeoPolygonQueryBuilder doCreateTestQueryBuilder() {
         List<GeoPoint> polygon = randomPolygon(randomIntBetween(4, 50));
@@ -105,36 +104,51 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         return polygonPoints;
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testNullFieldName() {
-        new GeoPolygonQueryBuilder(null, randomPolygon(5));
-    }
-
-    @Test(expected = IllegalArgumentException.class)
-    public void testEmptyPolygon() {
-        if (randomBoolean()) {
-            new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, new ArrayList<GeoPoint>());
-        } else {
-            new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, null);
+        try {
+            new GeoPolygonQueryBuilder(null, randomPolygon(5));
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("fieldName must not be null"));
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
+    public void testEmptyPolygon() {
+        try {
+            if (randomBoolean()) {
+                new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, new ArrayList<GeoPoint>());
+            } else {
+                new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, null);
+            }
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("polygon must not be null or empty"));
+        }
+    }
+
     public void testInvalidClosedPolygon() {
         List<GeoPoint> points = new ArrayList<>();
         points.add(new GeoPoint(0, 90));
         points.add(new GeoPoint(90, 90));
         points.add(new GeoPoint(0, 90));
-        new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points);
-
+        try {
+            new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("too few points defined for geo_polygon query"));
+        }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testInvalidOpenPolygon() {
         List<GeoPoint> points = new ArrayList<>();
         points.add(new GeoPoint(0, 90));
         points.add(new GeoPoint(90, 90));
-        new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points);
+        try {
+            new GeoPolygonQueryBuilder(GEO_POINT_FIELD_NAME, points);
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("too few points defined for geo_polygon query"));
+        }
     }
 
     public void testDeprecatedXContent() throws IOException {
@@ -160,7 +174,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         }
     }
 
-    @Test
     public void testParsingAndToQueryParsingExceptions() throws IOException {
         String[] brokenFiles = new String[]{
                 "/org/elasticsearch/index/query/geo_polygon_exception_1.json",
@@ -180,7 +193,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         }
     }
 
-    @Test
     public void testParsingAndToQuery1() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -197,7 +209,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         assertGeoPolygonQuery(query);
     }
 
-    @Test
     public void testParsingAndToQuery2() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -223,7 +234,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         assertGeoPolygonQuery(query);
     }
 
-    @Test
     public void testParsingAndToQuery3() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -240,7 +250,6 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         assertGeoPolygonQuery(query);
     }
 
-    @Test
     public void testParsingAndToQuery4() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +

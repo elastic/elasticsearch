@@ -23,7 +23,10 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.index.IndexResponse;
-import org.elasticsearch.cluster.*;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
@@ -51,22 +54,27 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class RareClusterStateIT extends ESIntegTestCase {
-
     @Override
     protected int numberOfShards() {
         return 1;
@@ -77,7 +85,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         return 0;
     }
 
-    @Test
     public void testUnassignedShardAndEmptyNodesInRoutingTable() throws Exception {
         internalCluster().startNode();
         createIndex("a");
@@ -88,7 +95,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         AllocationDeciders allocationDeciders = new AllocationDeciders(Settings.EMPTY, new AllocationDecider[0]);
         RoutingNodes routingNodes = new RoutingNodes(
                 ClusterState.builder(current)
-                        .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")))
+                        .routingTable(RoutingTable.builder(current.routingTable()).remove("a").addAsRecovery(current.metaData().index("a")).build())
                         .nodes(DiscoveryNodes.EMPTY_NODES)
                         .build(), false
         );
@@ -96,7 +103,6 @@ public class RareClusterStateIT extends ESIntegTestCase {
         allocator.allocateUnassigned(routingAllocation);
     }
 
-    @Test
     @TestLogging("gateway:TRACE")
     public void testAssignmentWithJustAddedNodes() throws Exception {
         internalCluster().startNode();
@@ -127,7 +133,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
 
                 RoutingTable.Builder routingTable = RoutingTable.builder(updatedState.routingTable());
                 routingTable.addAsRecovery(updatedState.metaData().index(index));
-                updatedState = ClusterState.builder(updatedState).routingTable(routingTable).build();
+                updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
                 RoutingAllocation.Result result = allocationService.reroute(updatedState);
                 return ClusterState.builder(updatedState).routingResult(result).build();
@@ -161,9 +167,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-
-    @Test
-    @TestLogging(value = "cluster.service:TRACE")
+    @TestLogging("cluster.service:TRACE")
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startNodesAsync(2, Settings.builder()
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")

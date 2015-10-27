@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fieldvisitor.CustomFieldsVisitor;
@@ -72,9 +73,9 @@ public final class ShardGetService extends AbstractIndexShardComponent {
     private final CounterMetric currentMetric = new CounterMetric();
     private final IndexShard indexShard;
 
-    public ShardGetService(IndexShard indexShard,
+    public ShardGetService(IndexSettings indexSettings, IndexShard indexShard,
                            MapperService mapperService) {
-        super(indexShard.shardId(), indexShard.indexSettings());
+        super(indexShard.shardId(), indexSettings);
         this.mapperService = mapperService;
         this.indexShard = indexShard;
     }

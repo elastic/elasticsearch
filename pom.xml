@@ -46,7 +46,7 @@
 
         <!-- libraries -->
         <lucene.version>5.4.0</lucene.version>
-        <lucene.snapshot.revision>1702855</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1708254</lucene.snapshot.revision>
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.17</testframework.version>
         <jackson.version>2.6.2</jackson.version>
@@ -302,7 +302,7 @@
             <dependency>
                 <groupId>com.github.spullara.mustache.java</groupId>
                 <artifactId>compiler</artifactId>
-                <version>0.8.13</version>
+                <version>0.9.1</version>
             </dependency>
 
             <!-- Used in plugins -->
@@ -330,12 +330,6 @@
                 <groupId>org.apache.lucene</groupId>
                 <artifactId>lucene-analyzers-smartcn</artifactId>
                 <version>${lucene.maven.version}</version>
-            </dependency>
-
-            <dependency>
-                <groupId>com.google.guava</groupId>
-                <artifactId>guava</artifactId>
-                <version>18.0</version>
             </dependency>
 
             <dependency>
@@ -384,7 +378,7 @@
             <dependency>
                 <groupId>io.netty</groupId>
                 <artifactId>netty</artifactId>
-                <version>3.10.3.Final</version>
+                <version>3.10.5.Final</version>
             </dependency>
 
             <dependency>
@@ -495,7 +489,7 @@
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-assembly-plugin</artifactId>
-                    <version>2.5.5</version>
+                    <version>2.6</version>
                 </plugin>
                 <plugin>
                     <groupId>org.apache.maven.plugins</groupId>
@@ -986,8 +980,7 @@
                             <headerDefinition>${elasticsearch.license.headerDefinition}</headerDefinition>
                         </headerDefinitions>
                         <includes>
-                            <include>src/main/java/org/elasticsearch/**/*.java</include>
-                            <include>src/test/java/org/elasticsearch/**/*.java</include>
+                            <include>src/**/*.java</include>
                         </includes>
                     </configuration>
                     <executions>

@@ -21,13 +21,20 @@ package org.elasticsearch.index.store;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.apache.lucene.store.*;
 import org.apache.lucene.util.Constants;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.Locale;
 
 /**
@@ -36,10 +43,12 @@ public class IndexStoreTests extends ESTestCase {
 
     public void testStoreDirectory() throws IOException {
         final Path tempDir = createTempDir().resolve("foo").resolve("0");
-        final IndexStoreModule.Type[] values = IndexStoreModule.Type.values();
-        final IndexStoreModule.Type type = RandomPicks.randomFrom(random(), values);
-        Settings settings = Settings.settingsBuilder().put(IndexStoreModule.STORE_TYPE, type.name().toLowerCase(Locale.ROOT)).build();
-        FsDirectoryService service = new FsDirectoryService(settings, null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));
+        final IndexModule.Type[] values = IndexModule.Type.values();
+        final IndexModule.Type type = RandomPicks.randomFrom(random(), values);
+        Settings settings = Settings.settingsBuilder().put(IndexModule.STORE_TYPE, type.name().toLowerCase(Locale.ROOT))
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo"), settings, Collections.EMPTY_LIST);
+        FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
                 case NIOFS:
@@ -71,8 +80,7 @@ public class IndexStoreTests extends ESTestCase {
 
     public void testStoreDirectoryDefault() throws IOException {
         final Path tempDir = createTempDir().resolve("foo").resolve("0");
-        Settings settings = Settings.EMPTY;
-        FsDirectoryService service = new FsDirectoryService(settings, null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));
+        FsDirectoryService service = new FsDirectoryService(IndexSettingsModule.newIndexSettings(new Index("foo"), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), Collections.EMPTY_LIST), null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             if (Constants.WINDOWS) {
                 assertTrue(directory.toString(), directory instanceof MMapDirectory || directory instanceof SimpleFSDirectory);

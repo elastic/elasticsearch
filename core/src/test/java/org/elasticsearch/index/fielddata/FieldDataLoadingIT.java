@@ -21,7 +21,6 @@ package org.elasticsearch.index.fielddata;
 
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsResponse;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -30,8 +29,6 @@ import static org.hamcrest.Matchers.greaterThan;
 /**
  */
 public class FieldDataLoadingIT extends ESIntegTestCase {
-
-    @Test
     public void testEagerFieldDataLoading() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
@@ -49,7 +46,6 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
         assertThat(response.getIndicesStats().getFieldData().getMemorySizeInBytes(), greaterThan(0l));
     }
 
-    @Test
     public void testEagerGlobalOrdinalsFieldDataLoading() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")

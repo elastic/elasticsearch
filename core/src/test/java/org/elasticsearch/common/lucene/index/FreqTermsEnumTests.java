@@ -32,9 +32,7 @@ import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.TermsQuery;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.QueryWrapperFilter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOUtils;
@@ -43,7 +41,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -67,7 +64,7 @@ public class FreqTermsEnumTests extends ESTestCase {
     private Map<String, FreqHolder> referenceAll;
     private Map<String, FreqHolder> referenceNotDeleted;
     private Map<String, FreqHolder> referenceFilter;
-    private Filter filter;
+    private Query filter;
 
     static class FreqHolder {
         int docFreq;
@@ -153,7 +150,7 @@ public class FreqTermsEnumTests extends ESTestCase {
                 }
             }
         }
-        filter = new QueryWrapperFilter(new TermsQuery(filterTerms));
+        filter = new TermsQuery(filterTerms);
     }
 
     private void addFreqs(Document doc, Map<String, FreqHolder> reference) {
@@ -176,21 +173,18 @@ public class FreqTermsEnumTests extends ESTestCase {
         super.tearDown();
     }
 
-    @Test
     public void testAllFreqs() throws Exception {
         assertAgainstReference(true, true, null, referenceAll);
         assertAgainstReference(true, false, null, referenceAll);
         assertAgainstReference(false, true, null, referenceAll);
     }
 
-    @Test
     public void testNonDeletedFreqs() throws Exception {
         assertAgainstReference(true, true, Queries.newMatchAllQuery(), referenceNotDeleted);
         assertAgainstReference(true, false, Queries.newMatchAllQuery(), referenceNotDeleted);
         assertAgainstReference(false, true, Queries.newMatchAllQuery(), referenceNotDeleted);
     }
 
-    @Test
     public void testFilterFreqs() throws Exception {
         assertAgainstReference(true, true, filter, referenceFilter);
         assertAgainstReference(true, false, filter, referenceFilter);

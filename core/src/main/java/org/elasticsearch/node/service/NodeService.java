@@ -19,15 +19,12 @@
 
 package org.elasticsearch.node.service;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -42,7 +39,11 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.emptyMap;
+import static java.util.Collections.unmodifiableMap;
 
 /**
  */
@@ -59,7 +60,7 @@ public class NodeService extends AbstractComponent {
     @Nullable
     private HttpServer httpServer;
 
-    private volatile ImmutableMap<String, String> serviceAttributes = ImmutableMap.of();
+    private volatile Map<String, String> serviceAttributes = emptyMap();
 
     private final Version version;
 
@@ -93,11 +94,15 @@ public class NodeService extends AbstractComponent {
     }
 
     public synchronized void putAttribute(String key, String value) {
-        serviceAttributes = new MapBuilder<>(serviceAttributes).put(key, value).immutableMap();
+        Map<String, String> newServiceAttributes = new HashMap<>(serviceAttributes);
+        newServiceAttributes.put(key, value);
+        serviceAttributes = unmodifiableMap(newServiceAttributes);
     }
 
     public synchronized void removeAttribute(String key) {
-        serviceAttributes = new MapBuilder<>(serviceAttributes).remove(key).immutableMap();
+        Map<String, String> newServiceAttributes = new HashMap<>(serviceAttributes);
+        newServiceAttributes.remove(key);
+        serviceAttributes = unmodifiableMap(newServiceAttributes);
     }
 
     /**

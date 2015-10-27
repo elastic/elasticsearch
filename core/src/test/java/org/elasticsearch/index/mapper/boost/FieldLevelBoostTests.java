@@ -26,15 +26,12 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.closeTo;
 
 /**
  */
 public class FieldLevelBoostTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testFieldLevelBoost() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
                 .startObject("str_field").field("type", "string").endObject()
@@ -85,7 +82,6 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
         assertThat((double) f.boost(), closeTo(9.0, 0.001));
     }
 
-    @Test
     public void testInvalidFieldLevelBoost() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
                 .startObject("str_field").field("type", "string").endObject()

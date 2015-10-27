@@ -54,6 +54,14 @@ public class GetStats implements Streamable, ToXContent {
         if (stats == null) {
             return;
         }
+        current += stats.current;
+        addTotals(stats);
+    }
+
+    public void addTotals(GetStats stats) {
+        if (stats == null) {
+            return;
+        }
         existsCount += stats.existsCount;
         existsTimeInMillis += stats.existsTimeInMillis;
         missingCount += stats.missingCount;

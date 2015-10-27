@@ -27,7 +27,6 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.rest.client.http.HttpRequestBuilder;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
-import org.junit.Test;
 
 import java.nio.file.Path;
 
@@ -39,7 +38,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasStatus;
 
 @ClusterScope(scope = SUITE, numDataNodes = 1)
 public class SitePluginRelativePathConfigIT extends ESIntegTestCase {
-
     private final Path root = PathUtils.get(".").toAbsolutePath().getRoot();
 
     @Override
@@ -60,7 +58,6 @@ public class SitePluginRelativePathConfigIT extends ESIntegTestCase {
                 .build();
     }
 
-    @Test
     public void testThatRelativePathsDontAffectPlugins() throws Exception {
         HttpResponse response = httpClient().method("GET").path("/_plugin/dummy/").execute();
         assertThat(response, hasStatus(OK));
@@ -83,6 +80,7 @@ public class SitePluginRelativePathConfigIT extends ESIntegTestCase {
         return sb.toString();
     }
 
+    @Override
     public HttpRequestBuilder httpClient() {
         CloseableHttpClient httpClient = HttpClients.createDefault();
         return new HttpRequestBuilder(httpClient).httpTransport(internalCluster().getDataNodeInstance(HttpServerTransport.class));

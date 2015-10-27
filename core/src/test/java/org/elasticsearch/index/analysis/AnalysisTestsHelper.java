@@ -28,10 +28,9 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.nio.file.Path;
 
@@ -52,7 +51,7 @@ public class AnalysisTestsHelper {
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
             settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
-        IndicesModule indicesModule = new IndicesModule(settings) {
+        IndicesModule indicesModule = new IndicesModule() {
             @Override
             public void configure() {
                 // skip services
@@ -66,7 +65,7 @@ public class AnalysisTestsHelper {
                 parentInjector.getInstance(IndicesAnalysisService.class));
 
         Injector injector = new ModulesBuilder().add(new IndexSettingsModule(index, settings),
-                new IndexNameModule(index), analysisModule).createChildInjector(parentInjector);
+                analysisModule).createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
     }

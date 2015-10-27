@@ -110,14 +110,14 @@ public final class InnerHitsContext {
 
         @Override
         public TopDocs topDocs(SearchContext context, FetchSubPhase.HitContext hitContext) throws IOException {
-            Filter rawParentFilter;
+            Query rawParentFilter;
             if (parentObjectMapper == null) {
                 rawParentFilter = Queries.newNonNestedFilter();
             } else {
                 rawParentFilter = parentObjectMapper.nestedTypeFilter();
             }
             BitSetProducer parentFilter = context.bitsetFilterCache().getBitSetProducer(rawParentFilter);
-            Filter childFilter = childObjectMapper.nestedTypeFilter();
+            Query childFilter = childObjectMapper.nestedTypeFilter();
             Query q = Queries.filtered(query.query(), new NestedChildrenQuery(parentFilter, childFilter, hitContext));
 
             if (size() == 0) {
@@ -147,11 +147,11 @@ public final class InnerHitsContext {
         static class NestedChildrenQuery extends Query {
 
             private final BitSetProducer parentFilter;
-            private final Filter childFilter;
+            private final Query childFilter;
             private final int docId;
             private final LeafReader leafReader;
 
-            NestedChildrenQuery(BitSetProducer parentFilter, Filter childFilter, FetchSubPhase.HitContext hitContext) {
+            NestedChildrenQuery(BitSetProducer parentFilter, Query childFilter, FetchSubPhase.HitContext hitContext) {
                 this.parentFilter = parentFilter;
                 this.childFilter = childFilter;
                 this.docId = hitContext.docId();
@@ -187,6 +187,7 @@ public final class InnerHitsContext {
 
             @Override
             public Weight createWeight(IndexSearcher searcher, boolean needsScores) throws IOException {
+                final Weight childWeight = childFilter.createWeight(searcher, false);
                 return new ConstantScoreWeight(this) {
                     @Override
                     public Scorer scorer(LeafReaderContext context) throws IOException {
@@ -208,11 +209,7 @@ public final class InnerHitsContext {
                             return null;
                         }
 
-                        final DocIdSet children = childFilter.getDocIdSet(context, null);
-                        if (children == null) {
-                            return null;
-                        }
-                        final DocIdSetIterator childrenIterator = children.iterator();
+                        final DocIdSetIterator childrenIterator = childWeight.scorer(context);
                         if (childrenIterator == null) {
                             return null;
                         }

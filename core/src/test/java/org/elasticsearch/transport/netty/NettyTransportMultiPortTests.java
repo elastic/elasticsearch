@@ -54,12 +54,18 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
     private static final int MAX_RETRIES = 10;
     private String host;
+    // an unused port that cannot be bound to. 123 is unused, and this user does not have the privilege to bind higher ports
+    // if we accidentally try to bind to this one, an exception will be thrown
+    // the only thing that needs to be ensured, is that, nothing is listening on this port
+    private static final int PRIVILEGED_UNUSED_PORT = 8;
 
     @Rule
     public RepeatOnExceptionRule repeatOnBindExceptionRule = new RepeatOnExceptionRule(logger, MAX_RETRIES, BindTransportException.class);
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
+        assertConnectionRefused(PRIVILEGED_UNUSED_PORT);
+
         if (randomBoolean()) {
             host = "localhost";
         } else {
@@ -72,20 +78,20 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
-        int[] ports = getRandomPorts(3);
+        int[] ports = getRandomPorts(2);
 
         Settings settings = settingsBuilder()
                 .put("network.host", host)
-                .put("transport.tcp.port", ports[0])
-                .put("transport.profiles.default.port", ports[1])
-                .put("transport.profiles.client1.port", ports[2])
+                .put("transport.tcp.port", PRIVILEGED_UNUSED_PORT)
+                .put("transport.profiles.default.port", ports[0])
+                .put("transport.profiles.client1.port", ports[1])
                 .build();
 
         ThreadPool threadPool = new ThreadPool("tst");
         try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
-            assertConnectionRefused(ports[0]);
+            assertConnectionRefused(PRIVILEGED_UNUSED_PORT);
+            assertPortIsBound(ports[0]);
             assertPortIsBound(ports[1]);
-            assertPortIsBound(ports[2]);
         } finally {
             terminate(threadPool);
         }
@@ -127,41 +133,45 @@ public class NettyTransportMultiPortTests extends ESTestCase {
     }
 
     public void testThatDefaultProfilePortOverridesGeneralConfiguration() throws Exception {
-        int[] ports = getRandomPorts(3);
+        int[] ports = getRandomPorts(1);
+        int anotherUnusedPort = PRIVILEGED_UNUSED_PORT+1;
+        assertConnectionRefused(anotherUnusedPort);
 
         Settings settings = settingsBuilder()
                 .put("network.host", host)
-                .put("transport.tcp.port", ports[0])
-                .put("transport.netty.port", ports[1])
-                .put("transport.profiles.default.port", ports[2])
+                .put("transport.tcp.port", PRIVILEGED_UNUSED_PORT)
+                .put("transport.netty.port", anotherUnusedPort)
+                .put("transport.profiles.default.port", ports[0])
                 .build();
 
         ThreadPool threadPool = new ThreadPool("tst");
         try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
-            assertConnectionRefused(ports[0]);
-            assertConnectionRefused(ports[1]);
-            assertPortIsBound(ports[2]);
+            assertConnectionRefused(PRIVILEGED_UNUSED_PORT);
+            assertConnectionRefused(anotherUnusedPort);
+            assertPortIsBound(ports[0]);
         } finally {
             terminate(threadPool);
         }
     }
 
     public void testThatProfileWithoutValidNameIsIgnored() throws Exception {
-        int[] ports = getRandomPorts(3);
+        int[] ports = getRandomPorts(1);
+        int anotherUnusedPort = PRIVILEGED_UNUSED_PORT+1;
+        assertConnectionRefused(anotherUnusedPort);
 
         Settings settings = settingsBuilder()
                 .put("network.host", host)
                 .put("transport.tcp.port", ports[0])
                 // mimics someone trying to define a profile for .local which is the profile for a node request to itself
-                .put("transport.profiles." + TransportService.DIRECT_RESPONSE_PROFILE + ".port", ports[1])
-                .put("transport.profiles..port", ports[2])
+                .put("transport.profiles." + TransportService.DIRECT_RESPONSE_PROFILE + ".port", PRIVILEGED_UNUSED_PORT)
+                .put("transport.profiles..port", anotherUnusedPort)
                 .build();
 
         ThreadPool threadPool = new ThreadPool("tst");
         try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
             assertPortIsBound(ports[0]);
-            assertConnectionRefused(ports[1]);
-            assertConnectionRefused(ports[2]);
+            assertConnectionRefused(PRIVILEGED_UNUSED_PORT);
+            assertConnectionRefused(anotherUnusedPort);
         } finally {
             terminate(threadPool);
         }

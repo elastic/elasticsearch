@@ -17,8 +17,8 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.*;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.ShieldPlugin;
@@ -149,7 +149,7 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
                         // For tests we forcefully configure Shield's custom query cache because the test framework randomizes the query cache impl,
                         // but if shield is disabled then we don't need to forcefully set the query cache
                         if (useShield == false) {
-                            builder.remove(IndexCacheModule.QUERY_CACHE_TYPE);
+                            builder.remove(IndexModule.QUERY_CACHE_TYPE);
                         }
                         return builder.build();
                     }

@@ -16,7 +16,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.shield.action.ShieldActionFilter;
@@ -30,7 +29,7 @@ import org.elasticsearch.shield.authc.Realms;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.shield.authz.AuthorizationModule;
-import org.elasticsearch.index.SearcherWrapperInstaller;
+import org.elasticsearch.index.ProtectedServiceInstaller;
 import org.elasticsearch.shield.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.shield.authz.store.FileRolesStore;
 import org.elasticsearch.shield.crypto.CryptoModule;
@@ -154,7 +153,7 @@ public class ShieldPlugin extends Plugin {
         if (enabled == false) {
             return;
         }
-        SearcherWrapperInstaller.install(module);
+        ProtectedServiceInstaller.install(module, clientMode);
     }
 
     public void onModule(ActionModule module) {
@@ -199,12 +198,6 @@ public class ShieldPlugin extends Plugin {
     public void onModule(AuthorizationModule module) {
         if (enabled && AuditTrailModule.auditingEnabled(settings)) {
             module.registerReservedRole(IndexAuditUserHolder.ROLE);
-        }
-    }
-
-    public void onModule(IndexCacheModule module) {
-        if (enabled && clientMode == false) {
-            module.registerQueryCache(OPT_OUT_QUERY_CACHE, OptOutQueryCache.class);
         }
     }
 
@@ -273,7 +266,7 @@ public class ShieldPlugin extends Plugin {
         unauthorized users.
      */
     private void addQueryCacheSettings(Settings.Builder settingsBuilder) {
-        settingsBuilder.put(IndexCacheModule.QUERY_CACHE_TYPE, OPT_OUT_QUERY_CACHE);
+        settingsBuilder.put(IndexModule.QUERY_CACHE_TYPE, OPT_OUT_QUERY_CACHE);
     }
 
     private static boolean isShieldMandatory(String[] existingMandatoryPlugins) {
@@ -307,12 +300,12 @@ public class ShieldPlugin extends Plugin {
             // in case this are node settings then the plugin additional settings have not been applied yet,
             // so we use 'opt_out_cache' as default. So in that case we only fail if the node settings contain
             // another cache impl than 'opt_out_cache'.
-            queryCacheImplementation = settings.get(IndexCacheModule.QUERY_CACHE_TYPE, OPT_OUT_QUERY_CACHE);
+            queryCacheImplementation = settings.get(IndexModule.QUERY_CACHE_TYPE, OPT_OUT_QUERY_CACHE);
         } else {
-            queryCacheImplementation = settings.get(IndexCacheModule.QUERY_CACHE_TYPE);
+            queryCacheImplementation = settings.get(IndexModule.QUERY_CACHE_TYPE);
         }
         if (OPT_OUT_QUERY_CACHE.equals(queryCacheImplementation) == false) {
-            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexCacheModule.QUERY_CACHE_TYPE + "] with value [" + queryCacheImplementation + "]");
+            throw new IllegalStateException("shield does not support a user specified query cache. remove the setting [" + IndexModule.QUERY_CACHE_TYPE + "] with value [" + queryCacheImplementation + "]");
         }
     }
 }

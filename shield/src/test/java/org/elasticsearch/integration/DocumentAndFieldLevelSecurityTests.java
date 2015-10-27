@@ -7,7 +7,7 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -95,7 +95,7 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testQueryCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .setSettings(Settings.builder().put(IndexCacheModule.QUERY_CACHE_EVERYTHING, true))
+                        .setSettings(Settings.builder().put(IndexModule.QUERY_CACHE_EVERYTHING, true))
                         .addMapping("type1", "field1", "type=string", "field2", "type=string")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1")

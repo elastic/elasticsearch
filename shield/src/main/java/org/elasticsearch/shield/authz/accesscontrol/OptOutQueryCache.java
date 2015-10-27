@@ -9,9 +9,7 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.broadcast.BroadcastShardRequest;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
@@ -25,7 +23,6 @@ public final class OptOutQueryCache extends AbstractIndexComponent implements Qu
 
     final IndicesQueryCache indicesQueryCache;
 
-    @Inject
     public OptOutQueryCache(IndexSettings indexSettings, IndicesQueryCache indicesQueryCache) {
         super(indexSettings);
         this.indicesQueryCache = indicesQueryCache;

@@ -6,7 +6,6 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetResponse;
@@ -16,9 +15,8 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -357,7 +355,7 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
 
     public void testQueryCache() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                        .setSettings(Settings.builder().put(IndexCacheModule.QUERY_CACHE_EVERYTHING, true))
+                        .setSettings(Settings.builder().put(IndexModule.QUERY_CACHE_EVERYTHING, true))
                         .addMapping("type1", "field1", "type=string", "field2", "type=string")
         );
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2")

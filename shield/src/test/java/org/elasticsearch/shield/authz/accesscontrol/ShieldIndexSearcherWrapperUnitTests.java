@@ -44,6 +44,7 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
@@ -246,12 +247,14 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         ShardId shardId = new ShardId("_index", 0);
         EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
 
-        BitsetFilterCache bitsetFilterCache = mock(BitsetFilterCache.class);
+        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
         IndexSearcher result = shieldIndexSearcherWrapper.wrap(engineConfig, indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
         assertThat(result.getSimilarity(true), sameInstance(engineConfig.getSimilarity()));
+        bitsetFilterCache.close();
     }
 
     public void testIntersectScorerAndRoleBits() throws Exception {

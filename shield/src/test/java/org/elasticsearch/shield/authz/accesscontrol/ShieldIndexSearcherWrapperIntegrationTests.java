@@ -32,12 +32,15 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
 import org.elasticsearch.test.ESTestCase;
@@ -79,28 +82,8 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null, singleton(new BytesArray("{}")));
         request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
         IndexQueryParserService parserService = mock(IndexQueryParserService.class);
-
-        BitsetFilterCache bitsetFilterCache = mock(BitsetFilterCache.class);
-        when(bitsetFilterCache.getBitSetProducer(Matchers.any(Query.class))).then(new Answer<BitSetProducer>() {
-            @Override
-            public BitSetProducer answer(InvocationOnMock invocationOnMock) throws Throwable {
-                final Query query = (Query) invocationOnMock.getArguments()[0];
-                return context -> {
-                    IndexSearcher searcher = new IndexSearcher(context);
-                    searcher.setQueryCache(null);
-                    Weight weight = searcher.createNormalizedWeight(query, false);
-                    DocIdSetIterator it = weight.scorer(context);
-                    if (it != null) {
-                        int maxDoc = context.reader().maxDoc();
-                        BitSet bitSet = randomBoolean() ? new SparseFixedBitSet(maxDoc) : new FixedBitSet(maxDoc);
-                        bitSet.or(it);
-                        return bitSet;
-                    } else {
-                        return null;
-                    }
-                };
-            }
-        });
+        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
         ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
         ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(
@@ -164,6 +147,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }
 
+        bitsetFilterCache.close();
         directoryReader.close();
         directory.close();
     }

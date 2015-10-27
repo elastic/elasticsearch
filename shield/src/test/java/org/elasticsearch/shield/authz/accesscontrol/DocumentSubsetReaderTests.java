@@ -17,11 +17,18 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.TestUtil;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.Matchers;
+
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -37,18 +44,8 @@ public class DocumentSubsetReaderTests extends ESTestCase {
     @Before
     public void before() {
         directory = newDirectory();
-        bitsetFilterCache = mock(BitsetFilterCache.class);
-        when(bitsetFilterCache.getBitSetProducer(Matchers.any(Query.class))).then(invocationOnMock -> {
-            final Query query = (Query) invocationOnMock.getArguments()[0];
-            return (BitSetProducer) context -> {
-                IndexReaderContext topLevelContext = ReaderUtil.getTopLevelContext(context);
-                IndexSearcher searcher = new IndexSearcher(topLevelContext);
-                searcher.setQueryCache(null);
-                Weight weight = searcher.createNormalizedWeight(query, false);
-                DocIdSetIterator it = weight.scorer(context);
-                return BitSet.of(it, context.reader().maxDoc());
-            };
-        });
+        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
+        bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
     }
 
     @After
@@ -57,6 +54,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
             directoryReader.close();
         }
         directory.close();
+        bitsetFilterCache.close();
     }
 
     public void testSearch() throws Exception {
@@ -151,8 +149,8 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriterConfig iwc = new IndexWriterConfig(null);
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
-        BitsetFilterCache bitsetFilterCache = mock(BitsetFilterCache.class);
-
+        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetFilterCache, new MatchAllDocsQuery());
         try {
             DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache, new MatchAllDocsQuery());
@@ -161,6 +159,7 @@ public class DocumentSubsetReaderTests extends ESTestCase {
             assertThat(e.getMessage(), equalTo("Can't wrap [class org.elasticsearch.shield.authz.accesscontrol.DocumentSubsetReader$DocumentSubsetDirectoryReader] twice"));
         }
 
+        bitsetFilterCache.close();
         directoryReader.close();
         dir.close();
     }

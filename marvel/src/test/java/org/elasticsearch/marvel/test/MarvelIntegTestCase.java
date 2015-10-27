@@ -16,8 +16,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.marvel.agent.AgentService;
@@ -414,7 +414,7 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                         .put("shield.audit.enabled", auditLogsEnabled)
                                 // Test framework sometimes randomily selects the 'index' or 'none' cache and that makes the
                                 // validation in ShieldPlugin fail. Shield can only run with this query cache impl
-                        .put(IndexCacheModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE);
+                        .put(IndexModule.QUERY_CACHE_TYPE, ShieldPlugin.OPT_OUT_QUERY_CACHE);
             } catch (IOException ex) {
                 throw new RuntimeException("failed to build settings for shield", ex);
             }

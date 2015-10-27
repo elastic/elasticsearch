@@ -743,6 +743,7 @@ public class DefaultSearchContext extends SearchContext {
         } else {
             internalProfiler = null;
         }
+        searcher.setProfiler(internalProfiler);
     }
 
     /**

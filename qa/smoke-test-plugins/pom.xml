@@ -141,15 +141,7 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>cloud-azure</artifactId>
-                   <version>${elasticsearch.version}</version>
-                   <type>zip</type>
-                   <overWrite>true</overWrite>
-                 </artifactItem>
-
-                 <artifactItem>
-                   <groupId>org.elasticsearch.plugin</groupId>
-                   <artifactId>cloud-gce</artifactId>
+                   <artifactId>discovery-gce</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -158,6 +150,14 @@
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>delete-by-query</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>discovery-azure</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -174,6 +174,22 @@
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>discovery-multicast</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>lang-expression</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>lang-groovy</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>
@@ -213,7 +229,23 @@
 
                  <artifactItem>
                    <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>repository-azure</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
                    <artifactId>repository-s3</artifactId>
+                   <version>${elasticsearch.version}</version>
+                   <type>zip</type>
+                   <overWrite>true</overWrite>
+                 </artifactItem>
+
+                 <artifactItem>
+                   <groupId>org.elasticsearch.plugin</groupId>
+                   <artifactId>store-smb</artifactId>
                    <version>${elasticsearch.version}</version>
                    <type>zip</type>
                    <overWrite>true</overWrite>

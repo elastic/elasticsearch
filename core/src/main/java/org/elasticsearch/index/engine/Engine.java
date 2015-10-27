@@ -80,7 +80,18 @@ public abstract class Engine implements Closeable {
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected volatile Throwable failedEngine = null;
-    protected volatile long lastWriteNanos = Long.MAX_VALUE; // no write yet!
+    /*
+     * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
+     *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
+     *    for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we either immediately or never mark it
+     *    inactive if no writes at all happen to the shard.
+     *  - we also use this to flush big-ass merges on an inactive engine / shard but if we we initialize 0 or Long.MAX_VALUE we either immediately or never
+     *    commit merges even though we shouldn't from a user perspective (this can also have funky sideeffects in tests when we open indices with lots of segments
+     *    and suddenly merges kick in.
+     *  NOTE: don't use this value for anything accurate it's a best effort for freeing up diskspace after merges and on a shard level to reduce index buffer sizes on
+     *  inactive shards.
+     */
+    protected volatile long lastWriteNanos = System.nanoTime();
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");

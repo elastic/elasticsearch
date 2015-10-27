@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -34,8 +33,6 @@ import java.util.Map;
  * Parser for query_string query
  */
 public class QueryStringQueryParser implements QueryParser {
-
-    private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("fuzzy_min_sim");
 
     @Override
     public String[] names() {
@@ -134,7 +131,7 @@ public class QueryStringQueryParser implements QueryParser {
                     fuzzyRewrite = parser.textOrNull();
                 } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                     phraseSlop = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
                     fuzziness = Fuzziness.parse(parser);
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();

@@ -570,39 +570,9 @@ public abstract class ESTestCase extends LuceneTestCase {
                 if (e.getMessage() != null && ((EsRejectedExecutionException) e).isExecutorShutdown()) {
                     return; // ignore the EsRejectedExecutionException when a node shuts down
                 }
-            } else if (e instanceof OutOfMemoryError) {
-                if (e.getMessage() != null && e.getMessage().contains("unable to create new native thread")) {
-                    printStackDump(logger);
-                }
             }
             parent.uncaughtException(t, e);
         }
-    }
-
-    protected static final void printStackDump(ESLogger logger) {
-        // print stack traces if we can't create any native thread anymore
-        Map<Thread, StackTraceElement[]> allStackTraces = Thread.getAllStackTraces();
-        logger.error(formatThreadStacks(allStackTraces));
-    }
-
-    /** Dump threads and their current stack trace. */
-    public static String formatThreadStacks(Map<Thread, StackTraceElement[]> threads) {
-        StringBuilder message = new StringBuilder();
-        int cnt = 1;
-        final Formatter f = new Formatter(message, Locale.ENGLISH);
-        for (Map.Entry<Thread, StackTraceElement[]> e : threads.entrySet()) {
-            if (e.getKey().isAlive()) {
-                f.format(Locale.ENGLISH, "\n  %2d) %s", cnt++, threadName(e.getKey())).flush();
-            }
-            if (e.getValue().length == 0) {
-                message.append("\n        at (empty stack)");
-            } else {
-                for (StackTraceElement ste : e.getValue()) {
-                    message.append("\n        at ").append(ste);
-                }
-            }
-        }
-        return message.toString();
     }
 
     private static String threadName(Thread t) {

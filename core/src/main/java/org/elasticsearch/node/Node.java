@@ -182,7 +182,7 @@ public class Node implements Releasable {
                 modules.add(new HttpServerModule(settings));
             }
             modules.add(new IndicesModule());
-            modules.add(new SearchModule(settings));
+            modules.add(new SearchModule());
             modules.add(new ActionModule(false));
             modules.add(new MonitorModule(settings));
             modules.add(new GatewayModule(settings));

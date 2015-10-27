@@ -111,7 +111,7 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
-    public void testOnModuleExceptionsArePropergated() {
+    public void testOnModuleExceptionsArePropagated() {
         Settings settings = Settings.builder()
                 .put("path.home", createTempDir()).build();
         PluginsService service = newPluginsService(settings, FailOnModule.class);

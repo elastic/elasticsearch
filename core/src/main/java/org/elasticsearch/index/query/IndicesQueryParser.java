@@ -32,8 +32,8 @@ import java.util.Collection;
  */
 public class IndicesQueryParser implements QueryParser {
 
-    private static final ParseField QUERY_FIELD = new ParseField("query", "filter");
-    private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query", "no_match_filter");
+    private static final ParseField QUERY_FIELD = new ParseField("query");
+    private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query");
 
     @Override
     public String[] names() {

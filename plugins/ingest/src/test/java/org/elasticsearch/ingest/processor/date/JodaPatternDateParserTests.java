@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor.date;
 
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
 import java.time.Instant;
 import java.time.ZoneId;
@@ -31,11 +32,12 @@ import static org.hamcrest.core.IsEqual.equalTo;
 public class JodaPatternDateParserTests extends ESTestCase {
 
     public void testParse() {
-        JodaPatternDateParser parser = new JodaPatternDateParser("MMM dd HH:mm:ss Z", Locale.ENGLISH);
+        JodaPatternDateParser parser = new JodaPatternDateParser("MMM dd HH:mm:ss Z",
+                DateTimeZone.forOffsetHours(-8), Locale.ENGLISH);
 
         assertThat(Instant.ofEpochMilli(parser.parseMillis("Nov 24 01:29:01 -0800"))
                 .atZone(ZoneId.of("GMT-8"))
-                .format(DateTimeFormatter.ofPattern("MM dd HH:mm:ss")),
+                .format(DateTimeFormatter.ofPattern("MM dd HH:mm:ss", Locale.ENGLISH)),
                         equalTo("11 24 01:29:01"));
     }
 }

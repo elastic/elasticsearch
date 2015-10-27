@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.processor.date;
 
 import org.elasticsearch.ingest.Data;
-import org.elasticsearch.ingest.Processor;
+import org.elasticsearch.ingest.processor.Processor;
 import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
@@ -42,7 +42,7 @@ public final class DateProcessor implements Processor {
     private final List<DateParser> parserList;
 
     public DateProcessor(String timezone, String locale, String matchField, List<String> matchFormats, String targetField) {
-        this.timezone = DateTimeZone.forID(timezone);
+        this.timezone = (timezone == null) ? DateTimeZone.UTC : DateTimeZone.forID(timezone);
         this.locale = Locale.forLanguageTag(locale);
         this.matchField = matchField;
         this.matchFormats = matchFormats;
@@ -68,11 +68,11 @@ public final class DateProcessor implements Processor {
                 return new ISO8601DateParser(timezone);
             }
         } else if ("UNIX".equals(format)) {
-            return new UnixDateParser();
+            return new UnixDateParser(timezone);
         } else if ("UNIX_MS".equals(format)) {
-            return new UnixMsDateParser();
+            return new UnixMsDateParser(timezone);
         } else if ("TAI64N".equals(format)) {
-            return new TAI64NDateParser();
+            return new TAI64NDateParser(timezone);
         } else {
             if (timezone != null && locale != null) {
                 return new JodaPatternDateParser(format, timezone, locale);
@@ -95,7 +95,7 @@ public final class DateProcessor implements Processor {
         private String targetField;
 
         public Builder() {
-            matchFormats = new ArrayList();
+            matchFormats = new ArrayList<String>();
         }
 
         public void setTimezone(String timezone) {
@@ -118,6 +118,7 @@ public final class DateProcessor implements Processor {
             this.targetField = targetField;
         }
 
+        @SuppressWarnings("unchecked")
         public void fromMap(Map<String, Object> config) {
             this.timezone = (String) config.get("timezone");
             this.locale = (String) config.get("locale");

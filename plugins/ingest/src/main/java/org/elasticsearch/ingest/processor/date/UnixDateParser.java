@@ -20,8 +20,14 @@
 package org.elasticsearch.ingest.processor.date;
 
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 public class UnixDateParser implements DateParser {
+    private final DateTimeZone timezone;
+
+    public UnixDateParser(DateTimeZone timezone) {
+        this.timezone = timezone;
+    }
 
     @Override
     public long parseMillis(String date) {
@@ -30,6 +36,6 @@ public class UnixDateParser implements DateParser {
 
     @Override
     public DateTime parseDateTime(String date) {
-       return new DateTime(parseMillis(date));
+       return new DateTime(parseMillis(date), timezone);
     }
 }

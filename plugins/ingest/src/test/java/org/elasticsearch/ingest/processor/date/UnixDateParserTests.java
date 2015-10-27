@@ -20,13 +20,14 @@
 package org.elasticsearch.ingest.processor.date;
 
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class UnixDateParserTests extends ESTestCase {
 
     public void testParse() {
-        UnixDateParser parser = new UnixDateParser();
+        UnixDateParser parser = new UnixDateParser(DateTimeZone.UTC);
         assertThat(parser.parseMillis("1000.5"), equalTo(1000500L));
     }
 }

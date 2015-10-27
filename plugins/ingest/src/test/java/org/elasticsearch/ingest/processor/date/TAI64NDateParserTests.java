@@ -20,13 +20,14 @@
 package org.elasticsearch.ingest.processor.date;
 
 import org.elasticsearch.test.ESTestCase;
+import org.joda.time.DateTimeZone;
 
 import static org.hamcrest.core.IsEqual.equalTo;
 
 public class TAI64NDateParserTests extends ESTestCase {
 
     public void testParse() {
-        TAI64NDateParser parser = new TAI64NDateParser();
+        TAI64NDateParser parser = new TAI64NDateParser(DateTimeZone.forOffsetHours(2));
         String input = "4000000050d506482dbdf024";
         String expected = "2012-12-22T03:00:46.767+02:00";
         assertThat(parser.parseDateTime("@" + input).toString(), equalTo(expected));

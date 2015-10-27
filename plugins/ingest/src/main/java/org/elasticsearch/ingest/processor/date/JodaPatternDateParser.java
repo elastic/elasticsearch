@@ -32,25 +32,25 @@ public class JodaPatternDateParser implements DateParser {
 
     public JodaPatternDateParser(String format) {
         formatter = DateTimeFormat.forPattern(format)
-                .withDefaultYear((new DateTime()).getYear())
+                .withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear())
                 .withOffsetParsed();
     }
 
     public JodaPatternDateParser(String format, DateTimeZone timezone) {
         formatter = DateTimeFormat.forPattern(format)
-                .withDefaultYear((new DateTime()).getYear())
+                .withDefaultYear((new DateTime(timezone)).getYear())
                 .withZone(timezone);
     }
 
     public JodaPatternDateParser(String format, Locale locale) {
         formatter = DateTimeFormat.forPattern(format)
-                .withDefaultYear((new DateTime()).getYear())
+                .withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear())
                 .withLocale(locale);
     }
 
     public JodaPatternDateParser(String format, DateTimeZone timezone, Locale locale) {
         formatter = DateTimeFormat.forPattern(format)
-                .withDefaultYear((new DateTime()).getYear())
+                .withDefaultYear((new DateTime(DateTimeZone.UTC)).getYear())
                 .withZone(timezone).withLocale(locale);
     }
 

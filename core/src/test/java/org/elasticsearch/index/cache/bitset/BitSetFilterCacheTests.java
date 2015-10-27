@@ -37,12 +37,12 @@ import org.apache.lucene.store.RAMDirectory;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.IOUtils;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
@@ -56,6 +56,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class BitSetFilterCacheTests extends ESTestCase {
 
     private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY, Collections.emptyList());
+    private final IndicesWarmer warmer = new IndicesWarmer(Settings.EMPTY, null);
+
 
     private static int matchCount(BitSetProducer producer, IndexReader reader) throws IOException {
         int count = 0;
@@ -91,7 +93,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         IndexReader reader = DirectoryReader.open(writer, false);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, warmer);
         BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));
         assertThat(matchCount(filter, reader), equalTo(3));
 
@@ -134,7 +136,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         final AtomicInteger onCacheCalls = new AtomicInteger();
         final AtomicInteger onRemoveCalls = new AtomicInteger();
 
-        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS);
+        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, warmer);
         cache.setListener(new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
@@ -173,7 +175,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
     }
 
     public void testSetListenerTwice() {
-        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS);
+        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, warmer);
         cache.setListener(new BitsetFilterCache.Listener() {
 
             @Override

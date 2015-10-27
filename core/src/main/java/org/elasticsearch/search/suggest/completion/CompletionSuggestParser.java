@@ -19,7 +19,6 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.HasContextAndHeaders;
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -43,7 +42,6 @@ import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
 public class CompletionSuggestParser implements SuggestContextParser {
 
     private CompletionSuggester completionSuggester;
-    private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("edit_distance");
 
     public CompletionSuggestParser(CompletionSuggester completionSuggester) {
         this.completionSuggester = completionSuggester;
@@ -75,7 +73,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fuzzyConfigName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (queryParserService.parseFieldMatcher().match(fuzzyConfigName, FUZZINESS)) {
+                            if (queryParserService.parseFieldMatcher().match(fuzzyConfigName, Fuzziness.FIELD)) {
                                 suggestion.setFuzzyEditDistance(Fuzziness.parse(parser).asDistance());
                             } else if ("transpositions".equals(fuzzyConfigName)) {
                                 suggestion.setFuzzyTranspositions(parser.booleanValue());

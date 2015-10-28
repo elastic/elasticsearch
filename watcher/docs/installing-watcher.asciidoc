@@ -87,8 +87,10 @@ download and install the plugins.
 To install Watcher on a machine that doesn't have Internet access:
 
 . Manually download the License and Watcher binaries: 
-** https://download.elastic.co/elasticsearch/license/license-latest.zip[
-https://download.elastic.co/elasticsearch/license/license-latest.zip]
+** https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/license/{version}/license-{version}.zip[
+https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/license/{version}/license-{version}.zip]
+** https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/watcher/{version}/watcher-{version}.zip[
+https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/watcher/{version}/watcher-{version}.zip]
 
 . Transfer the zip files to the offline machine.
 
@@ -96,6 +98,7 @@ https://download.elastic.co/elasticsearch/license/license-latest.zip]
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin install file:///path/to/file/watcher-{version}.zip <1>
+bin/plugin install file:///path/to/file/license-2.0.0.zip <1>
+bin/plugin install file:///path/to/file/watcher-2.0.0.zip 
 ----------------------------------------------------------
 <1> Note that you must specify an absolute path to the zip file after the `file://` protocol.

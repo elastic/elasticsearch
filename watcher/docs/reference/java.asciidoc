@@ -75,10 +75,18 @@ Creating the `WatcherClient` can simply be done as the following snippet shows:
 
 [source,java]
 --------------------------------------------------
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.WatcherPlugin;
 ...
 
-Client client = ... // create and initialize either the transport or the node client
+TransportClient client = TransportClient.builder()
+    .settings(Settings.builder()
+    .put("cluster.name", "myClusterName")
+    ...
+    .build())
+    .addPlugin(WatcherPlugin.class)
+    .addTransportAddress(new InetSocketTransportAddress("localhost", 9300));
 
 WatcherClient watcherClient = new WatcherClient(client);
 --------------------------------------------------
@@ -100,16 +108,3 @@ include::java/deactivate-watch.asciidoc[]
 include::java/stats.asciidoc[]
 
 include::java/service.asciidoc[]
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -133,10 +133,11 @@ final class Security {
                     Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
                     if (Files.exists(policyFile)) {
                         // first get a list of URLs for the plugins' jars:
+                        // we resolve symlinks so map is keyed on the normalize codebase name
                         List<URL> codebases = new ArrayList<>();
                         try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
                             for (Path jar : jarStream) {
-                                codebases.add(jar.toUri().toURL());
+                                codebases.add(jar.toRealPath().toUri().toURL());
                             }
                         }
                         

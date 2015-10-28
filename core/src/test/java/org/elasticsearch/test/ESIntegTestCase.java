@@ -325,7 +325,6 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected final void beforeInternal() throws Exception {
-        assert Thread.getDefaultUncaughtExceptionHandler() instanceof ElasticsearchUncaughtExceptionHandler;
         final Scope currentClusterScope = getCurrentClusterScope();
         switch (currentClusterScope) {
             case SUITE:

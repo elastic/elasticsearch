@@ -542,7 +542,14 @@ public class CacheTests extends ESTestCase {
                 for (int j = 0; j < numberOfEntries; j++) {
                     Key key = new Key(random.nextInt(numberOfEntries));
                     try {
-                        cache.computeIfAbsent(key, k -> k.key != 0 ? cache.get(new Key(k.key / 2)) : 0);
+                        cache.computeIfAbsent(key, k -> {
+                            if (k.key == 0) {
+                                return 0;
+                            } else {
+                                Integer value = cache.get(new Key(k.key / 2));
+                                return value != null ? value : 0;
+                            }
+                        });
                     } catch (ExecutionException e) {
                         fail(e.getMessage());
                     }

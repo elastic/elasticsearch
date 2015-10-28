@@ -68,16 +68,6 @@ characteristics as the former `scan` search type.
 The search exists api has been removed in favour of using the search api with
 `size` set to `0` and `terminate_after` set to `1`.
 
-=== Parent/Child changes
-
-The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
-with `_parent` field mapping created before version `2.0.0`. The data of these indices need to be re-indexed into a new index.
-
-The format of the join between parent and child documents have changed with the `2.0.0` release. The old
-format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
-scalable join between parent and child documents and the join data structures are stored on on disk
-data structures as opposed as before the join data structures were stored in the jvm heap space.
-
 ==== Deprecated queries removed
 
 The following deprecated queries have been removed:
@@ -88,6 +78,48 @@ The following deprecated queries have been removed:
 * `fquery`: obsolete after filters and queries have been merged
 * `query`: obsolete after filters and queries have been merged
 
+==== Unified fuzziness parameter
+
+* Removed support for the deprecated `min_similarity` parameter in `fuzzy query`, in favour of `similarity`.
+* Removed support for the deprecated `fuzzy_min_sim` parameter in `query_string` query, in favour of `similarity`.
+* Removed support for the deprecated `edit_distance` parameter in completion suggester, in favour of `similarity`.
+
+==== indices query
+
+Removed support for the deprecated `filter` and `no_match_filter` fields in `indices` query,
+in favour of `query` and `no_match_query`.
+
+==== nested query
+
+Removed support for the deprecated `filter` fields in `nested` query, in favour of `query`.
+
+==== terms query
+
+Removed support for the deprecated `minimum_should_match` and `disable_coord` in `terms` query, use `bool` query instead.
+Removed also support for the deprecated `execution` parameter.
+
+==== function_score query
+
+Removed support for the top level `filter` element in `function_score` query, replaced by `query`.
+
+==== highlighters
+
+Removed support for multiple highlighter names, the only supported ones are: `plain`, `fvh` and `postings`.
+
+==== top level filter
+
+Removed support for the deprecated top level `filter` in the search api, replaced by `post_filter`.
+
+=== Parent/Child changes
+
+The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
+with `_parent` field mapping created before version `2.0.0`. The data of these indices need to be re-indexed into a new index.
+
+The format of the join between parent and child documents have changed with the `2.0.0` release. The old
+format can't read from version `3.0.0` and onwards. The new format allows for a much more efficient and
+scalable join between parent and child documents and the join data structures are stored on on disk
+data structures as opposed as before the join data structures were stored in the jvm heap space.
+
 ==== `score_type` has been removed
 
 The `score_type` option has been removed from the `has_child` and `has_parent` queries in favour of the `score_mode` option
@@ -95,7 +127,7 @@ which does the exact same thing.
 
 ==== `sum` score mode removed
 
-The `sum` score mode has been removed in favour of the `total` mode which doesn the same and is already available in
+The `sum` score mode has been removed in favour of the `total` mode which does the same and is already available in
 previous versions.
 
 ==== `max_children` option

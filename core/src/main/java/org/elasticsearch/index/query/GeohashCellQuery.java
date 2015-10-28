@@ -20,7 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
@@ -124,7 +124,7 @@ public class GeohashCellQuery {
         }
 
         public Builder point(double lat, double lon) {
-            this.geohash = XGeoHashUtils.stringEncode(lon, lat);
+            this.geohash = GeoHashUtils.stringEncode(lon, lat);
             return this;
         }
 
@@ -256,7 +256,7 @@ public class GeohashCellQuery {
 
             Query filter;
             if (neighbors) {
-                filter = create(parseContext, geoFieldType, geohash, XGeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                filter = create(parseContext, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
             } else {
                 filter = create(parseContext, geoFieldType, geohash, null);
             }

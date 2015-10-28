@@ -20,8 +20,8 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.XGeoHashUtils;
-import org.apache.lucene.util.XGeoUtils;
+import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
@@ -96,7 +96,7 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
                         pt[0] = pt[0] + (value.getLon() - pt[0]) / ++prevCounts;
                         pt[1] = pt[1] + (value.getLat() - pt[1]) / prevCounts;
                     }
-                    centroids.set(bucket, XGeoUtils.mortonHash(pt[0], pt[1]));
+                    centroids.set(bucket, GeoUtils.mortonHash(pt[0], pt[1]));
                 }
             }
         };

@@ -30,7 +30,7 @@ import java.util.Collections;
 
 /**
  */
-abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointFieldData {
+public abstract class AbstractAtomicGeoPointFieldData implements AtomicGeoPointFieldData {
 
     @Override
     public final SortedBinaryDocValues getBytesValues() {

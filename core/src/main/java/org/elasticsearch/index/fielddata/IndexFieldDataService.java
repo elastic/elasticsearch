@@ -28,8 +28,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DisabledIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.GeoPointBinaryDVIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.GeoPointDoubleArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractGeoPointDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.GeoPointArrayIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
@@ -85,7 +85,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
         buildersByTypeBuilder.put("short", MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("int", MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("long", MISSING_DOC_VALUES_BUILDER);
-        buildersByTypeBuilder.put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder());
+        buildersByTypeBuilder.put("geo_point",  new GeoPointArrayIndexFieldData.Builder());
         buildersByTypeBuilder.put(ParentFieldMapper.NAME, new ParentChildIndexFieldData.Builder());
         buildersByTypeBuilder.put(IndexFieldMapper.NAME, new IndexIndexFieldData.Builder());
         buildersByTypeBuilder.put("binary", new DisabledIndexFieldData.Builder());
@@ -101,7 +101,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 .put("short", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.SHORT))
                 .put("int", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.INT))
                 .put("long", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
-                .put("geo_point", new GeoPointBinaryDVIndexFieldData.Builder())
+                .put("geo_point", new AbstractGeoPointDVIndexFieldData.Builder())
                 .put("binary", new BytesBinaryDVIndexFieldData.Builder())
                 .put(BooleanFieldMapper.CONTENT_TYPE, new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BOOLEAN))
                 .immutableMap();
@@ -129,8 +129,8 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 .put(Tuple.tuple("long", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
                 .put(Tuple.tuple("long", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
-                .put(Tuple.tuple("geo_point", ARRAY_FORMAT), new GeoPointDoubleArrayIndexFieldData.Builder())
-                .put(Tuple.tuple("geo_point", DOC_VALUES_FORMAT), new GeoPointBinaryDVIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", ARRAY_FORMAT), new GeoPointArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", DOC_VALUES_FORMAT), new AbstractGeoPointDVIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
                 .put(Tuple.tuple("binary", DOC_VALUES_FORMAT), new BytesBinaryDVIndexFieldData.Builder())

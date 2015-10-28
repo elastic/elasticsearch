@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
@@ -28,6 +31,7 @@ import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.Matchers;
 
 import java.util.ArrayList;
@@ -53,6 +57,7 @@ import static org.hamcrest.core.IsNull.nullValue;
  */
 @ESIntegTestCase.SuiteScopeTestCase
 public class GeoDistanceIT extends ESIntegTestCase {
+    private Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
 
     private IndexRequestBuilder indexCity(String idx, String name, String... latLons) throws Exception {
         XContentBuilder source = jsonBuilder().startObject().field("city", name);
@@ -67,7 +72,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
     @Override
     public void setupSuiteScopeCluster() throws Exception {
-        prepareCreate("idx")
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        prepareCreate("idx").setSettings(settings)
                 .addMapping("type", "location", "type=geo_point", "city", "type=string,index=not_analyzed")
                 .execute().actionGet();
 
@@ -109,7 +115,8 @@ public class GeoDistanceIT extends ESIntegTestCase {
             }
         }
         indexRandom(true, cities);
-        prepareCreate("empty_bucket_idx").addMapping("type", "value", "type=integer", "location", "type=geo_point").execute().actionGet();
+        prepareCreate("empty_bucket_idx")
+                .addMapping("type", "value", "type=integer", "location", "type=geo_point").execute().actionGet();
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 2; i++) {
             builders.add(client().prepareIndex("empty_bucket_idx", "type", "" + i).setSource(jsonBuilder()

@@ -21,11 +21,16 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.DocValues;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
+import org.elasticsearch.index.fielddata.AtomicGeoPointFieldData;
+import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
@@ -34,9 +39,9 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
-public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexGeoPointFieldData {
+public abstract class AbstractGeoPointDVIndexFieldData extends DocValuesIndexFieldData implements IndexGeoPointFieldData {
 
-    public GeoPointBinaryDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
+    AbstractGeoPointDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
     }
 
@@ -45,29 +50,43 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
         throw new IllegalArgumentException("can't sort on geo_point field without using specific sorting feature, like geo_distance");
     }
 
-    @Override
-    public AtomicGeoPointFieldData load(LeafReaderContext context) {
-        try {
-            return new GeoPointBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldNames.indexName()));
-        } catch (IOException e) {
-            throw new IllegalStateException("Cannot load doc values", e);
+    /**
+     * Lucene 5.4 GeoPointFieldType
+     */
+    public static class GeoPointDVIndexFieldData extends AbstractGeoPointDVIndexFieldData {
+        final boolean indexCreatedBefore2x;
+
+        public GeoPointDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType, final boolean indexCreatedBefore2x) {
+            super(index, fieldNames, fieldDataType);
+            this.indexCreatedBefore2x = indexCreatedBefore2x;
+        }
+
+        @Override
+        public AtomicGeoPointFieldData load(LeafReaderContext context) {
+            try {
+                if (indexCreatedBefore2x) {
+                    return new GeoPointLegacyDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldNames.indexName()));
+                }
+                return new GeoPointDVAtomicFieldData(DocValues.getSortedNumeric(context.reader(), fieldNames.indexName()));
+            } catch (IOException e) {
+                throw new IllegalStateException("Cannot load doc values", e);
+            }
+        }
+
+        @Override
+        public AtomicGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
+            return load(context);
         }
     }
 
-    @Override
-    public AtomicGeoPointFieldData loadDirect(LeafReaderContext context) throws Exception {
-        return load(context);
-    }
-
     public static class Builder implements IndexFieldData.Builder {
-
         @Override
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
-            final Names fieldNames = fieldType.names();
-            return new GeoPointBinaryDVIndexFieldData(indexSettings.getIndex(), fieldNames, fieldType.fieldDataType());
+            return new GeoPointDVIndexFieldData(indexSettings.getIndex(), fieldType.names(), fieldType.fieldDataType(),
+                    // norelease cut over to .before(Version.V_2_2_0) once GeoPointFieldV2 is completely merged
+                    indexSettings.getIndexVersionCreated().onOrBefore(Version.CURRENT));
         }
-
     }
 }

@@ -19,8 +19,13 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
+import java.lang.reflect.Array;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -47,9 +52,30 @@ public final class Data {
         return (T) XContentMapValues.extractValue(path, document);
     }
 
-    public void addField(String field, Object value) {
+    /**
+     * add `value` to path in document. If path does not exist,
+     * nested hashmaps will be put in as parent key values until
+     * leaf key name in path is reached.
+     *
+     * @param path The path within the document in dot-notation
+     * @param value The value to put in for the path key
+     */
+    public void addField(String path, Object value) {
         modified = true;
-        document.put(field, value);
+
+        String[] pathElements = Strings.splitStringToArray(path, '.');
+
+        String writeKey = pathElements[pathElements.length - 1];
+        Map<String, Object> inner = document;
+
+        for (int i = 0; i < pathElements.length - 1; i++) {
+            if (!inner.containsKey(pathElements[i])) {
+                inner.put(pathElements[i], new HashMap<String, Object>());
+            }
+            inner = (HashMap<String, Object>) inner.get(pathElements[i]);
+        }
+
+        inner.put(writeKey, value);
     }
 
     public String getIndex() {

@@ -1,7 +1,7 @@
 [[logstash]]
 === Using Logstash with Shield
 
-IMPORTANT: Shield 1.0+ is compatible with Logstash 1.5 and above.
+IMPORTANT: Shield 2.0+ is compatible with Logstash 2.0 and above.
 
 Logstash provides Elasticsearch https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html[output], https://www.elastic.co/guide/en/logstash/current/plugins-inputs-elasticsearch.html[input] and https://www.elastic.co/guide/en/logstash/current/plugins-filters-elasticsearch.html[filter] plugins
 used to index and retrieve documents through HTTP, transport or client node protocols.
@@ -43,7 +43,7 @@ Once you've created the user, you are ready to configure Logstash.
 [[ls-http]]
 ==== Connecting with HTTP/HTTPS
 
-When you set the `protocol` option to `http`, Logstash communicates with the Elasticsearch cluster through the REST APIs over HTTP.
+Logstash communicates with the Elasticsearch cluster through the REST APIs over HTTP.
 
 [float]
 [[ls-http-auth]]
@@ -74,14 +74,13 @@ output {
 [[ls-http-auth-pki]]
 ===== PKI Authentication
 
-Elasticsearch Output version 1.0.1 onwards supports the use of X.509 client-certificate to authenticate Logstash requests. To enable this you need to set up the following configuration parameters:
+Elasticsearch Output supports the use of X.509 client-certificate to authenticate Logstash requests. To enable this you need to set up the following configuration parameters:
 
 [source, shell]
 --------------------------------------------------
 input { ... }
 output {
   elasticsearch {
-    protocol => "http"
     ...
     keystore => ... # string
     keystore_password => ... # string
@@ -100,7 +99,6 @@ To enable SSL/TLS encryption for HTTPS, use the following configuration block:
 input { ... }
 output {
   elasticsearch {
-    protocol => "http"
     ...
     ssl => true
     cacert => '/path/to/cert.pem' <1>
@@ -113,14 +111,14 @@ output {
 [[ls-transport]]
 ==== Connecting with Transport protocol
 
-When you set the `protocol` option to `transport`, Logstash communicates with the Elasticsearch cluster through the same
-protocol nodes use between each other. This avoids JSON un/marshalling and is therefore more efficient.
+When using the `elasticsearch_java` plugins in Logstash, you can set the `protocol` option to `transport`. With `transport`, Logstash communicates with the Elasticsearch cluster through the same
+protocol nodes use between each other.
 
 In order to unlock this option, it's necessary to install an additional plugin in Logstash using the following command:
 
 [source, shell]
 --------------------------------------------------
-bin/plugin install logstash-output-elasticsearch-shield
+bin/plugin install logstash-output-elasticsearch_java_shield
 --------------------------------------------------
 
 [float]
@@ -139,7 +137,7 @@ To connect to an instance of Elasticsearch with Shield using basic auth, set up 
 --------------------------------------------------
 input { ... }
 output {
-  elasticsearch {
+  elasticsearch_java {
     protocol => "transport"
     ...
     user => ... # string
@@ -158,7 +156,7 @@ To connect to an instance of Elasticsearch with Shield using client-certificate 
 --------------------------------------------------
 input { ... }
 output {
-  elasticsearch {
+  elasticsearch_java {
     protocol => "transport"    
     ...
     ssl => true
@@ -170,7 +168,7 @@ output {
 
 [float]
 [[ls-transport-conf]]
-===== SSL Configuration for Transport or Node protocols
+===== SSL Configuration for Transport protocols
 
 Specify the paths to the keystore and truststore `.jks` files with the following configuration parameters:
 
@@ -178,7 +176,7 @@ Specify the paths to the keystore and truststore `.jks` files with the following
 --------------------------------------------------
 input { ... }
 output {
-  elasticsearch {
+  elasticsearch_java {
     protocol => "transport"
     host => ... # string (optional)
     cluster => ... # string (optional)

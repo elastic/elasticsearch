@@ -287,17 +287,20 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
-        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
+        if (query instanceof BooleanQuery) {
             BooleanQuery booleanQuery = (BooleanQuery) query;
-            // treat special case for one term query and more than one field
-            // we need to wrap this in additional BooleanQuery so minimum_should_match is applied correctly
             if (booleanQuery.clauses().size() > 1
                     && ((booleanQuery.clauses().iterator().next().getQuery() instanceof BooleanQuery) == false)) {
+                // special case for one term query and more than one field: (f1:t1 f2:t1 f3:t1)
+                // we need to wrap this in additional BooleanQuery so minimum_should_match is applied correctly
                 BooleanQuery.Builder builder = new BooleanQuery.Builder();
                 builder.add(new BooleanClause(booleanQuery, Occur.SHOULD));
                 booleanQuery = builder.build();
             }
-            query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+            if (minimumShouldMatch != null) {
+                booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+            }
+            query = booleanQuery;
         }
         return query;
     }

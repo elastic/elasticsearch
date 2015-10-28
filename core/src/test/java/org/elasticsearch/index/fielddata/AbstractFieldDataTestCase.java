@@ -95,7 +95,6 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else if (type.getType().equals("byte")) {
             fieldType = MapperBuilders.byteField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("geo_point")) {
-            BaseGeoPointFieldMapper.Builder builder;
             // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
             if (Version.indexCreated(indexService.settingsService().indexSettings()).onOrBefore(Version.CURRENT)) {
                 fieldType =  new GeoPointFieldMapperLegacy.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();

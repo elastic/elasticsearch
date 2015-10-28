@@ -32,14 +32,14 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
-final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
+final class GeoPointLegacyDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
 
     private static final int COORDINATE_SIZE = 8; // number of bytes per coordinate
     private static final int GEOPOINT_SIZE = COORDINATE_SIZE * 2; // lat + lon
 
     private final BinaryDocValues values;
 
-    GeoPointBinaryDVAtomicFieldData(BinaryDocValues values) {
+    GeoPointLegacyDVAtomicFieldData(BinaryDocValues values) {
         super();
         this.values = values;
     }
@@ -48,7 +48,7 @@ final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldD
     public long ramBytesUsed() {
         return 0; // not exposed by Lucene
     }
-    
+
     @Override
     public Collection<Accountable> getChildResources() {
         return Collections.emptyList();
@@ -97,5 +97,4 @@ final class GeoPointBinaryDVAtomicFieldData extends AbstractAtomicGeoPointFieldD
 
         };
     }
-
 }

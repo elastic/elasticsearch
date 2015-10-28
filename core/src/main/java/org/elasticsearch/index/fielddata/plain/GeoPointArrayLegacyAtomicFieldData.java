@@ -39,13 +39,13 @@ import java.util.List;
 
 /**
  */
-public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicGeoPointFieldData {
+public abstract class GeoPointArrayLegacyAtomicFieldData extends AbstractAtomicGeoPointFieldData {
 
     @Override
     public void close() {
     }
 
-    static class WithOrdinals extends GeoPointDoubleArrayAtomicFieldData {
+    static class WithOrdinals extends GeoPointArrayLegacyAtomicFieldData {
 
         private final DoubleArray lon, lat;
         private final Ordinals ordinals;
@@ -63,7 +63,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
         public long ramBytesUsed() {
             return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
@@ -117,7 +117,7 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
     /**
      * Assumes unset values are marked in bitset, and docId is used as the index to the value array.
      */
-    public static class Single extends GeoPointDoubleArrayAtomicFieldData {
+    public static class Single extends GeoPointArrayLegacyAtomicFieldData {
 
         private final DoubleArray lon, lat;
         private final BitSet set;
@@ -130,9 +130,9 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
+            return RamUsageEstimator.NUM_BYTES_INT + lon.ramBytesUsed() + lat.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();

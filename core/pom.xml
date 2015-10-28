@@ -236,7 +236,7 @@
                             <includes>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
-                                <include>org/elasticsearch/bootstrap/MockPluginPolicy.class</include>
+                                <include>org/elasticsearch/bootstrap/BootstrapForTesting$*.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                             </includes>
@@ -265,7 +265,7 @@
                                 <include>rest-api-spec/**/*</include>
                                 <include>org/elasticsearch/test/**/*</include>
                                 <include>org/elasticsearch/bootstrap/BootstrapForTesting.class</include>
-                                <include>org/elasticsearch/bootstrap/MockPluginPolicy.class</include>
+                                <include>org/elasticsearch/bootstrap/BootstrapForTesting$*.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase.class</include>
                                 <include>org/elasticsearch/common/cli/CliToolTestCase$*.class</include>
                                 <include>org/elasticsearch/cluster/MockInternalClusterInfoService.class</include>

@@ -31,44 +31,10 @@ grant codeBase "file:${{java.ext.dirs}}/*" {
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${es.security.jar.lucene.core}" {
+grant codeBase "${codebase.lucene-core-5.4.0-snapshot-1708254.jar}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-//// test framework permissions.
-//// These are mock objects and test management that we allow test framework libs
-//// to provide on our behalf. But tests themselves cannot do this stuff!
-
-grant codeBase "${es.security.jar.elasticsearch.securemock}" {
-  // needed to access ReflectionFactory (see below)
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed to support creation of mocks
-  permission java.lang.RuntimePermission "reflectionFactoryAccess";
-  // needed for spy interception, etc
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.jar.lucene.testframework}" {
-  // needed by RamUsageTester
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.jar.randomizedtesting.runner}" {
-  // optionally needed for access to private test methods (e.g. beforeClass)
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-  // needed for top threads handling
-  permission java.lang.RuntimePermission "modifyThreadGroup";
-};
-
-grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
-  // needed for gson serialization
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-  // needed for stream redirection
-  permission java.lang.RuntimePermission "setIO";
 };
 
 //// Everything else:
@@ -126,10 +92,4 @@ grant {
 
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
-
-  // needed to install SSLFactories, advanced SSL configuration, etc.
-  permission java.lang.RuntimePermission "setFactory";
-  
-  // needed to allow installation of bouncycastle crypto provider
-  permission java.security.SecurityPermission "putProviderProperty.BC";
 };

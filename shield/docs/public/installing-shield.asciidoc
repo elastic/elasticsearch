@@ -47,10 +47,10 @@ download and install the plugins.
 To install Shield on a machine that doesn't have Internet access:
 
 . Manually download the appropriate License and Shield binaries: 
-** https://download.elastic.co/elasticsearch/license/license-latest.zip[
-`https://download.elastic.co/elasticsearch/license/license-latest.zip`]
-** https://download.elastic.co/elasticsearch/shield/shield-latest.zip[
-`https://download.elastic.co/elasticsearch/shield/shield-latest.zip`]
+** https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/license/{version}/license-{version}.zip[
+https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/license/{version}/license-{version}.zip]
+** https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/shield/{version}/shield-{version}.zip[
+https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/shield/{version}/shield-{version}.zip]
 
 . Transfer the zip files to the offline machine.
 

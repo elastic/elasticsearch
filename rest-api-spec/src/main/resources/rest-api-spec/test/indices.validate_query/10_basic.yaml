@@ -25,6 +25,17 @@ setup:
             invalid_query: {}
 
   - is_false: valid
+  - is_false: error
+
+  - do:
+      indices.validate_query:
+        explain: true
+        body:
+          query:
+            invalid_query: {}
+
+  - is_false: valid
+  - match: {error: 'org.elasticsearch.common.ParsingException: No query registered for [invalid_query]'}
 
   - do:
       indices.validate_query:
@@ -43,3 +54,13 @@ setup:
           match_all: {}
 
   - is_false: valid
+  - is_false: error
+
+  - do:
+      indices.validate_query:
+        explain: true
+        body:
+          match_all: {}
+
+  - is_false: valid
+  - match: {error: 'org.elasticsearch.common.ParsingException: request does not support [match_all]'}

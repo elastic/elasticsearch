@@ -73,10 +73,6 @@ grant {
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "getStackTrace";
 
-  // needed by ESTestCase for leniency of thread exceptions (?!)
-  // otherwise can be provided only to test libraries
-  permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
-
   // needed by JMX instead of getFileSystemAttributes, seems like a bug...
   permission java.lang.RuntimePermission "getFileStoreAttributes";
 

@@ -145,20 +145,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         PathUtilsForTesting.teardown();
     }
 
-    // setup a default exception handler which knows when and how to print a stacktrace
-    private static Thread.UncaughtExceptionHandler defaultHandler;
-
-    @BeforeClass
-    public static void setDefaultExceptionHandler() throws Exception {
-        defaultHandler = Thread.getDefaultUncaughtExceptionHandler();
-        Thread.setDefaultUncaughtExceptionHandler(new ElasticsearchUncaughtExceptionHandler(defaultHandler));
-    }
-
-    @AfterClass
-    public static void restoreDefaultExceptionHandler() throws Exception {
-        Thread.setDefaultUncaughtExceptionHandler(defaultHandler);
-    }
-
     // randomize content type for request builders
 
     @BeforeClass
@@ -549,30 +535,6 @@ public abstract class ESTestCase extends LuceneTestCase {
     public static Settings.Builder settings(Version version) {
         Settings.Builder builder = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
         return builder;
-    }
-
-    // -----------------------------------------------------------------
-    // Failure utilities
-    // -----------------------------------------------------------------
-
-    static final class ElasticsearchUncaughtExceptionHandler implements Thread.UncaughtExceptionHandler {
-
-        private final Thread.UncaughtExceptionHandler parent;
-        private final ESLogger logger = Loggers.getLogger(getClass());
-
-        private ElasticsearchUncaughtExceptionHandler(Thread.UncaughtExceptionHandler parent) {
-            this.parent = parent;
-        }
-
-        @Override
-        public void uncaughtException(Thread t, Throwable e) {
-            if (e instanceof EsRejectedExecutionException) {
-                if (e.getMessage() != null && ((EsRejectedExecutionException) e).isExecutorShutdown()) {
-                    return; // ignore the EsRejectedExecutionException when a node shuts down
-                }
-            }
-            parent.uncaughtException(t, e);
-        }
     }
 
     private static String threadName(Thread t) {

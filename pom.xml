@@ -51,7 +51,7 @@
         <lucene.version>5.4.0</lucene.version>
         <lucene.snapshot.revision>1710880</lucene.snapshot.revision>
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
-        <testframework.version>2.1.17</testframework.version>
+        <testframework.version>2.2.0</testframework.version>
         <securemock.version>1.1</securemock.version>
 
         <jackson.version>2.6.2</jackson.version>

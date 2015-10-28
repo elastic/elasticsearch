@@ -35,7 +35,7 @@ grant codeBase "${codebase.lucene-test-framework-5.4.0-snapshot-1710880.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.randomizedtesting-runner-2.1.17.jar}" {
+grant codeBase "${codebase.randomizedtesting-runner-2.2.0.jar}" {
   // optionally needed for access to private test methods (e.g. beforeClass)
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
   // needed to fail tests on uncaught exceptions from other threads
@@ -44,10 +44,7 @@ grant codeBase "${codebase.randomizedtesting-runner-2.1.17.jar}" {
   permission java.lang.RuntimePermission "modifyThreadGroup";
 };
 
-grant codeBase "${codebase.junit4-ant-2.1.17.jar}" {
-  // needed for gson serialization
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
+grant codeBase "${codebase.junit4-ant-2.2.0.jar}" {
   // needed for stream redirection
   permission java.lang.RuntimePermission "setIO";
 };

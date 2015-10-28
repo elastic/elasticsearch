@@ -19,7 +19,6 @@
 
 package org.elasticsearch.test.geo;
 
-import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.spatial4j.core.context.jts.JtsSpatialContext;
 import com.spatial4j.core.distance.DistanceUtils;
@@ -30,6 +29,7 @@ import com.spatial4j.core.shape.impl.Range;
 import com.vividsolutions.jts.algorithm.ConvexHull;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
+
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.geo.builders.BaseLineStringBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
@@ -40,6 +40,7 @@ import org.elasticsearch.common.geo.builders.PointBuilder;
 import org.elasticsearch.common.geo.builders.PointCollection;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.junit.Assert;
 
 import java.util.Random;
 
@@ -251,7 +252,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
         double[] pt = new double[2];
         randomPointIn(rand, r.getMinX(), r.getMinY(), r.getMaxX(), r.getMaxY(), pt);
         Point p = ctx.makePoint(pt[0], pt[1]);
-        RandomizedTest.assertEquals(CONTAINS, r.relate(p));
+        Assert.assertEquals(CONTAINS, r.relate(p));
         return p;
     }
 

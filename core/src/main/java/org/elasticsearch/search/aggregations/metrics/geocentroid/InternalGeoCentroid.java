@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
-import org.apache.lucene.util.XGeoUtils;
+import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -140,7 +140,7 @@ public class InternalGeoCentroid extends InternalMetricsAggregation implements G
         out.writeVLong(count);
         if (centroid != null) {
             out.writeBoolean(true);
-            out.writeLong(XGeoUtils.mortonHash(centroid.lon(), centroid.lat()));
+            out.writeLong(GeoUtils.mortonHash(centroid.lon(), centroid.lat()));
         } else {
             out.writeBoolean(false);
         }

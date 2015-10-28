@@ -25,7 +25,7 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
@@ -82,7 +82,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         public static final boolean ENABLE_LATLON = false;
         public static final boolean ENABLE_GEOHASH = false;
         public static final boolean ENABLE_GEOHASH_PREFIX = false;
-        public static final int GEO_HASH_PRECISION = XGeoHashUtils.PRECISION;
+        public static final int GEO_HASH_PRECISION = GeoHashUtils.PRECISION;
 
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit(false, false);
         public static final Explicit<Boolean> COERCE = new Explicit(false, false);
@@ -705,7 +705,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
         if (fieldType().isGeohashEnabled()) {
             if (geohash == null) {
-                geohash = XGeoHashUtils.stringEncode(point.lon(), point.lat());
+                geohash = GeoHashUtils.stringEncode(point.lon(), point.lat());
             }
             addGeohashField(context, geohash);
         }

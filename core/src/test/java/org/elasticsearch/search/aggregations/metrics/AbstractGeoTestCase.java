@@ -23,7 +23,7 @@ import com.carrotsearch.hppc.ObjectIntHashMap;
 import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -203,8 +203,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     }
 
     private void updateGeohashBucketsCentroid(final GeoPoint location) {
-        String hash = XGeoHashUtils.stringEncode(location.lon(), location.lat(), XGeoHashUtils.PRECISION);
-        for (int precision = XGeoHashUtils.PRECISION; precision > 0; --precision) {
+        String hash = GeoHashUtils.stringEncode(location.lon(), location.lat(), GeoHashUtils.PRECISION);
+        for (int precision = GeoHashUtils.PRECISION; precision > 0; --precision) {
             final String h = hash.substring(0, precision);
             expectedDocCountsForGeoHash.put(h, expectedDocCountsForGeoHash.getOrDefault(h, 0) + 1);
             expectedCentroidsForGeoHash.put(h, updateHashCentroid(h, location));

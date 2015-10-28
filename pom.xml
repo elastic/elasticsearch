@@ -49,7 +49,7 @@
         <!-- NOTE: when changing these versions, also update security.policy and test-framework.policy to match -->
         <!-- (we don't do any automatic property substitution on those resources, it could get confusing...     -->
         <lucene.version>5.4.0</lucene.version>
-        <lucene.snapshot.revision>1708254</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1710880</lucene.snapshot.revision>
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.1.17</testframework.version>
         <securemock.version>1.1</securemock.version>

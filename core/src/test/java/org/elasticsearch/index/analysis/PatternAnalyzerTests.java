@@ -20,7 +20,6 @@ package org.elasticsearch.index.analysis;
  */
 
 import java.io.IOException;
-import java.lang.Thread.UncaughtExceptionHandler;
 import java.util.Arrays;
 import java.util.regex.Pattern;
 
@@ -110,45 +109,6 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
   /** blast some random strings through the analyzer */
   public void testRandomStrings() throws Exception {
     Analyzer a = new PatternAnalyzer(Pattern.compile(","), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
-    
-    // dodge jre bug http://bugs.sun.com/bugdatabase/view_bug.do?bug_id=7104012
-    final UncaughtExceptionHandler savedHandler = Thread.getDefaultUncaughtExceptionHandler();
-    Thread.setDefaultUncaughtExceptionHandler(new Thread.UncaughtExceptionHandler() {
-      @Override
-      public void uncaughtException(Thread thread, Throwable throwable) {
-        assumeTrue("not failing due to jre bug ", !isJREBug7104012(throwable));
-        // otherwise its some other bug, pass to default handler
-        savedHandler.uncaughtException(thread, throwable);
-      }
-    });
-    
-    try {
-      Thread.getDefaultUncaughtExceptionHandler();
-      checkRandomData(random(), a, 10000*RANDOM_MULTIPLIER);
-    } catch (ArrayIndexOutOfBoundsException ex) {
-      assumeTrue("not failing due to jre bug ", !isJREBug7104012(ex));
-      throw ex; // otherwise rethrow
-    } finally {
-      Thread.setDefaultUncaughtExceptionHandler(savedHandler);
-    }
-  }
-  
-  static boolean isJREBug7104012(Throwable t) {
-    if (!(t instanceof ArrayIndexOutOfBoundsException)) {
-      // BaseTokenStreamTestCase now wraps exc in a new RuntimeException:
-      t = t.getCause();
-      if (!(t instanceof ArrayIndexOutOfBoundsException)) {
-        return false;
-      }
-    }
-    StackTraceElement trace[] = t.getStackTrace();
-    for (StackTraceElement st : trace) {
-      if ("java.text.RuleBasedBreakIterator".equals(st.getClassName()) || 
-          "sun.util.locale.provider.RuleBasedBreakIterator".equals(st.getClassName()) 
-          && "lookupBackwardState".equals(st.getMethodName())) {
-        return true;
-      }
-    }
-    return false;
+    checkRandomData(random(), a, 10000*RANDOM_MULTIPLIER);
   }
 }

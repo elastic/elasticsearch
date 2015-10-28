@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.ja.JapaneseReadingFormFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 public class KuromojiReadingFormFilterFactory extends AbstractTokenFilterFactory {
@@ -31,7 +32,7 @@ public class KuromojiReadingFormFilterFactory extends AbstractTokenFilterFactory
     private final boolean useRomaji;
 
     @Inject
-    public KuromojiReadingFormFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public KuromojiReadingFormFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         useRomaji = settings.getAsBoolean("use_romaji", false);
     }

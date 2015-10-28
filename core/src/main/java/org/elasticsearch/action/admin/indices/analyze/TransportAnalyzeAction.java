@@ -24,32 +24,24 @@ import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.analysis.tokenattributes.PositionIncrementAttribute;
 import org.apache.lucene.analysis.tokenattributes.TypeAttribute;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.single.shard.TransportSingleShardAction;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.analysis.CharFilterFactory;
-import org.elasticsearch.index.analysis.CharFilterFactoryFactory;
-import org.elasticsearch.index.analysis.CustomAnalyzer;
-import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.analysis.TokenFilterFactoryFactory;
-import org.elasticsearch.index.analysis.TokenizerFactory;
-import org.elasticsearch.index.analysis.TokenizerFactoryFactory;
+import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -63,17 +55,15 @@ import java.util.List;
 public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRequest, AnalyzeResponse> {
 
     private final IndicesService indicesService;
-    private final IndicesAnalysisService indicesAnalysisService;
-
-    private static final Settings DEFAULT_SETTINGS = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+    private final Environment environment;
 
     @Inject
     public TransportAnalyzeAction(Settings settings, ThreadPool threadPool, ClusterService clusterService, TransportService transportService,
-                                  IndicesService indicesService, IndicesAnalysisService indicesAnalysisService, ActionFilters actionFilters,
-                                  IndexNameExpressionResolver indexNameExpressionResolver) {
+                                  IndicesService indicesService, ActionFilters actionFilters,
+                                  IndexNameExpressionResolver indexNameExpressionResolver, Environment environment) {
         super(settings, AnalyzeAction.NAME, threadPool, clusterService, transportService, actionFilters, indexNameExpressionResolver, AnalyzeRequest::new, ThreadPool.Names.INDEX);
         this.indicesService = indicesService;
-        this.indicesAnalysisService = indicesAnalysisService;
+        this.environment = environment;
     }
 
     @Override
@@ -105,53 +95,69 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
 
     @Override
     protected AnalyzeResponse shardOperation(AnalyzeRequest request, ShardId shardId) {
-        IndexService indexService = null;
-        if (shardId != null) {
-            indexService = indicesService.indexServiceSafe(shardId.getIndex());
-        }
-        Analyzer analyzer = null;
-        boolean closeAnalyzer = false;
-        String field = null;
-        if (request.field() != null) {
-            if (indexService == null) {
-                throw new IllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
+        try {
+            final IndexService indexService;
+            if (shardId != null) {
+                indexService = indicesService.indexServiceSafe(shardId.getIndex());
+            } else {
+                indexService = null;
             }
-            MappedFieldType fieldType = indexService.mapperService().smartNameFieldType(request.field());
-            if (fieldType != null) {
-                if (fieldType.isNumeric()) {
-                    throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
+            String field = null;
+            Analyzer analyzer = null;
+            if (request.field() != null) {
+                if (indexService == null) {
+                    throw new IllegalArgumentException("No index provided, and trying to analyzer based on a specific field which requires the index parameter");
                 }
-                analyzer = fieldType.indexAnalyzer();
-                field = fieldType.names().indexName();
-                
+                MappedFieldType fieldType = indexService.mapperService().smartNameFieldType(request.field());
+                if (fieldType != null) {
+                    if (fieldType.isNumeric()) {
+                        throw new IllegalArgumentException("Can't process field [" + request.field() + "], Analysis requests are not supported on numeric fields");
+                    }
+                    analyzer = fieldType.indexAnalyzer();
+                    field = fieldType.names().indexName();
+                }
             }
-        }
-        if (field == null) {
-            if (indexService != null) {
-                field = indexService.queryParserService().defaultField();
-            } else {
-                field = AllFieldMapper.NAME;
+            if (field == null) {
+                if (indexService != null) {
+                    field = indexService.queryParserService().defaultField();
+                } else {
+                    field = AllFieldMapper.NAME;
+                }
             }
+            final AnalysisRegistry analysisRegistry = indicesService.getAnalysis();
+            return analyze(request, field, analyzer, indexService != null ? indexService.analysisService() : null, analysisRegistry, environment);
+        } catch (IOException e) {
+            throw new ElasticsearchException("analysis failed", e);
         }
+
+    }
+
+    public static AnalyzeResponse analyze(AnalyzeRequest request, String field,  Analyzer analyzer, AnalysisService analysisService, AnalysisRegistry analysisRegistry, Environment environment) throws IOException {
+
+        boolean closeAnalyzer = false;
         if (analyzer == null && request.analyzer() != null) {
-            if (indexService == null) {
-                analyzer = indicesAnalysisService.analyzer(request.analyzer());
+            if (analysisService == null) {
+                analyzer = analysisRegistry.getAnalyzer(request.analyzer());
+                if (analyzer == null) {
+                    throw new IllegalArgumentException("failed to find global analyzer [" + request.analyzer() + "]");
+                }
             } else {
-                analyzer = indexService.analysisService().analyzer(request.analyzer());
+                analyzer = analysisService.analyzer(request.analyzer());
+                if (analyzer == null) {
+                    throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
+                }
             }
-            if (analyzer == null) {
-                throw new IllegalArgumentException("failed to find analyzer [" + request.analyzer() + "]");
-            }
+
         } else if (request.tokenizer() != null) {
             TokenizerFactory tokenizerFactory;
-            if (indexService == null) {
-                TokenizerFactoryFactory tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(request.tokenizer());
+            if (analysisService == null) {
+                AnalysisModule.AnalysisProvider<TokenizerFactory> tokenizerFactoryFactory = analysisRegistry.getTokenizerProvider(request.tokenizer());
                 if (tokenizerFactoryFactory == null) {
                     throw new IllegalArgumentException("failed to find global tokenizer under [" + request.tokenizer() + "]");
                 }
-                tokenizerFactory = tokenizerFactoryFactory.create(request.tokenizer(), DEFAULT_SETTINGS);
+                tokenizerFactory = tokenizerFactoryFactory.get(environment, request.tokenizer());
             } else {
-                tokenizerFactory = indexService.analysisService().tokenizer(request.tokenizer());
+                tokenizerFactory = analysisService.tokenizer(request.tokenizer());
                 if (tokenizerFactory == null) {
                     throw new IllegalArgumentException("failed to find tokenizer under [" + request.tokenizer() + "]");
                 }
@@ -162,14 +168,14 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 tokenFilterFactories = new TokenFilterFactory[request.tokenFilters().length];
                 for (int i = 0; i < request.tokenFilters().length; i++) {
                     String tokenFilterName = request.tokenFilters()[i];
-                    if (indexService == null) {
-                        TokenFilterFactoryFactory tokenFilterFactoryFactory = indicesAnalysisService.tokenFilterFactoryFactory(tokenFilterName);
+                    if (analysisService == null) {
+                        AnalysisModule.AnalysisProvider<TokenFilterFactory> tokenFilterFactoryFactory = analysisRegistry.getTokenFilterProvider(tokenFilterName);
                         if (tokenFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find global token filter under [" + tokenFilterName + "]");
                         }
-                        tokenFilterFactories[i] = tokenFilterFactoryFactory.create(tokenFilterName, DEFAULT_SETTINGS);
+                        tokenFilterFactories[i] = tokenFilterFactoryFactory.get(environment, tokenFilterName);
                     } else {
-                        tokenFilterFactories[i] = indexService.analysisService().tokenFilter(tokenFilterName);
+                        tokenFilterFactories[i] = analysisService.tokenFilter(tokenFilterName);
                         if (tokenFilterFactories[i] == null) {
                             throw new IllegalArgumentException("failed to find token filter under [" + tokenFilterName + "]");
                         }
@@ -185,20 +191,20 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
                 charFilterFactories = new CharFilterFactory[request.charFilters().length];
                 for (int i = 0; i < request.charFilters().length; i++) {
                     String charFilterName = request.charFilters()[i];
-                    if (indexService == null) {
-                        CharFilterFactoryFactory charFilterFactoryFactory = indicesAnalysisService.charFilterFactoryFactory(charFilterName);
+                    if (analysisService == null) {
+                        AnalysisModule.AnalysisProvider<CharFilterFactory> charFilterFactoryFactory = analysisRegistry.getCharFilterProvider(charFilterName);
                         if (charFilterFactoryFactory == null) {
                             throw new IllegalArgumentException("failed to find global char filter under [" + charFilterName + "]");
                         }
-                        charFilterFactories[i] = charFilterFactoryFactory.create(charFilterName, DEFAULT_SETTINGS);
+                        charFilterFactories[i] = charFilterFactoryFactory.get(environment, charFilterName);
                     } else {
-                        charFilterFactories[i] = indexService.analysisService().charFilter(charFilterName);
+                        charFilterFactories[i] = analysisService.charFilter(charFilterName);
                         if (charFilterFactories[i] == null) {
-                            throw new IllegalArgumentException("failed to find token char under [" + charFilterName + "]");
+                            throw new IllegalArgumentException("failed to find char filter under [" + charFilterName + "]");
                         }
                     }
                     if (charFilterFactories[i] == null) {
-                        throw new IllegalArgumentException("failed to find token char under [" + charFilterName + "]");
+                        throw new IllegalArgumentException("failed to find char filter under [" + charFilterName + "]");
                     }
                 }
             }
@@ -206,10 +212,10 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             analyzer = new CustomAnalyzer(tokenizerFactory, charFilterFactories, tokenFilterFactories);
             closeAnalyzer = true;
         } else if (analyzer == null) {
-            if (indexService == null) {
-                analyzer = indicesAnalysisService.analyzer("standard");
+            if (analysisService == null) {
+                analyzer = analysisRegistry.getAnalyzer("standard");
             } else {
-                analyzer = indexService.analysisService().defaultIndexAnalyzer();
+                analyzer = analysisService.defaultIndexAnalyzer();
             }
         }
         if (analyzer == null) {

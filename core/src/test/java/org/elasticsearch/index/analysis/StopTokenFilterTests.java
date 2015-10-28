@@ -49,8 +49,8 @@ public class StopTokenFilterTests extends ESTokenStreamTestCase {
         Settings settings = builder.build();
         try {
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
-            fail("Expected ProvisionException");
-        } catch (ProvisionException e) {
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("enable_position_increments is not supported anymore"));
         }
     }

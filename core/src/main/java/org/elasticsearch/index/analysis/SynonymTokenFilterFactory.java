@@ -28,27 +28,23 @@ import org.apache.lucene.analysis.synonym.SolrSynonymParser;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.analysis.synonym.WordnetSynonymParser;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
+import java.io.IOException;
 import java.io.Reader;
 import java.util.List;
 import java.util.Map;
 
-@AnalysisSettingsRequired
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final SynonymMap synonymMap;
     private final boolean ignoreCase;
 
-    @Inject
-    public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, IndicesAnalysisService indicesAnalysisService, Map<String, TokenizerFactoryFactory> tokenizerFactories,
-                                     @Assisted String name, @Assisted Settings settings) {
+    public SynonymTokenFilterFactory(IndexSettings indexSettings, Environment env, Map<String, TokenizerFactory> tokenizerFactories,
+                                      String name, Settings settings) throws IOException {
         super(indexSettings, name, settings);
 
         Reader rulesReader = null;
@@ -69,16 +65,10 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         boolean expand = settings.getAsBoolean("expand", true);
 
         String tokenizerName = settings.get("tokenizer", "whitespace");
-
-        TokenizerFactoryFactory tokenizerFactoryFactory = tokenizerFactories.get(tokenizerName);
-        if (tokenizerFactoryFactory == null) {
-            tokenizerFactoryFactory = indicesAnalysisService.tokenizerFactoryFactory(tokenizerName);
-        }
-        if (tokenizerFactoryFactory == null) {
+        final TokenizerFactory tokenizerFactory = tokenizerFactories.get(tokenizerName);
+        if (tokenizerFactory == null) {
             throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
         }
-
-        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, Settings.builder().put(this.indexSettings.getSettings()).put(settings).build());
 
         Analyzer analyzer = new Analyzer() {
             @Override

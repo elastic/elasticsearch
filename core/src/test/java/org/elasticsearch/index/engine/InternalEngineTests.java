@@ -1920,7 +1920,7 @@ public class InternalEngineTests extends ESTestCase {
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-            AnalysisService analysisService = new AnalysisService(indexSettings);
+            AnalysisService analysisService = new AnalysisService(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
             MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, null);
             DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);

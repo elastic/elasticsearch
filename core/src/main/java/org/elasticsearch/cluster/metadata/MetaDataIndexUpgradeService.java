@@ -257,7 +257,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         };
 
         public FakeAnalysisService(IndexSettings indexSettings) {
-            super(indexSettings);
+            super(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
         }
 
         @Override

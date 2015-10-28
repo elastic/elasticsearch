@@ -20,8 +20,6 @@
 package org.elasticsearch.index.analysis;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
@@ -39,9 +37,8 @@ public class CustomAnalyzerProvider extends AbstractIndexAnalyzerProvider<Custom
 
     private CustomAnalyzer customAnalyzer;
 
-    @Inject
     public CustomAnalyzerProvider(IndexSettings indexSettings,
-                                  @Assisted String name, @Assisted Settings settings) {
+                                  String name, Settings settings) {
         super(indexSettings, name, settings);
         this.analyzerSettings = settings;
     }

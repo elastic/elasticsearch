@@ -22,9 +22,8 @@ package org.elasticsearch.index.analysis;
 
 import com.ibm.icu.text.Normalizer2;
 import org.apache.lucene.analysis.icu.ICUNormalizer2CharFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.Reader;
@@ -41,9 +40,7 @@ public class IcuNormalizerCharFilterFactory extends AbstractCharFilterFactory {
 
     private final Normalizer2 normalizer;
 
-
-    @Inject
-    public IcuNormalizerCharFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public IcuNormalizerCharFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name);
         this.name = settings.get("name", "nfkc_cf");
         String mode = settings.get("mode");

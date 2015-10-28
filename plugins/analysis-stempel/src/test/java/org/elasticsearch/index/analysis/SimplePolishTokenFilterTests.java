@@ -33,13 +33,14 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.pl.PolishAnalysisBinderProcessor;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.StringReader;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -96,13 +97,12 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
         }
     }
 
-    private AnalysisService createAnalysisService(Index index, Settings settings) {
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)).addProcessor(new PolishAnalysisBinderProcessor()))
-                .createChildInjector(parentInjector);
-
-        return injector.getInstance(AnalysisService.class);
+    private AnalysisService createAnalysisService(Index index, Settings settings) throws IOException {
+        AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
+        new AnalysisStempelPlugin().onModule(analysisModule);
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
+                new EnvironmentModule(new Environment(settings)), analysisModule)
+                .createInjector();
+        return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings, Collections.emptyList()));
     }
 }

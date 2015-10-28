@@ -28,8 +28,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.Arrays;
 import java.util.Collections;
-import java.util.Map;
 
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.*;
@@ -67,20 +67,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecute_success() throws Exception {
-        Pipeline.Builder builder = new Pipeline.Builder("_id");
         Processor processor = mock(Processor.class);
-        builder.addProcessors(new Processor.Builder() {
-            @Override
-            public void fromMap(Map<String, Object> config) {
-            }
-
-            @Override
-            public Processor build() {
-                return processor;
-            }
-        });
-
-        when(store.get("_id")).thenReturn(builder.build());
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(processor)));
 
         Data data = new Data("_index", "_type", "_id", Collections.emptyMap());
         PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
@@ -96,20 +84,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecute_failure() throws Exception {
-        Pipeline.Builder builder = new Pipeline.Builder("_id");
         Processor processor = mock(Processor.class);
-        builder.addProcessors(new Processor.Builder() {
-            @Override
-            public void fromMap(Map<String, Object> config) {
-            }
-
-            @Override
-            public Processor build() {
-                return processor;
-            }
-        });
-
-        when(store.get("_id")).thenReturn(builder.build());
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(processor)));
         Data data = new Data("_index", "_type", "_id", Collections.emptyMap());
         doThrow(new RuntimeException()).when(processor).execute(data);
         PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);

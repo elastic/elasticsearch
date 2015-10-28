@@ -30,36 +30,38 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
 
-public class GeoProcessorBuilderTests extends ESTestCase {
+public class GeoProcessorFactoryTests extends ESTestCase {
 
-    private Path geoIpConfigDir;
+    private Path configDir;
 
     @Before
     public void prepareConfigDirectory() throws Exception {
-        geoIpConfigDir = createTempDir();
+        this.configDir = createTempDir();
+        Path geoIpConfigDir = configDir.resolve("ingest").resolve("geoip");
+        Files.createDirectories(geoIpConfigDir);
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-City.mmdb")), geoIpConfigDir.resolve("GeoLite2-City.mmdb"));
         Files.copy(new ByteArrayInputStream(StreamsUtils.copyToBytesFromClasspath("/GeoLite2-Country.mmdb")), geoIpConfigDir.resolve("GeoLite2-Country.mmdb"));
     }
 
     public void testBuild_defaults() throws Exception {
-        GeoIpProcessor.Builder builder = new GeoIpProcessor.Builder(geoIpConfigDir, new DatabaseReaderService());
-        builder.fromMap(Collections.emptyMap());
-        GeoIpProcessor processor = (GeoIpProcessor) builder.build();
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
+        factory.setConfigDirectory(configDir);
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(Collections.emptyMap());
         assertThat(processor.dbReader.getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
     }
 
     public void testBuild_dbFile() throws Exception {
-        GeoIpProcessor.Builder builder = new GeoIpProcessor.Builder(geoIpConfigDir, new DatabaseReaderService());
-        builder.fromMap(Collections.singletonMap("database_file", "GeoLite2-Country.mmdb"));
-        GeoIpProcessor processor = (GeoIpProcessor) builder.build();
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
+        factory.setConfigDirectory(configDir);
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(Collections.singletonMap("database_file", "GeoLite2-Country.mmdb"));
         assertThat(processor.dbReader.getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
     }
 
     public void testBuild_nonExistingDbFile() throws Exception {
-        GeoIpProcessor.Builder builder = new GeoIpProcessor.Builder(geoIpConfigDir, new DatabaseReaderService());
-        builder.fromMap(Collections.singletonMap("database_file", "does-not-exist.mmdb"));
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
+        factory.setConfigDirectory(configDir);
         try {
-            builder.build();
+            factory.create(Collections.singletonMap("database_file", "does-not-exist.mmdb"));
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), startsWith("database file [does-not-exist.mmdb] doesn't exist in"));
         }

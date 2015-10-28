@@ -57,7 +57,7 @@ public class PipelineStoreTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         client = mock(PipelineStoreClient.class);
         Environment environment = mock(Environment.class);
-        store = new PipelineStore(Settings.EMPTY, threadPool, environment, clusterService, client, Collections.singletonMap(SimpleProcessor.TYPE, new SimpleProcessor.Builder.Factory()));
+        store = new PipelineStore(Settings.EMPTY, threadPool, environment, clusterService, client, Collections.singletonMap(SimpleProcessor.TYPE, new SimpleProcessor.Factory()));
         store.start();
     }
 

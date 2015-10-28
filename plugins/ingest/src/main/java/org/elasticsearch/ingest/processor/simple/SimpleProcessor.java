@@ -52,48 +52,14 @@ public final class SimpleProcessor implements Processor {
         }
     }
 
-    public static class Builder implements Processor.Builder {
+    public static class Factory implements Processor.Factory {
 
-        private String path;
-        private String expectedValue;
-        private String addField;
-        private String addFieldValue;
-
-        public void setPath(String path) {
-            this.path = path;
-        }
-
-        public void setExpectedValue(String value) {
-            this.expectedValue = value;
-        }
-
-        public void setAddField(String addField) {
-            this.addField = addField;
-        }
-
-        public void setAddFieldValue(String addFieldValue) {
-            this.addFieldValue = addFieldValue;
-        }
-
-        public void fromMap(Map<String, Object> config) {
-            this.path = (String) config.get("path");
-            this.expectedValue = (String) config.get("expected_value");
-            this.addField = (String) config.get("add_field");
-            this.addFieldValue = (String) config.get("add_field_value");
-        }
-
-        @Override
-        public Processor build() {
+        public Processor create(Map<String, Object> config) {
+            String path = (String) config.get("path");
+            String expectedValue = (String) config.get("expected_value");
+            String addField = (String) config.get("add_field");
+            String addFieldValue = (String) config.get("add_field_value");
             return new SimpleProcessor(path, expectedValue, addField, addFieldValue);
-        }
-
-        public static class Factory implements Processor.Builder.Factory {
-
-            @Override
-            public Processor.Builder create() {
-                return new Builder();
-            }
-
         }
 
     }

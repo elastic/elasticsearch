@@ -23,10 +23,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.ingest.processor.Processor;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * A pipeline is a list of {@link Processor} instances grouped under a unique id.
@@ -37,7 +34,7 @@ public final class Pipeline {
     private final String description;
     private final List<Processor> processors;
 
-    private Pipeline(String id, String description, List<Processor> processors) {
+    public Pipeline(String id, String description, List<Processor> processors) {
         this.id = id;
         this.description = description;
         this.processors = processors;
@@ -73,47 +70,27 @@ public final class Pipeline {
         return processors;
     }
 
-    public final static class Builder {
+    public final static class Factory {
 
-        private final String id;
-        private String description;
-        private List<Processor> processors = new ArrayList<>();
-
-        public Builder(String id) {
-            this.id = id;
-        }
-
-        public void fromMap(Map<String, Object> config, Map<String, Processor.Builder.Factory> processorRegistry) throws IOException {
-            description = (String) config.get("description");
+        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws IOException {
+            String description = (String) config.get("description");
+            List<Processor> processors = new ArrayList<>();
             @SuppressWarnings("unchecked")
-            List<Map<String, Map<String, Object>>> processors = (List<Map<String, Map<String, Object>>>) config.get("processors");
-            if (processors != null ) {
-                for (Map<String, Map<String, Object>> processor : processors) {
+            List<Map<String, Map<String, Object>>> processorConfigs = (List<Map<String, Map<String, Object>>>) config.get("processors");
+            if (processorConfigs != null ) {
+                for (Map<String, Map<String, Object>> processor : processorConfigs) {
                     for (Map.Entry<String, Map<String, Object>> entry : processor.entrySet()) {
-                        Processor.Builder builder = processorRegistry.get(entry.getKey()).create();
-                        if (builder != null) {
-                            builder.fromMap(entry.getValue());
-                            this.processors.add(builder.build());
+                        Processor.Factory factory = processorRegistry.get(entry.getKey());
+                        if (factory != null) {
+                            processors.add(factory.create(entry.getValue()));
                         } else {
                             throw new IllegalArgumentException("No processor type exist with name [" + entry.getKey() + "]");
                         }
                     }
                 }
             }
-        }
-
-        public void setDescription(String description) {
-            this.description = description;
-        }
-
-        public void addProcessors(Processor.Builder... processors) throws IOException {
-            for (Processor.Builder processor : processors) {
-                this.processors.add(processor.build());
-            }
-        }
-
-        public Pipeline build() {
             return new Pipeline(id, description, Collections.unmodifiableList(processors));
         }
+
     }
 }

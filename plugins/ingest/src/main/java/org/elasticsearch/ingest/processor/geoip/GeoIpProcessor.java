@@ -145,47 +145,23 @@ public final class GeoIpProcessor implements Processor {
         return geoData;
     }
 
-    public static class Builder implements Processor.Builder {
+    public static class Factory implements Processor.Factory {
 
-        private final Path geoIpConfigDirectory;
-        private final DatabaseReaderService databaseReaderService;
+        private Path geoIpConfigDirectory;
+        private final DatabaseReaderService databaseReaderService = new DatabaseReaderService();
 
-        private String ipField;
-        private String databaseFile = "GeoLite2-City.mmdb";
-        private String targetField = "geoip";
-
-        public Builder(Path geoIpConfigDirectory, DatabaseReaderService databaseReaderService) {
-            this.geoIpConfigDirectory = geoIpConfigDirectory;
-            this.databaseReaderService = databaseReaderService;
-        }
-
-        public void setIpField(String ipField) {
-            this.ipField = ipField;
-        }
-
-        public void setDatabaseFile(String dbPath) {
-            this.databaseFile = dbPath;
-        }
-
-        public void setTargetField(String targetField) {
-            this.targetField = targetField;
-        }
-
-        public void fromMap(Map<String, Object> config) {
-            this.ipField = (String) config.get("ip_field");
+        public Processor create(Map<String, Object> config) throws IOException {
+            String ipField = (String) config.get("ip_field");
 
             String targetField = (String) config.get("target_field");
-            if (targetField != null) {
-                this.targetField = targetField;
+            if (targetField == null) {
+                targetField = "geoip";
             }
             String databaseFile = (String) config.get("database_file");
-            if (databaseFile != null) {
-                this.databaseFile = databaseFile;
+            if (databaseFile == null) {
+                databaseFile = "GeoLite2-City.mmdb";
             }
-        }
 
-        @Override
-        public Processor build() throws IOException {
             Path databasePath = geoIpConfigDirectory.resolve(databaseFile);
             if (Files.exists(databasePath)) {
                 try (InputStream database = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
@@ -197,27 +173,15 @@ public final class GeoIpProcessor implements Processor {
             }
         }
 
-        public static class Factory implements Processor.Builder.Factory {
-
-            private Path geoIpConfigDirectory;
-            private final DatabaseReaderService databaseReaderService = new DatabaseReaderService();
-
-            @Override
-            public Processor.Builder create() {
-                return new Builder(geoIpConfigDirectory, databaseReaderService);
-            }
-
-            @Override
-            public void setConfigDirectory(Path configDirectory) {
-                geoIpConfigDirectory = configDirectory.resolve("ingest").resolve("geoip");
-            }
-
-            @Override
-            public void close() throws IOException {
-                databaseReaderService.close();
-            }
+        @Override
+        public void setConfigDirectory(Path configDirectory) {
+            geoIpConfigDirectory = configDirectory.resolve("ingest").resolve("geoip");
         }
 
+        @Override
+        public void close() throws IOException {
+            databaseReaderService.close();
+        }
     }
 
 }

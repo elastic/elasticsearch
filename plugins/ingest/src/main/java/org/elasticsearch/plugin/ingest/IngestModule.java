@@ -32,7 +32,7 @@ import java.util.Map;
 
 public class IngestModule extends AbstractModule {
 
-    private final Map<String, Class<? extends Processor.Builder.Factory>> processors = new HashMap<>();
+    private final Map<String, Processor.Factory> processors = new HashMap<>();
 
     @Override
     protected void configure() {
@@ -41,18 +41,21 @@ public class IngestModule extends AbstractModule {
         binder().bind(PipelineStore.class).asEagerSingleton();
         binder().bind(PipelineStoreClient.class).asEagerSingleton();
 
-        registerProcessor(SimpleProcessor.TYPE, SimpleProcessor.Builder.Factory.class);
-        registerProcessor(GeoIpProcessor.TYPE, GeoIpProcessor.Builder.Factory.class);
-        registerProcessor(GrokProcessor.TYPE, GrokProcessor.Builder.Factory.class);
+        addProcessor(SimpleProcessor.TYPE, new SimpleProcessor.Factory());
+        addProcessor(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory());
+        addProcessor(GrokProcessor.TYPE, new GrokProcessor.Factory());
 
-        MapBinder<String, Processor.Builder.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Builder.Factory.class);
-        for (Map.Entry<String, Class<? extends Processor.Builder.Factory>> entry : processors.entrySet()) {
-            mapBinder.addBinding(entry.getKey()).to(entry.getValue());
+        MapBinder<String, Processor.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Factory.class);
+        for (Map.Entry<String, Processor.Factory> entry : processors.entrySet()) {
+            mapBinder.addBinding(entry.getKey()).toInstance(entry.getValue());
         }
     }
 
-    public void registerProcessor(String processorType, Class<? extends Processor.Builder.Factory> processorFactory) {
-        processors.put(processorType, processorFactory);
+    /**
+     * Adds a processor factory under a specific type name.
+     */
+    public void addProcessor(String type, Processor.Factory factory) {
+        processors.put(type, factory);
     }
 
 }

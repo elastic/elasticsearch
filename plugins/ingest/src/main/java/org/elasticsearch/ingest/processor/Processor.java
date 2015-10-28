@@ -39,40 +39,24 @@ public interface Processor {
     void execute(Data data);
 
     /**
-     * A builder to construct a processor to be used in a pipeline.
+     * A factory that knows how to construct a processor based on a map of maps.
      */
-    interface Builder {
+    interface Factory extends Closeable {
 
         /**
-         * A general way to set processor related settings based on the config map.
+         * Creates a processor based on the specified map of maps config
          */
-        void fromMap(Map<String, Object> config);
+        Processor create(Map<String, Object> config) throws IOException;
 
         /**
-         * Builds the processor based on previous set settings.
          */
-        Processor build() throws IOException;
-
-        /**
-         * A factory that creates a processor builder when processor instances for pipelines are being created.
-         */
-        interface Factory extends Closeable {
-
-            /**
-             * Creates the builder.
-             */
-            Builder create();
-
-            /**
-             */
-            default void setConfigDirectory(Path configDirectory) {
-            }
-
-            @Override
-            default void close() throws IOException {
-            }
+        default void setConfigDirectory(Path configDirectory) {
         }
 
+        @Override
+        default void close() throws IOException {
+        }
+        
     }
 
 }

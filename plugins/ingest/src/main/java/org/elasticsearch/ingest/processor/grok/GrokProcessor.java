@@ -36,12 +36,10 @@ public final class GrokProcessor implements Processor {
     public static final String TYPE = "grok";
 
     private final String matchField;
-    private final String matchPattern;
     private final Grok grok;
 
-    public GrokProcessor(Grok grok, String matchField, String matchPattern) throws IOException {
+    public GrokProcessor(Grok grok, String matchField) throws IOException {
         this.matchField = matchField;
-        this.matchPattern = matchPattern;
         this.grok = grok;
     }
 
@@ -57,31 +55,12 @@ public final class GrokProcessor implements Processor {
         }
     }
 
-    public static class Builder implements Processor.Builder {
-
+    public static class Factory implements Processor.Factory {
         private Path grokConfigDirectory;
-        private String matchField;
-        private String matchPattern;
 
-        public Builder(Path grokConfigDirectory) {
-            this.grokConfigDirectory = grokConfigDirectory;
-        }
-
-        public void setMatchField(String matchField) {
-            this.matchField = matchField;
-        }
-
-        public void setMatchPattern(String matchPattern) {
-            this.matchPattern = matchPattern;
-        }
-
-        public void fromMap(Map<String, Object> config) {
-            this.matchField = (String) config.get("field");
-            this.matchPattern = (String) config.get("pattern");
-        }
-
-        @Override
-        public Processor build() throws IOException {
+        public Processor create(Map<String, Object> config) throws IOException {
+            String matchField = (String) config.get("field");
+            String matchPattern = (String) config.get("pattern");
             Map<String, String> patternBank = new HashMap<>();
             Path patternsDirectory = grokConfigDirectory.resolve("patterns");
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(patternsDirectory)) {
@@ -93,22 +72,13 @@ public final class GrokProcessor implements Processor {
             }
 
             Grok grok = new Grok(patternBank, matchPattern);
-            return new GrokProcessor(grok, matchField, matchPattern);
+            return new GrokProcessor(grok, matchField);
         }
 
-        public static class Factory implements Processor.Builder.Factory {
-            private Path grokConfigDirectory;
-
-            @Override
-            public Processor.Builder create() {
-                return new Builder(grokConfigDirectory);
-            }
-
-            @Override
-            public void setConfigDirectory(Path configDirectory) {
-                this.grokConfigDirectory = configDirectory.resolve("ingest").resolve("grok");
-            }
+        @Override
+        public void setConfigDirectory(Path configDirectory) {
+            this.grokConfigDirectory = configDirectory.resolve("ingest").resolve("grok");
         }
-
     }
+
 }

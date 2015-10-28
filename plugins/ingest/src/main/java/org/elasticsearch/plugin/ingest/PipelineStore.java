@@ -48,18 +48,19 @@ public class PipelineStore extends AbstractLifecycleComponent {
     private final ClusterService clusterService;
     private final TimeValue pipelineUpdateInterval;
     private final PipelineStoreClient client;
-    private final Map<String, Processor.Builder.Factory> processorFactoryRegistry;
+    private final Pipeline.Factory factory = new Pipeline.Factory();
+    private final Map<String, Processor.Factory> processorFactoryRegistry;
 
     private volatile Map<String, PipelineReference> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, ThreadPool threadPool, Environment environment, ClusterService clusterService, PipelineStoreClient client, Map<String, Processor.Builder.Factory> processors) {
+    public PipelineStore(Settings settings, ThreadPool threadPool, Environment environment, ClusterService clusterService, PipelineStoreClient client, Map<String, Processor.Factory> processors) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
         this.client = client;
-        for (Processor.Builder.Factory factory : processors.values()) {
+        for (Processor.Factory factory : processors.values()) {
             factory.setConfigDirectory(environment.configFile());
         }
         this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
@@ -76,7 +77,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
-        for (Processor.Builder.Factory factory : processorFactoryRegistry.values()) {
+        for (Processor.Factory factory : processorFactoryRegistry.values()) {
             try {
                 factory.close();
             } catch (IOException e) {
@@ -130,9 +131,8 @@ public class PipelineStore extends AbstractLifecycleComponent {
             }
 
             changed++;
-            Pipeline.Builder builder = new Pipeline.Builder(hit.getId());
-            builder.fromMap(hit.sourceAsMap(), processorFactoryRegistry);
-            newPipelines.put(pipelineId, new PipelineReference(builder.build(), hit.getVersion(), pipelineSource));
+            Pipeline pipeline = factory.create(hit.getId(), hit.sourceAsMap(), processorFactoryRegistry);
+            newPipelines.put(pipelineId, new PipelineReference(pipeline, hit.getVersion(), pipelineSource));
         }
 
         int removed = 0;

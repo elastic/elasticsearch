@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.email.service;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
@@ -17,6 +18,9 @@ import javax.mail.Session;
 import javax.mail.Transport;
 import javax.mail.internet.InternetAddress;
 import javax.mail.internet.MimeMessage;
+
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Map;
 import java.util.Properties;
 
@@ -29,13 +33,23 @@ public class Account {
 
     static {
         // required as java doesn't always find the correct mailcap to properly handle mime types
-        MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
+        final MailcapCommandMap mailcap = (MailcapCommandMap) CommandMap.getDefaultCommandMap();
         mailcap.addMailcap("text/html;; x-java-content-handler=com.sun.mail.handlers.text_html");
         mailcap.addMailcap("text/xml;; x-java-content-handler=com.sun.mail.handlers.text_xml");
         mailcap.addMailcap("text/plain;; x-java-content-handler=com.sun.mail.handlers.text_plain");
         mailcap.addMailcap("multipart/*;; x-java-content-handler=com.sun.mail.handlers.multipart_mixed");
         mailcap.addMailcap("message/rfc822;; x-java-content-handler=com.sun.mail.handlers.message_rfc822");
-        CommandMap.setDefaultCommandMap(mailcap);
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        AccessController.doPrivileged(new PrivilegedAction<Void>() {
+            @Override
+            public Void run() {
+                CommandMap.setDefaultCommandMap(mailcap);
+                return null;
+            }
+        });
     }
 
     private final Config config;

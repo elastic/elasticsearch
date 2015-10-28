@@ -73,7 +73,7 @@
       <dependency>
           <groupId>org.elasticsearch</groupId>
           <artifactId>securemock</artifactId>
-          <version>1.1</version>
+          <version>${securemock.version}</version>
           <scope>test</scope>
       </dependency>
     </dependencies>

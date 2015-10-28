@@ -52,7 +52,7 @@ public class EmailServer {
             @Override
             public void deliver(String from, String recipient, InputStream data) throws TooMuchDataException, IOException {
                 try {
-                    Session session = Session.getDefaultInstance(new Properties());
+                    Session session = Session.getInstance(new Properties());
                     MimeMessage msg = new MimeMessage(session, data);
                     for (Listener listener : listeners) {
                         try {

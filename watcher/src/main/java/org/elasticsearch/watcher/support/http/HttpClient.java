@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.support.http;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -29,7 +30,9 @@ import java.net.URL;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.AccessController;
 import java.security.KeyStore;
+import java.security.PrivilegedAction;
 import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.List;
@@ -158,8 +161,19 @@ public class HttpClient extends AbstractLifecycleComponent<HttpClient> {
 
         HttpURLConnection urlConnection = (HttpURLConnection) url.openConnection(proxyToUse.proxy());
         if (urlConnection instanceof HttpsURLConnection && sslSocketFactory != null) {
-            HttpsURLConnection httpsConn = (HttpsURLConnection) urlConnection;
-            httpsConn.setSSLSocketFactory(sslSocketFactory);
+            final HttpsURLConnection httpsConn = (HttpsURLConnection) urlConnection;
+            final SSLSocketFactory factory = sslSocketFactory;
+            SecurityManager sm = System.getSecurityManager();
+            if (sm != null) {
+                sm.checkPermission(new SpecialPermission());
+            }
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    httpsConn.setSSLSocketFactory(factory);
+                    return null;
+                }
+            });
         }
 
         urlConnection.setRequestMethod(request.method().method());

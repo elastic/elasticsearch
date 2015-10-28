@@ -11,6 +11,14 @@
             <directory>bin/watcher</directory>
             <outputDirectory>bin</outputDirectory>
         </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/src/main/plugin-metadata</directory>
+            <includes>
+              <include>plugin-security.policy</include>
+            </includes>
+            <outputDirectory></outputDirectory>
+            <filtered>false</filtered>
+        </fileSet>
     </fileSets>
     <dependencySets>
         <dependencySet>

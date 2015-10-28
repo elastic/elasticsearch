@@ -162,6 +162,17 @@
                     <include>test/**/*.yaml</include>
                 </includes>
             </testResource>
+            <!-- copied from plugins parent module, because watcher resources are insane -->
+            <!-- shared test resources like log4j.properties -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/shared-test-resources</directory>
+                <filtering>false</filtering>
+            </testResource>
+            <!-- plugin metadata as a test resource -->
+            <testResource>
+                <directory>${basedir}/target/metadata-test-resources</directory>
+                <filtering>false</filtering>
+            </testResource>
         </testResources>
         <plugins>
             <plugin>

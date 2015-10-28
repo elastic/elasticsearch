@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -57,6 +58,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;

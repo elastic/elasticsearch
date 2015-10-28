@@ -9,6 +9,9 @@ of discarded.
 
 There are several thread pools, but the important ones include:
 
+`generic`::
+    For generic operations (e.g., background node discovery).
+
 `index`::
     For index/delete operations. Defaults to `fixed`
     with a size of `# of available processors`,
@@ -67,7 +70,7 @@ threadpool:
         size: 30
 --------------------------------------------------
 
-NOTE: you can update threadpool settings live using
+NOTE: you can update thread pool settings live using
       <<cluster-update-settings>>.
 
 
@@ -79,18 +82,16 @@ The following are the types of thread pools that can be used and their
 respective parameters:
 
 [float]
-==== `cache`
+==== `cached`
 
-The `cache` thread pool is an unbounded thread pool that will spawn a
-thread if there are pending requests. Here is an example of how to set
-it:
-
-[source,js]
---------------------------------------------------
-threadpool:
-    index:
-        type: cached
---------------------------------------------------
+The `cached` thread pool is an unbounded thread pool that will spawn a
+thread if there are pending requests. This thread pool is used to
+prevent requests submitted to this pool from blocking or being
+rejected. Unused threads in this thread pool will be terminated after
+a keep alive expires (defaults to thirty seconds). The `cached` thread
+pool is reserved for the <<modules-threadpool,`generic`>> thread pool
+(which must be of type `cached`) and can not be applied to any other
+thread pool.
 
 [float]
 ==== `fixed`

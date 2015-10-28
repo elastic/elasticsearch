@@ -39,12 +39,7 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.node.settings.NodeSettingsService;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
@@ -336,6 +331,9 @@ public class ThreadPool extends AbstractComponent {
             }
             return new ExecutorHolder(DIRECT_EXECUTOR, new Info(name, type));
         } else if ("cached".equals(type)) {
+            if (!Names.GENERIC.equals(name)) {
+                throw new IllegalArgumentException("thread pool type cached is reserved only for the generic thread pool and can not be applied to [" + name + "]");
+            }
             TimeValue defaultKeepAlive = defaultSettings.getAsTime("keep_alive", timeValueMinutes(5));
             if (previousExecutorHolder != null) {
                 if ("cached".equals(previousInfo.getType())) {

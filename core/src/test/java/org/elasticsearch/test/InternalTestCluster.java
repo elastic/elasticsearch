@@ -411,7 +411,7 @@ public final class InternalTestCluster extends TestCluster {
                     ThreadPool.Names.PERCOLATE, ThreadPool.Names.REFRESH, ThreadPool.Names.SEARCH, ThreadPool.Names.SNAPSHOT,
                     ThreadPool.Names.SUGGEST, ThreadPool.Names.WARMER)) {
                 if (random.nextBoolean()) {
-                    final String type = RandomPicks.randomFrom(random, Arrays.asList("fixed", "cached", "scaling"));
+                    final String type = RandomPicks.randomFrom(random, Arrays.asList("fixed", "scaling"));
                     builder.put(ThreadPool.THREADPOOL_GROUP + name + ".type", type);
                 }
             }

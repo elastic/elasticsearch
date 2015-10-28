@@ -25,6 +25,10 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool.Names;
 
 import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -50,59 +54,23 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         return null;
     }
 
-    public void testCachedExecutorType() throws InterruptedException {
-        ThreadPool threadPool = new ThreadPool(
-                Settings.settingsBuilder()
-                        .put("threadpool.search.type", "cached")
-                        .put("name","testCachedExecutorType").build());
-
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(5L));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-
-        // Replace with different type
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.type", "same").build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("same"));
-        assertThat(threadPool.executor(Names.SEARCH), is(ThreadPool.DIRECT_EXECUTOR));
-
-        // Replace with different type again
-        threadPool.updateSettings(settingsBuilder()
-                .put("threadpool.search.type", "scaling")
-                .put("threadpool.search.keep_alive", "10m")
-                .build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("scaling"));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getCorePoolSize(), equalTo(1));
-        // Make sure keep alive value changed
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(10L));
-
-        // Put old type back
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.type", "cached").build());
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
-        // Make sure keep alive value reused
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(10L));
-        assertThat(threadPool.executor(Names.SEARCH), instanceOf(EsThreadPoolExecutor.class));
-
-        // Change keep alive
-        Executor oldExecutor = threadPool.executor(Names.SEARCH);
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.keep_alive", "1m").build());
-        // Make sure keep alive value changed
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(1L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(1L));
-        // Make sure executor didn't change
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
-        assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-
-        // Set the same keep alive
-        threadPool.updateSettings(settingsBuilder().put("threadpool.search.keep_alive", "1m").build());
-        // Make sure keep alive value didn't change
-        assertThat(info(threadPool, Names.SEARCH).getKeepAlive().minutes(), equalTo(1L));
-        assertThat(((EsThreadPoolExecutor) threadPool.executor(Names.SEARCH)).getKeepAliveTime(TimeUnit.MINUTES), equalTo(1L));
-        // Make sure executor didn't change
-        assertThat(info(threadPool, Names.SEARCH).getType(), equalTo("cached"));
-        assertThat(threadPool.executor(Names.SEARCH), sameInstance(oldExecutor));
-        terminate(threadPool);
+    public void testCachedExecutorType() throws InterruptedException, IllegalAccessException {
+        Set<String> exceptions = new HashSet<>(Arrays.asList(Names.GENERIC, Names.SAME));
+        Field[] fields = Names.class.getDeclaredFields();
+        for (Field field : fields) {
+            String name = (String)field.get(null);
+            if (field.getType().equals(String.class) && Modifier.isStatic(field.getModifiers()) && !exceptions.contains(name)) {
+                try {
+                    new ThreadPool(
+                            Settings.settingsBuilder()
+                                    .put("threadpool." + name + ".type", "cached")
+                                    .put("name", "testCachedExecutorType").build());
+                    fail("thread pool type cached is reserved for the generic thread pool but was able to set for thread pool " + name);
+                } catch (IllegalArgumentException e) {
+                    assertThat(e.getMessage(), is("thread pool type cached is reserved only for the generic thread pool and can not be applied to [" + name + "]"));
+                }
+            }
+        }
     }
 
     public void testFixedExecutorType() throws InterruptedException {
@@ -199,7 +167,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
     public void testShutdownNowInterrupts() throws Exception {
         ThreadPool threadPool = new ThreadPool(Settings.settingsBuilder()
-                .put("threadpool.search.type", "cached")
+                .put("threadpool.search.type", "scaling")
                 .put("name","testCachedExecutorType").build());
 
         final CountDownLatch latch = new CountDownLatch(1);
@@ -227,7 +195,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
 
     public void testCustomThreadPool() throws Exception {
         ThreadPool threadPool = new ThreadPool(Settings.settingsBuilder()
-                .put("threadpool.my_pool1.type", "cached")
+                .put("threadpool.my_pool1.type", "scaling")
                 .put("threadpool.my_pool2.type", "fixed")
                 .put("threadpool.my_pool2.size", "1")
                 .put("threadpool.my_pool2.queue_size", "1")
@@ -239,7 +207,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         outer: for (ThreadPool.Info info : groups) {
             if ("my_pool1".equals(info.getName())) {
                 foundPool1 = true;
-                assertThat(info.getType(), equalTo("cached"));
+                assertThat(info.getType(), equalTo("scaling"));
             } else if ("my_pool2".equals(info.getName())) {
                 foundPool2 = true;
                 assertThat(info.getType(), equalTo("fixed"));
@@ -271,7 +239,7 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
         outer: for (ThreadPool.Info info : groups) {
             if ("my_pool1".equals(info.getName())) {
                 foundPool1 = true;
-                assertThat(info.getType(), equalTo("cached"));
+                assertThat(info.getType(), equalTo("scaling"));
             } else if ("my_pool2".equals(info.getName())) {
                 foundPool2 = true;
                 assertThat(info.getMax(), equalTo(10));

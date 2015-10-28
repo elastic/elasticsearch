@@ -376,4 +376,13 @@ request cache and the field data cache.
 
 This setting would arbitrarily pick the first interface not marked as loopback. Instead, specify by address
 scope (e.g. `_local_,_site_` for all loopback and private network addresses) or by explicit interface names,
-hostnames, or addresses. 
+hostnames, or addresses.
+
+=== Forbid thread pool from being of type `cached`
+
+Previously, <<modules-threadpool,thread pools>> could be of type `cached`, `fixed`, or `scaling`. The `cached` type is
+generally dangerous because it is an unbounded thread pool. The ability to set a thread pool to be of type `cached` has
+been removed; the `cached` thread pool remains and is reserved only for the <<modules-threadpool,`generic`>> thread pool
+because operations submitted to this thread pool must not block and can not be rejected. Elasticsearch will throw an
+`IllegalArgumentException` if the `cached` thread pool type is applied to any thread pool other than the `generic`
+thread pool.

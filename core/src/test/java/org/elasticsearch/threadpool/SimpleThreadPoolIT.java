@@ -67,7 +67,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class SimpleThreadPoolIT extends ESIntegTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("threadpool.search.type", "cached").build();
+        return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("threadpool.search.type", "scaling").build();
     }
 
     public void testThreadNames() throws Exception {

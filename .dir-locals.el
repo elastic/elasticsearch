@@ -35,6 +35,13 @@
             (beginning-of-line)
             (if (re-search-forward "[ ]*);$" endpoint t) t nil))))
 
+      (defun my/prev-line-call-with-no-args-p ()
+        "Return true if the previous line is a function call with no arguments"
+        (save-excursion
+          (let ((start (point)))
+            (forward-line -1)
+            (if (re-search-forward ".($" start t) t nil))))
+
       (defun my/arglist-cont-nonempty-indentation (arg)
         (if (my/inside-java-lambda-p)
             '+
@@ -50,6 +57,9 @@
 
       (defun my/arglist-close (arg) (if (my/trailing-paren-p) 0 '--))
 
+      (defun my/arglist-intro (arg)
+        (if (my/prev-line-call-with-no-args-p) '++ 0))
+
       (c-set-offset 'inline-open           0)
       (c-set-offset 'topmost-intro-cont    '+)
       (c-set-offset 'statement-block-intro 'my/statement-block-intro)
@@ -61,7 +71,7 @@
       (c-set-offset 'label                 '+)
       (c-set-offset 'statement-case-open   '+)
       (c-set-offset 'statement-cont        '++)
-      (c-set-offset 'arglist-intro         0)
+      (c-set-offset 'arglist-intro         'my/arglist-intro)
       (c-set-offset 'arglist-cont-nonempty '(my/arglist-cont-nonempty-indentation c-lineup-arglist))
       (c-set-offset 'arglist-close         'my/arglist-close)
       (c-set-offset 'inexpr-class          0)

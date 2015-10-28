@@ -20,7 +20,9 @@ package org.elasticsearch.index.analysis;
  */
 
 import java.io.IOException;
+import java.text.BreakIterator;
 import java.util.Arrays;
+import java.util.Locale;
 import java.util.regex.Pattern;
 
 import org.apache.lucene.analysis.Analyzer;
@@ -108,6 +110,15 @@ public class PatternAnalyzerTests extends ESTokenStreamTestCase {
   
   /** blast some random strings through the analyzer */
   public void testRandomStrings() throws Exception {
+    // first, check we aren't vulnerable to JDK-7104012
+    BreakIterator bi = BreakIterator.getSentenceInstance(Locale.US);
+    bi.setText("\udb40\udc53"); // U+E0053, TAG LATIN CAPITAL LETTER S
+    try {
+        bi.next();
+    } catch (Exception e) {
+        assumeNoException("cannot run test, java version impacted by JDK-7104012", e);
+    }
+    // now its ok to run test
     Analyzer a = new PatternAnalyzer(Pattern.compile(","), true, StopAnalyzer.ENGLISH_STOP_WORDS_SET);
     checkRandomData(random(), a, 10000*RANDOM_MULTIPLIER);
   }

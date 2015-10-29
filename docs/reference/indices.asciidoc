@@ -112,7 +112,5 @@ include::indices/refresh.asciidoc[]
 
 include::indices/forcemerge.asciidoc[]
 
-include::indices/optimize.asciidoc[]
-
 include::indices/upgrade.asciidoc[]
 

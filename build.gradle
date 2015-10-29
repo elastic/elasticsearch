@@ -90,10 +90,9 @@ allprojects {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = sourceCompatibility
 
-    luceneSnapshotRevision = '1710880'
     // dependency versions that are used in more than one place
     versions = [
-      lucene:             "5.4.0-snapshot-${luceneSnapshotRevision}",
+      lucene:             "${luceneVersion}",
       randomizedrunner:   '2.2.0',
       httpclient:         '4.3.6'
     ]
@@ -107,9 +106,12 @@ subprojects {
       name 'sonatype-snapshots'
       url 'http://oss.sonatype.org/content/repositories/snapshots/'
     }
-    maven {
-      name 'lucene-snapshots'
-      url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${luceneSnapshotRevision}"
+    if (versions.lucene.contains('-snapshot')) {
+      String revision = (luceneVersion =~ /\d\.\d\.\d-snapshot-(\d+)/)[0][1]
+      maven {
+        name 'lucene-snapshots'
+        url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+      }
     }
   }
 

@@ -19,7 +19,7 @@
 package org.elasticsearch.search.suggest;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.suggest.SuggestRequest;
 import org.elasticsearch.action.suggest.SuggestRequestBuilder;
@@ -818,7 +818,7 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
         double latitude = 52.22;
         double longitude = 4.53;
-        String geohash = XGeoHashUtils.stringEncode(longitude, latitude);
+        String geohash = GeoHashUtils.stringEncode(longitude, latitude);
 
         XContentBuilder doc1 = jsonBuilder().startObject().startObject("suggest_geo").field("input", "Hotel Marriot in Amsterdam").startObject("context").startObject("location").field("lat", latitude).field("lon", longitude).endObject().endObject().endObject().endObject();
         index("test", "test", "1", doc1);

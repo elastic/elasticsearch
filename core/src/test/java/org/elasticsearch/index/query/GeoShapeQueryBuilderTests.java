@@ -35,6 +35,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
+import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 import org.junit.After;
 
 import java.io.IOException;
@@ -55,8 +56,10 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     @Override
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
-        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null);
+        ShapeType shapeType = ShapeType.randomType(getRandom());
+        ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null, shapeType);
         GeoShapeQueryBuilder builder;
+        clearShapeFields();
         if (randomBoolean()) {
             try {
                 builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
@@ -79,6 +82,11 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
         }
         if (randomBoolean()) {
             SpatialStrategy strategy = randomFrom(SpatialStrategy.values());
+            // ShapeType.MULTILINESTRING + SpatialStrategy.TERM can lead to large queries and will slow down tests, so
+            // we try to avoid that combination
+            while (shapeType == ShapeType.MULTILINESTRING && strategy == SpatialStrategy.TERM) {
+                strategy = randomFrom(SpatialStrategy.values());
+            }
             builder.strategy(strategy);
             if (strategy != SpatialStrategy.TERM) {
                 builder.relation(randomFrom(ShapeRelation.values()));
@@ -135,7 +143,6 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
      */
     @Override
     public void testToQuery() throws IOException {
-        //TODO figure out why this test might take up to 10 seconds once in a while
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         super.testToQuery();
     }

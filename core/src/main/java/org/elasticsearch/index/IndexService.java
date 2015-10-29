@@ -75,6 +75,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final IndicesService indicesServices;
     private final IndexServicesProvider indexServicesProvider;
     private final IndexStore indexStore;
+    private final IndexSearcherWrapper searcherWrapper;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
@@ -88,7 +89,8 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                         IndicesService indicesServices,
                         IndexServicesProvider indexServicesProvider,
                         IndexStore indexStore,
-                        IndexEventListener eventListener) {
+                        IndexEventListener eventListener,
+                        IndexModule.IndexSearcherWrapperFactory wrapperFactory) {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.analysisService = analysisService;
@@ -101,6 +103,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         this.indexStore = indexStore;
         indexFieldData.setListener(new FieldDataCacheListener(this));
         bitSetFilterCache.setListener(new BitsetCacheListener(this));
+        this.searcherWrapper = wrapperFactory.newWrapper(this);
     }
 
     public int numberOfShards() {
@@ -265,9 +268,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
             store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> indexServicesProvider.getIndicesQueryCache().onClose(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
-                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexServicesProvider);
+                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, searcherWrapper, indexServicesProvider);
             } else {
-                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexServicesProvider);
+                indexShard = new IndexShard(shardId, this.indexSettings, path, store, searcherWrapper, indexServicesProvider);
             }
 
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");

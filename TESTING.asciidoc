@@ -214,7 +214,12 @@ mvn test -Dtests.heap.size=512m
 Pass arbitrary jvm arguments.
 
 ------------------------------
+# specify heap dump path
 mvn test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
+# enable gc logging
+mvn test -Dtests.jvm.argline="-verbose:gc"
+# enable security debugging
+mvn test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
 ------------------------------
 
 == Backwards Compatibility Tests

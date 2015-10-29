@@ -325,29 +325,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     protected final void beforeInternal() throws Exception {
-        assert Thread.getDefaultUncaughtExceptionHandler() instanceof ElasticsearchUncaughtExceptionHandler;
-        try {
-            final Scope currentClusterScope = getCurrentClusterScope();
-            switch (currentClusterScope) {
-                case SUITE:
-                    assert SUITE_SEED != null : "Suite seed was not initialized";
-                    currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
-                    break;
-                case TEST:
-                    currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
-                    break;
-                default:
-                    fail("Unknown Scope: [" + currentClusterScope + "]");
-            }
-            cluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
-            cluster().wipe(excludeTemplates());
-            randomIndexTemplate();
-        } catch (OutOfMemoryError e) {
-            if (e.getMessage().contains("unable to create new native thread")) {
-                ESTestCase.printStackDump(logger);
-            }
-            throw e;
+        final Scope currentClusterScope = getCurrentClusterScope();
+        switch (currentClusterScope) {
+            case SUITE:
+                assert SUITE_SEED != null : "Suite seed was not initialized";
+                currentCluster = buildAndPutCluster(currentClusterScope, SUITE_SEED);
+                break;
+            case TEST:
+                currentCluster = buildAndPutCluster(currentClusterScope, randomLong());
+                break;
+            default:
+                fail("Unknown Scope: [" + currentClusterScope + "]");
         }
+        cluster().beforeTest(getRandom(), getPerTestTransportClientRatio());
+        cluster().wipe(excludeTemplates());
+        randomIndexTemplate();
     }
 
     private void printTestMessage(String message) {

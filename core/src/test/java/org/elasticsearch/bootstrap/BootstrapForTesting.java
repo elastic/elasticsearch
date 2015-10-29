@@ -19,28 +19,37 @@
 
 package org.elasticsearch.bootstrap;
 
+import com.carrotsearch.randomizedtesting.RandomizedRunner;
+
+import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestSecurityManager;
 import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.bootstrap.ESPolicy;
 import org.elasticsearch.bootstrap.Security;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.plugins.PluginInfo;
+import org.junit.Assert;
 
 import java.io.FilePermission;
 import java.io.InputStream;
-import java.net.URI;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.Permission;
-import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
-import java.security.URIParameter;
+import java.security.ProtectionDomain;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Properties;
+import java.util.Set;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
@@ -83,7 +92,6 @@ public class BootstrapForTesting {
         // install security manager if requested
         if (systemPropertyAsBoolean("tests.security.manager", true)) {
             try {
-                Security.setCodebaseProperties();
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();
                 // add permissions to everything in classpath
@@ -120,31 +128,17 @@ public class BootstrapForTesting {
                 if (System.getProperty("tests.maven") == null) {
                     perms.add(new RuntimePermission("setIO"));
                 }
-
-                final Policy policy;
-                // if its a plugin with special permissions, we use a wrapper policy impl to try
-                // to simulate what happens with a real distribution
-                List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_POLICY));
-                if (!pluginPolicies.isEmpty()) {
-                    Permissions extra = new Permissions();
-                    for (URL url : pluginPolicies) {
-                        URI uri = url.toURI();
-                        Policy pluginPolicy = Policy.getInstance("JavaPolicy", new URIParameter(uri));
-                        PermissionCollection permissions = pluginPolicy.getPermissions(BootstrapForTesting.class.getProtectionDomain());
-                        // this method is supported with the specific implementation we use, but just check for safety.
-                        if (permissions == Policy.UNSUPPORTED_EMPTY_COLLECTION) {
-                            throw new UnsupportedOperationException("JavaPolicy implementation does not support retrieving permissions");
-                        }
-                        for (Permission permission : Collections.list(permissions.elements())) {
-                            extra.add(permission);
-                        }
+                
+                // read test-framework permissions
+                final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), JarHell.parseClassPath());
+                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions());
+                Policy.setPolicy(new Policy() {
+                    @Override
+                    public boolean implies(ProtectionDomain domain, Permission permission) {
+                        // implements union
+                        return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
-                    // TODO: try to get rid of this class now that the world is simpler?
-                    policy = new MockPluginPolicy(perms, extra);
-                } else {
-                    policy = new ESPolicy(perms, Collections.emptyMap());
-                }
-                Policy.setPolicy(policy);
+                });
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();
 
@@ -166,6 +160,71 @@ public class BootstrapForTesting {
                 throw new RuntimeException("unable to install test security manager", e);
             }
         }
+    }
+
+    /** 
+     * we dont know which codesources belong to which plugin, so just remove the permission from key codebases
+     * like core, test-framework, etc. this way tests fail if accesscontroller blocks are missing.
+     */
+    @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
+    static Map<String,Policy> getPluginPermissions() throws Exception {
+        List<URL> pluginPolicies = Collections.list(BootstrapForTesting.class.getClassLoader().getResources(PluginInfo.ES_PLUGIN_POLICY));
+        if (pluginPolicies.isEmpty()) {
+            return Collections.emptyMap();
+        }
+        
+        // compute classpath minus obvious places, all other jars will get the permission.
+        Set<URL> codebases = new HashSet<>(Arrays.asList(parseClassPathWithSymlinks()));
+        Set<URL> excluded = new HashSet<>(Arrays.asList(
+                // es core
+                Bootstrap.class.getProtectionDomain().getCodeSource().getLocation(),
+                // es test framework
+                BootstrapForTesting.class.getProtectionDomain().getCodeSource().getLocation(),
+                // lucene test framework
+                LuceneTestCase.class.getProtectionDomain().getCodeSource().getLocation(),
+                // randomized runner
+                RandomizedRunner.class.getProtectionDomain().getCodeSource().getLocation(),
+                // junit library
+                Assert.class.getProtectionDomain().getCodeSource().getLocation()
+        ));
+        codebases.removeAll(excluded);
+        
+        // parse each policy file, with codebase substitution from the classpath
+        final List<Policy> policies = new ArrayList<>();
+        for (URL policyFile : pluginPolicies) {
+            policies.add(Security.readPolicy(policyFile, codebases.toArray(new URL[codebases.size()])));
+        }
+        
+        // consult each policy file for those codebases
+        Map<String,Policy> map = new HashMap<>();
+        for (URL url : codebases) {
+            map.put(url.getFile(), new Policy() {
+                @Override
+                public boolean implies(ProtectionDomain domain, Permission permission) {
+                    // implements union
+                    for (Policy p : policies) {
+                        if (p.implies(domain, permission)) {
+                            return true;
+                        }
+                    }
+                    return false;
+                }
+            });
+        }
+        return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * return parsed classpath, but with symlinks resolved to destination files for matching
+     * this is for matching the toRealPath() in the code where we have a proper plugin structure
+     */
+    @SuppressForbidden(reason = "does evil stuff with paths and urls because devs and jenkins do evil stuff with paths and urls")
+    static URL[] parseClassPathWithSymlinks() throws Exception {
+        URL raw[] = JarHell.parseClassPath();
+        for (int i = 0; i < raw.length; i++) {
+            raw[i] = PathUtils.get(raw[i].toURI()).toRealPath().toUri().toURL();
+        }
+        return raw;
     }
 
     // does nothing, just easy way to make sure the class is loaded.

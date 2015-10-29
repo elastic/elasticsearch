@@ -79,8 +79,7 @@ public class InternalEngine extends Engine {
     private volatile long lastDeleteVersionPruneTimeMSec;
 
     private final ShardIndexingService indexingService;
-    @Nullable
-    private final IndicesWarmer warmer;
+    private final Engine.Warmer warmer;
     private final Translog translog;
     private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
 
@@ -930,8 +929,7 @@ public class InternalEngine extends Engine {
                         assert isMergedSegment(esLeafReader);
                         if (warmer != null) {
                             final Engine.Searcher searcher = new Searcher("warmer", searcherFactory.newSearcher(esLeafReader, null));
-                            final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
-                            warmer.warmNewReaders(context);
+                            warmer.warm(searcher, false);
                         }
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
@@ -955,7 +953,7 @@ public class InternalEngine extends Engine {
 
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
     final static class SearchFactory extends EngineSearcherFactory {
-        private final IndicesWarmer warmer;
+        private final Engine.Warmer warmer;
         private final ShardId shardId;
         private final ESLogger logger;
         private final AtomicBoolean isEngineClosed;
@@ -1014,11 +1012,10 @@ public class InternalEngine extends Engine {
                     }
 
                     if (newSearcher != null) {
-                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new Searcher("new_reader_warming", newSearcher));
-                        warmer.warmNewReaders(context);
+                        warmer.warm(new Searcher("new_reader_warming", newSearcher), false);
                     }
                     assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
-                    warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new Searcher("top_reader_warming", searcher)));
+                    warmer.warm(new Searcher("top_reader_warming", searcher), true);
                 } catch (Throwable e) {
                     if (isEngineClosed.get() == false) {
                         logger.warn("failed to prepare/warm", e);

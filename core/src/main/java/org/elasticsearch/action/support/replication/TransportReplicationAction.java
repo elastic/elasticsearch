@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
+import org.elasticsearch.cluster.action.shard.NoOpShardStateActionListener;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -686,7 +687,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
     /**
      * inner class is responsible for send the requests to all replica shards and manage the responses
      */
-    final class ReplicationPhase extends AbstractRunnable {
+    final class ReplicationPhase extends AbstractRunnable implements ShardStateAction.Listener {
 
         private final ReplicaRequest replicaRequest;
         private final Response finalResponse;
@@ -821,6 +822,16 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             forceFinishAsFailed(t);
         }
 
+        @Override
+        public void onShardFailedNoMaster() {
+
+        }
+
+        @Override
+        public void onShardFailedFailure(DiscoveryNode master, TransportException e) {
+
+        }
+
         /**
          * start sending current requests to replicas
          */
@@ -886,7 +897,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 logger.trace("[{}] transport failure during replica request [{}] ", exp, node, replicaRequest);
                                 if (ignoreReplicaException(exp) == false) {
                                     logger.warn("{} failed to perform {} on node {}", exp, shardIt.shardId(), actionName, node);
-                                    shardStateAction.shardFailed(shard, indexMetaData.getIndexUUID(), "failed to perform " + actionName + " on replica on node " + node, exp);
+                                    shardStateAction.shardFailed(shard, indexMetaData.getIndexUUID(), "failed to perform " + actionName + " on replica on node " + node, exp, ReplicationPhase.this);
                                 }
                             }
 

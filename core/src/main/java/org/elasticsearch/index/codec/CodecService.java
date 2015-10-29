@@ -21,7 +21,7 @@ package org.elasticsearch.index.codec;
 
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
-import org.apache.lucene.codecs.lucene53.Lucene53Codec;
+import org.apache.lucene.codecs.lucene54.Lucene54Codec;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -56,8 +56,8 @@ public class CodecService extends AbstractIndexComponent {
         this.mapperService = mapperService;
         MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
-            codecs.put(DEFAULT_CODEC, new Lucene53Codec());
-            codecs.put(BEST_COMPRESSION_CODEC, new Lucene53Codec(Mode.BEST_COMPRESSION));
+            codecs.put(DEFAULT_CODEC, new Lucene54Codec());
+            codecs.put(BEST_COMPRESSION_CODEC, new Lucene54Codec(Mode.BEST_COMPRESSION));
         } else {
             codecs.put(DEFAULT_CODEC,
                     new PerFieldMappingPostingFormatCodec(Mode.BEST_SPEED, mapperService, logger));

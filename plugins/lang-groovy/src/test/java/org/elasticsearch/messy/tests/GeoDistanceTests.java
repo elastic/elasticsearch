@@ -19,7 +19,7 @@
 
 package org.elasticsearch.messy.tests;
 
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -664,7 +664,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
 
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
-                    .field("pin", XGeoHashUtils.stringEncode(lon, lat))
+                    .field("pin", GeoHashUtils.stringEncode(lon, lat))
                 .endObject();
 
         assertAcked(prepareCreate("locations").addMapping("location", mapping));

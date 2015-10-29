@@ -34,7 +34,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
@@ -213,29 +212,20 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     /**
      * Selectively parses a query from a top level query or query_binary json field from the specified source.
      */
-    public ParsedQuery parseQuery(BytesReference source) {
+    public ParsedQuery parseTopLevelQuery(BytesReference source) {
         XContentParser parser = null;
         try {
-            parser = XContentHelper.createParser(source);
-            ParsedQuery parsedQuery = null;
-            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String fieldName = parser.currentName();
-                    if ("query".equals(fieldName)) {
-                        parsedQuery = parse(parser);
-                    } else if ("query_binary".equals(fieldName) || "queryBinary".equals(fieldName)) {
-                        byte[] querySource = parser.binaryValue();
-                        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-                        parsedQuery = parse(qSourceParser);
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "request does not support [" + fieldName + "]");
-                    }
-                }
+            parser = XContentFactory.xContent(source).createParser(source);
+            QueryShardContext queryShardContext = cache.get();
+            queryShardContext.reset(parser);
+            queryShardContext.parseFieldMatcher(parseFieldMatcher);
+            try {
+                QueryBuilder<?> queryBuilder = queryShardContext.parseContext().parseTopLevelQueryBuilder();
+                Query query = toQuery(queryBuilder, queryShardContext);
+                return new ParsedQuery(query, queryShardContext.copyNamedQueries());
+            } finally {
+                queryShardContext.reset(null);
             }
-            if (parsedQuery == null) {
-                throw new ParsingException(parser.getTokenLocation(), "Required query is missing");
-            }
-            return parsedQuery;
         } catch (ParsingException | QueryShardException e) {
             throw e;
         } catch (Throwable e) {

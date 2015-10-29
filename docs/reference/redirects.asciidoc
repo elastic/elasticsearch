@@ -362,7 +362,7 @@ The filter cache has been renamed <<query-cache>>.
 [role="exclude",id="query-dsl-filtered-query"]
 === Filtered query
 
-The `filtered` query is replaced in favour of the <<query-dsl-bool-query,bool>> query. Instead of
+The `filtered` query is replaced by the <<query-dsl-bool-query,bool>> query. Instead of
 the following:
 
 [source,js]

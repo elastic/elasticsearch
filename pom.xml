@@ -45,10 +45,15 @@
         <doclint.options>-Xdoclint:-missing</doclint.options>
 
         <!-- libraries -->
+
+        <!-- NOTE: when changing these versions, also update security.policy and test-framework.policy to match -->
+        <!-- (we don't do any automatic property substitution on those resources, it could get confusing...     -->
         <lucene.version>5.4.0</lucene.version>
-        <lucene.snapshot.revision>1708254</lucene.snapshot.revision>
+        <lucene.snapshot.revision>1710880</lucene.snapshot.revision>
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
-        <testframework.version>2.1.17</testframework.version>
+        <testframework.version>2.2.0</testframework.version>
+        <securemock.version>1.1</securemock.version>
+
         <jackson.version>2.6.2</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
         <log4j.version>1.2.17</log4j.version>
@@ -285,7 +290,7 @@
             <dependency>
                 <groupId>com.spatial4j</groupId>
                 <artifactId>spatial4j</artifactId>
-                <version>0.4.1</version>
+                <version>0.5</version>
             </dependency>
             <dependency>
                 <groupId>com.vividsolutions</groupId>

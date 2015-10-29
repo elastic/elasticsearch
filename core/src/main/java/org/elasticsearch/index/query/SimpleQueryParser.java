@@ -70,7 +70,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        return simplify(bq.build());
     }
 
     /**
@@ -93,7 +93,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        return simplify(bq.build());
     }
 
     @Override
@@ -111,7 +111,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        return simplify(bq.build());
     }
 
     /**
@@ -140,7 +140,19 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
                 return rethrowUnlessLenient(e);
             }
         }
-        return super.simplify(bq.build());
+        return simplify(bq.build());
+    }
+
+    /**
+     * Override of lucenes SimpleQueryParser that doesn't simplify for the 1-clause case.
+     */
+    @Override
+    protected Query simplify(BooleanQuery bq) {
+      if (bq.clauses().isEmpty()) {
+        return null;
+      } else {
+        return bq;
+      }
     }
 
     /**
@@ -295,7 +307,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             // For further reasoning see
             // https://issues.apache.org/jira/browse/LUCENE-4021
             return (Objects.equals(locale.toLanguageTag(), other.locale.toLanguageTag())
-                    && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms) 
+                    && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms)
                     && Objects.equals(lenient, other.lenient)
                     && Objects.equals(analyzeWildcard, other.analyzeWildcard));
         }

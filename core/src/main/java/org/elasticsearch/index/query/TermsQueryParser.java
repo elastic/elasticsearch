@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
@@ -38,11 +37,6 @@ import java.util.List;
  */
 public class TermsQueryParser implements QueryParser {
 
-    private static final ParseField MIN_SHOULD_MATCH_FIELD = new ParseField("min_match", "min_should_match", "minimum_should_match")
-            .withAllDeprecated("Use [bool] query instead");
-    private static final ParseField DISABLE_COORD_FIELD = new ParseField("disable_coord").withAllDeprecated("Use [bool] query instead");
-    private static final ParseField EXECUTION_FIELD = new ParseField("execution").withAllDeprecated("execution is deprecated and has no effect");
-
     @Override
     public String[] names() {
         return new String[]{TermsQueryBuilder.NAME, "in"};
@@ -54,8 +48,6 @@ public class TermsQueryParser implements QueryParser {
 
         String fieldName = null;
         List<Object> values = null;
-        String minShouldMatch = null;
-        boolean disableCoord = TermsQueryBuilder.DEFAULT_DISABLE_COORD;
         TermsLookup termsLookup = null;
 
         String queryName = null;
@@ -78,17 +70,8 @@ public class TermsQueryParser implements QueryParser {
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, EXECUTION_FIELD)) {
-                    // ignore
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MIN_SHOULD_MATCH_FIELD)) {
-                    if (minShouldMatch != null) {
-                        throw new IllegalArgumentException("[" + currentFieldName + "] is not allowed in a filter context for the [" + TermsQueryBuilder.NAME + "] query");
-                    }
-                    minShouldMatch = parser.textOrNull();
-                } else if ("boost".equals(currentFieldName)) {
+                if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DISABLE_COORD_FIELD)) {
-                    disableCoord = parser.booleanValue();
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
@@ -100,7 +83,7 @@ public class TermsQueryParser implements QueryParser {
         if (fieldName == null) {
             throw new ParsingException(parser.getTokenLocation(), "terms query requires a field name, followed by array of terms or a document lookup specification");
         }
-        return new TermsQueryBuilder(fieldName, values, minShouldMatch, disableCoord, termsLookup)
+        return new TermsQueryBuilder(fieldName, values, termsLookup)
                 .boost(boost)
                 .queryName(queryName);
     }

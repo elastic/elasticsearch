@@ -76,7 +76,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.action.suggest.SuggestAction;
 import org.elasticsearch.action.suggest.SuggestRequest;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.termvectors.MultiTermVectorsAction;
 import org.elasticsearch.action.termvectors.MultiTermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsAction;
@@ -96,33 +95,16 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.Transport;
-import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportModule;
-import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.transport.TransportRequestHandler;
-import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.transport.*;
 import org.junit.After;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.emptyIterable;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.SUITE, numClientNodes = 1, minNumDataNodes = 2)
 public class IndicesRequestTests extends ESIntegTestCase {
@@ -307,7 +289,7 @@ public class IndicesRequestTests extends ESIntegTestCase {
         String explainShardAction = ExplainAction.NAME + "[s]";
         interceptTransportActions(explainShardAction);
 
-        ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "type", "id").source(new QuerySourceBuilder().setQuery(QueryBuilders.matchAllQuery()));
+        ExplainRequest explainRequest = new ExplainRequest(randomIndexOrAlias(), "type", "id").query(QueryBuilders.matchAllQuery());
         internalCluster().clientNodeClient().explain(explainRequest).actionGet();
 
         clearInterceptedActions();
@@ -684,24 +666,6 @@ public class IndicesRequestTests extends ESIntegTestCase {
             }
         }
     }
-
-    private static void assertSameIndicesOptionalRequests(String[] indices, String... actions) {
-        assertSameIndices(indices, true, actions);
-    }
-
-    private static void assertSameIndices(String[] indices, boolean optional, String... actions) {
-        for (String action : actions) {
-            List<TransportRequest> requests = consumeTransportRequests(action);
-            if (!optional) {
-                assertThat("no internal requests intercepted for action [" + action + "]", requests.size(), greaterThan(0));
-            }
-            for (TransportRequest internalRequest : requests) {
-                assertThat(internalRequest, instanceOf(IndicesRequest.class));
-                assertThat(internalRequest.getClass().getName(), ((IndicesRequest)internalRequest).indices(), equalTo(indices));
-            }
-        }
-    }
-
     private static void assertIndicesSubset(List<String> indices, String... actions) {
         //indices returned by each bulk shard request need to be a subset of the original indices
         for (String action : actions) {
@@ -820,26 +784,26 @@ public class IndicesRequestTests extends ESIntegTestCase {
 
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> request, String executor, boolean forceExecution, TransportRequestHandler<Request> handler) {
-            super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler(action, handler));
+            super.registerRequestHandler(action, request, executor, forceExecution, new InterceptingRequestHandler<>(action, handler));
         }
 
         @Override
         public <Request extends TransportRequest> void registerRequestHandler(String action, Supplier<Request> requestFactory, String executor, TransportRequestHandler<Request> handler) {
-            super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler(action, handler));
+            super.registerRequestHandler(action, requestFactory, executor, new InterceptingRequestHandler<>(action, handler));
         }
 
-        private class InterceptingRequestHandler implements TransportRequestHandler {
+        private class InterceptingRequestHandler<T extends TransportRequest> implements TransportRequestHandler<T> {
 
-            private final TransportRequestHandler requestHandler;
+            private final TransportRequestHandler<T> requestHandler;
             private final String action;
 
-            InterceptingRequestHandler(String action, TransportRequestHandler requestHandler) {
+            InterceptingRequestHandler(String action, TransportRequestHandler<T> requestHandler) {
                 this.requestHandler = requestHandler;
                 this.action = action;
             }
 
             @Override
-            public void messageReceived(TransportRequest request, TransportChannel channel) throws Exception {
+            public void messageReceived(T request, TransportChannel channel) throws Exception {
                 synchronized (InterceptingTransportService.this) {
                     if (actions.contains(action)) {
                         List<TransportRequest> requestList = requests.get(action);

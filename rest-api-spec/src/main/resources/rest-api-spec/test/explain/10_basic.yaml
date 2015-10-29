@@ -1,5 +1,14 @@
----
-"Basic explain":
+setup:
+  - do:
+      indices.create:
+          index: test_1
+          body:
+              aliases:
+                alias_1: {}
+  - do:
+        cluster.health:
+            wait_for_status: yellow
+
   - do:
       index:
           index:  test_1
@@ -9,6 +18,9 @@
 
   - do:
       indices.refresh: {}
+
+---
+"Basic explain":
 
   - do:
       explain:
@@ -27,26 +39,6 @@
 
 ---
 "Basic explain with alias":
-  - do:
-      indices.create:
-          index: test_1
-          body:
-              aliases:
-                alias_1: {}
-
-  - do:
-      cluster.health:
-          wait_for_status: yellow
-
-  - do:
-      index:
-          index:  test_1
-          type:   test
-          id:     id_1
-          body:   { foo: bar, title: howdy }
-
-  - do:
-      indices.refresh: {}
 
   - do:
       explain:
@@ -62,4 +54,15 @@
   - match: { _index: test_1 }
   - match: { _type: test }
   - match: { _id: id_1 }
+
+---
+"Explain body without query element":
+  - do:
+      catch: request
+      explain:
+          index:  test_1
+          type:   test
+          id:     id_1
+          body:
+            match_all: {}
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexModule;
@@ -56,6 +58,28 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
+    public static class FailOnModule extends Plugin {
+        @Override
+        public String name() {
+            return "fail-on-module";
+        }
+        @Override
+        public String description() {
+            return "fails in onModule";
+        }
+
+        public void onModule(BrokenModule brokenModule) {
+            throw new IllegalStateException("boom");
+        }
+    }
+
+    public static class BrokenModule extends AbstractModule {
+
+        @Override
+        protected void configure() {
+        }
+    }
+
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
         return new PluginsService(settings, new Environment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
     }
@@ -84,6 +108,19 @@ public class PluginsServiceTests extends ESTestCase {
             assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
             assertTrue(msg, msg.contains("plugin [additional-settings1]"));
             assertTrue(msg, msg.contains("plugin [additional-settings2]"));
+        }
+    }
+
+    public void testOnModuleExceptionsArePropagated() {
+        Settings settings = Settings.builder()
+                .put("path.home", createTempDir()).build();
+        PluginsService service = newPluginsService(settings, FailOnModule.class);
+        try {
+            service.processModule(new BrokenModule());
+            fail("boom");
+        } catch (ElasticsearchException ex) {
+            assertEquals("failed to invoke onModule", ex.getMessage());
+            assertEquals("boom", ex.getCause().getCause().getMessage());
         }
     }
 }

@@ -18,13 +18,13 @@
  */
 package org.elasticsearch.common.geo;
 
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.test.ESTestCase;
 
 
 
 /**
- * Tests for {@link org.apache.lucene.util.XGeoHashUtils}
+ * Tests for {@link org.apache.lucene.util.GeoHashUtils}
  */
 public class GeoHashTests extends ESTestCase {
     public void testGeohashAsLongRoutines()  {
@@ -39,13 +39,13 @@ public class GeoHashTests extends ESTestCase {
             {
                 for(int p=1;p<=12;p++)
                 {
-                    long geoAsLong = XGeoHashUtils.longEncode(lng, lat, p);
+                    long geoAsLong = GeoHashUtils.longEncode(lng, lat, p);
 
                     // string encode from geohashlong encoded location
-                    String geohashFromLong = XGeoHashUtils.stringEncode(geoAsLong);
+                    String geohashFromLong = GeoHashUtils.stringEncode(geoAsLong);
 
                     // string encode from full res lat lon
-                    String geohash = XGeoHashUtils.stringEncode(lng, lat, p);
+                    String geohash = GeoHashUtils.stringEncode(lng, lat, p);
 
                     // ensure both strings are the same
                     assertEquals(geohash, geohashFromLong);

@@ -367,7 +367,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
         int pending = replicationPhase.pending();
         int criticalFailures = 0; // failures that should fail the shard
-        int successfull = 1;
+        int successful = 1;
         for (CapturingTransport.CapturedRequest capturedRequest : capturedRequests) {
             if (randomBoolean()) {
                 Throwable t;
@@ -380,19 +380,19 @@ public class TransportReplicationActionTests extends ESTestCase {
                 logger.debug("--> simulating failure on {} with [{}]", capturedRequest.node, t.getClass().getSimpleName());
                 transport.handleResponse(capturedRequest.requestId, t);
             } else {
-                successfull++;
+                successful++;
                 transport.handleResponse(capturedRequest.requestId, TransportResponse.Empty.INSTANCE);
             }
             pending--;
             assertThat(replicationPhase.pending(), equalTo(pending));
-            assertThat(replicationPhase.successful(), equalTo(successfull));
+            assertThat(replicationPhase.successful(), equalTo(successful));
         }
         assertThat(listener.isDone(), equalTo(true));
         Response response = listener.get();
         final ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(criticalFailures));
         assertThat(shardInfo.getFailures(), arrayWithSize(criticalFailures));
-        assertThat(shardInfo.getSuccessful(), equalTo(successfull));
+        assertThat(shardInfo.getSuccessful(), equalTo(successful));
         assertThat(shardInfo.getTotal(), equalTo(totalShards));
 
         assertThat("failed to see enough shard failures", transport.capturedRequests().length, equalTo(criticalFailures));

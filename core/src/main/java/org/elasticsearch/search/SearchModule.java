@@ -156,7 +156,6 @@ import java.util.Set;
  */
 public class SearchModule extends AbstractModule {
 
-    private final Settings settings;
     private final Set<Class<? extends Aggregator.Parser>> aggParsers = new HashSet<>();
     private final Set<Class<? extends PipelineAggregator.Parser>> pipelineAggParsers = new HashSet<>();
     private final Highlighters highlighters = new Highlighters();
@@ -168,19 +167,6 @@ public class SearchModule extends AbstractModule {
 
     // pkg private so tests can mock
     Class<? extends SearchService> searchServiceImpl = SearchService.class;
-
-    public SearchModule(Settings settings) {
-        this.settings = settings;
-    }
-
-    // TODO document public API
-    public void registerStream(SignificanceHeuristicStreams.Stream stream) {
-        SignificanceHeuristicStreams.registerStream(stream);
-    }
-
-    public void registerStream(MovAvgModelStreams.Stream stream) {
-        MovAvgModelStreams.registerStream(stream);
-    }
 
     public void registerHighlighter(String key, Class<? extends Highlighter> clazz) {
         highlighters.registerExtension(key, clazz);

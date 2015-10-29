@@ -63,10 +63,17 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+=== REST API changes
+
 ==== search exists api removed
 
 The search exists api has been removed in favour of using the search api with
 `size` set to `0` and `terminate_after` set to `1`.
+
+==== `/_optimize` endpoint removed
+
+The deprecated `/_optimize` endpoint has been removed. The `/_forcemerge`
+endpoint should be used in lieu of optimize.
 
 ==== Deprecated queries removed
 
@@ -291,7 +298,7 @@ Also reusing new Operator enum.
 Removed `MoreLikeThisQueryBuilder.Item#id(String id)`, `Item#doc(BytesReference doc)`,
 `Item#doc(XContentBuilder doc)`. Use provided constructors instead.
 
-Removed `MoreLikeThisQueryBuilder#addLike` in favor of texts and/or items beeing provided
+Removed `MoreLikeThisQueryBuilder#addLike` in favor of texts and/or items being provided
 at construction time. Using arrays there instead of lists now.
 
 Removed `MoreLikeThisQueryBuilder#addUnlike` in favor to using the `unlike` methods

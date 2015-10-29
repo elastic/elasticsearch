@@ -62,12 +62,12 @@ public class FileUtilsTests extends ESTestCase {
         assertThat(yamlSuites.get("index").size(), greaterThan(1));
 
         //multiple paths, which can be both directories or yaml test suites (with optional file extension)
-        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "indices.optimize/10_basic", "index");
+        yamlSuites = FileUtils.findYamlSuites(null, "/rest-api-spec/test", "indices.forcemerge/10_basic", "index");
         assertThat(yamlSuites, notNullValue());
         assertThat(yamlSuites.size(), equalTo(2));
-        assertThat(yamlSuites.containsKey("indices.optimize"), equalTo(true));
-        assertThat(yamlSuites.get("indices.optimize").size(), equalTo(1));
-        assertSingleFile(yamlSuites.get("indices.optimize"), "indices.optimize", "10_basic.yaml");
+        assertThat(yamlSuites.containsKey("indices.forcemerge"), equalTo(true));
+        assertThat(yamlSuites.get("indices.forcemerge").size(), equalTo(1));
+        assertSingleFile(yamlSuites.get("indices.forcemerge"), "indices.forcemerge", "10_basic.yaml");
         assertThat(yamlSuites.containsKey("index"), equalTo(true));
         assertThat(yamlSuites.get("index").size(), greaterThan(1));
 

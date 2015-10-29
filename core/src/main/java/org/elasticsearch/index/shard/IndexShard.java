@@ -669,7 +669,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             logger.trace("upgrade with {}", upgrade);
         }
         org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
-        // we just want to upgrade the segments, not actually optimize to a single segment
+        // we just want to upgrade the segments, not actually forge merge to a single segment
         getEngine().forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
                 Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
                 false, true, upgrade.upgradeOnlyAncientSegments());

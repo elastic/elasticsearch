@@ -64,15 +64,15 @@ import org.elasticsearch.common.unit.ByteSizeValue;
  * 
  * <li><code>index.merge.policy.max_merge_at_once_explicit</code>:
  * 
- *     Maximum number of segments to be merged at a time, during optimize or
+ *     Maximum number of segments to be merged at a time, during force merge or
  *     expungeDeletes. Default is <code>30</code>.
  * 
  * <li><code>index.merge.policy.max_merged_segment</code>:
  * 
  *     Maximum sized segment to produce during normal merging (not explicit
- *     optimize). This setting is approximate: the estimate of the merged segment
- *     size is made by summing sizes of to-be-merged segments (compensating for
- *     percent deleted docs). Default is <code>5gb</code>.
+ *     force merge). This setting is approximate: the estimate of the merged
+ *     segment size is made by summing sizes of to-be-merged segments
+ *     (compensating for percent deleted docs). Default is <code>5gb</code>.
  * 
  * <li><code>index.merge.policy.segments_per_tier</code>:
  * 

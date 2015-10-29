@@ -72,7 +72,7 @@ public final class Data {
             if (!inner.containsKey(pathElements[i])) {
                 inner.put(pathElements[i], new HashMap<String, Object>());
             }
-            inner = (HashMap<String, Object>) inner.get(pathElements[i]);
+            inner = (Map<String, Object>) inner.get(pathElements[i]);
         }
 
         inner.put(writeKey, value);

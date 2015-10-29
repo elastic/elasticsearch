@@ -18,7 +18,7 @@
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.ingest.IngestPlugin</elasticsearch.plugin.classname>
         <tests.rest.suite>ingest</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
-        <xlint.options>-Xlint:-rawtypes</xlint.options>
+        <xlint.options>-Xlint:-rawtypes,-unchecked</xlint.options>
     </properties>
 
     <build>

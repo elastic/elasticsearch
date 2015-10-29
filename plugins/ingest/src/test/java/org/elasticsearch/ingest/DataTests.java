@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
@@ -32,13 +33,12 @@ public class DataTests extends ESTestCase {
 
     @Before
     public void setData() {
-        data = new Data("index", "type", "id",
-                new HashMap<String, Object>() {{
-                    put("foo", "bar");
-                    put("fizz", new HashMap<String, Object>() {{
-                        put("buzz", "hello world");
-                    }});
-                }});
+        Map<String, Object> document = new HashMap<>();
+        document.put("foo", "bar");
+        Map<String, Object> innerObject = new HashMap<>();
+        innerObject.put("buzz", "hello world");
+        document.put("fizz", innerObject);
+        data = new Data("index", "type", "id", document);
     }
 
     public void testSimpleGetProperty() {

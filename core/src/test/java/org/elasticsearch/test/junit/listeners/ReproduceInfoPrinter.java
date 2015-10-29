@@ -76,40 +76,25 @@ public class ReproduceInfoPrinter extends RunListener {
             return;
         }
 
-        final StringBuilder b = new StringBuilder();
-        if (inVerifyPhase()) {
-            b.append("REPRODUCE WITH: mvn verify -Pdev -Dskip.unit.tests" );
-        } else {
-            b.append("REPRODUCE WITH: mvn test -Pdev");
-        }
-        String project = System.getProperty("tests.project");
-        if (project != null) {
-            b.append(" -pl " + project);
-        }
-        MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
-        mavenMessageBuilder.appendAllOpts(failure.getDescription());
+        final StringBuilder b = new StringBuilder("REPRODUCE WITH: gradle ");
+        String task = System.getProperty("tests.task");
+        // TODO: enforce (intellij still runs the runner?) or use default "test" but that wont' work for integ
+        b.append(task);
+
+        GradleMessageBuilder gradleMessageBuilder = new GradleMessageBuilder(b);
+        gradleMessageBuilder.appendAllOpts(failure.getDescription());
 
         //Rest tests are a special case as they allow for additional parameters
         if (failure.getDescription().getTestClass().isAnnotationPresent(Rest.class)) {
-            mavenMessageBuilder.appendRestTestsProperties();
+            gradleMessageBuilder.appendRestTestsProperties();
         }
 
         System.err.println(b.toString());
     }
 
-    protected TraceFormatting traces() {
-        TraceFormatting traces = new TraceFormatting();
-        try {
-            traces = RandomizedContext.current().getRunner().getTraceFormatting();
-        } catch (IllegalStateException e) {
-            // Ignore if no context.
-        }
-        return traces;
-    }
+    protected static class GradleMessageBuilder extends ReproduceErrorMessageBuilder {
 
-    protected static class MavenMessageBuilder extends ReproduceErrorMessageBuilder {
-
-        public MavenMessageBuilder(StringBuilder b) {
+        public GradleMessageBuilder(StringBuilder b) {
             super(b);
         }
 

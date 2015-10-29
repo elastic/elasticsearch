@@ -107,7 +107,6 @@ public class AnalysisModuleTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0)
                 .build();
         AnalysisService analysisService2 = getAnalysisService(settings2);
-
         // indicesanalysisservice always has the current version
         IndicesAnalysisService indicesAnalysisService2 = injector.getInstance(IndicesAnalysisService.class);
         assertThat(indicesAnalysisService2.analyzer("default"), is(instanceOf(NamedAnalyzer.class)));

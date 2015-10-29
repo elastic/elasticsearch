@@ -105,6 +105,10 @@
         <!-- Lucene spatial -->
 
         <dependency>
+            <groupId>org.elasticsearch</groupId>
+            <artifactId>securesm</artifactId>
+        </dependency>
+        <dependency>
             <groupId>com.carrotsearch</groupId>
             <artifactId>hppc</artifactId>
         </dependency>

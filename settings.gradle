@@ -1,0 +1,42 @@
+rootProject.name = 'elasticsearch'
+
+String[] projects = [
+  'rest-api-spec',
+  'core',
+  'distribution:zip',
+  'distribution:tar',
+  'distribution:deb',
+  'distribution:rpm',
+  'test-framework',
+  'plugins:analysis-icu',
+  'plugins:analysis-kuromoji',
+  'plugins:analysis-phonetic',
+  'plugins:analysis-smartcn',
+  'plugins:analysis-stempel',
+  'plugins:delete-by-query',
+  'plugins:discovery-azure',
+  'plugins:discovery-ec2',
+  'plugins:discovery-gce',
+  'plugins:discovery-multicast',
+  'plugins:lang-expression',
+  'plugins:lang-groovy',
+  'plugins:lang-javascript',
+  'plugins:lang-python',
+  'plugins:mapper-murmur3',
+  'plugins:mapper-size',
+  'plugins:repository-azure',
+  'plugins:repository-s3',
+  'plugins:jvm-example',
+  'plugins:site-example',
+  'plugins:store-smb',
+  'qa:smoke-test-client',
+  'qa:smoke-test-plugins'
+]
+
+if (hasProperty('elasticsearch.projectsPrefix')) {
+  String prefix = getProperty('elasticsearch.projectsPrefix')
+  projects = projects.collect { "${prefix}:${it}" }
+}
+
+include projects
+

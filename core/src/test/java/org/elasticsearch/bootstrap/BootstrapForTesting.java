@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.RandomizedRunner;
 
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestSecurityManager;
+import org.elasticsearch.SecureSM;
 import org.elasticsearch.bootstrap.Bootstrap;
 import org.elasticsearch.bootstrap.ESPolicy;
 import org.elasticsearch.bootstrap.Security;
@@ -139,7 +140,7 @@ public class BootstrapForTesting {
                         return esPolicy.implies(domain, permission) || testFramework.implies(domain, permission);
                     }
                 });
-                System.setSecurityManager(new TestSecurityManager());
+                System.setSecurityManager(new SecureSM(true));
                 Security.selfTest();
 
                 // guarantee plugin classes are initialized first, in case they have one-time hacks.

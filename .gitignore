@@ -9,7 +9,7 @@ logs/
 .DS_Store
 build/
 target/
-*-execution-hints.log
+**/.local*
 docs/html/
 docs/build.log
 /tmp/

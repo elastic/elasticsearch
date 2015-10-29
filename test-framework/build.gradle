@@ -1,0 +1,69 @@
+
+apply plugin: 'java'
+apply plugin: 'com.bmuschko.nexus'
+
+dependencies {
+  // TODO: change to elasticsearch core jar dep, and use dependnecy subs to point at core project
+  compile "org.elasticsearch:elasticsearch:${version}"
+
+  compile(group: 'junit', name: 'junit', version: '4.11') {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
+  compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
+
+  compile("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
+    exclude group: 'com.carrotsearch.randomizedtesting', module: 'junit4-ant'
+  }
+  compile(group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3') {
+    exclude group: 'org.hamcrest', module: 'hamcrest-core'
+  }
+  compile "com.google.jimfs:jimfs:1.0"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+}
+
+// HACK: this is temporary until we have moved to gradle, at which
+// point we can physically move the test framework files to this project
+project.ext {
+  srcDir = new File(project.buildDir, 'src')
+  coreDir = new File(project("${projectsPrefix}:core").projectDir, 'src' + File.separator + 'test')
+}
+sourceSets.main.java.srcDir(new File(srcDir, "java"))
+sourceSets.main.resources.srcDir(new File(srcDir, "resources"))
+task copySourceFiles(type: Sync) {
+ from(coreDir) {
+   include 'resources/log4j.properties'
+   include 'java/org/elasticsearch/test/**'
+   include 'java/org/elasticsearch/bootstrap/BootstrapForTesting.java'
+   include 'java/org/elasticsearch/bootstrap/MockPluginPolicy.java'
+   include 'java/org/elasticsearch/common/cli/CliToolTestCase.java'
+   include 'java/org/elasticsearch/cluster/MockInternalClusterInfoService.java'
+   include 'java/org/elasticsearch/cluster/routing/TestShardRouting.java'
+   include 'java/org/elasticsearch/index/MockEngineFactoryPlugin.java'
+   include 'java/org/elasticsearch/search/MockSearchService.java'
+   include 'java/org/elasticsearch/search/aggregations/bucket/AbstractTermsTestCase.java'
+   include 'java/org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptNoParams.java'
+   include 'java/org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptWithParams.java'
+   include 'java/org/elasticsearch/search/aggregations/bucket/script/TestScript.java'
+   include 'java/org/elasticsearch/search/aggregations/metrics/AbstractNumericTestCase.java'
+   include 'java/org/elasticsearch/percolator/PercolatorTestUtil.java'
+   include 'java/org/elasticsearch/cache/recycler/MockPageCacheRecycler.java'
+   include 'java/org/elasticsearch/common/util/MockBigArrays.java'
+   include 'java/org/elasticsearch/node/NodeMocksPlugin.java'
+   include 'java/org/elasticsearch/node/MockNode.java'
+   include 'java/org/elasticsearch/common/io/PathUtilsForTesting.java'
+   // unit tests for yaml suite parser & rest spec parser need to be excluded
+   exclude 'java/org/elasticsearch/test/rest/test/**'
+   // unit tests for test framework classes
+   exclude 'java/org/elasticsearch/test/test/**'
+
+   // no geo (requires optional deps)
+   exclude 'java/org/elasticsearch/test/hamcrest/ElasticsearchGeoAssertions.java'
+   exclude 'java/org/elasticsearch/test/geo/RandomShapeGenerator.java'
+   // this mock is just for a single logging test
+   exclude 'java/org/elasticsearch/test/MockLogAppender.java'
+ }
+ into srcDir
+}
+compileJava.dependsOn copySourceFiles
+
+compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"

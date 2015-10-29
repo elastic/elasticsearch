@@ -1,0 +1,10 @@
+
+task buildTar(type: Tar, dependsOn: deps) {
+  baseName = 'elasticsearch'
+  with archivesFiles
+  compression = Compression.GZIP
+}
+
+artifacts {
+  archives buildTar
+}

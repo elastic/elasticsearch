@@ -1,0 +1,12 @@
+apply plugin: 'groovy'
+
+repositories {
+  mavenCentral()
+}
+
+dependencies {
+  compile gradleApi()
+  compile localGroovy()
+  //compile group: 'com.carrotsearch.randomizedtesting', name: 'junit4-ant', version: '2.1.16'
+}
+

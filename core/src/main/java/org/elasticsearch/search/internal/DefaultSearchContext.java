@@ -748,12 +748,12 @@ public class DefaultSearchContext extends SearchContext {
 
     /**
      * Returns the query profiler, which is used to store timings across the
-     * search context. This should only be used if {@link #profile()} returns true.
+     * search context. Returns null if no profiler was set
      *
      * @return The query Profiler
      */
     @Override
-    public Profiler queryProfiler() {
+    public @Nullable Profiler queryProfiler() {
         return internalProfiler;
     }
 

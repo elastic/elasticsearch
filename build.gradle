@@ -5,6 +5,7 @@ buildscript {
       name 'sonatype-snapshots'
       url 'http://oss.sonatype.org/content/repositories/snapshots/'
     }
+    jcenter()
   }
   dependencies {
     classpath 'org.elasticsearch.gradle:build-tools:3.0.0-SNAPSHOT'

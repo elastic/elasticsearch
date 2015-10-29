@@ -340,7 +340,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     Map<String, String> analyzeParams = singletonMap("text", "test");
                     assertAccessIsAllowed(user, "GET", "/" + index + "/_analyze", null, analyzeParams);
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_flush");
-                    assertAccessIsAllowed(user, "POST", "/" + index + "/_optimize");
+                    assertAccessIsAllowed(user, "POST", "/" + index + "/_forcemerge");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_upgrade", null);
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_close");
                     assertAccessIsAllowed(user, "POST", "/" + index + "/_open");
@@ -361,7 +361,7 @@ public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
                     Map<String, String> analyzeParams = singletonMap("text", "test");
                     assertAccessIsDenied(user, "GET", "/" + index + "/_analyze", null, analyzeParams);
                     assertAccessIsDenied(user, "POST", "/" + index + "/_flush");
-                    assertAccessIsDenied(user, "POST", "/" + index + "/_optimize");
+                    assertAccessIsDenied(user, "POST", "/" + index + "/_forcemerge");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_upgrade", null);
                     assertAccessIsDenied(user, "POST", "/" + index + "/_close");
                     assertAccessIsDenied(user, "POST", "/" + index + "/_open");

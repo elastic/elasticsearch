@@ -99,61 +99,14 @@ public abstract class ContextMapping implements ToXContent {
     /**
      * Parses query contexts for this mapper
      */
-    protected abstract QueryContexts parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException;
-
-    /**
-     * Named holder for a set of query context
-     */
-    public static class QueryContexts implements ToXContent {
-        private String name;
-        private List<CategoryQueryContext> queryContexts;
-
-        /**
-         * Constructs a query contexts holder
-         * for a context mapping
-         * @param name name of the context mapping to
-         *             query against
-         */
-        public QueryContexts(String name) {
-            this.name = name;
-            this.queryContexts = new ArrayList<>();
-        }
-
-        /**
-         * @return name of the context mapping
-         * to query against
-         */
-        public String getName() {
-            return name;
-        }
-
-
-        public List<CategoryQueryContext> getQueryContexts() {
-            return queryContexts;
-        }
-        /**
-         * Adds a query context to the holder
-         * @param queryContext instance
-         */
-        public void add(CategoryQueryContext queryContext) {
-            this.queryContexts.add(queryContext);
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startArray(name);
-            for (CategoryQueryContext queryContext : queryContexts) {
-                queryContext.toXContent(builder, params);
-            }
-            builder.endArray();
-            return builder;
-        }
-    }
+    public abstract List<CategoryQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException;
 
     /**
      * Adds query contexts to a completion query
      */
-    protected abstract List<CategoryQueryContext> getQueryContexts(QueryContexts queryContexts);
+    protected List<CategoryQueryContext> getQueryContexts(List<CategoryQueryContext> queryContexts) {
+        return queryContexts;
+    }
 
     /**
      * Implementations should add specific configurations

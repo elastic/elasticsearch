@@ -28,10 +28,9 @@ import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
 import org.apache.lucene.search.suggest.xdocument.SuggestScoreDocPriorityQueue;
 import org.apache.lucene.search.suggest.xdocument.TopSuggestDocs;
 import org.apache.lucene.search.suggest.xdocument.TopSuggestDocsCollector;
-import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.*;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.text.StringText;
-import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -39,14 +38,12 @@ import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.Suggester;
-import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.io.IOException;
 import java.util.*;
 
 public class CompletionSuggester extends Suggester<CompletionSuggestionContext> {
 
-    @Override
     public SuggestContextParser getContextParser() {
         return new CompletionSuggestParser(this);
     }
@@ -54,35 +51,36 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     @Override
     protected Suggest.Suggestion<? extends Suggest.Suggestion.Entry<? extends Suggest.Suggestion.Entry.Option>> innerExecute(String name,
             final CompletionSuggestionContext suggestionContext, final IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
-        if (suggestionContext.getFieldType() == null) {
+        final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
+        if (fieldType == null) {
             throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
         spare.copyUTF8Bytes(suggestionContext.getText());
         CompletionSuggestion.Entry completionSuggestEntry = new CompletionSuggestion.Entry(new StringText(spare.toString()), 0, spare.length());
         completionSuggestion.addTerm(completionSuggestEntry);
-        TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize(), searcher.getIndexReader().numDocs());
-        suggest(searcher, toQuery(suggestionContext), collector);
+        TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize());
+        suggest(searcher, suggestionContext.toQuery(), collector);
         int numResult = 0;
         for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
             TopDocumentsCollector.SuggestDoc suggestDoc = (TopDocumentsCollector.SuggestDoc) suggestScoreDoc;
-            final Map<String, Set<CharSequence>> contexts;
-            if (suggestionContext.getFieldType().hasContextMappings() && suggestDoc.getContexts() != null) {
-                contexts = suggestionContext.getFieldType().getContextMappings().getNamedContexts(suggestDoc.getContexts());
-            } else {
-                contexts = Collections.emptyMap();
+            // collect contexts
+            Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
+            if (fieldType.hasContextMappings() && !suggestDoc.getContexts().isEmpty()) {
+                contexts = fieldType.getContextMappings().getNamedContexts(suggestDoc.getContexts());
             }
-            final Map<String, List<Object>> payload;
+            // collect payloads
+            Map<String, List<Object>> payload = Collections.emptyMap();
             Set<String> payloadFields = suggestionContext.getPayloadFields();
             if (!payloadFields.isEmpty()) {
-                int readerIndex = ReaderUtil.subIndex(suggestScoreDoc.doc, searcher.getIndexReader().leaves());
+                int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, searcher.getIndexReader().leaves());
                 LeafReaderContext subReaderContext = searcher.getIndexReader().leaves().get(readerIndex);
-                int subDocId = suggestScoreDoc.doc - subReaderContext.docBase;
+                int subDocId = suggestDoc.doc - subReaderContext.docBase;
                 payload = new LinkedHashMap<>(payloadFields.size());
                 for (String field : payloadFields) {
-                    MappedFieldType fieldType = suggestionContext.getMapperService().smartNameFieldType(field);
-                    if (fieldType != null) {
-                        AtomicFieldData data = suggestionContext.getFieldData().getForField(fieldType).load(subReaderContext);
+                    MappedFieldType payloadFieldType = suggestionContext.getMapperService().smartNameFieldType(field);
+                    if (payloadFieldType != null) {
+                        AtomicFieldData data = suggestionContext.getFieldData().getForField(payloadFieldType).load(subReaderContext);
                         ScriptDocValues scriptValues = data.getScriptValues();
                         scriptValues.setNextDocId(subDocId);
                         payload.put(field, new ArrayList<>(scriptValues.getValues()));
@@ -90,56 +88,39 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                         throw new ElasticsearchException("Payload field [" + field + "] does not exist");
                     }
                 }
-            } else {
-                payload = Collections.emptyMap();
             }
             if (numResult++ < suggestionContext.getSize()) {
-                completionSuggestEntry.addOption(new CompletionSuggestion.Entry.Option(new StringText(suggestScoreDoc.key.toString()), suggestScoreDoc.score, contexts, payload));
+                CompletionSuggestion.Entry.Option option = new CompletionSuggestion.Entry.Option(
+                        new StringText(suggestDoc.key.toString()), suggestDoc.score, contexts, payload);
+                completionSuggestEntry.addOption(option);
+            } else {
+                break;
             }
         }
         return completionSuggestion;
     }
 
-    /*
-    TODO: should this be moved to CompletionSuggestionParser?
-    so the CompletionSuggestionContext will have only the query instead
-     */
-    private CompletionQuery toQuery(CompletionSuggestionContext suggestionContext) throws IOException {
-        CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
-        final CompletionQuery query;
-        if (suggestionContext.getPrefix() != null) {
-            if (suggestionContext.getFuzzyOptionsBuilder() != null) {
-                CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptions = suggestionContext.getFuzzyOptionsBuilder();
-                query = fieldType.fuzzyQuery(suggestionContext.getPrefix().utf8ToString(),
-                        Fuzziness.fromEdits(fuzzyOptions.getEditDistance()),
-                        fuzzyOptions.getFuzzyPrefixLength(), fuzzyOptions.getFuzzyMinLength(),
-                        fuzzyOptions.getMaxDeterminizedStates(), fuzzyOptions.isTranspositions(),
-                        fuzzyOptions.isUnicodeAware());
-            } else {
-                query = fieldType.prefixQuery(suggestionContext.getPrefix());
+    private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
+        query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
+        Weight weight = query.createWeight(searcher, collector.needsScores());
+        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+            BulkScorer scorer = weight.bulkScorer(context);
+            if (scorer != null) {
+                try {
+                    scorer.score(collector.getLeafCollector(context), context.reader().getLiveDocs());
+                } catch (CollectionTerminatedException e) {
+                    // collection was terminated prematurely
+                    // continue with the following leaf
+                }
             }
-        } else if (suggestionContext.getRegex() != null) {
-            if (suggestionContext.getFuzzyOptionsBuilder() != null) {
-                throw new IllegalArgumentException("can not use 'fuzzy' options with 'regex");
-            }
-            CompletionSuggestionBuilder.RegexOptionsBuilder regexOptions = suggestionContext.getRegexOptionsBuilder();
-            if (regexOptions == null) {
-                regexOptions = new CompletionSuggestionBuilder.RegexOptionsBuilder();
-            }
-            query = fieldType.regexpQuery(suggestionContext.getRegex(), regexOptions.getFlagsValue(),
-                    regexOptions.getMaxDeterminizedStates());
-        } else {
-            throw new IllegalArgumentException("'prefix' or 'regex' must be defined");
         }
-        if (fieldType.hasContextMappings()) {
-            ContextMappings contextMappings = fieldType.getContextMappings();
-            return contextMappings.toContextQuery(query, suggestionContext.getQueryContexts());
-        }
-        return query;
     }
 
     private static class TopDocumentsCollector extends TopSuggestDocsCollector {
 
+        /**
+         * Holds a list of suggest meta data for a doc
+         */
         private static class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
 
             private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
@@ -148,9 +129,9 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 super(doc, key, context, score);
             }
 
-            public void add(CharSequence key, CharSequence context, float score) {
+            void add(CharSequence key, CharSequence context, float score) {
                 if (suggestScoreDocs == null) {
-                    suggestScoreDocs = new ArrayList<>();
+                    suggestScoreDocs = new ArrayList<>(1);
                 }
                 suggestScoreDocs.add(new TopSuggestDocs.SuggestScoreDoc(doc, key, context, score));
             }
@@ -173,7 +154,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     if (context != null) {
                         return Collections.singletonList(context);
                     } else {
-                        return null;
+                        return Collections.emptyList();
                     }
                 } else {
                     List<CharSequence> contexts = new ArrayList<>(suggestScoreDocs.size() + 1);
@@ -191,14 +172,12 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         }
 
-        private final int maxDocs;
         private final int num;
         private final SuggestScoreDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
-        public TopDocumentsCollector(int num, int maxDocs) {
+        public TopDocumentsCollector(int num) {
             super(num, null);
-            this.maxDocs = maxDocs;
             this.num = num;
             this.scoreDocMap = new LinkedHashMap<>(num);
             this.pq = new SuggestScoreDocPriorityQueue(num);
@@ -206,7 +185,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
 
         @Override
         public int getCountToCollect() {
-            return maxDocs;
+            return num;
         }
 
 
@@ -222,7 +201,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     break;
                 }
             }
-            this.scoreDocMap.clear();
+            scoreDocMap.clear();
         }
 
         @Override
@@ -245,22 +224,6 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 return new TopSuggestDocs(suggestScoreDocs.length, suggestScoreDocs, suggestScoreDocs[0].score);
             } else {
                 return TopSuggestDocs.EMPTY;
-            }
-        }
-    }
-
-    private static void suggest(IndexSearcher searcher, CompletionQuery query, TopSuggestDocsCollector collector) throws IOException {
-        query = (CompletionQuery) query.rewrite(searcher.getIndexReader());
-        Weight weight = query.createWeight(searcher, collector.needsScores());
-        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
-            BulkScorer scorer = weight.bulkScorer(context);
-            if (scorer != null) {
-                try {
-                    scorer.score(collector.getLeafCollector(context), context.reader().getLiveDocs());
-                } catch (CollectionTerminatedException e) {
-                    // collection was terminated prematurely
-                    // continue with the following leaf
-                }
             }
         }
     }

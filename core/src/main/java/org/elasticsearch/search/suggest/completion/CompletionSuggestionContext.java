@@ -18,13 +18,18 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
+import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -36,7 +41,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionFieldMapper.CompletionFieldType fieldType;
     private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
-    private Map<String, ContextMapping.QueryContexts> queryContexts;
+    private Map<String, List<CategoryQueryContext>> queryContexts;
     private MapperService mapperService;
     private IndexFieldDataService fieldData;
     private Set<String> payloadFields;
@@ -53,28 +58,16 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         this.fieldType = fieldType;
     }
 
-    CompletionSuggestionBuilder.RegexOptionsBuilder getRegexOptionsBuilder() {
-        return regexOptionsBuilder;
-    }
-
     void setRegexOptionsBuilder(CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder) {
         this.regexOptionsBuilder = regexOptionsBuilder;
-    }
-
-    CompletionSuggestionBuilder.FuzzyOptionsBuilder getFuzzyOptionsBuilder() {
-        return fuzzyOptionsBuilder;
     }
 
     void setFuzzyOptionsBuilder(CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder) {
         this.fuzzyOptionsBuilder = fuzzyOptionsBuilder;
     }
 
-    void setQueryContexts(Map<String, ContextMapping.QueryContexts> queryContexts) {
+    void setQueryContexts(Map<String, List<CategoryQueryContext>> queryContexts) {
         this.queryContexts = queryContexts;
-    }
-
-    Map<String, ContextMapping.QueryContexts> getQueryContexts() {
-        return queryContexts;
     }
 
     void setMapperService(MapperService mapperService) {
@@ -93,11 +86,43 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         return fieldData;
     }
 
-   void setPayloadFields(Set<String> fields) {
+    void setPayloadFields(Set<String> fields) {
         this.payloadFields = fields;
     }
 
     Set<String> getPayloadFields() {
         return payloadFields;
+    }
+
+    CompletionQuery toQuery() {
+        CompletionFieldMapper.CompletionFieldType fieldType = getFieldType();
+        final CompletionQuery query;
+        if (getPrefix() != null) {
+            if (fuzzyOptionsBuilder != null) {
+                query = fieldType.fuzzyQuery(getPrefix().utf8ToString(),
+                        Fuzziness.fromEdits(fuzzyOptionsBuilder.getEditDistance()),
+                        fuzzyOptionsBuilder.getFuzzyPrefixLength(), fuzzyOptionsBuilder.getFuzzyMinLength(),
+                        fuzzyOptionsBuilder.getMaxDeterminizedStates(), fuzzyOptionsBuilder.isTranspositions(),
+                        fuzzyOptionsBuilder.isUnicodeAware());
+            } else {
+                query = fieldType.prefixQuery(getPrefix());
+            }
+        } else if (getRegex() != null) {
+            if (fuzzyOptionsBuilder != null) {
+                throw new IllegalArgumentException("can not use 'fuzzy' options with 'regex");
+            }
+            if (regexOptionsBuilder == null) {
+                regexOptionsBuilder = new CompletionSuggestionBuilder.RegexOptionsBuilder();
+            }
+            query = fieldType.regexpQuery(getRegex(), regexOptionsBuilder.getFlagsValue(),
+                    regexOptionsBuilder.getMaxDeterminizedStates());
+        } else {
+            throw new IllegalArgumentException("'prefix' or 'regex' must be defined");
+        }
+        if (fieldType.hasContextMappings()) {
+            ContextMappings contextMappings = fieldType.getContextMappings();
+            return contextMappings.toContextQuery(query, queryContexts);
+        }
+        return query;
     }
 }

@@ -45,7 +45,7 @@ public final class CompletionTokenStream extends TokenStream {
   private final PayloadAttribute payloadAttr = addAttribute(PayloadAttribute.class);
   private final BytesRefBuilderTermAttribute bytesAtt = addAttribute(BytesRefBuilderTermAttribute.class);
 
-  private final TokenStream input;
+  final TokenStream input;
   final boolean preserveSep;
   final boolean preservePositionIncrements;
   final int maxGraphExpansions;
@@ -79,10 +79,6 @@ public final class CompletionTokenStream extends TokenStream {
    */
   public void setPayload(BytesRef payload) {
     this.payload = payload;
-  }
-
-  TokenStream tokenStream() {
-    return input;
   }
 
   @Override

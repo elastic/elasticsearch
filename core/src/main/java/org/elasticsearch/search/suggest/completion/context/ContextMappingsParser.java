@@ -21,14 +21,10 @@ package org.elasticsearch.search.suggest.completion.context;
 
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestionContext;
 
 import java.io.IOException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Parses index-time context values and query contexts
@@ -40,18 +36,18 @@ public class ContextMappingsParser {
     /**
      * Parses query contexts for all the defined contexts
      *
-     * Used in {@link CompletionSuggester#toQuery(CompletionSuggestionContext)}
+     * Used in {@link CompletionSuggestionContext#toQuery()}
      * <br>
      * Expected Input:
      * <ul>
      *     <li><pre>{&quot;NAME&quot;: <i>&lt;QUERY_CONTEXTS&gt;</i>, ..}</pre</li>
      * </ul>
-     * see specific {@link ContextMapping#parseQueryContext(String, XContentParser)} implementation
+     * see specific {@link ContextMapping#parseQueryContext(XContentParser)} implementation
      * for QUERY_CONTEXTS
      * NAME refers to the name of context mapping
      */
-    public static Map<String, ContextMapping.QueryContexts> parseQueryContext(ContextMappings contextMappings, XContentParser parser) throws IOException {
-        Map<String, ContextMapping.QueryContexts> queryContextsMap = new HashMap<>(contextMappings.size());
+    public static Map<String, List<CategoryQueryContext>> parseQueryContext(ContextMappings contextMappings, XContentParser parser) throws IOException {
+        Map<String, List<CategoryQueryContext>> queryContextsMap = new HashMap<>(contextMappings.size());
         assert parser.currentToken() == XContentParser.Token.START_OBJECT;
         XContentParser.Token token;
         String currentFieldName;
@@ -59,7 +55,7 @@ public class ContextMappingsParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
                 final ContextMapping mapping = contextMappings.get(currentFieldName);
-                queryContextsMap.put(currentFieldName, mapping.parseQueryContext(currentFieldName, parser));
+                queryContextsMap.put(currentFieldName, mapping.parseQueryContext(parser));
             }
 
         }

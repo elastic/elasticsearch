@@ -30,8 +30,7 @@ import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.GeoQueryContext;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
+import java.util.*;
 
 import static org.elasticsearch.search.suggest.completion.context.CategoryContextMapping.*;
 
@@ -44,7 +43,7 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
 public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
     private FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private RegexOptionsBuilder regexOptionsBuilder;
-    private List<QueryContexts> queryContextsList;
+    private Map<String, List<CategoryQueryContext>> queryContexts;
     private String[] payloadFields;
 
     public CompletionSuggestionBuilder(String name) {
@@ -272,14 +271,15 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * @param queryContexts a list of {@link CategoryQueryContext}
      */
     public CompletionSuggestionBuilder categoryContexts(String name, CategoryQueryContext... queryContexts) {
-        QueryContexts queryContext = new QueryContexts(name);
-        for (CategoryQueryContext context : queryContexts) {
-            queryContext.add(context);
+        if (this.queryContexts == null) {
+            this.queryContexts = new HashMap<>(2);
         }
-        if (this.queryContextsList == null) {
-            this.queryContextsList = new ArrayList<>(2);
+        List<CategoryQueryContext> contexts = this.queryContexts.get(name);
+        if (contexts == null) {
+            contexts = new ArrayList<>(2);
+            this.queryContexts.put(name, contexts);
         }
-        this.queryContextsList.add(queryContext);
+        Collections.addAll(contexts, queryContexts);
         return this;
     }
 
@@ -307,10 +307,14 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
         if (regexOptionsBuilder != null) {
             regexOptionsBuilder.toXContent(builder, params);
         }
-        if (queryContextsList != null) {
+        if (queryContexts != null) {
             builder.startObject("contexts");
-            for (QueryContexts queryContexts : queryContextsList) {
-                queryContexts.toXContent(builder, params);
+            for (Map.Entry<String, List<CategoryQueryContext>> entry : this.queryContexts.entrySet()) {
+                builder.startArray(entry.getKey());
+                for (CategoryQueryContext queryContext : entry.getValue()) {
+                    queryContext.toXContent(builder, params);
+                }
+                builder.endArray();
             }
             builder.endObject();
         }

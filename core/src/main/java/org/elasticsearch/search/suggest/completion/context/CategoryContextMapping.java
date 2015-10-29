@@ -128,7 +128,7 @@ public class CategoryContextMapping extends ContextMapping {
     }
 
     /**
-     * Parse a {@link QueryContexts<CategoryQueryContext>}
+     * Parse a list of {@link CategoryQueryContext}
      * using <code>parser</code>. A QueryContexts accepts one of the following forms:
      *
      * <ul>
@@ -144,8 +144,8 @@ public class CategoryContextMapping extends ContextMapping {
      *  </ul>
      */
     @Override
-    public QueryContexts parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException {
-        final QueryContexts queryContexts = new QueryContexts(name);
+    public List<CategoryQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
+        List<CategoryQueryContext> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
             queryContexts.add(innerParseQueryContext(parser));
@@ -208,11 +208,6 @@ public class CategoryContextMapping extends ContextMapping {
         } else {
             throw new ElasticsearchParseException("expected string or object");
         }
-    }
-
-    @Override
-    protected List<CategoryQueryContext> getQueryContexts(QueryContexts queryContexts) {
-        return queryContexts.getQueryContexts();
     }
 
     @Override

@@ -93,7 +93,7 @@ public class ContextSuggestField extends SuggestField {
     CompletionTokenStream completionTokenStream;
     if (stream instanceof CompletionTokenStream) {
       completionTokenStream = (CompletionTokenStream) stream;
-      PrefixTokenFilter prefixTokenFilter = new PrefixTokenFilter(completionTokenStream.tokenStream(), (char) CONTEXT_SEPARATOR, contexts);
+      PrefixTokenFilter prefixTokenFilter = new PrefixTokenFilter(completionTokenStream.input, (char) CONTEXT_SEPARATOR, contexts);
       completionTokenStream = new CompletionTokenStream(prefixTokenFilter,
           completionTokenStream.preserveSep,
           completionTokenStream.preservePositionIncrements,

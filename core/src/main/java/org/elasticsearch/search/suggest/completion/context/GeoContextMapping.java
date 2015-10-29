@@ -210,7 +210,7 @@ public class GeoContextMapping extends ContextMapping {
     }
 
     /**
-     * Parse a {@link QueryContexts<GeoQueryContext>}
+     * Parse a list of {@link GeoQueryContext}
      * using <code>parser</code>. A QueryContexts accepts one of the following forms:
      *
      * <ul>
@@ -233,8 +233,8 @@ public class GeoContextMapping extends ContextMapping {
      * see {@link GeoUtils#parseGeoPoint(String, GeoPoint)} for GEO POINT
      */
     @Override
-    public QueryContexts parseQueryContext(String name, XContentParser parser) throws IOException, ElasticsearchParseException {
-        QueryContexts queryContexts = new QueryContexts(name);
+    public List<CategoryQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
+        List<CategoryQueryContext> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
             GeoQueryContext current = innerParseQueryContext(parser);
@@ -380,9 +380,9 @@ public class GeoContextMapping extends ContextMapping {
 
 
     @Override
-    public List<CategoryQueryContext> getQueryContexts(QueryContexts queryContexts) {
+    public List<CategoryQueryContext> getQueryContexts(List<CategoryQueryContext> queryContexts) {
         List<CategoryQueryContext> queryContextList = new ArrayList<>();
-        for (CategoryQueryContext queryContext : queryContexts.getQueryContexts()) {
+        for (CategoryQueryContext queryContext : queryContexts) {
             GeoQueryContext geoQueryContext = ((GeoQueryContext) queryContext);
             int precision = Math.min(this.precision, geoQueryContext.geoHash.length());
             String truncatedGeohash = geoQueryContext.geoHash.toString().substring(0, precision);

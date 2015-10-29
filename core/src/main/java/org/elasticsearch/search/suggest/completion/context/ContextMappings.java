@@ -123,18 +123,14 @@ public class ContextMappings implements ToXContent {
                 scratch.setCharAt(0, (char) typeId);
                 scratch.setLength(1);
                 ContextMapping mapping = contextMappings.get(typeId);
-                for (CharSequence context : mapping.parseContext(document)) {
+                Set<CharSequence> contexts = new HashSet<>(mapping.parseContext(document));
+                if (this.contexts.get(mapping.name()) != null) {
+                    contexts.addAll(this.contexts.get(mapping.name()));
+                }
+                for (CharSequence context : contexts) {
                     scratch.append(context);
                     typedContexts.add(scratch.toCharsRef());
                     scratch.setLength(1);
-                }
-                final Set<CharSequence> contexts = this.contexts.get(mapping.name());
-                if (contexts != null) {
-                    for (CharSequence context : contexts) {
-                        scratch.append(context);
-                        typedContexts.add(scratch.toCharsRef());
-                        scratch.setLength(1);
-                    }
                 }
             }
             return typedContexts;
@@ -144,14 +140,14 @@ public class ContextMappings implements ToXContent {
     /**
      * Wraps a {@link CompletionQuery} with context queries,
      * individual context mappings adds query contexts using
-     * {@link ContextMapping#getQueryContexts(QueryContexts)}s
+     * {@link ContextMapping#getQueryContexts(List)}s
      *
      * @param query base completion query to wrap
      * @param queryContexts a map of context mapping name and collected query contexts
      *                      see {@link ContextMappingsParser#parseQueryContext(ContextMappings, XContentParser)}
      * @return a context-enabled query
      */
-    public ContextQuery toContextQuery(CompletionQuery query, Map<String, QueryContexts> queryContexts) {
+    public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<CategoryQueryContext>> queryContexts) {
         ContextQuery typedContextQuery = new ContextQuery(query);
         if (queryContexts.isEmpty() == false) {
             CharsRefBuilder scratch = new CharsRefBuilder();
@@ -160,10 +156,9 @@ public class ContextMappings implements ToXContent {
                 scratch.setCharAt(0, (char) typeId);
                 scratch.setLength(1);
                 ContextMapping mapping = contextMappings.get(typeId);
-                QueryContexts queryContext = queryContexts.get(mapping.name());
+                List<CategoryQueryContext> queryContext = queryContexts.get(mapping.name());
                 if (queryContext != null) {
-                    List<CategoryQueryContext> contexts = mapping.getQueryContexts(queryContext);
-                    for (CategoryQueryContext context : contexts) {
+                    for (CategoryQueryContext context : mapping.getQueryContexts(queryContext)) {
                         scratch.append(context.context);
                         typedContextQuery.addContext(scratch.toCharsRef(), context.boost, !context.isPrefix);
                         scratch.setLength(1);

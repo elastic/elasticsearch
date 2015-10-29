@@ -18,8 +18,11 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
+import org.apache.lucene.search.suggest.Lookup;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.suggest.Suggest;
@@ -62,7 +65,11 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
 
         @Override
         protected boolean lessThan(Entry.Option a, Entry.Option b) {
-            return sortComparator().compare(a, b) > 0;
+            int cmp = sortComparator().compare(a, b);
+            if (cmp != 0) {
+                return cmp > 0;
+            }
+            return Lookup.CHARSEQUENCE_COMPARATOR.compare(a.getText().string(), b.getText().string()) > 0;
         }
 
         public Entry.Option[] get() {

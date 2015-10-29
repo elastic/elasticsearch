@@ -36,6 +36,7 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
+import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 import org.elasticsearch.search.suggest.completion.context.ContextMappingsParser;
@@ -44,7 +45,6 @@ import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
-import static org.elasticsearch.search.suggest.completion.context.ContextMappingsParser.parseQueryContext;
 
 /**
  * Parses query options for {@link CompletionSuggester}
@@ -186,13 +186,23 @@ public class CompletionSuggestParser implements SuggestContextParser {
             if (type.hasContextMappings() == false && contextParser != null) {
                 throw new IllegalArgumentException("suggester [" + type.names().fullName() + "] doesn't expect any context");
             }
-            Map<String, ContextMapping.QueryContexts> queryContexts = Collections.emptyMap();
+            Map<String, List<CategoryQueryContext>> queryContexts = Collections.emptyMap();
             if (type.hasContextMappings() && contextParser != null) {
+                ContextMappings contextMappings = type.getContextMappings();
                 contextParser.nextToken();
-                queryContexts = parseQueryContext(type.getContextMappings(), contextParser);
+                queryContexts = new HashMap<>(contextMappings.size());
+                assert contextParser.currentToken() == XContentParser.Token.START_OBJECT;
+                XContentParser.Token currentToken;
+                String currentFieldName;
+                while ((currentToken = contextParser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                    if (currentToken == XContentParser.Token.FIELD_NAME) {
+                        currentFieldName = contextParser.currentName();
+                        final ContextMapping mapping = contextMappings.get(currentFieldName);
+                        queryContexts.put(currentFieldName, mapping.parseQueryContext(contextParser));
+                    }
+                }
                 contextParser.close();
             }
-
             suggestion.setFieldType(type);
             suggestion.setFuzzyOptionsBuilder(fuzzyOptions);
             suggestion.setRegexOptionsBuilder(regexOptions);
@@ -200,10 +210,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
             suggestion.setMapperService(mapperService);
             suggestion.setFieldData(fieldDataService);
             suggestion.setPayloadFields(payloadFields);
-            // TODO: pass a query builder or the query itself?
-            // now we do it in CompletionSuggester#toQuery(CompletionSuggestionContext)
             return suggestion;
-
         } else if (mappedFieldType instanceof OldCompletionFieldMapper.CompletionFieldType) {
             org.elasticsearch.search.suggest.completion.old.CompletionSuggestionContext oldSuggestionContext =
                     new org.elasticsearch.search.suggest.completion.old.CompletionSuggestionContext(oldCompletionSuggester);

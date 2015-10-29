@@ -193,6 +193,39 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     }
 
     @Test
+    public void testEarlyTermination() throws Exception {
+        final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
+        createIndexAndMapping(mapping);
+        int numDocs = atLeast(100);
+        List<IndexRequestBuilder> indexRequestBuilders = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "" + i)
+                    .setSource(jsonBuilder()
+                                    .startObject()
+                                    .startObject(FIELD)
+                                    .field("input", "suggestion" + (numDocs - i))
+                                    .field("weight", numDocs - i)
+                                    .endObject()
+                                    .endObject()
+                    ));
+        }
+        indexRandom(true, indexRequestBuilders);
+        int size = randomIntBetween(3, 10);
+        String[] outputs = new String[size];
+        for (int i = 0; i < size; i++) {
+            outputs[i] = "suggestion" + (numDocs - i);
+        }
+        CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sug").size(size);
+        assertSuggestions("foo", prefix, outputs);
+
+        CompletionSuggestionBuilder regex = SuggestBuilders.completionSuggestion("foo").field(FIELD).regex("su[g|s]g").size(size);
+        assertSuggestions("foo", regex, outputs);
+
+        CompletionSuggestionBuilder fuzzyPrefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg", Fuzziness.ONE).size(size);
+        assertSuggestions("foo", fuzzyPrefix, outputs);
+    }
+
+    @Test
     public void testSuggestWithNumericPayload() throws Exception {
         final CompletionMappingBuilder mapping = new CompletionMappingBuilder();
         createIndexAndMapping(mapping);
@@ -293,9 +326,6 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
                 .endObject();
         indexRequestBuilders.add(client().prepareIndex(INDEX, TYPE, "2").setSource(source));
         indexRandom(true, indexRequestBuilders);
-        //for (int i = 0; i < 5; i++) {
-        //    indexRandom(true, indexRequestBuilders);
-        //}
 
         CompletionSuggestionBuilder prefix = SuggestBuilders.completionSuggestion("foo").field(FIELD).prefix("sugg").payload("title", "count");
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(prefix).execute().actionGet();

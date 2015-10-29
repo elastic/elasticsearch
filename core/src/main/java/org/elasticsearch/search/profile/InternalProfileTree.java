@@ -45,7 +45,7 @@ public class InternalProfileTree {
     private ArrayList<Integer> roots;
 
     /** A list of queries that were rewritten */
-    private ArrayList<Integer> rewrites;
+    private Map<Query, ProfileBreakdown> rewrites;
 
     /** A temporary stack used to record where we are in the dependency tree.  Only used by scoring queries */
     private Deque<Integer> stack;
@@ -58,24 +58,19 @@ public class InternalProfileTree {
         tree = new ArrayList<>(10);
         queries = new ArrayList<>(10);
         roots = new ArrayList<>(10);
-        rewrites = new ArrayList<>(10);
+        rewrites = new HashMap<>(10);
     }
 
     public ProfileBreakdown getRewriteBreakDown(Query query) {
         int token = currentToken;
 
-        rewrites.add(token);
-
-        // Rewrites don't have a tree
-        tree.add(null);
-
-        // Save our query for lookup later
-        queries.add(query);
+        ProfileBreakdown breakdown = rewrites.get(query);
+        if (breakdown != null) {
+            return breakdown;
+        }
 
         ProfileBreakdown queryTimings = new ProfileBreakdown();
-        timings.add(token, queryTimings);
-
-        currentToken += 1;
+        rewrites.put(query, queryTimings);
 
         return queryTimings;
     }
@@ -191,8 +186,9 @@ public class InternalProfileTree {
 
     public List<InternalProfileResult> getRewriteList() {
         ArrayList<InternalProfileResult> results = new ArrayList<>(5);
-        for (Integer root : rewrites) {
-            results.add(doGetQueryTree(root));
+        for (Map.Entry<Query, ProfileBreakdown> entry : rewrites.entrySet()) {
+            InternalProfileResult result = new InternalProfileResult(entry.getKey(), entry.getValue().toTimingMap());
+            results.add(result);
         }
         return results;
     }

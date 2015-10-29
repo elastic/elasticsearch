@@ -18,6 +18,7 @@ String[] projects = [
   'plugins:discovery-ec2',
   'plugins:discovery-gce',
   'plugins:discovery-multicast',
+  'plugins:ingest',
   'plugins:lang-expression',
   'plugins:lang-groovy',
   'plugins:lang-javascript',

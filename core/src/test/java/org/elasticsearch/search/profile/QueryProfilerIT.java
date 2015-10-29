@@ -36,6 +36,7 @@ import static org.elasticsearch.search.profile.RandomQueryGenerator.randomQueryB
 import static org.elasticsearch.test.hamcrest.DoubleMatcher.nearlyEqual;
 import static org.hamcrest.Matchers.*;
 
+
 public class QueryProfilerIT extends ESIntegTestCase {
 
     /**

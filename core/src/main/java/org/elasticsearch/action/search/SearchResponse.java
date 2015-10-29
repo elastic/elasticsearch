@@ -37,6 +37,7 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
@@ -169,7 +170,7 @@ public class SearchResponse extends ActionResponse implements StatusToXContent {
      *
      * @return The profile results or null
      */
-    public @Nullable Map<String, ProfileShardResult> getProfileResults() {
+    public @Nullable Map<String, List<ProfileShardResult>> getProfileResults() {
         return internalResponse.profile();
     }
 

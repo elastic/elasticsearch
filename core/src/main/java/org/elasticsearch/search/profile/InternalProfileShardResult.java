@@ -86,10 +86,27 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
         return builder;
     }
 
-    public static InternalProfileShardResult readProfileShardResults(StreamInput in) throws IOException {
+    public static List<InternalProfileShardResult> readProfileShardResults(StreamInput in) throws IOException {
+        int size = in.readInt();
+        List<InternalProfileShardResult> results = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            InternalProfileShardResult result = readProfileShardResult(in);
+            results.add(result);
+        }
+        return results;
+    }
+
+    public static InternalProfileShardResult readProfileShardResult(StreamInput in) throws IOException {
         InternalProfileShardResult newShardResults = new InternalProfileShardResult();
         newShardResults.readFrom(in);
         return newShardResults;
+    }
+
+    public static void writeProfileShardResults(List<InternalProfileShardResult> results, StreamOutput out) throws IOException {
+        out.writeInt(results.size());
+        for (InternalProfileShardResult result : results) {
+            result.writeTo(out);
+        }
     }
 
     @Override

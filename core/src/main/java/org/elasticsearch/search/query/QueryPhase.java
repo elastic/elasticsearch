@@ -131,10 +131,9 @@ public class QueryPhase implements SearchPhase {
         suggestPhase.execute(searchContext);
         aggregationPhase.execute(searchContext);
 
-        final Profiler profiler = searchContext.queryProfiler();
-        if (profiler != null) {
-            InternalProfileShardResult shardResults = new InternalProfileShardResult(
-                    profiler.getQueryTree(), profiler.getRewriteList(), profiler.getCollector());
+        final List<Profiler> profilers = searchContext.queryProfilers();
+        if (profilers != null) {
+            List<InternalProfileShardResult> shardResults = Profiler.buildShardResults(profilers);
             searchContext.queryResult().profileResults(shardResults);
         }
     }
@@ -366,8 +365,7 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call());
 
             if (profiler != null) {
-                InternalProfileShardResult shardResults = new InternalProfileShardResult(
-                        profiler.getQueryTree(), profiler.getRewriteList(), profiler.getCollector());
+                List<InternalProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.queryProfilers());
                 searchContext.queryResult().profileResults(shardResults);
             }
 

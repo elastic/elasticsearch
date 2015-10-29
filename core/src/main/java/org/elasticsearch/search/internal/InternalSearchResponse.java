@@ -33,6 +33,7 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.search.internal.InternalSearchHits.readSearchHits;
@@ -97,7 +98,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
      *
      * @return Profile results or null
      */
-    public @Nullable Map<String, ProfileShardResult> profile() {
+    public @Nullable Map<String, List<ProfileShardResult>> profile() {
         return profileResults != null ? profileResults.getShardResults() : null;
     }
 

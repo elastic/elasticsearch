@@ -753,12 +753,18 @@ public class PercolateContext extends SearchContext {
         return queryCollectors;
     }
 
-    public void profile(boolean profile) {
+    @Override
+    public Profiler queryProfiler() {
         throw new UnsupportedOperationException();
     }
 
     @Override
-    public Profiler queryProfiler() {
+    public List<Profiler> queryProfilers() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void addProfile() {
         throw new UnsupportedOperationException();
     }
 }

@@ -31,6 +31,8 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.profile.InternalProfileCollector;
+import org.elasticsearch.search.profile.InternalProfileShardResult;
 import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
@@ -120,6 +122,15 @@ public class AggregationPhase implements SearchPhase {
             Collector globalsCollector = BucketCollector.wrap(globals);
             Query query = Queries.newMatchAllQuery();
             Query searchFilter = context.searchFilter(context.types());
+
+            Profiler profiler = null;
+            if (context.queryProfilers() != null) {
+                // If we are profiling, ask the context to start a new one for
+                // the global agg and use the new profiler
+                context.addProfile();
+                profiler = context.queryProfiler();
+            }
+
             if (searchFilter != null) {
                 BooleanQuery filtered = new BooleanQuery.Builder()
                     .add(query, Occur.MUST)
@@ -129,7 +140,7 @@ public class AggregationPhase implements SearchPhase {
             }
             try {
                 ((BucketCollector)globalsCollector).preCollection();
-                globalsCollector = Profiler.wrapBucketCollector(context.queryProfiler(), globalsCollector, true);
+                globalsCollector = Profiler.wrapGlobalBucketCollector(profiler, globalsCollector);
                 context.searcher().search(query, globalsCollector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);

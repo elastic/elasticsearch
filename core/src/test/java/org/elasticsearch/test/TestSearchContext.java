@@ -668,14 +668,17 @@ public class TestSearchContext extends SearchContext {
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {}
 
     @Override
-    public void profile(boolean profile) {
-
-    }
-
-    @Override
     public Profiler queryProfiler() {
         return null;
     }
+
+    @Override
+    public List<Profiler> queryProfilers() {
+        return null;
+    }
+
+    @Override
+    public void addProfile() {}
 
     @Override
     public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}

@@ -307,15 +307,19 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
 
     public abstract FetchSearchResult fetchResult();
     /**
-     * Sets if this search context should be profiled or not
-     * @param profile True if the search should be profiled
+     * Add a new profile to this search context
      */
-    public abstract void profile(boolean profile);
+    public abstract void addProfile();
 
     /**
-     * Returns the query profiler or {@code null} if profiling is not enabled.
+     * Returns the currently active query profiler or {@code null} if profiling is not enabled.
      */
     public abstract Profiler queryProfiler();
+
+    /**
+     * Returns the set of profilers created for the context, or {@code null} if profiling is not enabled.
+     */
+    public abstract List<Profiler> queryProfilers();
 
     /**
      * Schedule the release of a resource. The time when {@link Releasable#close()} will be called on this object

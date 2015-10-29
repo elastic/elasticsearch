@@ -595,7 +595,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             // go back and inform it that profiling is required
             // Must happen before queryPhase.preProcess, since that calls rewrite()
             if (context.request().profile()) {
-                context.profile(true);
+                context.addProfile();
             }
 
             // pre process
@@ -732,8 +732,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }
-        if (source.profile() != null) {
-            context.profile(source.profile());
+        if (source.profile() != null && source.profile().equals(true)) {
+            context.addProfile();
         }
         context.timeoutInMillis(source.timeoutInMillis());
         context.terminateAfter(source.terminateAfter());

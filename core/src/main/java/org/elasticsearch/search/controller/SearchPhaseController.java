@@ -416,7 +416,7 @@ public class SearchPhaseController extends AbstractComponent {
         InternalProfileShardResults shardResults = null;
         if (!queryResults.isEmpty()) {
             if (firstResult.profileResults() != null) {
-                Map<String, InternalProfileShardResult> profileResults = new HashMap<>(queryResults.size());
+                Map<String, List<InternalProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
                 for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                     String key = entry.value.queryResult().shardTarget().toString();
                     profileResults.put(key, entry.value.queryResult().profileResults());

@@ -528,7 +528,12 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public void profile(boolean profile) {
+    public List<Profiler> queryProfilers() {
+        throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public void addProfile() {
         throw new UnsupportedOperationException();
     }
 

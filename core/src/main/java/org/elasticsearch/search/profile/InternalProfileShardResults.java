@@ -9,13 +9,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 public final class InternalProfileShardResults implements Streamable, ToXContent{
 
-    private Map<String, InternalProfileShardResult> shardResults;
+    private Map<String, List<InternalProfileShardResult>> shardResults;
 
-    public InternalProfileShardResults(Map<String, InternalProfileShardResult> shardResults) {
+    public InternalProfileShardResults(Map<String, List<InternalProfileShardResult>> shardResults) {
         this.shardResults = shardResults;
     }
 
@@ -23,8 +25,15 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
         // For serialization
     }
 
-    public Map<String, ProfileShardResult> getShardResults() {
-        return Collections.unmodifiableMap(shardResults);
+    public Map<String, List<ProfileShardResult>> getShardResults() {
+        Map<String, List<ProfileShardResult>> transformed =
+                shardResults.entrySet()
+                        .stream()
+                        .collect(Collectors.toMap(
+                                        Map.Entry::getKey,
+                                        e -> Collections.unmodifiableList(e.getValue()))
+                        );
+        return Collections.unmodifiableMap(transformed);
     }
 
     public static InternalProfileShardResults readProfileShardResults(StreamInput in) throws IOException {
@@ -40,7 +49,7 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
         shardResults = new HashMap<>(size);
         for (int i = 0; i < size; i++) {
             String key = in.readString();
-            InternalProfileShardResult shardResult = InternalProfileShardResult.readProfileShardResults(in);
+            List<InternalProfileShardResult> shardResult = InternalProfileShardResult.readProfileShardResults(in);
             shardResults.put(key, shardResult);
         }
     }
@@ -48,9 +57,11 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeInt(shardResults.size());
-        for (Map.Entry<String, InternalProfileShardResult> entry : shardResults.entrySet()) {
+        for (Map.Entry<String, List<InternalProfileShardResult>> entry : shardResults.entrySet()) {
             out.writeString(entry.getKey());
-            entry.getValue().writeTo(out);
+            for (InternalProfileShardResult result : entry.getValue()) {
+                result.writeTo(out);
+            }
         }
     }
 
@@ -58,10 +69,14 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("profile").startArray("shards");
 
-        for (Map.Entry<String, InternalProfileShardResult> entry : shardResults.entrySet()) {
-            builder.startObject().startObject(entry.getKey());
-            entry.getValue().toXContent(builder, params);
-            builder.endObject().endObject();
+        for (Map.Entry<String, List<InternalProfileShardResult>> entry : shardResults.entrySet()) {
+            builder.startObject().field("id",entry.getKey()).startArray("searches");
+            for (InternalProfileShardResult result : entry.getValue()) {
+                builder.startObject();
+                result.toXContent(builder, params);
+                builder.endObject();
+            }
+            builder.endArray().endObject();
         }
 
         builder.endArray().endObject();

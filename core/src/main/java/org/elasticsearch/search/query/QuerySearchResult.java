@@ -55,7 +55,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private InternalProfileShardResult profileShardResults;
+    private List<InternalProfileShardResult> profileShardResults;
 
     public QuerySearchResult() {
 
@@ -128,7 +128,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * @return The profiled results, or null
      */
     public @Nullable
-    InternalProfileShardResult profileResults() {
+    List<InternalProfileShardResult> profileResults() {
         return profileShardResults;
     }
 
@@ -136,7 +136,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile
      */
-    public void profileResults(InternalProfileShardResult shardResults) {
+    public void profileResults(List<InternalProfileShardResult> shardResults) {
         this.profileShardResults = shardResults;
     }
 
@@ -260,7 +260,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            profileShardResults.writeTo(out);
+            InternalProfileShardResult.writeProfileShardResults(profileShardResults, out);
         }
     }
 }

@@ -136,32 +136,27 @@ public final class Profiler {
      * @return         A Collector which has been wrapped for profiling
      */
     public static Collector wrapBucketCollector(Profiler profiler, Collector original) {
-        return wrapBucketCollector(profiler, original, false);
+        if (profiler != null && !(original instanceof InternalProfileCollector)) {
+            return new InternalProfileCollector(original, CollectorResult.REASON_AGGREGATION);
+        }
+        return original;
     }
 
     /**
-     * Helper method to wrap BucketCollectors.  If the bucket is a global aggregation,
-     * it will adjust the dependency tree as necessary, otherwise the instantiated
-     * InternalProfileCollector is left "dangling", since it will be wired into the graph
-     * later
+     * Helper method to wrap BucketCollectors which are being used for global
+     * aggregations
      *
      * @param profiler The InternalProfiler associated with the search context
      * @param original The Collector to be wrapped
-     * @param global   True if this Collector is being used as a global aggregation
      * @return         A Collector which has been wrapped for profiling
      */
-    public static Collector wrapBucketCollector(Profiler profiler, Collector original, boolean global) {
+    public static Collector wrapGlobalBucketCollector(Profiler profiler, Collector original) {
         if (profiler != null && !(original instanceof InternalProfileCollector)) {
-            if (global) {
-                // Global aggs are built after all search phase is done, so
-                // global agg collectors must be appended to the root collector.
-                InternalProfileCollector c = new InternalProfileCollector(original, CollectorResult.REASON_AGGREGATION_GLOBAL);
-                profiler.getCollector().addChild(c);
-                return c;
-            }
-            // Otherwise this is a non-global agg, so it'll be wrapped by a multi later and we don't need
-            // to set children now
-            return new InternalProfileCollector(original, CollectorResult.REASON_AGGREGATION);
+            InternalProfileCollector collector =  new InternalProfileCollector(original, CollectorResult.REASON_AGGREGATION_GLOBAL);
+
+            // Only one collector for global aggs, so we can set the profiled collector directly
+            profiler.setCollector(collector);
+            return collector;
         }
         return original;
     }
@@ -215,4 +210,16 @@ public final class Profiler {
         }
         return multi;
     }
+
+    public static List<InternalProfileShardResult> buildShardResults(List<Profiler> profilers) {
+        List<InternalProfileShardResult> results = new ArrayList<>(profilers.size());
+        for (Profiler profiler : profilers) {
+            InternalProfileShardResult result =  new InternalProfileShardResult(
+                    profiler.getQueryTree(), profiler.getRewriteList(), profiler.getCollector());
+            results.add(result);
+        }
+        return results;
+    }
+
+
 }

@@ -132,7 +132,7 @@ public class DefaultSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
-    private Profiler internalProfiler;
+    private List<Profiler> internalProfilers;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -726,24 +726,13 @@ public class DefaultSearchContext extends SearchContext {
         return queryCollectors;
     }
 
-    /**
-     * Sets if this search context should be profiled.  This is needed
-     * because we only find out about profiling from the request, which is parsed after
-     * the searcher is built.  This prevents us from using a wrapper-style "ProfileIndexSearcher".
-     *
-     * Instead, once we determine the query needs to be profiled, we go back and tell the ContextIndexSearcher
-     * that it needs to profile before the query is run.
-     *
-     * @param profile True if the query should be profiled
-     */
-    @Override
-    public void profile(boolean profile) {
-        if (profile) {
-            internalProfiler = new Profiler();
-        } else {
-            internalProfiler = null;
+    public void addProfile() {
+        if (internalProfilers == null) {
+            internalProfilers = new ArrayList<>(2);
         }
-        searcher.setProfiler(internalProfiler);
+        Profiler profiler = new Profiler();
+        internalProfilers.add(profiler);
+        searcher.setProfiler(profiler);
     }
 
     /**
@@ -754,7 +743,15 @@ public class DefaultSearchContext extends SearchContext {
      */
     @Override
     public @Nullable Profiler queryProfiler() {
-        return internalProfiler;
+        Profiler profiler = null;
+        if (internalProfilers != null && internalProfilers.size() > 0) {
+            profiler = internalProfilers.get(internalProfilers.size() - 1);
+        }
+        return profiler;
+    }
+
+    public @Nullable List<Profiler> queryProfilers() {
+        return internalProfilers;
     }
 
 }

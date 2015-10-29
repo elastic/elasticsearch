@@ -80,7 +80,7 @@ For example:
 marvel.agent.exporters:
   id1:                              
     type: http
-    host: [http://es-mon1:9200, http://es-mon2:9200]
+    host: ["http://es-mon1:9200", "http://es-mon2:9200"]
     auth:
       username: agent-user
       password: password
@@ -100,7 +100,7 @@ For example:
 marvel.agent.exporters:
   id1:                              
     type: http
-    host: [ https://es-mon1:9200, https://es-mon2:9200]
+    host: ["https://es-mon1:9200", "https://es-mon2:9200"]
 
     auth:
       username: agent-user

@@ -1,0 +1,29 @@
+apply plugin: 'groovy'
+
+buildscript {
+  repositories {
+    maven {
+      name 'sonatype-snapshots'
+      url 'http://oss.sonatype.org/content/repositories/snapshots/'
+    }
+  }
+  dependencies {
+    classpath 'org.elasticsearch.gradle:project-attachment-plugin:1.0.0-SNAPSHOT'
+  }
+}
+apply plugin: 'elasticsearch.project-attachment'
+
+repositories {
+  mavenCentral()
+  maven {
+    name 'sonatype-snapshots'
+    url "https://oss.sonatype.org/content/repositories/snapshots/"
+  }
+}
+
+subprojects {
+  rootProject.dependencies {
+    runtime project(path)
+  } 
+}
+

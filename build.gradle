@@ -1,0 +1,97 @@
+buildscript {
+  repositories {
+    mavenCentral()
+    maven {
+      name 'sonatype-snapshots'
+      url 'http://oss.sonatype.org/content/repositories/snapshots/'
+    }
+  }
+  dependencies {
+    classpath 'org.elasticsearch.gradle:build-tools:3.0.0-SNAPSHOT'
+    classpath 'org.elasticsearch.gradle:project-attachment-plugin:1.0.0-SNAPSHOT'
+  }
+}
+apply plugin: 'elasticsearch.project-attachment'
+
+allprojects {
+  apply plugin: 'idea'
+  apply plugin: 'eclipse'
+}
+
+subprojects {
+  project.group = 'org.elasticsearch'
+  project.version = '3.0.0-SNAPSHOT'
+  project.ext {
+    luceneSnapshotRevision = '1710880'
+  }
+  repositories {
+    mavenCentral()
+    maven {
+      name 'sonatype-snapshots'
+      url 'http://oss.sonatype.org/content/repositories/snapshots/'
+    }
+    maven {
+      name 'lucene-snapshots'
+      url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${luceneSnapshotRevision}"
+    }
+  }
+
+}
+        <repository>
+            <id>elasticsearch-releases</id>
+            <url>http://maven.elasticsearch.org/releases</url>
+            <releases>
+                <enabled>true</enabled>
+                <updatePolicy>daily</updatePolicy>
+            </releases>
+            <snapshots>
+                <enabled>false</enabled>
+            </snapshots>
+        </repository>
+        <repository>
+            <id>elasticsearch-internal-snapshots</id>
+            <url>http://maven.elasticsearch.org/artifactory/internal-snapshots</url>
+            <releases>
+                <enabled>false</enabled>
+            </releases>
+            <snapshots>
+                <enabled>true</enabled>
+                <updatePolicy>always</updatePolicy>
+            </snapshots>
+        </repository>
+*/
+
+/*
+subprojects {
+  task artifacts {
+    group = "Help"
+    description = "Displays the artifacts associated with each configuration of " + project
+    doFirst {
+      configurations.findAll().each { config ->
+        println "${config}:"
+        config.allArtifacts.getFiles().each { file -> println "" + file}
+        println ' '
+      }
+    }
+  }
+}
+*/
+
+// ================= Local Elasticsearch attachment ===============
+if ('elasticsearch' in attachments) {
+  subprojects {
+    it.ext.projectsPrefix = ':elasticsearch'
+    configurations {
+      all {
+        resolutionStrategy {
+          dependencySubstitution {
+            substitute module("org.elasticsearch:rest-api-spec:${version}") with project(":elasticsearch:rest-api-spec")
+            substitute module("org.elasticsearch:elasticsearch:${version}") with project(":elasticsearch:core")
+            substitute module("org.elasticsearch:test-framework:${version}") with project(":elasticsearch:test-framework")
+            substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project(":elasticsearch:distribution:zip")
+          }
+        }
+      }
+    }
+  }
+}

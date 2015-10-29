@@ -23,7 +23,7 @@
               "http": {
                 "request": {
                   "host": "localhost",
-                  "port": ${integ.http.port},
+                  "port": 9400,
                   "path": "/_cluster/health",
                   "auth" : {
                     "basic" : {

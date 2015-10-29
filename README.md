@@ -83,6 +83,7 @@ Usage
 Using the attachment type is simple, in your mapping JSON, simply set a certain JSON element as attachment, for example:
 
 ```javascript
+PUT /test
 PUT /test/person/_mapping
 {
     "person" : {
@@ -116,8 +117,8 @@ PUT /test/person/1
 }
 ```
 
-The `attachment` type not only indexes the content of the doc, but also automatically adds meta data on the attachment
-as well (when available).
+The `attachment` type not only indexes the content of the doc in `content` sub field, but also automatically adds meta 
+data on the attachment as well (when available).
 
 The metadata supported are:
 
@@ -143,7 +144,7 @@ PUT /test/person/_mapping
             "file" : {
                 "type" : "attachment",
                 "fields" : {
-                    "file" : {"index" : "no"},
+                    "content" : {"index" : "no"},
                     "title" : {"store" : "yes"},
                     "date" : {"store" : "yes"},
                     "author" : {"analyzer" : "myAnalyzer"},
@@ -158,7 +159,7 @@ PUT /test/person/_mapping
 }
 ```
 
-In the above example, the actual content indexed is mapped under `fields` name `file`, and we decide not to index it, so
+In the above example, the actual content indexed is mapped under `fields` name `content`, and we decide not to index it, so
 it will only be available in the `_all` field. The other fields map to their respective metadata names, but there is no
 need to specify the `type` (like `string` or `date`) since it is already known.
 
@@ -176,7 +177,7 @@ PUT /test/person/_mapping
       "file": {
         "type": "attachment",
         "fields": {
-          "file": {
+          "content": {
             "type": "string",
             "copy_to": "copy"
           }
@@ -322,7 +323,7 @@ PUT /test/person/_mapping
       "file": {
         "type": "attachment",
         "fields": {
-          "file": {
+          "content": {
             "type": "string",
             "term_vector":"with_positions_offsets",
             "store": true
@@ -341,12 +342,12 @@ GET /test/person/_search
   "fields": [],
   "query": {
     "match": {
-      "file": "king queen"
+      "file.content": "king queen"
     }
   },
   "highlight": {
     "fields": {
-      "file": {
+      "file.content": {
       }
     }
   }
@@ -374,7 +375,7 @@ It gives back:
             "_id": "1",
             "_score": 0.13561106,
             "highlight": {
-               "file": [
+               "file.content": [
                   "\"God Save the <em>Queen</em>\" (alternatively \"God Save the <em>King</em>\"\n"
                ]
             }

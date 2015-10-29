@@ -53,6 +53,7 @@
         <lucene.maven.version>5.4.0-snapshot-${lucene.snapshot.revision}</lucene.maven.version>
         <testframework.version>2.2.0</testframework.version>
         <securemock.version>1.1</securemock.version>
+        <securesm.version>1.0</securesm.version>
 
         <jackson.version>2.6.2</jackson.version>
         <slf4j.version>1.6.2</slf4j.version>
@@ -196,6 +197,12 @@
                         <artifactId>junit4-ant</artifactId>
                     </exclusion>
                 </exclusions>
+            </dependency>
+
+            <dependency>
+                <groupId>org.elasticsearch</groupId>
+                <artifactId>securesm</artifactId>
+                <version>${securesm.version}</version>
             </dependency>
 
             <dependency>

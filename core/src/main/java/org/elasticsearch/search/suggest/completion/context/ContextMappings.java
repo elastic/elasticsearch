@@ -144,7 +144,6 @@ public class ContextMappings implements ToXContent {
      *
      * @param query base completion query to wrap
      * @param queryContexts a map of context mapping name and collected query contexts
-     *                      see {@link ContextMappingsParser#parseQueryContext(ContextMappings, XContentParser)}
      * @return a context-enabled query
      */
     public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<CategoryQueryContext>> queryContexts) {

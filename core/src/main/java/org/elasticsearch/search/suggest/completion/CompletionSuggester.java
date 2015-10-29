@@ -24,11 +24,12 @@ import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Weight;
+import org.apache.lucene.search.suggest.Lookup;
 import org.apache.lucene.search.suggest.xdocument.CompletionQuery;
-import org.apache.lucene.search.suggest.xdocument.SuggestScoreDocPriorityQueue;
 import org.apache.lucene.search.suggest.xdocument.TopSuggestDocs;
 import org.apache.lucene.search.suggest.xdocument.TopSuggestDocsCollector;
 import org.apache.lucene.util.*;
+import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
@@ -53,7 +54,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             final CompletionSuggestionContext suggestionContext, final IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
         final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
         if (fieldType == null) {
-            throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion suggest field");
+            throw new ElasticsearchException("Field [" + suggestionContext.getField() + "] is not a completion field");
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
         spare.copyUTF8Bytes(suggestionContext.getText());
@@ -165,22 +166,47 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                     return contexts;
                 }
             }
+        }
 
-            public float getScore() {
-                return score;
+        private static class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
+
+            public SuggestDocPriorityQueue(int maxSize) {
+                super(maxSize);
             }
 
+            @Override
+            protected boolean lessThan(SuggestDoc a, SuggestDoc b) {
+                if (a.score == b.score) {
+                    int cmp = Lookup.CHARSEQUENCE_COMPARATOR.compare(a.key, b.key);
+                    if (cmp == 0) {
+                        // prefer smaller doc id, in case of a tie
+                        return a.doc > b.doc;
+                    } else {
+                        return cmp > 0;
+                    }
+                }
+                return a.score < b.score;
+            }
+
+            public SuggestDoc[] getResults() {
+                int size = size();
+                SuggestDoc[] res = new SuggestDoc[size];
+                for (int i = size - 1; i >= 0; i--) {
+                    res[i] = pop();
+                }
+                return res;
+            }
         }
 
         private final int num;
-        private final SuggestScoreDocPriorityQueue pq;
+        private final SuggestDocPriorityQueue pq;
         private final Map<Integer, SuggestDoc> scoreDocMap;
 
         public TopDocumentsCollector(int num) {
-            super(num, null);
+            super(1); // hack
             this.num = num;
             this.scoreDocMap = new LinkedHashMap<>(num);
-            this.pq = new SuggestScoreDocPriorityQueue(num);
+            this.pq = new SuggestDocPriorityQueue(num);
         }
 
         @Override

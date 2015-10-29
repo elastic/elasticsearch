@@ -133,7 +133,6 @@ public class GeoContextMapping extends ContextMapping {
                 throw new ElasticsearchParseException("referenced field must be mapped to geo_point");
             }
         }
-
         final Set<CharSequence> contexts = new HashSet<>();
         Token token = parser.currentToken();
         if (token == Token.START_ARRAY) {
@@ -237,16 +236,10 @@ public class GeoContextMapping extends ContextMapping {
         List<CategoryQueryContext> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            GeoQueryContext current = innerParseQueryContext(parser);
-            if (current != null) {
-                queryContexts.add(current);
-            }
+            queryContexts.add(innerParseQueryContext(parser));
         } else if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {
-                GeoQueryContext current = innerParseQueryContext(parser);
-                if (current != null) {
-                    queryContexts.add(current);
-                }
+                queryContexts.add(innerParseQueryContext(parser));
             }
         }
         return queryContexts;
@@ -267,91 +260,81 @@ public class GeoContextMapping extends ContextMapping {
             while ((token = parser.nextToken()) != Token.END_OBJECT) {
                 if (token == Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
-                } else if (token == Token.VALUE_STRING) {
+                } else if (currentFieldName != null) {
                     if ("lat".equals(currentFieldName)) {
-                        if (point == null) {
-                            lat = parser.doubleValue(true);
+                        if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER) {
+                            if (point == null) {
+                                lat = parser.doubleValue(true);
+                            } else {
+                                throw new ElasticsearchParseException("only lat/lon is allowed");
+                            }
                         } else {
-                            throw new ElasticsearchParseException("only lat/lon is allowed");
+                            throw new ElasticsearchParseException("lat must be a string or a number");
                         }
                     } else if ("lon".equals(currentFieldName)) {
-                        if (point == null) {
-                            lon = parser.doubleValue(true);
+                        if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER) {
+                            if (point == null) {
+                                lon = parser.doubleValue(true);
+                            } else {
+                                throw new ElasticsearchParseException("only lat/lon is allowed");
+                            }
                         } else {
-                            throw new ElasticsearchParseException("only lat/lon is allowed");
+                            throw new ElasticsearchParseException("lon must be a string or a number");
                         }
                     } else if (CONTEXT_VALUE.equals(currentFieldName)) {
                         point = GeoUtils.parseGeoPoint(parser);
                     } else if (CONTEXT_BOOST.equals(currentFieldName)) {
-                        Number number;
-                        try {
-                            number = Long.parseLong(parser.text());
-                        } catch (NumberFormatException e) {
-                            throw new IllegalArgumentException("Boost must be a string representing a numeric value, but was [" + parser.text() + "]");
+                        final Number number;
+                        if (token == Token.VALUE_STRING) {
+                            try {
+                                number = Long.parseLong(parser.text());
+                            } catch (NumberFormatException e) {
+                                throw new IllegalArgumentException("Boost must be a string representing a numeric value, but was [" + parser.text() + "]");
+                            }
+                        } else if (token == Token.VALUE_NUMBER) {
+                            XContentParser.NumberType numberType = parser.numberType();
+                            number = parser.numberValue();
+                            if (numberType != XContentParser.NumberType.INT) {
+                                throw new ElasticsearchParseException("boost must be in the interval [0..2147483647], but was [" + number.longValue() + "]");
+                            }
+                        } else {
+                            throw new ElasticsearchParseException("boost must be a string or an int");
                         }
                         boost = number.intValue();
                     } else if (CONTEXT_NEIGHBOURS.equals(currentFieldName)) {
-                        neighbours.add(GeoUtils.geoHashLevelsForPrecision(parser.text()));
-                    } else if (CONTEXT_PRECISION.equals(currentFieldName)) {
-                        precision = GeoUtils.geoHashLevelsForPrecision(parser.text());
-                    } else {
-                        throw new ElasticsearchParseException("unknown field [" + currentFieldName + "] for string value");
-                    }
-                } else if (token == Token.VALUE_NUMBER) {
-                    if ("lat".equals(currentFieldName)) {
-                        if (point == null) {
-                            lat = parser.doubleValue(true);
-                        } else {
-                            throw new ElasticsearchParseException("only lat/lon is allowed");
-                        }
-                    } else if ("lon".equals(currentFieldName)) {
-                        if (point == null) {
-                            lon = parser.doubleValue(true);
-                        } else {
-                            throw new ElasticsearchParseException("only lat/lon is allowed");
-                        }
-                    } else if (CONTEXT_NEIGHBOURS.equals(currentFieldName)) {
-                        XContentParser.NumberType numberType = parser.numberType();
-                        if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
-                            neighbours.add(parser.intValue());
-                        } else {
-                            neighbours.add(GeoUtils.geoHashLevelsForPrecision(parser.doubleValue()));
-                        }
-                    } else if (CONTEXT_PRECISION.equals(currentFieldName)) {
-                        XContentParser.NumberType numberType = parser.numberType();
-                        if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
-                            precision = parser.intValue();
-                        } else {
-                            precision = GeoUtils.geoHashLevelsForPrecision(parser.doubleValue());
-                        }
-                    } else if (CONTEXT_BOOST.equals(currentFieldName)) {
-                        XContentParser.NumberType numberType = parser.numberType();
-                        Number number = parser.numberValue();
-                        if (numberType == XContentParser.NumberType.INT) {
-                            boost = number.intValue();
-                        } else {
-                            throw new ElasticsearchParseException("boost must be in the interval [0..2147483647], but was [" + number.longValue() + "]");
-                        }
-                    } else {
-                        throw new ElasticsearchParseException("unknown field [" + currentFieldName + "] for numeric value");
-                    }
-                } else if (token == Token.START_OBJECT) {
-                    if (CONTEXT_VALUE.equals(currentFieldName)) {
-                        point = GeoUtils.parseGeoPoint(parser);
-                    } else {
-                        throw new ElasticsearchParseException("unknown field [" + currentFieldName + "] for object value");
-                    }
-                } else if (token == Token.START_ARRAY) {
-                    if (CONTEXT_NEIGHBOURS.equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
-                            if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER) {
-                                neighbours.add(parser.intValue(true));
+                        if (token == Token.VALUE_STRING) {
+                            neighbours.add(GeoUtils.geoHashLevelsForPrecision(parser.text()));
+                        } else if (token == Token.VALUE_NUMBER) {
+                            XContentParser.NumberType numberType = parser.numberType();
+                            if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
+                                neighbours.add(parser.intValue());
                             } else {
-                                throw new ElasticsearchParseException("neighbours accept string/numbers");
+                                neighbours.add(GeoUtils.geoHashLevelsForPrecision(parser.doubleValue()));
                             }
+                        } else if (token == Token.START_ARRAY) {
+                            while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                                if (token == Token.VALUE_STRING || token == Token.VALUE_NUMBER) {
+                                    neighbours.add(parser.intValue(true));
+                                } else {
+                                    throw new ElasticsearchParseException("neighbours array must have only string or numbers");
+                                }
+                            }
+                        } else {
+                            throw new ElasticsearchParseException("neighbours must be a string or a number or an array");
                         }
-                    } else {
-                        throw new ElasticsearchParseException("unknown field [" + currentFieldName + "] for array value");
+                    } else if (CONTEXT_PRECISION.equals(currentFieldName)) {
+                        if (token == Token.VALUE_STRING) {
+                            precision = GeoUtils.geoHashLevelsForPrecision(parser.text());
+                        } else if (token == Token.VALUE_NUMBER) {
+                            XContentParser.NumberType numberType = parser.numberType();
+                            if (numberType == XContentParser.NumberType.INT || numberType == XContentParser.NumberType.LONG) {
+                                precision = parser.intValue();
+                            } else {
+                                precision = GeoUtils.geoHashLevelsForPrecision(parser.doubleValue());
+                            }
+                        } else {
+                            throw new ElasticsearchParseException("precision must be a string or a number");
+                        }
                     }
                 }
             }
@@ -378,14 +361,13 @@ public class GeoContextMapping extends ContextMapping {
         }
     }
 
-
     @Override
     public List<CategoryQueryContext> getQueryContexts(List<CategoryQueryContext> queryContexts) {
         List<CategoryQueryContext> queryContextList = new ArrayList<>();
         for (CategoryQueryContext queryContext : queryContexts) {
             GeoQueryContext geoQueryContext = ((GeoQueryContext) queryContext);
-            int precision = Math.min(this.precision, geoQueryContext.geoHash.length());
-            String truncatedGeohash = geoQueryContext.geoHash.toString().substring(0, precision);
+            int precision = Math.min(this.precision, geoQueryContext.context.length());
+            String truncatedGeohash = geoQueryContext.context.toString().substring(0, precision);
             queryContextList.add(new CategoryQueryContext(truncatedGeohash, geoQueryContext.boost, false));
             for (int neighboursPrecision : geoQueryContext.neighbours) {
                 int neighbourPrecision = Math.min(neighboursPrecision, truncatedGeohash.length());
@@ -406,9 +388,7 @@ public class GeoContextMapping extends ContextMapping {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
-
         GeoContextMapping that = (GeoContextMapping) o;
-
         if (precision != that.precision) return false;
         return !(fieldName != null ? !fieldName.equals(that.fieldName) : that.fieldName != null);
 

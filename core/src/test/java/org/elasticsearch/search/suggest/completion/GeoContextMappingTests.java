@@ -204,7 +204,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
         assertTrue(iterator.hasNext());
         GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.geoHash.toString(), equalTo("ezs42e44yx96"));
+        assertThat(queryContext.context.toString(), equalTo("ezs42e44yx96"));
         assertThat(queryContext.boost, equalTo(1));
         assertThat(queryContext.neighbours.length, equalTo(1));
     }
@@ -221,7 +221,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
         assertTrue(iterator.hasNext());
         GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.geoHash.toString(), equalTo("wh0n94"));
+        assertThat(queryContext.context.toString(), equalTo("wh0n94"));
         assertThat(queryContext.boost, equalTo(1));
         assertThat(queryContext.neighbours.length, equalTo(1));
     }
@@ -242,7 +242,7 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
         assertTrue(iterator.hasNext());
         GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.geoHash.toString(), equalTo("wh0n94"));
+        assertThat(queryContext.context.toString(), equalTo("wh0n94"));
         assertThat(queryContext.boost, equalTo(10));
         assertThat(queryContext.neighbours.length, equalTo(3));
     }
@@ -273,12 +273,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
         assertTrue(iterator.hasNext());
         GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.geoHash.toString(), equalTo("wh0n94"));
+        assertThat(queryContext.context.toString(), equalTo("wh0n94"));
         assertThat(queryContext.boost, equalTo(10));
         assertThat(queryContext.neighbours.length, equalTo(3));
         assertTrue(iterator.hasNext());
         queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.geoHash.toString(), equalTo("w5cx04"));
+        assertThat(queryContext.context.toString(), equalTo("w5cx04"));
         assertThat(queryContext.boost, equalTo(2));
         assertThat(queryContext.neighbours.length, equalTo(1));
     }
@@ -305,12 +305,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
         assertTrue(iterator.hasNext());
         GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.geoHash.toString(), equalTo("wh0n94"));
+        assertThat(queryContext.context.toString(), equalTo("wh0n94"));
         assertThat(queryContext.boost, equalTo(10));
         assertThat(queryContext.neighbours.length, equalTo(3));
         assertTrue(iterator.hasNext());
         queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.geoHash.toString(), equalTo("w5cx04"));
+        assertThat(queryContext.context.toString(), equalTo("w5cx04"));
         assertThat(queryContext.boost, equalTo(1));
         assertThat(queryContext.neighbours.length, equalTo(1));
     }

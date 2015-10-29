@@ -45,7 +45,7 @@ public final class CompletionTokenStream extends TokenStream {
   private final PayloadAttribute payloadAttr = addAttribute(PayloadAttribute.class);
   private final BytesRefBuilderTermAttribute bytesAtt = addAttribute(BytesRefBuilderTermAttribute.class);
 
-  final TokenStream input;
+  final TokenStream inputTokenStream;
   final boolean preserveSep;
   final boolean preservePositionIncrements;
   final int maxGraphExpansions;
@@ -61,14 +61,14 @@ public final class CompletionTokenStream extends TokenStream {
    * The token stream <code>input</code> is converted to an automaton
    * with the default settings of {@link CompletionAnalyzer}
    */
-  CompletionTokenStream(TokenStream input) {
-    this(input, DEFAULT_PRESERVE_SEP, DEFAULT_PRESERVE_POSITION_INCREMENTS, DEFAULT_MAX_GRAPH_EXPANSIONS);
+  CompletionTokenStream(TokenStream inputTokenStream) {
+    this(inputTokenStream, DEFAULT_PRESERVE_SEP, DEFAULT_PRESERVE_POSITION_INCREMENTS, DEFAULT_MAX_GRAPH_EXPANSIONS);
   }
 
-  CompletionTokenStream(TokenStream input, boolean preserveSep, boolean preservePositionIncrements, int maxGraphExpansions) {
+  CompletionTokenStream(TokenStream inputTokenStream, boolean preserveSep, boolean preservePositionIncrements, int maxGraphExpansions) {
     // Don't call the super(input) ctor - this is a true delegate and has a new attribute source since we consume
     // the input stream entirely in toFiniteStrings(input)
-    this.input = input;
+    this.inputTokenStream = inputTokenStream;
     this.preserveSep = preserveSep;
     this.preservePositionIncrements = preservePositionIncrements;
     this.maxGraphExpansions = maxGraphExpansions;
@@ -110,14 +110,14 @@ public final class CompletionTokenStream extends TokenStream {
   public void end() throws IOException {
     super.end();
     if (finiteStrings == null) {
-      input.end();
+      inputTokenStream.end();
     }
   }
 
   @Override
   public void close() throws IOException {
     if (finiteStrings == null) {
-      input.close();
+      inputTokenStream.close();
     }
   }
 
@@ -161,9 +161,9 @@ public final class CompletionTokenStream extends TokenStream {
       tsta.setPreservePositionIncrements(preservePositionIncrements);
       tsta.setUnicodeArcs(unicodeAware);
 
-      automaton = tsta.toAutomaton(input);
+      automaton = tsta.toAutomaton(inputTokenStream);
     } finally {
-      IOUtils.closeWhileHandlingException(input);
+      IOUtils.closeWhileHandlingException(inputTokenStream);
     }
 
     // TODO: we can optimize this somewhat by determinizing

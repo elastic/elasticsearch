@@ -61,15 +61,11 @@ public class TopSuggestDocsCollector extends SimpleCollector {
    * with corresponding document and weight
    */
   public TopSuggestDocsCollector(int num) {
-    this(num, new SuggestScoreDocPriorityQueue(num));
-  }
-
-  protected TopSuggestDocsCollector(int num, SuggestScoreDocPriorityQueue pq) {
     if (num <= 0) {
       throw new IllegalArgumentException("'num' must be > 0");
     }
     this.num = num;
-    this.priorityQueue = pq;
+    this.priorityQueue = new SuggestScoreDocPriorityQueue(num);
   }
 
   /**

@@ -31,9 +31,7 @@ import static org.elasticsearch.search.suggest.completion.context.GeoContextMapp
  * Defines the query context for {@link GeoContextMapping}
  */
 public class GeoQueryContext extends CategoryQueryContext {
-    public final CharSequence geoHash;
     public final int precision;
-    public final int boost;
     public final int[] neighbours;
 
     /**
@@ -84,8 +82,6 @@ public class GeoQueryContext extends CategoryQueryContext {
      */
     public GeoQueryContext(CharSequence geoHash, int boost, int precision, int... neighbours) {
         super(geoHash, boost, true);
-        this.geoHash = geoHash;
-        this.boost = boost;
         this.precision = precision;
         this.neighbours = neighbours;
     }

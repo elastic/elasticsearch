@@ -41,15 +41,14 @@ import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.elasticsearch.search.suggest.completion.context.ContextMappingsParser;
 
 import java.io.IOException;
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.completionField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
-import static org.elasticsearch.search.suggest.completion.context.ContextMappingsParser.parseContext;
 
 /**
  * Mapper for completion field. The field values are indexed as a weighted FST for
@@ -452,8 +451,13 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
         // index
         for (Map.Entry<String, CompletionInputMetaData> completionInput : inputMap.entrySet()) {
             String input = completionInput.getKey();
+            // truncate input
             if (input.length() > maxInputLength) {
-                final int len = correctSubStringLen(input, Math.min(maxInputLength, input.length()));
+                int len = Math.min(maxInputLength, input.length());
+                if (Character.isHighSurrogate(input.charAt(len - 1))) {
+                    assert input.length() >= len + 1 && Character.isLowSurrogate(input.charAt(len));
+                    len += 1;
+                }
                 input = input.substring(0, len);
             }
             CompletionInputMetaData metaData = completionInput.getValue();
@@ -472,12 +476,9 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      * Acceptable inputs:
      *  "STRING" - interpreted as the field value (input)
      *  "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
-     *
-     * NOTE: for "contexts" parsing see {@link ContextMappingsParser#parseContext(ContextMappings, ParseContext, XContentParser)}
      */
     private void parse(ParseContext parseContext, Token token, XContentParser parser, Map<String, CompletionInputMetaData> inputMap) throws IOException {
         String currentFieldName = null;
-        ContextMappings contextMappings = fieldType().getContextMappings();
         if (token == Token.VALUE_STRING) {
             inputMap.put(parser.text(), new CompletionInputMetaData(Collections.<String, Set<CharSequence>>emptyMap(), 1));
         } else if (token == Token.START_OBJECT) {
@@ -490,54 +491,73 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                     if (!ALLOWED_CONTENT_FIELD_NAMES.contains(currentFieldName)) {
                         throw new IllegalArgumentException("Unknown field name[" + currentFieldName + "], must be one of " + ALLOWED_CONTENT_FIELD_NAMES);
                     }
-                } else if (token == Token.VALUE_STRING) {
+                } else if (currentFieldName != null) {
                     if (Fields.CONTENT_FIELD_NAME_INPUT.equals(currentFieldName)) {
-                        inputs.add(parser.text());
-                    } else if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
-                        Number weightValue;
-                        try {
-                            weightValue = Long.parseLong(parser.text());
-                        } catch (NumberFormatException e) {
-                            throw new IllegalArgumentException("Weight must be a string representing a numeric value, but was [" + parser.text() + "]");
-                        }
-                        checkWeight(weightValue.longValue());// always parse a long to make sure we don't get overflow
-                        weight = weightValue.intValue();
-                    }
-                } else if (token == Token.VALUE_NUMBER) {
-                    if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
-                        NumberType numberType = parser.numberType();
-                        if (NumberType.LONG != numberType && NumberType.INT != numberType) {
-                            throw new IllegalArgumentException("Weight must be an integer, but was [" + parser.numberValue() + "]");
-                        }
-                        checkWeight(parser.longValue()); // always parse a long to make sure we don't get overflow
-                        weight = parser.intValue();
-                    }
-                } else if (token == Token.START_ARRAY) {
-                    if (Fields.CONTENT_FIELD_NAME_INPUT.equals(currentFieldName)) {
-                        while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                        if (token == Token.VALUE_STRING) {
                             inputs.add(parser.text());
+                        } else if (token == Token.START_ARRAY) {
+                            while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                                if (token == Token.VALUE_STRING) {
+                                    inputs.add(parser.text());
+                                } else {
+                                    throw new IllegalArgumentException("input array must have string values, but was [" + token.name() + "]");
+                                }
+                            }
+                        } else {
+                            throw new IllegalArgumentException("input must be a string or array, but was [" + token.name() + "]");
                         }
+                    } else if (Fields.CONTENT_FIELD_NAME_WEIGHT.equals(currentFieldName)) {
+                        final Number weightValue;
+                        if (token == Token.VALUE_STRING) {
+                            try {
+                                weightValue = Long.parseLong(parser.text());
+                            } catch (NumberFormatException e) {
+                                throw new IllegalArgumentException("Weight must be a string representing a numeric value, but was [" + parser.text() + "]");
+                            }
+                        } else if (token == Token.VALUE_NUMBER) {
+                            NumberType numberType = parser.numberType();
+                            if (NumberType.LONG != numberType && NumberType.INT != numberType) {
+                                throw new IllegalArgumentException("Weight must be an integer, but was [" + parser.numberValue() + "]");
+                            }
+                            weightValue = parser.numberValue();
+                        } else {
+                            throw new IllegalArgumentException("Weight must be a number or string, but was [" + token.name() + "]");
+                        }
+                        if (weightValue.longValue() < 0 || weightValue.longValue() > Integer.MAX_VALUE) { // always parse a long to make sure we don't get overflow
+                            throw new IllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weightValue.longValue() + "]");
+                        }
+                        weight = weightValue.intValue();
                     } else if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
                         if (fieldType().hasContextMappings() == false) {
                             throw new IllegalArgumentException("Supplied context(s) to a non context enabled field: [" + fieldType().names().fullName() + "]");
                         }
-                        addContexts(contextsMap, parseContext(contextMappings, parseContext, parser));
-                    }
-                } else if (token == Token.START_OBJECT) {
-                    if (Fields.CONTENT_FIELD_NAME_CONTEXTS.equals(currentFieldName)) {
-                        if (fieldType().hasContextMappings() == false) {
-                            throw new IllegalArgumentException("Supplied context(s) to a non context enabled field: [" + fieldType().names().fullName() + "]");
+                        ContextMappings contextMappings = fieldType().getContextMappings();
+                        XContentParser.Token currentToken = parser.currentToken();
+                        if (currentToken == XContentParser.Token.START_OBJECT) {
+                            ContextMapping contextMapping = null;
+                            String fieldName = null;
+                            while ((currentToken = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (currentToken == XContentParser.Token.FIELD_NAME) {
+                                    fieldName = parser.currentName();
+                                    contextMapping = contextMappings.get(fieldName);
+                                } else if (currentToken == XContentParser.Token.VALUE_STRING
+                                        || currentToken == XContentParser.Token.START_ARRAY
+                                        || currentToken == XContentParser.Token.START_OBJECT) {
+                                    assert fieldName != null;
+                                    assert !contextsMap.containsKey(fieldName);
+                                    contextsMap.put(fieldName, contextMapping.parseContext(parseContext, parser));
+                                } else {
+                                    throw new IllegalArgumentException("contexts must be an object or an array , but was [" + currentToken + "]");
+                                }
+                            }
+                        } else {
+                            throw new IllegalArgumentException("contexts must be an object or an array , but was [" + currentToken + "]");
                         }
-                        addContexts(contextsMap, parseContext(contextMappings, parseContext, parser));
                     }
                 }
             }
             for (String input : inputs) {
-                if (inputMap.containsKey(input)) {
-                    if (inputMap.get(input).weight < weight) {
-                        inputMap.put(input, new CompletionInputMetaData(contextsMap, weight));
-                    }
-                } else {
+                if (inputMap.containsKey(input) == false || inputMap.get(input).weight < weight) {
                     inputMap.put(input, new CompletionInputMetaData(contextsMap, weight));
                 }
             }
@@ -596,31 +616,4 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             this.maxInputLength = fieldMergeWith.maxInputLength;
         }
     }
-
-    private static void addContexts(Map<String, Set<CharSequence>> contextsMap, Map<String, Set<CharSequence>> partialContextsMap) {
-        for (Map.Entry<String, Set<CharSequence>> context : partialContextsMap.entrySet()) {
-            Set<CharSequence> contexts = contextsMap.get(context.getKey());
-            if (contexts == null) {
-                contexts = context.getValue();
-            } else {
-                contexts.addAll(context.getValue());
-            }
-            contextsMap.put(context.getKey(), contexts);
-        }
-    }
-
-    public static int correctSubStringLen(String input, int len) {
-        if (Character.isHighSurrogate(input.charAt(len - 1))) {
-            assert input.length() >= len + 1 && Character.isLowSurrogate(input.charAt(len));
-            return len + 1;
-        }
-        return len;
-    }
-
-    private static void checkWeight(Number weight) {
-        if (weight.longValue() < 0 || weight.longValue() > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException("Weight must be in the interval [0..2147483647], but was [" + weight + "]");
-        }
-    }
-
 }

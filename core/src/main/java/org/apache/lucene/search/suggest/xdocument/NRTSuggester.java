@@ -129,11 +129,20 @@ public final class NRTSuggester implements Accountable {
       return;
     }
     final List<FSTUtil.Path<Pair<Long, BytesRef>>> prefixPaths = FSTUtil.intersectPrefixPaths(scorer.automaton, fst);
-    final int queueSize = getMaxTopNSearcherQueueSize(collector.getCountToCollect() * prefixPaths.size(),
-        scorer.reader.numDocs(), liveDocsRatio, scorer.filtered);
+    // The topN is increased by a factor of # of intersected path
+    // to ensure search admissibility. For example, one suggestion can
+    // have multiple contexts, resulting in num_context paths for the
+    // suggestion instead of 1 in the FST. When queried for the suggestion,
+    // the topN value ensures that all paths to the suggestion are evaluated
+    // (in case of a match all context query).
+    // Note that collectors will early terminate as soon as enough suggestions
+    // have been collected, regardless of the set topN value. This value is the
+    // maximum number of suggestions that can be collected.
+    final int topN = collector.getCountToCollect() * prefixPaths.size();
+    final int queueSize = getMaxTopNSearcherQueueSize(topN, scorer.reader.numDocs(), liveDocsRatio, scorer.filtered);
     Comparator<Pair<Long, BytesRef>> comparator = getComparator();
-    Util.TopNSearcher<Pair<Long, BytesRef>> searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst,
-        collector.getCountToCollect() * prefixPaths.size(), queueSize, comparator, new ScoringPathComparator(scorer)) {
+    Util.TopNSearcher<Pair<Long, BytesRef>> searcher = new Util.TopNSearcher<Pair<Long, BytesRef>>(fst, topN, queueSize, comparator,
+            new ScoringPathComparator(scorer)) {
 
       private final CharsRefBuilder spare = new CharsRefBuilder();
 

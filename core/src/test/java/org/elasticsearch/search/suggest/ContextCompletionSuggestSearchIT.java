@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.suggest;
 
-import com.carrotsearch.randomizedtesting.annotations.Seed;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
@@ -40,7 +39,6 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
-@Seed("E85618A1E8E399D2")
 @SuppressCodecs("*") // requires custom completion format
 public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
 

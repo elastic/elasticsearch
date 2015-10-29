@@ -66,7 +66,6 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
-//@Seed("B3B136F0625F2CCD")
 @SuppressCodecs("*") // requires custom completion format
 public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
@@ -401,19 +400,22 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
     @Test
     public void testSuggestFieldWithPercolateApi() throws Exception {
         createIndexAndMapping(completionMappingBuilder);
-        String[][] input = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
+        String[][] inputs = {{"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"}, {"Foo Fighters"},
                 {"Generator", "Foo Fighters Generator"}, {"Learn to Fly", "Foo Fighters Learn to Fly"},
                 {"The Prodigy"}, {"The Prodigy"}, {"The Prodigy"}, {"Firestarter", "The Prodigy Firestarter"},
                 {"Turbonegro"}, {"Turbonegro"}, {"Get it on", "Turbonegro Get it on"}}; // work with frequencies
-        for (int i = 0; i < input.length; i++) {
+        for (int i = 0; i < inputs.length; i++) {
+            XContentBuilder source = jsonBuilder()
+                    .startObject().startObject(FIELD)
+                    .startArray("input");
+            for (String input : inputs[i]) {
+                source.value(input);
+            }
+            source.endArray()
+                    .endObject()
+                    .endObject();
             client().prepareIndex(INDEX, TYPE, "" + i)
-                    .setSource(jsonBuilder()
-                            .startObject().startObject(FIELD)
-                            .startArray("input").value(input[i]).endArray()
-                            .endObject()
-                            .endObject()
-                    )
-                    .execute().actionGet();
+                    .setSource(source).execute().actionGet();
         }
 
         client().prepareIndex(INDEX, PercolatorService.TYPE_NAME, "4")

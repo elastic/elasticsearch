@@ -105,8 +105,12 @@ public class CategoryContextMapping extends ContextMapping {
         if (token == Token.VALUE_STRING) {
             contexts.add(parser.text());
         } else if (token == Token.START_ARRAY) {
-            while(parser.nextToken() != Token.END_ARRAY) {
-                contexts.add(parser.text());
+            while ((token = parser.nextToken()) != Token.END_ARRAY) {
+                if (token == Token.VALUE_STRING) {
+                    contexts.add(parser.text());
+                } else {
+                    throw new ElasticsearchParseException("Category context array must have string values");
+                }
             }
         } else {
             throw new ElasticsearchParseException("Category contexts must be a string or a list of strings");
@@ -215,11 +219,8 @@ public class CategoryContextMapping extends ContextMapping {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
-
         CategoryContextMapping mapping = (CategoryContextMapping) o;
-
         return !(fieldName != null ? !fieldName.equals(mapping.fieldName) : mapping.fieldName != null);
-
     }
 
     @Override

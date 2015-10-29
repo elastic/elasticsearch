@@ -39,7 +39,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
-import org.elasticsearch.search.suggest.completion.context.ContextMappingsParser;
 
 import java.io.IOException;
 import java.util.*;
@@ -57,8 +56,6 @@ import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
  *     "contexts" : QUERY_CONTEXTS
  *     "regex" : REGEX_OBJECT
  * }
- *
- * see {@link ContextMappingsParser#parseQueryContext(ContextMappings, XContentParser)} for QUERY_CONTEXTS
  *
  * FUZZY_OBJECT : {
  *     "edit_distance" : STRING | INT

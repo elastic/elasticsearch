@@ -368,7 +368,6 @@ public class CompletionFieldMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-
     @Test
     public void testFieldValueValidation() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1")

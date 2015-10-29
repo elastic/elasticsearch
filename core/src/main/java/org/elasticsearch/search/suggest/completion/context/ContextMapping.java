@@ -35,9 +35,6 @@ import java.util.*;
  * filter and/or boost suggestions at query time for {@link CompletionFieldMapper}.
  *
  * Implementations have to define how contexts are parsed at query/index time
- * (used by {@link ContextMappingsParser}) and add parsed query contexts to query
- * supplied by {@link ContextMappings}
- *
  */
 public abstract class ContextMapping implements ToXContent {
 
@@ -89,7 +86,7 @@ public abstract class ContextMapping implements ToXContent {
     /**
      * Parses a set of index-time contexts.
      */
-    protected abstract Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException;
+    public abstract Set<CharSequence> parseContext(ParseContext parseContext, XContentParser parser) throws IOException, ElasticsearchParseException;
 
     /**
      * Retrieves a set of context from a <code>document</code> at index-time.
@@ -126,12 +123,9 @@ public abstract class ContextMapping implements ToXContent {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-
         ContextMapping that = (ContextMapping) o;
-
         if (type != that.type) return false;
         return name.equals(that.name);
-
     }
 
     @Override
@@ -149,5 +143,4 @@ public abstract class ContextMapping implements ToXContent {
             return super.toString();
         }
     }
-
 }

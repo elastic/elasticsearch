@@ -127,7 +127,8 @@ public class TestSecureSM extends TestCase {
     t2.start();
     t2.interrupt();
     t2.join();
-    // sibling was not able to muck with its other sibling
+    // sibling attempted to but was not able to muck with its other sibling
+    assertTrue(interrupted2.get());
     assertFalse(interrupted1.get());
     // but we are the parent and can terminate
     t1.interrupt();

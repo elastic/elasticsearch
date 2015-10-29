@@ -73,9 +73,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     public Query rewrite(Query original) throws IOException {
         ProfileBreakdown profile = null;
         if (profiler != null) {
-            // Rewrite Breakdowns are "unattached" to the profiler...we must
-            // call `addRewrittenQuery` after the rewrite or else this timing will be
-            // go to the great /dev/null in the sky
             profile = profiler.getRewriteBreakdown(original);
             profile.startTime(ProfileBreakdown.TimingType.REWRITE);
         }

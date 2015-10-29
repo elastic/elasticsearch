@@ -28,6 +28,13 @@ grant codeBase "file:${{java.ext.dirs}}/*" {
   permission java.security.AllPermission;
 };
 
+//// SecurityManager impl:
+//// Must have all permissions to properly perform access checks
+
+grant codeBase "${codebase.securesm-1.0.jar}" {
+  permission java.security.AllPermission;
+};
+
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
@@ -57,9 +64,10 @@ grant {
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 
-  // needed by ES threadpool termination... clean this up
-  // otherwise can be provided only to test libraries
+  // thread permission for the same thread group and ancestor groups
+  // (this logic is more strict than the JDK, see SecureSM)
   permission java.lang.RuntimePermission "modifyThread";
+  permission java.lang.RuntimePermission "modifyThreadGroup";
 
   // needed by ExceptionSerializationTests and RestTestCase for
   // some hackish things they do. otherwise only needed by groovy 

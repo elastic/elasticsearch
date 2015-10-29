@@ -100,8 +100,8 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
-        assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
-        GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
+        assertThat(mapper, instanceOf(BaseGeoPointFieldMapper.class));
+        BaseGeoPointFieldMapper geoPointFieldMapper = (BaseGeoPointFieldMapper) mapper;
         assertThat(geoPointFieldMapper.fieldType().geohashPrecision(), is(10));
     }
 
@@ -112,8 +112,8 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
-        assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
-        GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
+        assertThat(mapper, instanceOf(BaseGeoPointFieldMapper.class));
+        BaseGeoPointFieldMapper geoPointFieldMapper = (BaseGeoPointFieldMapper) mapper;
         assertThat(geoPointFieldMapper.fieldType().geohashPrecision(), is(10));
     }
 

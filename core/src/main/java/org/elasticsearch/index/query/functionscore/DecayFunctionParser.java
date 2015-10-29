@@ -22,6 +22,7 @@ package org.elasticsearch.index.query.functionscore;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -42,7 +43,7 @@ import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.query.QueryParsingException;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
@@ -160,8 +161,8 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
         parser.nextToken();
         if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(fieldName, parser, parseContext, (DateFieldMapper.DateFieldType) fieldType, mode);
-        } else if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType) {
-            return parseGeoVariable(fieldName, parser, parseContext, (GeoPointFieldMapper.GeoPointFieldType) fieldType, mode);
+        } else if (fieldType instanceof BaseGeoPointFieldMapper.BaseGeoPointFieldType) {
+            return parseGeoVariable(fieldName, parser, parseContext, (BaseGeoPointFieldMapper.BaseGeoPointFieldType) fieldType, mode);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(fieldName, parser, parseContext, (NumberFieldMapper.NumberFieldType) fieldType, mode);
         } else {
@@ -204,7 +205,7 @@ public abstract class DecayFunctionParser implements ScoreFunctionParser {
     }
 
     private AbstractDistanceScoreFunction parseGeoVariable(String fieldName, XContentParser parser, QueryParseContext parseContext,
-            GeoPointFieldMapper.GeoPointFieldType fieldType, MultiValueMode mode) throws IOException {
+            BaseGeoPointFieldMapper.BaseGeoPointFieldType fieldType, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         GeoPoint origin = new GeoPoint();

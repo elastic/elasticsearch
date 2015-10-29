@@ -38,6 +38,7 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
@@ -268,7 +269,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("a").fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().getMapper("a.b"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(GeoPointFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(BaseGeoPointFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("a.b").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().tokenized(), equalTo(false));
@@ -293,7 +294,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().getMapper("b"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("b"), instanceOf(GeoPointFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("b"), instanceOf(BaseGeoPointFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("b").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("b").fieldType().stored(), equalTo(false));
         assertThat(docMapper.mappers().getMapper("b").fieldType().tokenized(), equalTo(false));

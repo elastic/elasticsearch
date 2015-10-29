@@ -32,6 +32,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 
 import java.io.IOException;
@@ -69,7 +70,8 @@ public class GeohashCellQuery {
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Query create(QueryParseContext context, GeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
+    public static Query create(QueryParseContext context, BaseGeoPointFieldMapper.BaseGeoPointFieldType fieldType, String geohash,
+                               @Nullable List<CharSequence> geohashes) {
         MappedFieldType geoHashMapper = fieldType.geohashFieldType();
         if (geoHashMapper == null) {
             throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
@@ -240,11 +242,11 @@ public class GeohashCellQuery {
                 throw new QueryParsingException(parseContext, "failed to parse [{}] query. missing [{}] field [{}]", NAME, GeoPointFieldMapper.CONTENT_TYPE, fieldName);
             }
 
-            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+            if (!(fieldType instanceof BaseGeoPointFieldMapper.BaseGeoPointFieldType)) {
                 throw new QueryParsingException(parseContext, "failed to parse [{}] query. field [{}] is not a geo_point field", NAME, fieldName);
             }
 
-            GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
+            BaseGeoPointFieldMapper.BaseGeoPointFieldType geoFieldType = ((BaseGeoPointFieldMapper.BaseGeoPointFieldType) fieldType);
             if (!geoFieldType.isGeohashPrefixEnabled()) {
                 throw new QueryParsingException(parseContext, "failed to parse [{}] query. [geohash_prefix] is not enabled for field [{}]", NAME, fieldName);
             }

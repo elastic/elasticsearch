@@ -23,6 +23,7 @@ import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 
 /**
@@ -34,8 +35,15 @@ class BuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomizedtesting')
+        // these plugins add lots of info to our jars
+        project.pluginManager.apply('nebula.info-broker')
+        project.pluginManager.apply('nebula.info-basic')
+        project.pluginManager.apply('nebula.info-java')
+        project.pluginManager.apply('nebula.info-scm')
+        project.pluginManager.apply('nebula.info-jar')
 
         configureCompile(project)
+        configureJarManifest(project)
         configureTest(project)
         PrecommitTasks.configure(project)
     }
@@ -47,6 +55,18 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(JavaCompile) {
                 options.compilerArgs << '-Werror' << '-Xlint:all' << '-Xdoclint:all/private' << '-Xdoclint:-missing'
                 options.encoding = 'UTF-8'
+            }
+        }
+    }
+
+    /** Adds additional manifest info to jars */
+    static void configureJarManifest(Project project) {
+        project.afterEvaluate {
+            project.tasks.withType(Jar) { Jar jarTask ->
+                manifest {
+                    attributes('X-Compile-Elasticsearch-Version': ElasticsearchProperties.version,
+                               'X-Compile-Lucene-Version': ElasticsearchProperties.luceneVersion)
+                }
             }
         }
     }

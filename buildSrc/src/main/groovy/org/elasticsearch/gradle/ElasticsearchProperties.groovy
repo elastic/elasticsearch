@@ -23,6 +23,7 @@ package org.elasticsearch.gradle
  */
 class ElasticsearchProperties {
     static final String version
+    static final String luceneVersion
     static {
         Properties props = new Properties()
         InputStream propsStream = ElasticsearchProperties.class.getResourceAsStream('/elasticsearch.properties')
@@ -31,5 +32,6 @@ class ElasticsearchProperties {
         }
         props.load(propsStream)
         version = props.getProperty('version')
+        luceneVersion = props.getProperty('luceneVersion')
     }
 }

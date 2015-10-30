@@ -56,6 +56,9 @@ Elasticsearch, but they are no longer supported in Elasticsearch 2.0.
 * https://github.com/salyh/elasticsearch-imap[IMAP/POP3/Mail importer]:
   The Mail importer allows to fetch data from IMAP and POP3 servers for indexing into Elasticsearch (by Hendrik Saly)
 
+* https://github.com/dadoonet/fscrawler[FS Crawler]:
+  The File System (FS) crawler allows to index documents (PDF, Open Office...) from your local file system and over SSH. (by David Pilato)
+
 [float]
 [[deployment]]
 === Deployment

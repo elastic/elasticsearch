@@ -446,3 +446,9 @@ parameter of search requests.
 === Not query
 
 The `not` query has been replaced by using a `mustNot` clause in a Boolean query.
+
+[role="exclude",id="mapping-nested-type"]
+=== Nested type
+
+The docs for the `nested` field datatype have moved to <<nested>>.
+

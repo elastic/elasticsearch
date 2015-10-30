@@ -237,7 +237,7 @@ public class Cache<K, V> {
                         }).get();
                     }
                 } catch (ExecutionException | InterruptedException e) {
-                    throw new IllegalStateException("future should be a completedFuture for which get should not throw", e);
+                    throw new IllegalStateException(e);
                 }
             }
             return Tuple.tuple(entry, existing);

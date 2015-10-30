@@ -282,14 +282,11 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
                     boolean sourceFieldFiltering = sourceFieldMapper.includes().length > 0 || sourceFieldMapper.excludes().length > 0;
                     boolean sourceFetchFiltering = fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0;
-                    if (fetchSourceContext.transformSource() || sourceFieldFiltering || sourceFetchFiltering) {
+                    if (sourceFieldFiltering || sourceFetchFiltering) {
                         // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
                         Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source.source, true);
                         XContentType sourceContentType = typeMapTuple.v1();
                         Map<String, Object> sourceAsMap = typeMapTuple.v2();
-                        if (fetchSourceContext.transformSource()) {
-                            sourceAsMap = docMapper.transformSourceAsMap(sourceAsMap);
-                        }
                         if (sourceFieldFiltering) {
                             sourceAsMap = XContentMapValues.filter(sourceAsMap, sourceFieldMapper.includes(), sourceFieldMapper.excludes());
                         }
@@ -397,16 +394,13 @@ public final class ShardGetService extends AbstractIndexShardComponent {
 
         if (!fetchSourceContext.fetchSource()) {
             source = null;
-        } else if (fetchSourceContext.transformSource() || fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
+        } else if (fetchSourceContext.includes().length > 0 || fetchSourceContext.excludes().length > 0) {
             Map<String, Object> sourceAsMap;
             XContentType sourceContentType = null;
             // TODO: The source might parsed and available in the sourceLookup but that one uses unordered maps so different. Do we care?
             Tuple<XContentType, Map<String, Object>> typeMapTuple = XContentHelper.convertToMap(source, true);
             sourceContentType = typeMapTuple.v1();
             sourceAsMap = typeMapTuple.v2();
-            if (fetchSourceContext.transformSource()) {
-                sourceAsMap = docMapper.transformSourceAsMap(sourceAsMap);
-            }
             sourceAsMap = XContentMapValues.filter(sourceAsMap, fetchSourceContext.includes(), fetchSourceContext.excludes());
             try {
                 source = XContentFactory.contentBuilder(sourceContentType).map(sourceAsMap).bytes();

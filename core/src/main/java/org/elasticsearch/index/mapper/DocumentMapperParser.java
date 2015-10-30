@@ -42,8 +42,6 @@ import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 
 import java.util.*;
 
@@ -58,7 +56,6 @@ public class DocumentMapperParser {
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
     private final SimilarityService similarityService;
-    private final ScriptService scriptService;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
@@ -71,13 +68,12 @@ public class DocumentMapperParser {
     private volatile SortedMap<String, Mapper.TypeParser> additionalRootMappers;
 
     public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, AnalysisService analysisService,
-                                SimilarityService similarityService, ScriptService scriptService) {
+                                SimilarityService similarityService) {
         this.indexSettings = indexSettings.getSettings();
         this.parseFieldMatcher = new ParseFieldMatcher(this.indexSettings);
         this.mapperService = mapperService;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
-        this.scriptService = scriptService;
         Map<String, Mapper.TypeParser> typeParsers = new HashMap<>();
         typeParsers.put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser());
         typeParsers.put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser());
@@ -213,29 +209,13 @@ public class DocumentMapperParser {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
-            if ("transform".equals(fieldName)) {
-                if (fieldNode instanceof Map) {
-                    parseTransform(docBuilder, (Map<String, Object>) fieldNode, parserContext.indexVersionCreated());
-                } else if (fieldNode instanceof List) {
-                    for (Object transformItem: (List)fieldNode) {
-                        if (!(transformItem instanceof Map)) {
-                            throw new MapperParsingException("Elements of transform list must be objects but one was:  " + fieldNode);
-                        }
-                        parseTransform(docBuilder, (Map<String, Object>) transformItem, parserContext.indexVersionCreated());
-                    }
-                } else {
-                    throw new MapperParsingException("Transform must be an object or an array but was:  " + fieldNode);
-                }
+            Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
+            if (typeParser != null) {
                 iterator.remove();
-            } else {
-                Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
-                if (typeParser != null) {
-                    iterator.remove();
-                    Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                    docBuilder.put((MetadataFieldMapper.Builder)typeParser.parse(fieldName, fieldNodeMap, parserContext));
-                    fieldNodeMap.remove("type");
-                    checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());
-                }
+                Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
+                docBuilder.put((MetadataFieldMapper.Builder) typeParser.parse(fieldName, fieldNodeMap, parserContext));
+                fieldNodeMap.remove("type");
+                checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());
             }
         }
 
@@ -271,14 +251,6 @@ public class DocumentMapperParser {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
-    }
-
-    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig, Version indexVersionCreated) {
-        Script script = Script.parse(transformConfig, true, parseFieldMatcher);
-        if (script != null) {
-            docBuilder.transform(scriptService, script);
-        }
-        checkNoRemainingFields(transformConfig, indexVersionCreated, "Transform config has unsupported parameters: ");
     }
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {

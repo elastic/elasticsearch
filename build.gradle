@@ -134,9 +134,10 @@ subprojects {
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
           substitute module("org.elasticsearch:elasticsearch:${version}") with project("${projectsPrefix}:core")
-          // easy to type bypass so that eclipse doesn't have circular references
+          // so that eclipse doesn't have circular references
           // the downside is, if you hack on test-framework, you have to gradle install
-          if (System.getProperty("eclipse") == null) {
+          // the first prop detects eclipse itself, the second detects eclipse from commandline
+          if (System.getProperty("eclipse.launcher") == null && gradle.startParameter.taskNames.contains('eclipse') == false) {
             substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
           }
           substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project("${projectsPrefix}:distribution:zip")

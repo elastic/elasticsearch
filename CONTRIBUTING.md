@@ -76,7 +76,7 @@ Contributing to the Elasticsearch codebase
 
 **Repository:** [https://github.com/elastic/elasticsearch](https://github.com/elastic/elasticsearch)
 
-Make sure you have [Gradle](http://gradle.org) installed, as Elasticsearch uses it as its build system. Integration with IntelliJ and Eclipse should work out of the box. Eclipse users can automatically configure their IDE: `File > Import -> Gradle -> Gradle project`. When the `Import Options` dialog is presented, add `-Declipse` to the JVM Options box. Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini` accordingly to avoid GC overhead errors.
+Make sure you have [Gradle](http://gradle.org) installed, as Elasticsearch uses it as its build system. Integration with IntelliJ and Eclipse should work out of the box. Eclipse users can automatically configure their IDE: `File > Import -> Gradle -> Gradle project`. Additionally you will want to ensure that Eclipse is using 2048m of heap by modifying `eclipse.ini` accordingly to avoid GC overhead errors.
 
 Please follow these formatting guidelines:
 

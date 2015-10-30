@@ -49,7 +49,7 @@
 #
 # ---------------------------------- Network -----------------------------------
 #
-# Set the bind adress to a specific IP (IPv4 or IPv6):
+# Set the bind address to a specific IP (IPv4 or IPv6):
 #
 # network.host: 192.168.0.1
 #

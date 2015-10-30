@@ -381,3 +381,9 @@ The shard query cache has been renamed <<shard-request-cache>>.
 === Query cache
 
 The filter cache has been renamed <<query-cache>>.
+
+[role="exclude",id="mapping-nested-type"]
+=== Nested type
+
+The docs for the `nested` field datatype have moved to <<nested>>.
+

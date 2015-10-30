@@ -5,10 +5,12 @@
  */
 package org.elasticsearch.watcher.input;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
+import org.elasticsearch.watcher.watch.Payload;
 
 import java.io.IOException;
 
@@ -39,7 +41,7 @@ public abstract class ExecutableInput<I extends Input, R extends Input.Result> i
     /**
      * Executes this input
      */
-    public abstract R execute(WatchExecutionContext ctx);
+    public abstract R execute(WatchExecutionContext ctx, @Nullable Payload payload);
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

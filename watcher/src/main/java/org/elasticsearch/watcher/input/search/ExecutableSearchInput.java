@@ -44,10 +44,10 @@ public class ExecutableSearchInput extends ExecutableInput<SearchInput, SearchIn
     }
 
     @Override
-    public SearchInput.Result execute(WatchExecutionContext ctx) {
+    public SearchInput.Result execute(WatchExecutionContext ctx, Payload payload) {
         SearchRequest request = null;
         try {
-            request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, null);
+            request = WatcherUtils.createSearchRequestFromPrototype(input.getSearchRequest(), ctx, payload);
             return doExecute(ctx, request);
         } catch (Exception e) {
             logger.error("failed to execute [{}] input for [{}]", e, SearchInput.TYPE, ctx.watch());

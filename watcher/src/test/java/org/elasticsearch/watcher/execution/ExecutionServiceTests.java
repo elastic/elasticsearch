@@ -43,6 +43,7 @@ import static org.mockito.Mockito.*;
 /**
  */
 public class ExecutionServiceTests extends ESTestCase {
+
     private Payload payload;
     private ExecutableInput input;
     private Input.Result inputResult;
@@ -61,7 +62,7 @@ public class ExecutionServiceTests extends ESTestCase {
         inputResult = mock(Input.Result.class);
         when(inputResult.status()).thenReturn(Input.Result.Status.SUCCESS);
         when(inputResult.payload()).thenReturn(payload);
-        when(input.execute(any(WatchExecutionContext.class))).thenReturn(inputResult);
+        when(input.execute(any(WatchExecutionContext.class), any(Payload.class))).thenReturn(inputResult);
 
         watchStore = mock(WatchStore.class);
         triggeredWatchStore = mock(TriggeredWatchStore.class);
@@ -163,7 +164,7 @@ public class ExecutionServiceTests extends ESTestCase {
         Input.Result inputResult = mock(Input.Result.class);
         when(inputResult.status()).thenReturn(Input.Result.Status.FAILURE);
         when(inputResult.reason()).thenReturn("_reason");
-        when(input.execute(context)).thenReturn(inputResult);
+        when(input.execute(eq(context), any(Payload.class))).thenReturn(inputResult);
 
         Condition.Result conditionResult = AlwaysCondition.Result.INSTANCE;
         ExecutableCondition condition = mock(ExecutableCondition.class);
@@ -214,7 +215,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         verify(historyStore, times(1)).put(watchRecord);
         verify(lock, times(1)).release();
-        verify(input, times(1)).execute(context);
+        verify(input, times(1)).execute(context, null);
         verify(condition, never()).execute(context);
         verify(watchTransform, never()).execute(context, payload);
         verify(action, never()).execute("_action", context, payload);
@@ -282,7 +283,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         verify(historyStore, times(1)).put(watchRecord);
         verify(lock, times(1)).release();
-        verify(input, times(1)).execute(context);
+        verify(input, times(1)).execute(context, null);
         verify(condition, times(1)).execute(context);
         verify(watchTransform, never()).execute(context, payload);
         verify(action, never()).execute("_action", context, payload);
@@ -349,7 +350,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         verify(historyStore, times(1)).put(watchRecord);
         verify(lock, times(1)).release();
-        verify(input, times(1)).execute(context);
+        verify(input, times(1)).execute(context, null);
         verify(condition, times(1)).execute(context);
         verify(watchTransform, times(1)).execute(context, payload);
         verify(action, never()).execute("_action", context, payload);
@@ -420,7 +421,7 @@ public class ExecutionServiceTests extends ESTestCase {
 
         verify(historyStore, times(1)).put(watchRecord);
         verify(lock, times(1)).release();
-        verify(input, times(1)).execute(context);
+        verify(input, times(1)).execute(context, null);
         verify(condition, times(1)).execute(context);
         verify(watchTransform, times(1)).execute(context, payload);
         // the action level transform is executed before the action itself

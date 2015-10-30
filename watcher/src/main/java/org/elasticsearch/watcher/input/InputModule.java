@@ -7,6 +7,8 @@ package org.elasticsearch.watcher.input;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
+import org.elasticsearch.watcher.input.chain.ChainInput;
+import org.elasticsearch.watcher.input.chain.ChainInputFactory;
 import org.elasticsearch.watcher.input.http.HttpInput;
 import org.elasticsearch.watcher.input.http.HttpInputFactory;
 import org.elasticsearch.watcher.input.none.NoneInput;
@@ -45,6 +47,9 @@ public class InputModule extends AbstractModule {
 
         bind(NoneInputFactory.class).asEagerSingleton();
         parsersBinder.addBinding(NoneInput.TYPE).to(NoneInputFactory.class);
+
+        // no bind() needed, done in InitializingModule
+        parsersBinder.addBinding(ChainInput.TYPE).to(ChainInputFactory.class);
 
         for (Map.Entry<String, Class<? extends InputFactory>> entry : parsers.entrySet()) {
             bind(entry.getValue()).asEagerSingleton();

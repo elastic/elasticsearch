@@ -127,7 +127,7 @@ public class SearchInputTests extends ESIntegTestCase {
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
                 timeValueSeconds(5));
-        SearchInput.Result result = searchInput.execute(ctx);
+        SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
@@ -153,6 +153,7 @@ public class SearchInputTests extends ESIntegTestCase {
         ctxParams.put("vars", new HashMap<String, Object>());
         ctxParams.put("watch_id", "test-watch");
         ctxParams.put("trigger", triggerParams);
+        ctxParams.put("payload", new Payload.Simple().data());
         ctxParams.put("execution_time", new DateTime(1970, 01, 01, 00, 01, 00, 000, ISOChronology.getInstanceUTC()));
         Map<String, Object> expectedParams = new HashMap<String, Object>();
         expectedParams.put("seconds_param", "30s");
@@ -235,7 +236,7 @@ public class SearchInputTests extends ESIntegTestCase {
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent("test-watch", new DateTime(0, UTC), new DateTime(0, UTC)),
                 timeValueSeconds(5));
-        SearchInput.Result result = searchInput.execute(ctx);
+        SearchInput.Result result = searchInput.execute(ctx, new Payload.Simple());
 
         assertThat((Integer) XContentMapValues.extractValue("hits.total", result.payload().data()), equalTo(0));
         assertNotNull(result.executedRequest());
@@ -288,7 +289,7 @@ public class SearchInputTests extends ESIntegTestCase {
         SearchInput si = siBuilder.build();
 
         ExecutableSearchInput searchInput = new ExecutableSearchInput(si, logger, ClientProxy.of(client()), null);
-        return searchInput.execute(ctx);
+        return searchInput.execute(ctx, new Payload.Simple());
     }
 
 }

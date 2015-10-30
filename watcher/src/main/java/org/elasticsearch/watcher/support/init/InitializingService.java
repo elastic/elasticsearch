@@ -43,7 +43,7 @@ public class InitializingService extends AbstractLifecycleComponent {
     protected void doClose() throws ElasticsearchException {
     }
 
-    public static interface Initializable {
+    public interface Initializable {
 
         void init(Injector injector);
     }

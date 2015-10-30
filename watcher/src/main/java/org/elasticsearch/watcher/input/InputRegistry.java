@@ -12,9 +12,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 import java.util.Map;
 
-/**
- *
- */
 public class InputRegistry {
 
     private final Map<String, InputFactory> factories;
@@ -62,4 +59,7 @@ public class InputRegistry {
         return input;
     }
 
+    public Map<String, InputFactory> factories() {
+        return factories;
+    }
 }

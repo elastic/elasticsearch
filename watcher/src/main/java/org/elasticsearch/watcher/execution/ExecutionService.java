@@ -335,7 +335,7 @@ public class ExecutionService extends AbstractComponent {
         ctx.beforeInput();
         Input.Result inputResult = ctx.inputResult();
         if (inputResult == null) {
-            inputResult = watch.input().execute(ctx);
+            inputResult = watch.input().execute(ctx, ctx.payload());
             ctx.onInputResult(inputResult);
         }
         if (inputResult.status() == Input.Result.Status.FAILURE) {

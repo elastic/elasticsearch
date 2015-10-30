@@ -8,6 +8,7 @@ package org.elasticsearch.watcher.input;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.collect.MapBuilder;
+import org.elasticsearch.watcher.input.chain.ChainInput;
 import org.elasticsearch.watcher.input.http.HttpInput;
 import org.elasticsearch.watcher.input.none.NoneInput;
 import org.elasticsearch.watcher.input.search.SearchInput;
@@ -60,5 +61,9 @@ public final class InputBuilders {
 
     public static HttpInput.Builder httpInput(HttpRequestTemplate request) {
         return HttpInput.builder(request);
+    }
+
+    public static ChainInput.Builder chainInput() {
+        return ChainInput.builder();
     }
 }

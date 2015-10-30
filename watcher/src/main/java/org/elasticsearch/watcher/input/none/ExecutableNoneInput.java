@@ -9,6 +9,7 @@ package org.elasticsearch.watcher.input.none;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.input.ExecutableInput;
+import org.elasticsearch.watcher.watch.Payload;
 
 /**
  *
@@ -20,7 +21,7 @@ public class ExecutableNoneInput extends ExecutableInput<NoneInput, NoneInput.Re
     }
 
     @Override
-    public NoneInput.Result execute(WatchExecutionContext ctx) {
+    public NoneInput.Result execute(WatchExecutionContext ctx, Payload payload) {
         return NoneInput.Result.INSTANCE;
     }
 

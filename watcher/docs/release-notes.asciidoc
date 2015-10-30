@@ -39,11 +39,18 @@ bin/plugin remove watcher
 [float]
 ==== 2.1.0
 
+.New Features
+* Added support for <<input-chain, chaining several inputs>>
+
 .Enhancement
 * Support for configuring a proxy in the webhook action, http input and configuring a default proxy (which is also used by the slack action), using the `watcher.http.proxy.host` and `watcher.http.proxy.port` settings.
 
+=======
 [float]
 ==== 2.0.0
+
+.Bug fixes
+* Fixed an issue where the scheduler may get stuck during Watcher startup. This caused no watches to ever fire.
 
 .Breaking Changes
 * The dynamic index names support has been removed and Elasticsearch's date math index names support should be used instead.

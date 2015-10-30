@@ -135,7 +135,7 @@ public class HttpInputTests extends ESTestCase {
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
                 TimeValue.timeValueSeconds(5));
-        HttpInput.Result result = input.execute(ctx);
+        HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data(), equalTo(MapBuilder.<String, Object>newMapBuilder().put("key", "value").map()));
     }
@@ -165,7 +165,7 @@ public class HttpInputTests extends ESTestCase {
                 new DateTime(0, UTC),
                 new ScheduleTriggerEvent(watch.id(), new DateTime(0, UTC), new DateTime(0, UTC)),
                 TimeValue.timeValueSeconds(5));
-        HttpInput.Result result = input.execute(ctx);
+        HttpInput.Result result = input.execute(ctx, new Payload.Simple());
         assertThat(result.type(), equalTo(HttpInput.TYPE));
         assertThat(result.payload().data().get("_value").toString(), equalTo(notJson));
     }

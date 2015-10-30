@@ -55,7 +55,13 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
 
     @Override
     protected boolean shouldCollect() {
-        return super.shouldCollect() && nodeEnvironment.hasNodeFile();
+        // In some cases, the collector starts to collect nodes stats but the
+        // NodeEnvironment is not fully initialized (NodePath is null) and can fail.
+        // This why we need to check for nodeEnvironment.hasNodeFile() here, but only
+        // for nodes that can hold data. Client nodes can collect nodes stats because
+        // elasticsearch correctly handles the nodes stats for client nodes.
+        return super.shouldCollect()
+                && (clusterService.localNode().isDataNode() == false || nodeEnvironment.hasNodeFile());
     }
 
     @Override

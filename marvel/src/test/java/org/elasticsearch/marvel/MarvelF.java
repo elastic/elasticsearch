@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
+import org.elasticsearch.shield.ShieldPlugin;
 
 import java.util.Arrays;
 import java.util.concurrent.CountDownLatch;
@@ -37,7 +38,7 @@ public class MarvelF {
         }
 
         final CountDownLatch latch = new CountDownLatch(1);
-        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(MarvelPlugin.class, LicensePlugin.class));
+        final Node node = new MockNode(settings.build(), Version.CURRENT, Arrays.asList(MarvelPlugin.class, LicensePlugin.class, ShieldPlugin.class));
         Runtime.getRuntime().addShutdownHook(new Thread() {
 
             @Override

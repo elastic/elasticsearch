@@ -89,20 +89,10 @@ dependencies {
 
   compile 'net.java.dev.jna:jna:4.1.0', optional
 
-  // TODO: remove these test deps and just depend on test-framework
-  testCompile(group: 'junit', name: 'junit', version: '4.11') {
-    transitive = false
+  testCompile("org.elasticsearch:test-framework:${version}") {
+    // tests use the locally compiled version of core
+    exclude group: 'org.elasticsearch', module: 'elasticsearch'
   }
-  testCompile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-
-  testCompile("org.apache.lucene:lucene-test-framework:${versions.lucene}") {
-    exclude group: 'com.carrotsearch.randomizedtesting', module: 'junit4-ant'
-  }
-  testCompile(group: 'org.hamcrest', name: 'hamcrest-all', version: '1.3') {
-    exclude group: 'org.hamcrest', module: 'hamcrest-core'
-  }
-  testCompile 'com.google.jimfs:jimfs:1.0'
-  testCompile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
@@ -129,5 +119,4 @@ integTest.mustRunAfter test
 RestSpecHack.configureDependencies(project)
 Task copyRestSpec = RestSpecHack.configureTask(project, true)
 integTest.dependsOn copyRestSpec
-test.dependsOn copyRestSpec
 

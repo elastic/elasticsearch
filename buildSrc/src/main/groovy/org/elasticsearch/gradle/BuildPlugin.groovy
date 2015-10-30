@@ -19,12 +19,14 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.GradleException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.util.VersionNumber
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -33,6 +35,7 @@ class BuildPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
+        globalBuildInfo(project)
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomizedtesting')
         // these plugins add lots of info to our jars
@@ -46,6 +49,25 @@ class BuildPlugin implements Plugin<Project> {
         configureJarManifest(project)
         configureTest(project)
         PrecommitTasks.configure(project)
+    }
+
+    static void globalBuildInfo(Project project) {
+        if (project.rootProject.ext.has('buildChecksDone') == false) {
+            // enforce gradle version
+            VersionNumber gradleVersion = VersionNumber.parse(project.gradle.gradleVersion)
+            if (gradleVersion.major < 2 || gradleVersion.major == 2 && gradleVersion.minor < 6) {
+                throw new GradleException('Gradle 2.6 or above is required to build elasticsearch')
+            }
+
+            // Build debugging info
+            println '======================================='
+            println 'Elasticsearch Build Hamster says Hello!'
+            println '======================================='
+            println "  Gradle Version : ${project.gradle.gradleVersion}"
+            println "  JDK Version    : ${System.getProperty('java.runtime.version')} (${System.getProperty('java.vendor')})"
+            println "  OS Info        : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
+            project.rootProject.ext.buildChecksDone = true
+        }
     }
 
     /** Adds compiler settings to the project */

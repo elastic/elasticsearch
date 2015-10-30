@@ -51,6 +51,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
+import org.elasticsearch.search.suggest.SuggestBuilders;
 import org.junit.Test;
 
 import java.io.IOException;

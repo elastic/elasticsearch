@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.completion;
+package org.elasticsearch.search.suggest.completion.old;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 
@@ -47,11 +47,12 @@ import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.completion.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
-import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
+import org.elasticsearch.index.mapper.core.OldCompletionFieldMapper;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.completion.old.AnalyzingCompletionLookupProvider.AnalyzingSuggestHolder;
+import org.elasticsearch.search.suggest.completion.old.Completion090PostingsFormat.CompletionLookupProvider;
+import org.elasticsearch.search.suggest.completion.old.Completion090PostingsFormat.LookupFactory;
+import org.elasticsearch.search.suggest.completion.old.context.ContextMapping.ContextQuery;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -234,7 +235,7 @@ public class AnalyzingCompletionLookupProviderV1 extends CompletionLookupProvide
         final long ramBytesUsed = sizeInBytes;
         return new LookupFactory() {
             @Override
-            public Lookup getLookup(CompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext) {
+            public Lookup getLookup(OldCompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext) {
                 AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(fieldType.names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;

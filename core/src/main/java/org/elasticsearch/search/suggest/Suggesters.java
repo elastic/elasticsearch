@@ -38,7 +38,7 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
     }
 
     public Suggesters(Map<String, Suggester> suggesters) {
-        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion")), Suggesters.class, SuggestParseElement.class, SuggestPhase.class);
+        super("suggester", Suggester.class, new HashSet<>(Arrays.asList("phrase", "term", "completion", "completion_old")), Suggesters.class, SuggestParseElement.class, SuggestPhase.class);
         this.parsers = Collections.unmodifiableMap(suggesters);
     }
 
@@ -52,6 +52,7 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
         map.put("phrase", new PhraseSuggester(scriptService));
         map.put("term", new TermSuggester());
         map.put("completion", new CompletionSuggester());
+        map.put("completion_old", new org.elasticsearch.search.suggest.completion.old.CompletionSuggester());
         map.putAll(suggesters);
         return map;
     }

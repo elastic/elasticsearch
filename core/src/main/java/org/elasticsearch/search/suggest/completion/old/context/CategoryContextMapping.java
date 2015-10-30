@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.context;
+package org.elasticsearch.search.suggest.completion.old.context;
 
 import com.google.common.base.Joiner;
 import com.google.common.collect.Iterables;

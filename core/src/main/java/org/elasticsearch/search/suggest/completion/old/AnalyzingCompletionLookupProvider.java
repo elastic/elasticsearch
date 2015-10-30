@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.completion;
+package org.elasticsearch.search.suggest.completion.old;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
 
@@ -49,10 +49,9 @@ import org.apache.lucene.util.fst.PairOutputs.Pair;
 import org.apache.lucene.util.fst.PositiveIntOutputs;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.CompletionLookupProvider;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat.LookupFactory;
-import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
+import org.elasticsearch.index.mapper.core.OldCompletionFieldMapper;
+import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.completion.old.context.ContextMapping;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -63,7 +62,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 
-public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider {
+public class AnalyzingCompletionLookupProvider extends Completion090PostingsFormat.CompletionLookupProvider {
 
     // for serialization
     public static final int SERIALIZE_PRESERVE_SEPARATORS = 1;
@@ -211,7 +210,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
 
 
     @Override
-    public LookupFactory load(IndexInput input) throws IOException {
+    public Completion090PostingsFormat.LookupFactory load(IndexInput input) throws IOException {
         long sizeInBytes = 0;
         int version = CodecUtil.checkHeader(input, CODEC_NAME, CODEC_VERSION_START, CODEC_VERSION_LATEST);
         if (version >= CODEC_VERSION_CHECKSUMS) {
@@ -266,9 +265,9 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
             lookupMap.put(entry.getValue(), holder);
         }
         final long ramBytesUsed = sizeInBytes;
-        return new LookupFactory() {
+        return new Completion090PostingsFormat.LookupFactory() {
             @Override
-            public Lookup getLookup(CompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext) {
+            public Lookup getLookup(OldCompletionFieldMapper.CompletionFieldType fieldType, CompletionSuggestionContext suggestionContext) {
                 AnalyzingSuggestHolder analyzingSuggestHolder = lookupMap.get(fieldType.names().indexName());
                 if (analyzingSuggestHolder == null) {
                     return null;
@@ -276,7 +275,7 @@ public class AnalyzingCompletionLookupProvider extends CompletionLookupProvider 
                 int flags = analyzingSuggestHolder.getPreserveSeparator() ? XAnalyzingSuggester.PRESERVE_SEP : 0;
 
                 final XAnalyzingSuggester suggester;
-                final Automaton queryPrefix = fieldType.requiresContext() ? ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
+                final Automaton queryPrefix = fieldType.requiresContext() ? ContextMapping.ContextQuery.toAutomaton(analyzingSuggestHolder.getPreserveSeparator(), suggestionContext.getContextQueries()) : null;
 
                 if (suggestionContext.isFuzzy()) {
                     suggester = new XFuzzySuggester(fieldType.indexAnalyzer(), queryPrefix, fieldType.searchAnalyzer(), flags,

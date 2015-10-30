@@ -173,3 +173,5 @@ include::mapping/fields.asciidoc[]
 include::mapping/params.asciidoc[]
 
 include::mapping/dynamic-mapping.asciidoc[]
+
+include::mapping/transform.asciidoc[]

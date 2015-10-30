@@ -396,10 +396,7 @@ public class GeoContextMapping extends ContextMapping {
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
-        result = 31 * result + precision;
-        result = 31 * result + (fieldName != null ? fieldName.hashCode() : 0);
-        return result;
+        return Objects.hash(super.hashCode(), precision, fieldName);
     }
 
     public static class Builder extends ContextBuilder<GeoContextMapping> {

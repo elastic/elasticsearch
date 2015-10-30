@@ -46,7 +46,7 @@ public class ContextMappings implements ToXContent {
     private final List<ContextMapping> contextMappings;
     private final Map<String, ContextMapping> contextNameMap;
 
-    private ContextMappings(List<ContextMapping> contextMappings) {
+    public ContextMappings(List<ContextMapping> contextMappings) {
         if (contextMappings.size() > 255) {
             // we can support more, but max of 255 (1 byte) unique context types per suggest field
             // seems reasonable?
@@ -262,12 +262,7 @@ public class ContextMappings implements ToXContent {
 
     @Override
     public int hashCode() {
-        final int prime = 31;
-        int result = super.hashCode();
-        for (ContextMapping contextMapping : contextMappings) {
-            result = prime * result + contextMapping.hashCode();
-        }
-        return result;
+        return Objects.hash(contextMappings);
     }
 
     @Override

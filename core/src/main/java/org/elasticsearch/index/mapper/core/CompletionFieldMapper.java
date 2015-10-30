@@ -186,17 +186,17 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
             this.preservePositionIncrements = ref.preservePositionIncrements;
         }
 
-        private void setPreserveSep(boolean preserveSep) {
+        public void setPreserveSep(boolean preserveSep) {
             checkIfFrozen();
             this.preserveSep = preserveSep;
         }
 
-        private void setPreservePositionIncrements(boolean preservePositionIncrements) {
+        public void setPreservePositionIncrements(boolean preservePositionIncrements) {
             checkIfFrozen();
             this.preservePositionIncrements = preservePositionIncrements;
         }
 
-        private void setContextMappings(ContextMappings contextMappings) {
+        public void setContextMappings(ContextMappings contextMappings) {
             checkIfFrozen();
             this.contextMappings = contextMappings;
         }
@@ -296,11 +296,10 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
 
         @Override
         public int hashCode() {
-            int result = super.hashCode();
-            result = 31 * result + (preserveSep ? 1 : 0);
-            result = 31 * result + (preservePositionIncrements ? 1 : 0);
-            result = 31 * result + (contextMappings != null ? contextMappings.hashCode() : 0);
-            return result;
+            return Objects.hash(super.hashCode(),
+                    preserveSep,
+                    preservePositionIncrements,
+                    contextMappings);
         }
 
         @Override
@@ -325,7 +324,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                 conflicts.add("mapper [" + names().fullName() + "] has different [preserve_separators] values");
             }
             if (hasContextMappings() != other.hasContextMappings()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [context mappings]");
+                conflicts.add("mapper [" + names().fullName() + "] has different [context_mappings] values");
             } else if (hasContextMappings() && contextMappings.equals(other.contextMappings) == false) {
                 conflicts.add("mapper [" + names().fullName() + "] has different [context_mappings] values");
             }
@@ -512,7 +511,7 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
                             try {
                                 weightValue = Long.parseLong(parser.text());
                             } catch (NumberFormatException e) {
-                                throw new IllegalArgumentException("weight must be a string representing a numeric value, but was [" + parser.text() + "]");
+                                throw new IllegalArgumentException("weight must be an integer, but was [" + parser.text() + "]");
                             }
                         } else if (token == Token.VALUE_NUMBER) {
                             NumberType numberType = parser.numberType();

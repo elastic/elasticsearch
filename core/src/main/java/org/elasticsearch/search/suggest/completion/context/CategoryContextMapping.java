@@ -225,9 +225,7 @@ public class CategoryContextMapping extends ContextMapping {
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
-        result = 31 * result + (fieldName != null ? fieldName.hashCode() : 0);
-        return result;
+        return Objects.hash(super.hashCode(), fieldName);
     }
 
     /**

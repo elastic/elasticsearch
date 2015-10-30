@@ -130,9 +130,7 @@ public abstract class ContextMapping implements ToXContent {
 
     @Override
     public int hashCode() {
-        int result = type.hashCode();
-        result = 31 * result + name.hashCode();
-        return result;
+        return Objects.hash(type, name);
     }
 
     @Override

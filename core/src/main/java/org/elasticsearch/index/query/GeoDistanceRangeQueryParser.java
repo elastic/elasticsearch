@@ -19,7 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -212,7 +214,27 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-        Query query = new GeoDistanceRangeQuery(point, from, to, includeLower, includeUpper, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
+
+        if (from == null) {
+            from = new Double(0);
+        }
+
+        if (to == null) {
+            // computes the maximum distance at the given latitude
+            // todo move to Lucene GeoUtils
+            to = new Double(SloppyMath.haversin(point.lat(), point.lon(), point.lat(), (180.0 + point.lon()) % 360))*1000.0;
+        }
+
+        final Query query;
+        // todo move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
+        if (parseContext.indexVersionCreated().onOrBefore(Version.V_2_2_0)) {
+            query = new GeoDistanceRangeQuery(point, from, to, includeLower, includeUpper, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
+        } else {
+            query = new GeoPointDistanceRangeQuery(indexFieldData.getFieldNames().indexName(), point.lon(), point.lat(),
+                    (includeLower) ? from : from + org.apache.lucene.util.GeoUtils.TOLERANCE,
+                    (includeUpper) ? to : to - org.apache.lucene.util.GeoUtils.TOLERANCE);
+        }
+
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

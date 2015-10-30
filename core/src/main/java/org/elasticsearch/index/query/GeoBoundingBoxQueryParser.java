@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointInBBoxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
@@ -194,19 +195,22 @@ public class GeoBoundingBoxQueryParser implements QueryParser {
         }
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
-        Query filter;
-        if ("indexed".equals(type)) {
-            filter = IndexedGeoBoundingBoxQuery.create(topLeft, bottomRight, geoFieldType);
+        Query query;
+        // todo move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
+        if (parseContext.indexVersionCreated().after(Version.V_2_2_0)) {
+            query = new GeoPointInBBoxQuery(fieldType.names().fullName(), topLeft.lon(), bottomRight.lat(), bottomRight.lon(), topLeft.lat());
+        } else if ("indexed".equals(type)) {
+            query = IndexedGeoBoundingBoxQuery.create(topLeft, bottomRight, geoFieldType);
         } else if ("memory".equals(type)) {
             IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-            filter = new InMemoryGeoBoundingBoxQuery(topLeft, bottomRight, indexFieldData);
+            query = new InMemoryGeoBoundingBoxQuery(topLeft, bottomRight, indexFieldData);
         } else {
             throw new QueryParsingException(parseContext, "failed to parse [{}] query. geo bounding box type [{}] is not supported. either [indexed] or [memory] are allowed", NAME, type);
         }
 
         if (queryName != null) {
-            parseContext.addNamedQuery(queryName, filter);
+            parseContext.addNamedQuery(queryName, query);
         }
-        return filter;
+        return query;
     }    
 }

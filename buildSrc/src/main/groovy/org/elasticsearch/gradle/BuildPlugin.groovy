@@ -37,7 +37,7 @@ class BuildPlugin implements Plugin<Project> {
     void apply(Project project) {
         globalBuildInfo(project)
         project.pluginManager.apply('java')
-        project.pluginManager.apply('carrotsearch.randomizedtesting')
+        project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
         project.pluginManager.apply('nebula.info-broker')
         project.pluginManager.apply('nebula.info-basic')

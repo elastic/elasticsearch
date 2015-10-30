@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package com.carrotsearch.gradle.randomizedtesting
+package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import com.carrotsearch.ant.tasks.junit4.dependencies.com.google.common.eventbus.Subscribe

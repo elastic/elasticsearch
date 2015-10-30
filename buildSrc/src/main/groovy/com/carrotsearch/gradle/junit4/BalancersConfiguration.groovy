@@ -1,4 +1,4 @@
-package com.carrotsearch.gradle.randomizedtesting
+package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.SuiteBalancer
 import com.carrotsearch.ant.tasks.junit4.balancers.ExecutionTimeBalancer

@@ -1,4 +1,4 @@
-package com.carrotsearch.gradle.randomizedtesting
+package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.JUnit4
 import com.carrotsearch.ant.tasks.junit4.Pluralize
@@ -18,7 +18,7 @@ import org.junit.runner.Description
 import java.util.concurrent.atomic.AtomicInteger
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.*
-import static com.carrotsearch.gradle.randomizedtesting.TestLoggingConfiguration.OutputMode
+import static com.carrotsearch.gradle.junit4.TestLoggingConfiguration.OutputMode
 
 class TestReportLogger extends TestsSummaryEventListener implements AggregatedEventListener {
 

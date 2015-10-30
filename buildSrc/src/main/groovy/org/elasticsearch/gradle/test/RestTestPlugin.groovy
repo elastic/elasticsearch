@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
-import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
@@ -29,7 +29,7 @@ class RestTestPlugin implements Plugin<Project> {
     @Override
     void apply(Project project) {
         project.pluginManager.apply('java-base')
-        project.pluginManager.apply('carrotsearch.randomizedtesting')
+        project.pluginManager.apply('carrotsearch.randomized-testing')
         project.pluginManager.apply('idea')
 
         // remove some unnecessary tasks for a qa test

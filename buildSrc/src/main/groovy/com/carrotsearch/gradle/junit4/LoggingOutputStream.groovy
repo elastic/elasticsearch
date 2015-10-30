@@ -1,4 +1,4 @@
-package com.carrotsearch.gradle.randomizedtesting
+package com.carrotsearch.gradle.junit4
 
 import org.gradle.api.logging.LogLevel
 import org.gradle.api.logging.Logger

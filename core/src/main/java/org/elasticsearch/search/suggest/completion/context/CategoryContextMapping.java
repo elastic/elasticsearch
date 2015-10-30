@@ -109,11 +109,11 @@ public class CategoryContextMapping extends ContextMapping {
                 if (token == Token.VALUE_STRING) {
                     contexts.add(parser.text());
                 } else {
-                    throw new ElasticsearchParseException("Category context array must have string values");
+                    throw new ElasticsearchParseException("context array must have string values");
                 }
             }
         } else {
-            throw new ElasticsearchParseException("Category contexts must be a string or a list of strings");
+            throw new ElasticsearchParseException("contexts must be a string or a list of strings");
         }
         return contexts;
     }
@@ -184,7 +184,7 @@ public class CategoryContextMapping extends ContextMapping {
                         try {
                             number = Long.parseLong(parser.text());
                         } catch (NumberFormatException e) {
-                            throw new IllegalArgumentException("Boost must be a string representing a numeric value, but was [" + parser.text() + "]");
+                            throw new IllegalArgumentException("boost must be a string representing a numeric value, but was [" + parser.text() + "]");
                         }
                         boost = number.intValue();
                     }
@@ -195,7 +195,7 @@ public class CategoryContextMapping extends ContextMapping {
                         if (parser.numberType() == XContentParser.NumberType.INT) {
                             boost = number.intValue();
                         } else {
-                            throw new ElasticsearchParseException("Boost must be in the interval [0..2147483647], but was [" + number.longValue() + "]");
+                            throw new ElasticsearchParseException("boost must be in the interval [0..2147483647], but was [" + number.longValue() + "]");
                         }
                     }
                 } else if (token == Token.VALUE_BOOLEAN) {
@@ -210,7 +210,7 @@ public class CategoryContextMapping extends ContextMapping {
             }
             return new CategoryQueryContext(context, boost, isPrefix);
         } else {
-            throw new ElasticsearchParseException("expected string or object");
+            throw new ElasticsearchParseException("contexts field expected string or object but was [" + token.name() + "]");
         }
     }
 

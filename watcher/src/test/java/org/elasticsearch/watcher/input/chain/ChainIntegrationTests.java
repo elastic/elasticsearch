@@ -7,14 +7,15 @@ package org.elasticsearch.watcher.input.chain;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.watcher.input.http.HttpInput;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.junit.Test;
 
 import java.net.InetSocketAddress;
+import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -22,6 +23,7 @@ import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.input.InputBuilders.*;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
+import static org.elasticsearch.watcher.trigger.schedule.IntervalSchedule.Interval.Unit.SECONDS;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.containsString;
 
@@ -52,7 +54,7 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
 
         watcherClient().preparePutWatch("_name")
                 .setSource(watchBuilder()
-                        .trigger(schedule(interval("5s")))
+                        .trigger(schedule(interval(5, SECONDS)))
                         .input(chainedInputBuilder)
                         .addAction("indexAction", indexAction("my-index", "my-type")))
                 .get();
@@ -60,14 +62,26 @@ public class ChainIntegrationTests extends AbstractWatcherIntegrationTestCase {
         if (timeWarped()) {
             timeWarp().scheduler().trigger("_name");
             refresh();
+        } else {
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    assertWatchExecuted();
+                }
+            }, 9, TimeUnit.SECONDS);
         }
 
-        refresh();
-        SearchResponse searchResponse = client().prepareSearch("my-index").setTypes("my-type").get();
-        assertHitCount(searchResponse, 1);
-        assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString(index));
         assertWatchWithMinimumPerformedActionsCount("_name", 1, false);
     }
 
-
+    public void assertWatchExecuted() {
+        try {
+            refresh();
+            SearchResponse searchResponse = client().prepareSearch("my-index").setTypes("my-type").get();
+            assertHitCount(searchResponse, 1);
+            assertThat(searchResponse.getHits().getAt(0).sourceAsString(), containsString("the-most-awesome-index-ever"));
+        } catch (IndexNotFoundException e) {
+            fail("Index not found: ["+ e.getIndex() + "]");
+        }
+    }
 }

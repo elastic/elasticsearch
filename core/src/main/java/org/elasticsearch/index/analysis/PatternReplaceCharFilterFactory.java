@@ -20,22 +20,19 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.Reader;
 import java.util.regex.Pattern;
 
-@AnalysisSettingsRequired
 public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
 
     private final Pattern pattern;
     private final String replacement;
 
-    @Inject
-    public PatternReplaceCharFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public PatternReplaceCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
 
         if (!Strings.hasLength(settings.get("pattern"))) {

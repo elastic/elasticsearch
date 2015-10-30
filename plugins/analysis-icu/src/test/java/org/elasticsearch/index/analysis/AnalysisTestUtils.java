@@ -28,24 +28,28 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugin.analysis.icu.AnalysisICUPlugin;
 import org.elasticsearch.test.IndexSettingsModule;
+
+import java.io.IOException;
+import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class AnalysisTestUtils {
 
-    public static AnalysisService createAnalysisService(Settings settings) {
+    public static AnalysisService createAnalysisService(Settings settings) throws IOException {
         Index index = new Index("test");
         Settings indexSettings = settingsBuilder().put(settings)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings), new EnvironmentModule(new Environment(settings))).createInjector();
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, indexSettings),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)).addProcessor(new IcuAnalysisBinderProcessor()))
-                .createChildInjector(parentInjector);
-
-        return injector.getInstance(AnalysisService.class);
+        AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
+        new AnalysisICUPlugin().onModule(analysisModule);
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
+                new EnvironmentModule(new Environment(settings)), analysisModule)
+                .createInjector();
+        final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.emptyList()));
+        return analysisService;
     }
 }

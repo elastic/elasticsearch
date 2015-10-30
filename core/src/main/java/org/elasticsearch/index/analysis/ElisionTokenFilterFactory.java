@@ -22,8 +22,6 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.analysis.util.ElisionFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -35,8 +33,7 @@ public class ElisionTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet articles;
 
-    @Inject
-    public ElisionTokenFilterFactory(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public ElisionTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.articles = Analysis.parseArticles(env, settings);
     }

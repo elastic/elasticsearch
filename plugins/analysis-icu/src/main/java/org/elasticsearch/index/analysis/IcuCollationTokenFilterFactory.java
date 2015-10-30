@@ -23,8 +23,6 @@ import com.ibm.icu.text.Collator;
 import com.ibm.icu.text.RuleBasedCollator;
 import com.ibm.icu.util.ULocale;
 import org.apache.lucene.analysis.TokenStream;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -47,8 +45,7 @@ public class IcuCollationTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Collator collator;
 
-    @Inject
-    public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, @Assisted String name, @Assisted Settings settings) {
+    public IcuCollationTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         Collator collator;

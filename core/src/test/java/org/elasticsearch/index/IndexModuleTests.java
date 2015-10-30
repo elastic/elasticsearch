@@ -28,6 +28,8 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.inject.ModuleTestCase;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
@@ -54,9 +56,9 @@ public class IndexModuleTests extends ModuleTestCase {
     private final IndicesWarmer warmer = new IndicesWarmer(Settings.EMPTY, null);
     public void testWrapperIsBound() {
         final Index index = new Index("foo");
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer, new AnalysisRegistry(null, new Environment(settings)));
         assertInstanceBinding(module, IndexModule.IndexSearcherWrapperFactory.class, (x) -> x.newWrapper(null) == null);
         module.setSearcherWrapper((s) ->  new Wrapper());
         assertInstanceBinding(module, IndexModule.IndexSearcherWrapperFactory.class, (x) -> x.newWrapper(null) instanceof Wrapper);
@@ -64,9 +66,9 @@ public class IndexModuleTests extends ModuleTestCase {
 
     public void testEngineFactoryBound() {
         final Index index = new Index("foo");
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer, new AnalysisRegistry(null, new Environment(settings)));
         assertBinding(module, EngineFactory.class, InternalEngineFactory.class);
         module.engineFactoryImpl = MockEngineFactory.class;
         assertBinding(module, EngineFactory.class, MockEngineFactory.class);
@@ -74,9 +76,9 @@ public class IndexModuleTests extends ModuleTestCase {
 
     public void testRegisterIndexStore() {
         final Index index = new Index("foo");
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put(IndexModule.STORE_TYPE, "foo_store").build();
+        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).put(IndexModule.STORE_TYPE, "foo_store").build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer, new AnalysisRegistry(null, new Environment(settings)));
         module.addIndexStore("foo_store", FooStore::new);
         assertInstanceBinding(module, IndexStore.class, (x) -> x.getClass() == FooStore.class);
         try {
@@ -96,9 +98,9 @@ public class IndexModuleTests extends ModuleTestCase {
             }
         };
         final Index index = new Index("foo");
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer, new AnalysisRegistry(null, new Environment(settings)));
         Consumer<Settings> listener = (s) -> {};
         module.addIndexSettingsListener(listener);
         module.addIndexEventListener(eventListener);
@@ -117,9 +119,9 @@ public class IndexModuleTests extends ModuleTestCase {
 
     public void testListener() {
         final Index index = new Index("foo");
-        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
+        final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).build();
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-        IndexModule module = new IndexModule(indexSettings, null, null, warmer);
+        IndexModule module = new IndexModule(indexSettings, null, null, warmer, new AnalysisRegistry(null, new Environment(settings)));
         Consumer<Settings> listener = (s) -> {
         };
         module.addIndexSettingsListener(listener);
@@ -146,8 +148,9 @@ public class IndexModuleTests extends ModuleTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put("index.similarity.my_similarity.key", "there is a key")
+                .put("path.home", createTempDir().toString())
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer, new AnalysisRegistry(null, new Environment(indexSettings)));
         module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
             @Override
             public String name() {
@@ -175,8 +178,9 @@ public class IndexModuleTests extends ModuleTestCase {
         Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.type", "test_similarity")
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("path.home", createTempDir().toString())
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer, new AnalysisRegistry(null, new Environment(indexSettings)));
         try {
             assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
         } catch (IllegalArgumentException ex) {
@@ -188,9 +192,10 @@ public class IndexModuleTests extends ModuleTestCase {
     public void testSetupWithoutType() {
         Settings indexSettings = Settings.settingsBuilder()
                 .put("index.similarity.my_similarity.foo", "bar")
+                .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer, new AnalysisRegistry(null, new Environment(indexSettings)));
         try {
             assertInstanceBinding(module, SimilarityService.class, (inst) -> inst instanceof SimilarityService);
         } catch (IllegalArgumentException ex) {
@@ -200,8 +205,9 @@ public class IndexModuleTests extends ModuleTestCase {
 
     public void testCannotRegisterProvidedImplementations() {
         Settings indexSettings = Settings.settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer, new AnalysisRegistry(null, new Environment(indexSettings)));
         try {
             module.registerQueryCache("index", IndexQueryCache::new);
             fail("only once");
@@ -227,8 +233,9 @@ public class IndexModuleTests extends ModuleTestCase {
     public void testRegisterCustomQueryCache() {
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexModule.QUERY_CACHE_TYPE, "custom")
+                .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer, new AnalysisRegistry(null, new Environment(indexSettings)));
         module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
         try {
             module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
@@ -241,8 +248,9 @@ public class IndexModuleTests extends ModuleTestCase {
 
     public void testDefaultQueryCacheImplIsSelected() {
         Settings indexSettings = Settings.settingsBuilder()
+                .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer);
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, null, warmer, new AnalysisRegistry(null, new Environment(indexSettings)));
         assertInstanceBinding(module, QueryCache.class, (x) -> x instanceof IndexQueryCache);
     }
 

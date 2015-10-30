@@ -24,20 +24,16 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.all.AllEntries;
 import org.elasticsearch.common.lucene.all.AllTokenStream;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
@@ -46,6 +42,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -71,18 +68,9 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .put("path.home", home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
-        Index index = new Index("test");
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.emptyList());
+        analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
-        Injector parentInjector = new ModulesBuilder().add(
-                new SettingsModule(settings),
-                new EnvironmentModule(new Environment(settings)))
-                .createInjector();
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class)))
-                .createChildInjector(parentInjector);
-
-        analysisService = injector.getInstance(AnalysisService.class);
 
         match("synonymAnalyzer", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");

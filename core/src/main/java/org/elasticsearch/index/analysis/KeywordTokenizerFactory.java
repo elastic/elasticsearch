@@ -21,9 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.KeywordTokenizer;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 /**
@@ -33,8 +32,7 @@ public class KeywordTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int bufferSize;
 
-    @Inject
-    public KeywordTokenizerFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public KeywordTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         bufferSize = settings.getAsInt("buffer_size", 256);
     }

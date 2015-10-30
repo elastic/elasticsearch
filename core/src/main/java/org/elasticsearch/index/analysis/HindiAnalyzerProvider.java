@@ -21,8 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.hi.HindiAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -34,8 +32,7 @@ public class HindiAnalyzerProvider extends AbstractIndexAnalyzerProvider<HindiAn
 
     private final HindiAnalyzer analyzer;
 
-    @Inject
-    public HindiAnalyzerProvider(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public HindiAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new HindiAnalyzer(Analysis.parseStopWords(env, settings, HindiAnalyzer.getDefaultStopSet()),
                                      Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));

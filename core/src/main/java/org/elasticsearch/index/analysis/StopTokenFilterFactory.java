@@ -26,8 +26,6 @@ import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -47,8 +45,7 @@ public class StopTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean enablePositionIncrements;
     private final boolean removeTrailing;
 
-    @Inject
-    public StopTokenFilterFactory(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public StopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);

@@ -21,22 +21,18 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.TruncateTokenFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 
 /**
  *
  */
-@AnalysisSettingsRequired
 public class TruncateTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final int length;
 
-    @Inject
-    public TruncateTokenFilterFactory(IndexSettings indexSettings,
-                                      @Assisted String name, @Assisted Settings settings) {
+    public TruncateTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.length = settings.getAsInt("length", -1);
         if (length <= 0) {

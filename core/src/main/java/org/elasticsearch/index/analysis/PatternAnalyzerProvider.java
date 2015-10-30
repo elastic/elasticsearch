@@ -23,8 +23,6 @@ import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -39,8 +37,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
 
     private final PatternAnalyzer analyzer;
 
-    @Inject
-    public PatternAnalyzerProvider(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public PatternAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         Version esVersion = indexSettings.getIndexVersionCreated();

@@ -23,6 +23,7 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -59,7 +60,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisModule;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
@@ -70,7 +72,6 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.*;
@@ -156,6 +157,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         index = new Index(randomAsciiOfLengthBetween(1, 10));
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.emptyList());
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
@@ -207,11 +209,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     }
                 },
                 new IndexSettingsModule(index, indexSettings),
-                new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.emptyList());
+                        try {
+                            bind(AnalysisService.class).toInstance(new AnalysisRegistry(null, new Environment(settings)).build(idxSettings));
+                        } catch (IOException e) {
+                            throw new ElasticsearchException(e);
+                        }
                         SimilarityService service = new SimilarityService(idxSettings, Collections.emptyMap());
                         bind(SimilarityService.class).toInstance(service);
                         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));

@@ -21,14 +21,13 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKWidthFilter;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 public final class CJKWidthFilterFactory extends AbstractTokenFilterFactory {
 
-    @Inject
-    public CJKWidthFilterFactory(IndexSettings indexSettings, String name, Settings settings) {
+    public CJKWidthFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 

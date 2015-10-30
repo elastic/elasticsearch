@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltTokenFilters;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 
@@ -31,23 +33,23 @@ import static org.hamcrest.CoreMatchers.not;
  *
  */
 public class PreBuiltTokenFilterFactoryFactoryTests extends ESTestCase {
-    public void testThatCachingWorksForCachingStrategyOne() {
+    public void testThatCachingWorksForCachingStrategyOne() throws IOException {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.WORD_DELIMITER.getTokenFilterFactory(Version.CURRENT));
 
-        TokenFilterFactory former090TokenizerFactory = factory.create("word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
-        TokenFilterFactory former090TokenizerFactoryCopy = factory.create("word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
-        TokenFilterFactory currentTokenizerFactory = factory.create("word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        TokenFilterFactory former090TokenizerFactory = factory.get(null, null, "word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
+        TokenFilterFactory former090TokenizerFactoryCopy = factory.get(null, null, "word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
+        TokenFilterFactory currentTokenizerFactory = factory.get(null, null, "word_delimiter", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(former090TokenizerFactory));
         assertThat(currentTokenizerFactory, is(former090TokenizerFactoryCopy));
     }
 
-    public void testThatDifferentVersionsCanBeLoaded() {
+    public void testThatDifferentVersionsCanBeLoaded() throws IOException {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.STOP.getTokenFilterFactory(Version.CURRENT));
 
-        TokenFilterFactory former090TokenizerFactory = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
-        TokenFilterFactory former090TokenizerFactoryCopy = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
-        TokenFilterFactory currentTokenizerFactory = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        TokenFilterFactory former090TokenizerFactory = factory.get(null, null, "stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
+        TokenFilterFactory former090TokenizerFactoryCopy = factory.get(null, null, "stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
+        TokenFilterFactory currentTokenizerFactory = factory.get(null, null, "stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));
         assertThat(former090TokenizerFactory, is(former090TokenizerFactoryCopy));

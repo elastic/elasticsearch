@@ -23,9 +23,8 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.LengthFilter;
 import org.apache.lucene.analysis.miscellaneous.Lucene43LengthFilter;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 /**
@@ -38,8 +37,7 @@ public class LengthTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean enablePositionIncrements;
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
-    @Inject
-    public LengthTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public LengthTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         min = settings.getAsInt("min", 0);
         max = settings.getAsInt("max", Integer.MAX_VALUE);

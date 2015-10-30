@@ -24,10 +24,8 @@ import org.apache.lucene.analysis.miscellaneous.KeepWordFilter;
 import org.apache.lucene.analysis.miscellaneous.Lucene43KeepWordFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 
 /**
@@ -51,7 +49,6 @@ import org.elasticsearch.index.IndexSettings;
  *
  * @see StopTokenFilterFactory
  */
-@AnalysisSettingsRequired
 public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     private final CharArraySet keepWords;
     private final boolean enablePositionIncrements;
@@ -60,9 +57,8 @@ public class KeepWordFilterFactory extends AbstractTokenFilterFactory {
     private static final String KEEP_WORDS_CASE_KEY = KEEP_WORDS_KEY + "_case"; // for javadoc
     private static final String ENABLE_POS_INC_KEY = "enable_position_increments";
 
-    @Inject
     public KeepWordFilterFactory(IndexSettings indexSettings,
-                                 Environment env, @Assisted String name, @Assisted Settings settings) {
+                                 Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         final String[] arrayKeepWords = settings.getAsArray(KEEP_WORDS_KEY, null);

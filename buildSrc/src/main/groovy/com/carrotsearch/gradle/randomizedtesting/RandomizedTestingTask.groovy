@@ -20,8 +20,6 @@ import javax.inject.Inject
 
 class RandomizedTestingTask extends DefaultTask {
 
-    PatternFilterable patternSet = new PatternSet()
-
     // TODO: change to "executable" to match gradle test params?
     @Optional
     @Input
@@ -64,6 +62,7 @@ class RandomizedTestingTask extends DefaultTask {
 
     List<String> jvmArgs = new ArrayList<>()
     Map<String, String> systemProperties = new HashMap<>()
+    PatternFilterable patternSet = new PatternSet()
 
     RandomizedTestingTask() {
         outputs.upToDateWhen {false} // randomized tests are never up to date
@@ -166,7 +165,6 @@ class RandomizedTestingTask extends DefaultTask {
     }
 
     // TODO: add leaveTemporary
-    // TODO: add jvmOutputAction?
     // TODO: add ifNoTests!
 
     @TaskAction

@@ -151,6 +151,7 @@ class BuildPlugin implements Plugin<Project> {
                     regex(/^(\s+at )(org\.apache\.lucene\.util\.TestRule)/)
                     regex(/^(\s+at )(org\.apache\.lucene\.util\.AbstractBeforeAfterRule)/)
                 }
+                outputMode System.getProperty('tests.output', 'onerror')
             }
 
             balancers {

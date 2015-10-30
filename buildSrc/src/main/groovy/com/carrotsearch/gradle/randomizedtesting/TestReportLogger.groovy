@@ -18,6 +18,7 @@ import org.junit.runner.Description
 import java.util.concurrent.atomic.AtomicInteger
 
 import static com.carrotsearch.ant.tasks.junit4.FormattingUtils.*
+import static com.carrotsearch.gradle.randomizedtesting.TestLoggingConfiguration.OutputMode
 
 class TestReportLogger extends TestsSummaryEventListener implements AggregatedEventListener {
 
@@ -53,20 +54,6 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
     /** Output stream that logs messages to the given logger */
     LoggingOutputStream outStream
     LoggingOutputStream errStream
-
-    /** Display mode for output streams. */
-    static enum OutputMode {
-        /** Always display the output emitted from tests. */
-        ALWAYS,
-        /**
-         * Display the output only if a test/ suite failed. This requires internal buffering
-         * so the output will be shown only after a test completes.
-         */
-        ONERROR,
-        /** Don't display the output, even on test failures. */
-        NEVER
-    }
-    OutputMode outputMode = OutputMode.ONERROR
 
     /** A list of failed tests, if to be displayed at the end. */
     List<Description> failedTests = new ArrayList<>()
@@ -238,7 +225,7 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
     }
 
     void emitBufferedEvents(LogLevel level, AggregatedSuiteResultEvent e) throws IOException {
-        if (outputMode == OutputMode.NEVER) {
+        if (config.outputMode == OutputMode.NEVER) {
             return
         }
 
@@ -247,8 +234,8 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
             eventMap.put(tre.getTestFinishedEvent(), tre)
         }
 
-        final boolean emitOutput = outputMode == OutputMode.ALWAYS && isPassthrough() == false ||
-                                   outputMode == OutputMode.ONERROR && e.isSuccessful() == false
+        final boolean emitOutput = config.outputMode == OutputMode.ALWAYS && isPassthrough() == false ||
+                                   config.outputMode == OutputMode.ONERROR && e.isSuccessful() == false
 
         for (IEvent event : e.getEventStream()) {
             switch (event.getType()) {
@@ -363,7 +350,7 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
 
     /** Returns true if output should be logged immediately. Only relevant when running with INFO log level. */
     boolean isPassthrough() {
-        return forkedJvmCount == 1 && outputMode == OutputMode.ALWAYS && logger.isInfoEnabled()
+        return forkedJvmCount == 1 && config.outputMode == OutputMode.ALWAYS && logger.isInfoEnabled()
     }
 
     @Override

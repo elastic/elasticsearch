@@ -71,17 +71,15 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Query rewrite(Query original) throws IOException {
-        ProfileBreakdown profile = null;
         if (profiler != null) {
-            profile = profiler.getRewriteBreakdown(original);
-            profile.startTime(ProfileBreakdown.TimingType.REWRITE);
+            profiler.startRewriteTime();
         }
 
         try {
             return in.rewrite(original);
         } finally {
-            if (profiler != null && profile != null) {
-                profile.stopAndRecordTime(ProfileBreakdown.TimingType.REWRITE);
+            if (profiler != null) {
+                profiler.stopAndAddRewriteTime();
             }
         }
     }

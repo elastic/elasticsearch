@@ -60,8 +60,18 @@ public final class Profiler {
      * This should only be used for queries that will be undergoing rewriting.  Do not use it to profile
      * the scoring phase
      */
-    public ProfileBreakdown getRewriteBreakdown(Query query) {
-        return queryTree.getRewriteBreakDown(query);
+    public void startRewriteTime() {
+        queryTree.startRewriteTime();
+    }
+
+    /**
+     * Stop recording the current rewrite and add it's time to the total tally, returning the
+     * cumulative time so far.
+     *
+     * @return cumulative rewrite time
+     */
+    public long stopAndAddRewriteTime() {
+        return queryTree.stopAndAddRewriteTime();
     }
 
     /**
@@ -80,10 +90,10 @@ public final class Profiler {
     }
 
     /**
-     * @return a list of profiled rewrites
+     * @return total time taken to rewrite all queries in this profile
      */
-    public List<InternalProfileResult> getRewriteList() {
-        return queryTree.getRewriteList();
+    public long getRewriteTime() {
+        return queryTree.getRewriteTime();
     }
 
     /**
@@ -215,7 +225,7 @@ public final class Profiler {
         List<InternalProfileShardResult> results = new ArrayList<>(profilers.size());
         for (Profiler profiler : profilers) {
             InternalProfileShardResult result =  new InternalProfileShardResult(
-                    profiler.getQueryTree(), profiler.getRewriteList(), profiler.getCollector());
+                    profiler.getQueryTree(), profiler.getRewriteTime(), profiler.getCollector());
             results.add(result);
         }
         return results;

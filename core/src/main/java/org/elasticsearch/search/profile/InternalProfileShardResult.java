@@ -35,13 +35,13 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
 
     private InternalProfileCollector profileCollector;
 
-    private List<InternalProfileResult> rewriteResults;
+    private long rewriteTime;
 
-    public InternalProfileShardResult(List<InternalProfileResult> profileResults, List<InternalProfileResult> rewriteResults,
+    public InternalProfileShardResult(List<InternalProfileResult> profileResults, long rewriteTime,
                                       InternalProfileCollector profileCollector) {
         this.profileResults = profileResults;
         this.profileCollector = profileCollector;
-        this.rewriteResults = rewriteResults;
+        this.rewriteTime = rewriteTime;
     }
 
     public InternalProfileShardResult() {
@@ -54,8 +54,8 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
     }
 
     @Override
-    public List<ProfileResult> getRewriteResults() {
-        return Collections.unmodifiableList(rewriteResults);
+    public long getRewriteTime() {
+        return rewriteTime;
     }
 
     @Override
@@ -72,11 +72,7 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
         }
         builder.endArray();
 
-        builder.startArray("rewrites");
-        for (InternalProfileResult p : rewriteResults) {
-            p.toXContent(builder, params);
-        }
-        builder.endArray();
+        builder.field("rewrite_time", rewriteTime);
 
         if (profileCollector != null) {
             builder.startArray("collector");
@@ -125,12 +121,7 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
 
         }
 
-        int rewriteSize = in.readVInt();
-        rewriteResults = new ArrayList<>(rewriteSize);
-
-        for (int j = 0; j < rewriteSize; j++) {
-            rewriteResults.add(InternalProfileResult.readProfileResult(in));;
-        }
+        rewriteTime = in.readLong();
 
     }
 
@@ -149,10 +140,7 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
             profileCollector.writeTo(out);
         }
 
-        out.writeVInt(rewriteResults.size());
-        for (InternalProfileResult p : rewriteResults) {
-            p.writeTo(out);
-        }
+        out.writeLong(rewriteTime);
 
     }
 

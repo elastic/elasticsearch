@@ -44,8 +44,9 @@ public class InternalProfileTree {
     /** A list of top-level "roots".  Each root can have its own tree of profiles */
     private ArrayList<Integer> roots;
 
-    /** A list of queries that were rewritten */
-    private Map<Query, ProfileBreakdown> rewrites;
+    /** Rewrite time */
+    private long rewriteTime;
+    private long rewriteScratch;
 
     /** A temporary stack used to record where we are in the dependency tree.  Only used by scoring queries */
     private Deque<Integer> stack;
@@ -58,21 +59,6 @@ public class InternalProfileTree {
         tree = new ArrayList<>(10);
         queries = new ArrayList<>(10);
         roots = new ArrayList<>(10);
-        rewrites = new HashMap<>(10);
-    }
-
-    public ProfileBreakdown getRewriteBreakDown(Query query) {
-        int token = currentToken;
-
-        ProfileBreakdown breakdown = rewrites.get(query);
-        if (breakdown != null) {
-            return breakdown;
-        }
-
-        ProfileBreakdown queryTimings = new ProfileBreakdown();
-        rewrites.put(query, queryTimings);
-
-        return queryTimings;
     }
 
     /**
@@ -114,6 +100,29 @@ public class InternalProfileTree {
         stack.add(token);
 
         return addDependencyNode(query, token);
+    }
+
+    /**
+     * Begin timing a query for a specific Timing context
+     */
+    public void startRewriteTime() {
+        assert rewriteScratch == 0;
+        rewriteScratch = System.nanoTime();
+    }
+
+    /**
+     * Halt the timing process and add the elapsed rewriting time.
+     * startRewriteTime() must be called for a particular context prior to calling
+     * stopAndAddRewriteTime(), otherwise the elapsed time will be negative and
+     * nonsensical
+     *
+     * @return          The elapsed time
+     */
+    public long stopAndAddRewriteTime() {
+        long time = Math.max(1, System.nanoTime() - rewriteScratch);
+        rewriteTime += time;
+        rewriteScratch = 0;
+        return time;
     }
 
     /**
@@ -171,7 +180,8 @@ public class InternalProfileTree {
 
         Query query = queries.get(token);
         ProfileBreakdown breakdown = timings.get(token);
-        InternalProfileResult rootNode =  new InternalProfileResult(query, breakdown.toTimingMap());
+        Map<String, Long> timings = breakdown.toTimingMap();
+        InternalProfileResult rootNode =  new InternalProfileResult(query, timings);
         ArrayList<Integer> children = tree.get(token);
 
         if (children != null) {
@@ -184,13 +194,8 @@ public class InternalProfileTree {
         return rootNode;
     }
 
-    public List<InternalProfileResult> getRewriteList() {
-        ArrayList<InternalProfileResult> results = new ArrayList<>(5);
-        for (Map.Entry<Query, ProfileBreakdown> entry : rewrites.entrySet()) {
-            InternalProfileResult result = new InternalProfileResult(entry.getKey(), entry.getValue().toTimingMap());
-            results.add(result);
-        }
-        return results;
+    public long getRewriteTime() {
+        return rewriteTime;
     }
 
     /**

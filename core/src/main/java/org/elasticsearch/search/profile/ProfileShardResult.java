@@ -26,7 +26,7 @@ public interface ProfileShardResult {
 
     List<ProfileResult> getQueryResults();
 
-    List<ProfileResult> getRewriteResults();
+    long getRewriteTime();
 
     CollectorResult getCollectorResult();
 

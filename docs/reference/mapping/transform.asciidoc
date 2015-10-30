@@ -1,0 +1,68 @@
+[[mapping-transform]]
+== Transform
+
+deprecated[2.0.0]
+
+The document can be transformed before it is indexed by registering a script in
+the `transform` element of the mapping. The result of the transform is indexed
+but the original source is stored in the `_source` field.
+
+This was deprecated in 2.0.0 because it made debugging very difficult. As of
+now there really isn't a feature to use in its place other than transforming
+the document in the client application.
+
+Deprecated or now, here is an example:
+
+[source,js]
+--------------------------------------------------
+{
+    "example" : {
+        "transform" : {
+            "script" : {
+                "inline": "if (ctx._source['title']?.startsWith('t')) ctx._source['suggest'] = ctx._source['content']",
+                "params" : {
+                    "variable" : "not used but an example anyway"
+                },
+                "lang": "groovy"
+            }
+        },
+        "properties": {
+           "title": { "type": "string" },
+           "content": { "type": "string" },
+           "suggest": { "type": "string" }
+        }
+    }
+}
+--------------------------------------------------
+
+Its also possible to specify multiple transforms:
+[source,js]
+--------------------------------------------------
+{
+    "example" : {
+        "transform" : [
+            {"script": "ctx._source['suggest'] = ctx._source['content']"}
+            {"script": "ctx._source['foo'] = ctx._source['bar'];"}
+        ]
+    }
+}
+--------------------------------------------------
+
+Because the result isn't stored in the source it can't normally be fetched by
+source filtering.  It can be highlighted if it is marked as stored.
+
+=== Get Transformed
+The get endpoint will retransform the source if the `_source_transform`
+parameter is set.  Example:
+[source,sh]
+--------------------------------------------------
+curl -XGET "http://localhost:9200/test/example/3?pretty&_source_transform"
+--------------------------------------------------
+
+The transform is performed before any source filtering but it is mostly
+designed to make it easy to see what was passed to the index for debugging.
+
+=== Immutable Transformation
+Once configured the transform script cannot be modified.  This is not
+because that is technically impossible but instead because madness lies
+down that road.

@@ -64,7 +64,7 @@ upgraded following the same procedure described in <<upgrade-node>>.
 If you have dedicated master nodes -- nodes with `node.master` set to
 `true`(the default) and `node.data` set to `false` --  then it is a good idea
 to start them first.  Wait for them to form a cluster and to elect a master
-before proceding with the data nodes. You can check progress by looking at the
+before proceeding with the data nodes. You can check progress by looking at the
 logs.
 
 As soon as the <<master-election,minimum number of master-eligible nodes>>

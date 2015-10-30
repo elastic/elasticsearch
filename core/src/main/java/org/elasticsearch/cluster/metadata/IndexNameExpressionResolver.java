@@ -78,7 +78,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
-     * Translates the provided index expression into actual concrete indices.
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
      * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
      * @param options           defines how the aliases or indices need to be resolved to concrete indices
@@ -96,7 +96,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
     }
 
     /**
-     * Translates the provided index expression into actual concrete indices.
+     * Translates the provided index expression into actual concrete indices, properly deduplicated.
      *
      * @param state             the cluster state containing all the data to resolve to expressions to concrete indices
      * @param options           defines how the aliases or indices need to be resolved to concrete indices
@@ -143,7 +143,7 @@ public class IndexNameExpressionResolver extends AbstractComponent {
             }
         }
 
-        List<String> concreteIndices = new ArrayList<>(expressions.size());
+        final Set<String> concreteIndices = new HashSet<>(expressions.size());
         for (String expression : expressions) {
             AliasOrIndex aliasOrIndex = metaData.getAliasAndIndexLookup().get(expression);
             if (aliasOrIndex == null) {

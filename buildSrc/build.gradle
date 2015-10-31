@@ -1,12 +1,11 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 
 plugins {
+  id 'idea'
+  id 'eclipse'
   id 'groovy'
   id 'com.bmuschko.nexus' version '2.3.1'
 }
-// TODO: move common IDE configuration to a common file to include
-apply plugin: 'idea'
-apply plugin: 'eclipse'
 
 /*idea {
   project {
@@ -30,10 +29,7 @@ repositories {
 dependencies {
   compile gradleApi()
   compile localGroovy()
-  compile 'com.carrotsearch.randomizedtesting:junit4-ant:2.2.0'
-  compile('junit:junit:4.11') {
-    transitive = false
-  }
+  compile 'com.carrotsearch.gradle:randomized-testing-plugin:1.0-SNAPSHOT'
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
   compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
   compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'

@@ -147,9 +147,22 @@ subprojects {
   }
 }
 
-// IDE configuration
+// intellij configuration
 allprojects {
   apply plugin: 'idea'
+}
+
+if (hasProperty('projectsPrefix') == false) {
+  idea {
+    project {
+      languageLevel = sourceCompatibility
+      vcs = 'Git'
+    }
+  }
+}
+
+// ecplise configuration
+allprojects {
   apply plugin: 'eclipse'
 
   // TODO: similar for intellij
@@ -162,13 +175,4 @@ allprojects {
   tasks.eclipse.dependsOn(cleanEclipse)
 }
 
-idea {
-  if (project != null) {
-    // could be null, if this project is attached to another...
-    project {
-      languageLevel = sourceCompatibility
-      vcs = 'Git'
-    }
-  }
-}
 

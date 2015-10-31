@@ -18,6 +18,7 @@
  */
 
 import com.bmuschko.gradle.nexus.NexusPlugin
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 buildscript {
   repositories {
@@ -161,14 +162,20 @@ if (hasProperty('projectsPrefix') == false) {
   }
 }
 
-// ecplise configuration
+// eclipse configuration
 allprojects {
   apply plugin: 'eclipse'
 
-  // TODO: similar for intellij
-  eclipse {
-    classpath {
-      defaultOutputDir = new File(project.buildDir, 'eclipse')
+  plugins.withType(JavaBasePlugin) {
+    eclipse.classpath.defaultOutputDir = new File(project.buildDir, 'eclipse')
+    eclipse.classpath.file.whenMerged { classpath ->
+      // give each source folder a unique corresponding output folder
+      int i = 0;
+      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
+        i++;
+        // this is *NOT* a path or a file.
+        folder.output = "build/eclipse/" + i
+      }
     }
   }
   // otherwise the eclipse merging is *super confusing*

@@ -23,10 +23,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -235,16 +232,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        QueryParseContext context = createParseContext();
         String query = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
                 "      \"query\" : \"" + query + "\"" +
                 "    }\n" +
                 "}";
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
-        context.reset(parser);
-        SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(parser, ParseFieldMatcher.EMPTY);
+        SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(contentString);
         assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());
         assertThat(queryBuilder.fields().size(), equalTo(0));

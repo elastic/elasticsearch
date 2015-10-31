@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -59,10 +60,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
@@ -338,11 +336,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
-            assertParsedQuery(testQuery.toString(), testQuery);
+            XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
+            assertParsedQuery(builder.bytes(), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
-                assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue());
+                String queryAsString = alternateVersion.getKey();
+                assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue());
             }
         }
+    }
+
+    protected static XContentBuilder toXContent(QueryBuilder<?> query, XContentType contentType) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        query.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder;
     }
 
     /**
@@ -358,7 +367,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             testQuery = createTestQueryBuilder();
         } while (testQuery.toString().contains(marker));
         testQuery.queryName(marker); // to find root query to add additional bogus field there
-        String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker +  "\", \"bogusField\" : \"someValue\"");
+        String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker + "\", \"bogusField\" : \"someValue\"");
         try {
             parseQuery(queryAsString);
             fail("ParsingException expected.");
@@ -413,6 +422,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
+    /**
+     * Parses the query provided as bytes argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
+     */
+    protected final void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder<?> expectedQuery) throws IOException {
+        assertParsedQuery(queryAsBytes, expectedQuery, ParseFieldMatcher.STRICT);
+    }
+
+    protected final void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder<?> expectedQuery, ParseFieldMatcher matcher) throws IOException {
+        QueryBuilder<?> newQuery = parseQuery(queryAsBytes, matcher);
+        assertNotSame(newQuery, expectedQuery);
+        assertEquals(expectedQuery, newQuery);
+        assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
+    }
+
     protected final QueryBuilder<?> parseQuery(String queryAsString) throws IOException {
         return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
@@ -422,12 +445,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return parseQuery(parser, matcher);
     }
 
-    protected final QueryBuilder<?> parseQuery(BytesReference query) throws IOException {
-        XContentParser parser = XContentFactory.xContent(query).createParser(query);
-        return parseQuery(parser, ParseFieldMatcher.STRICT);
+    protected final QueryBuilder<?> parseQuery(BytesReference queryAsBytes) throws IOException {
+        return parseQuery(queryAsBytes, ParseFieldMatcher.STRICT);
     }
 
-    protected final QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
+    protected final QueryBuilder<?> parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
+        XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(queryAsBytes);
+        return parseQuery(parser, matcher);
+    }
+
+    private QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);

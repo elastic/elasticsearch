@@ -79,7 +79,7 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
                         if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_FIELD)) {
-                            XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).copyCurrentStructure(parser);
+                            XContentBuilder builder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
                             shape = builder.bytes();
                         } else if (parseContext.parseFieldMatcher().match(currentFieldName, STRATEGY_FIELD)) {
                             String strategyName = parser.text();

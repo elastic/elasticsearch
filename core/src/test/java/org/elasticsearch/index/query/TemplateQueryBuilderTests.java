@@ -75,7 +75,8 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     @Override
     public void testUnknownField() throws IOException {
         TemplateQueryBuilder testQuery = createTestQueryBuilder();
-        String queryAsString = testQuery.toString().replace("inline", "bogusField");
+        String testQueryAsString = toXContent(testQuery, randomFrom(XContentType.JSON, XContentType.YAML)).string();
+        String queryAsString = testQueryAsString.replace("inline", "bogusField");
         try {
             parseQuery(queryAsString);
             fail("ScriptParseException expected.");

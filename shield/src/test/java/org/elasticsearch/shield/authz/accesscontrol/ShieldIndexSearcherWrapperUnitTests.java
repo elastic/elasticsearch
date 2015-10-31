@@ -9,21 +9,8 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
-import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.IndexWriter;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.PostingsEnum;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermsEnum;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.LeafCollector;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.Scorer;
-import org.apache.lucene.search.TermQuery;
-import org.apache.lucene.search.Weight;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
@@ -45,7 +32,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
 import org.elasticsearch.shield.license.ShieldLicenseState;
@@ -58,21 +44,15 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.Collections;
 
-import static java.util.Collections.emptySet;
-import static java.util.Collections.singleton;
-import static java.util.Collections.singletonMap;
+import static java.util.Collections.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.shield.authz.accesscontrol.ShieldIndexSearcherWrapper.intersectScorerAndRoleBits;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.sameInstance;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
-    private ShardId shardId;
     private TransportRequest request;
     private MapperService mapperService;
     private ShieldIndexSearcherWrapper shieldIndexSearcherWrapper;
@@ -82,13 +62,13 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
     @Before
     public void before() throws Exception {
         Index index = new Index("_index");
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY, Collections.EMPTY_LIST);
-        AnalysisService analysisService = new AnalysisService(indexSettings);
-        SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
-        ScriptService scriptService = mock(ScriptService.class);
-        mapperService = new MapperService(indexSettings, analysisService, similarityService, scriptService);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, Settings.EMPTY, Collections.emptyList());
+        AnalysisService analysisService = new AnalysisService(indexSettings, Collections.emptyMap(), Collections.emptyMap(),
+                Collections.emptyMap(), Collections.emptyMap());
+        SimilarityService similarityService = new SimilarityService(indexSettings, Collections.emptyMap());
+        mapperService = new MapperService(indexSettings, analysisService, similarityService);
 
-        shardId = new ShardId(index, 0);
+        ShardId shardId = new ShardId(index, 0);
         licenseState = mock(ShieldLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
         shieldIndexSearcherWrapper = new ShieldIndexSearcherWrapper(indexSettings, null, mapperService, null, licenseState);
@@ -247,7 +227,7 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         ShardId shardId = new ShardId("_index", 0);
         EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
 
-        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
+        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.emptyList());
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);

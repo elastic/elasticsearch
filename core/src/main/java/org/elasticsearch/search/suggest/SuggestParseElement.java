@@ -22,6 +22,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
@@ -70,6 +71,8 @@ public final class SuggestParseElement implements SearchParseElement {
             } else if (token == XContentParser.Token.START_OBJECT) {
                 String suggestionName = fieldName;
                 BytesRef suggestText = null;
+                BytesRef prefix = null;
+                BytesRef regex = null;
                 SuggestionContext suggestionContext = null;
 
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -78,6 +81,10 @@ public final class SuggestParseElement implements SearchParseElement {
                     } else if (token.isValue()) {
                         if ("text".equals(fieldName)) {
                             suggestText = parser.utf8Bytes();
+                        } else if ("prefix".equals(fieldName)) {
+                            prefix = parser.utf8Bytes();
+                        } else if ("regex".equals(fieldName)) {
+                            regex = parser.utf8Bytes();
                         } else {
                             throw new IllegalArgumentException("[suggest] does not support [" + fieldName + "]");
                         }
@@ -93,10 +100,18 @@ public final class SuggestParseElement implements SearchParseElement {
                     }
                 }
                 if (suggestionContext != null) {
-                    suggestionContext.setText(suggestText);
+                    if (suggestText != null && prefix == null) {
+                        suggestionContext.setPrefix(suggestText);
+                        suggestionContext.setText(suggestText);
+                    } else if (suggestText == null && prefix != null) {
+                        suggestionContext.setPrefix(prefix);
+                        suggestionContext.setText(prefix);
+                    } else if (regex != null) {
+                        suggestionContext.setRegex(regex);
+                        suggestionContext.setText(regex);
+                    }
                     suggestionContexts.put(suggestionName, suggestionContext);
                 }
-
             }
         }
 

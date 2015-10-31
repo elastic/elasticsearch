@@ -40,6 +40,8 @@ public class SuggestionSearchContext {
     public static class SuggestionContext {
         
         private BytesRef text;
+        private BytesRef prefix;
+        private BytesRef regex;
         private final Suggester suggester;
         private String field;
         private Analyzer analyzer;
@@ -55,7 +57,23 @@ public class SuggestionSearchContext {
         public void setText(BytesRef text) {
             this.text = text;
         }
-        
+
+        public BytesRef getPrefix() {
+            return prefix;
+        }
+
+        public void setPrefix(BytesRef prefix) {
+            this.prefix = prefix;
+        }
+
+        public BytesRef getRegex() {
+            return regex;
+        }
+
+        public void setRegex(BytesRef regex) {
+            this.regex = regex;
+        }
+
         public SuggestionContext(Suggester suggester) {
             this.suggester = suggester;
         }

@@ -17,22 +17,36 @@
  * under the License.
  */
 
-package org.elasticsearch.search.suggest.completion;
+package org.elasticsearch.search.suggest.completion.context;
 
-import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.BytesRefBuilder;
+/**
+ * Builder for {@link ContextMapping}
+ */
+public abstract class ContextBuilder<E extends ContextMapping> {
 
-import java.io.IOException;
+    protected String name;
 
-interface PayloadProcessor {
-
-    BytesRef buildPayload(BytesRef surfaceForm, long weight, BytesRef payload) throws IOException;
-
-    void parsePayload(BytesRef payload, SuggestPayload ref) throws IOException;
-
-    static class SuggestPayload {
-        final BytesRefBuilder payload = new BytesRefBuilder();
-        long weight = 0;
-        final BytesRefBuilder surfaceForm = new BytesRefBuilder();
+    /**
+     * @param name of the context mapper to build
+     */
+    protected ContextBuilder(String name) {
+        this.name = name;
     }
+
+    public abstract E build();
+
+    /**
+     * Create a new {@link GeoContextMapping}
+     */
+    public static GeoContextMapping.Builder geo(String name) {
+        return new GeoContextMapping.Builder(name);
+    }
+
+    /**
+     * Create a new {@link CategoryContextMapping}
+     */
+    public static CategoryContextMapping.Builder category(String name) {
+        return new CategoryContextMapping.Builder(name);
+    }
+
 }

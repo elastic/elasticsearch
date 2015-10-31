@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
@@ -106,8 +105,8 @@ import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.percolator.PercolatorService;
-import org.elasticsearch.search.suggest.completion.Completion090PostingsFormat;
 import org.elasticsearch.search.suggest.completion.CompletionStats;
+import org.elasticsearch.search.suggest.completion.CompletionFieldStats;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -618,15 +617,8 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public CompletionStats completionStats(String... fields) {
         CompletionStats completionStats = new CompletionStats();
-        final Engine.Searcher currentSearcher = acquireSearcher("completion_stats");
-        try {
-            PostingsFormat postingsFormat = PostingsFormat.forName(Completion090PostingsFormat.CODEC_NAME);
-            if (postingsFormat instanceof Completion090PostingsFormat) {
-                Completion090PostingsFormat completionPostingsFormat = (Completion090PostingsFormat) postingsFormat;
-                completionStats.add(completionPostingsFormat.completionStats(currentSearcher.reader(), fields));
-            }
-        } finally {
-            currentSearcher.close();
+        try (final Engine.Searcher currentSearcher = acquireSearcher("completion_stats")) {
+            completionStats.add(CompletionFieldStats.completionStats(currentSearcher.reader(), fields));
         }
         return completionStats;
     }

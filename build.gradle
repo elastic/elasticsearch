@@ -158,6 +158,8 @@ allprojects {
       defaultOutputDir = new File(project.buildDir, 'eclipse')
     }
   }
+  // otherwise the eclipse merging is *super confusing*
+  tasks.eclipse.dependsOn(cleanEclipse)
 }
 
 idea {

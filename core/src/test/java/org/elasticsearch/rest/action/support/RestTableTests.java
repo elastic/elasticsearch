@@ -19,7 +19,10 @@
 
 package org.elasticsearch.rest.action.support;
 
+import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.Table;
+import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
 import org.junit.Before;
@@ -28,9 +31,8 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.rest.action.support.RestTable.buildDisplayHeaders;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.not;
+import static org.elasticsearch.rest.action.support.RestTable.buildResponse;
+import static org.hamcrest.Matchers.*;
 
 public class RestTableTests extends ESTestCase {
 
@@ -68,6 +70,37 @@ public class RestTableTests extends ESTestCase {
         List<String> headerNames = getHeaderNames(headers);
         assertThat(headerNames, contains("bulk.foo", "bulk.bar", "aliasedBulk", "aliasedSecondBulk"));
         assertThat(headerNames, not(hasItem("unmatched")));
+    }
+
+    public void testThatWeUseTheAcceptHeaderJson() throws Exception {
+        assertBuildResponse("application/json",
+                "[{\"bulk.foo\":\"foo\",\"bulk.bar\":\"foo\",\"aliasedBulk\":\"foo\"," +
+                        "\"aliasedSecondBulk\":\"foo\",\"unmatched\":\"foo\"," +
+                        "\"invalidAliasesBulk\":\"foo\"}]");
+    }
+
+    public void testThatWeUseTheAcceptHeaderText() throws Exception {
+        assertBuildResponse("text/plain", "foo foo foo foo foo foo \n");
+    }
+
+    private void assertBuildResponse(String acceptType, String body) throws Exception {
+        FakeRestRequest requestWithAcceptHeader = new FakeRestRequest(ImmutableMap.of("Accept", acceptType), ImmutableMap.of());
+        table.startRow();
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.addCell("foo");
+        table.endRow();
+        RestResponse response = buildResponse(table, new RestChannel(requestWithAcceptHeader, true) {
+            @Override
+            public void sendResponse(RestResponse response) {
+            }
+        });
+
+        assertThat(response.contentType(), equalTo(acceptType + "; charset=UTF-8"));
+        assertThat(response.content().toUtf8(), equalTo(body));
     }
 
     private List<String> getHeaderNames(List<RestTable.DisplayHeader> headers) {

@@ -117,6 +117,10 @@ Removed support for multiple highlighter names, the only supported ones are: `pl
 
 Removed support for the deprecated top level `filter` in the search api, replaced by `post_filter`.
 
+==== `query_binary` and `filter_binary` removed
+
+Removed support for the undocumented `query_binary` and `filter_binary` sections of a search request.
+
 === Parent/Child changes
 
 The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices

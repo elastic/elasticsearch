@@ -53,6 +53,9 @@ import org.elasticsearch.action.admin.indices.exists.types.TypesExistsResponse;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.flush.FlushRequestBuilder;
 import org.elasticsearch.action.admin.indices.flush.FlushResponse;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequestBuilder;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
@@ -63,9 +66,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequest;
 import org.elasticsearch.action.admin.indices.open.OpenIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.open.OpenIndexResponse;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequest;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeRequestBuilder;
-import org.elasticsearch.action.admin.indices.optimize.OptimizeResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequest;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryRequestBuilder;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
@@ -105,9 +105,6 @@ import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeResponse;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequest;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryRequestBuilder;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryResponse;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequest;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateRequestBuilder;
-import org.elasticsearch.action.admin.indices.validate.template.RenderSearchTemplateResponse;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequest;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerRequestBuilder;
 import org.elasticsearch.action.admin.indices.warmer.delete.DeleteWarmerResponse;
@@ -394,28 +391,27 @@ public interface IndicesAdminClient extends ElasticsearchClient {
     FlushRequestBuilder prepareFlush(String... indices);
 
     /**
-     * Explicitly optimize one or more indices into a the number of segments.
+     * Explicitly force merge one or more indices into a the number of segments.
      *
      * @param request The optimize request
      * @return A result future
-     * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
+     * @see org.elasticsearch.client.Requests#forceMergeRequest(String...)
      */
-    ActionFuture<OptimizeResponse> optimize(OptimizeRequest request);
+    ActionFuture<ForceMergeResponse> forceMerge(ForceMergeRequest request);
 
     /**
-     * Explicitly optimize one or more indices into a the number of segments.
+     * Explicitly force merge one or more indices into a the number of segments.
      *
-     * @param request  The optimize request
+     * @param request  The force merge request
      * @param listener A listener to be notified with a result
-     * @see org.elasticsearch.client.Requests#optimizeRequest(String...)
+     * @see org.elasticsearch.client.Requests#forceMergeRequest(String...)
      */
-    void optimize(OptimizeRequest request, ActionListener<OptimizeResponse> listener);
+    void forceMerge(ForceMergeRequest request, ActionListener<ForceMergeResponse> listener);
 
     /**
-     * Explicitly optimize one or more indices into a the number of segments.
+     * Explicitly force mergee one or more indices into a the number of segments.
      */
-    OptimizeRequestBuilder prepareOptimize(String... indices);
-
+    ForceMergeRequestBuilder prepareForceMerge(String... indices);
 
     /**
      * Explicitly upgrade one or more indices
@@ -728,7 +724,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request The count request
      * @return The result future
-     * @see Requests#countRequest(String...)
      */
     ActionFuture<ValidateQueryResponse> validateQuery(ValidateQueryRequest request);
 
@@ -737,7 +732,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      *
      * @param request  The count request
      * @param listener A listener to be notified of the result
-     * @see Requests#countRequest(String...)
      */
     void validateQuery(ValidateQueryRequest request, ActionListener<ValidateQueryResponse> listener);
 
@@ -745,27 +739,6 @@ public interface IndicesAdminClient extends ElasticsearchClient {
      * Validate a query for correctness.
      */
     ValidateQueryRequestBuilder prepareValidateQuery(String... indices);
-
-    /**
-     * Return the rendered search request for a given search template.
-     *
-     * @param request The request
-     * @return The result future
-     */
-    ActionFuture<RenderSearchTemplateResponse> renderSearchTemplate(RenderSearchTemplateRequest request);
-
-    /**
-     * Return the rendered search request for a given search template.
-     *
-     * @param request  The request
-     * @param listener A listener to be notified of the result
-     */
-    void renderSearchTemplate(RenderSearchTemplateRequest request, ActionListener<RenderSearchTemplateResponse> listener);
-
-    /**
-     * Return the rendered search request for a given search template.
-     */
-    RenderSearchTemplateRequestBuilder prepareRenderSearchTemplate();
 
     /**
      * Puts an index search warmer to be applies when applicable.

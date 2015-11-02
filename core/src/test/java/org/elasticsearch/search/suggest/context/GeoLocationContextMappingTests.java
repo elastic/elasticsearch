@@ -18,14 +18,13 @@
  */
 package org.elasticsearch.search.suggest.context;
 
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextConfig;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -37,8 +36,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
  *
  */
 public class GeoLocationContextMappingTests extends ESTestCase {
-
-    @Test
     public void testThatParsingGeoPointsWorksWithCoercion() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", "52").field("lon", "4").endObject();
         XContentParser parser = XContentHelper.createParser(builder.bytes());
@@ -49,23 +46,20 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
     }
-    
 
-    @Test
     public void testUseWithDefaultGeoHash() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", 52d).field("lon", 4d).endObject();
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         parser.nextToken();
 
-        String geohash = XGeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
+        String geohash = GeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
         HashMap<String, Object> config = new HashMap<>();
         config.put("precision", 12);
         config.put("default", geohash);
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
-    }    
-    
-    @Test
+    }
+
     public void testUseWithDefaultLatLon() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", 52d).field("lon", 4d).endObject();
         XContentParser parser = XContentHelper.createParser(builder.bytes());
@@ -79,9 +73,8 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         config.put("default", pointAsMap);
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
-    } 
-    
-    @Test
+    }
+
     public void testUseWithDefaultBadLatLon() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", 52d).field("lon", 4d).endObject();
         XContentParser parser = XContentHelper.createParser(builder.bytes());
@@ -102,9 +95,8 @@ public class GeoLocationContextMappingTests extends ESTestCase {
             expected = e;
         }
         assertNotNull(expected);
-    }  
-    
-    @Test
+    }
+
     public void testUseWithMultiplePrecisions() throws Exception {
         XContentBuilder builder = jsonBuilder().startObject().field("lat", 52d).field("lon", 4d).endObject();
         XContentParser parser = XContentHelper.createParser(builder.bytes());
@@ -120,8 +112,7 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         GeolocationContextMapping mapping = GeolocationContextMapping.load("foo", config);
         mapping.parseQuery("foo", parser);
     }
-    
-    @Test
+
     public void testHashcode() throws Exception {
         HashMap<String, Object> config = new HashMap<>();
         if (randomBoolean()) {
@@ -143,7 +134,6 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         assertEquals(mapping.hashCode(), mapping2.hashCode());
     }
 
-    @Test
     public void testUseWithBadGeoContext() throws Exception {
         double lon = 4d;
         String badLat = "W";
@@ -165,7 +155,6 @@ public class GeoLocationContextMappingTests extends ESTestCase {
         assertNotNull(expected);
     }
 
-    @Test
     public void testUseWithLonLatGeoContext() throws Exception {
         double lon = 4d;
         double lat = 52d;
@@ -182,8 +171,8 @@ public class GeoLocationContextMappingTests extends ESTestCase {
     }
 
     public void testUseWithMultiGeoHashGeoContext() throws Exception {
-        String geohash1 = XGeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
-        String geohash2 = XGeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
+        String geohash1 = GeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
+        String geohash2 = GeoHashUtils.stringEncode(randomIntBetween(-180, +180), randomIntBetween(-90, +90));
         XContentBuilder builder = jsonBuilder().startObject().startArray("location").value(geohash1).value(geohash2).endArray().endObject();
         XContentParser parser = XContentHelper.createParser(builder.bytes());
         parser.nextToken(); // start of object

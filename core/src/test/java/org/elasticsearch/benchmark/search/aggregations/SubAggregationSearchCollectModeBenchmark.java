@@ -204,7 +204,7 @@ public class SubAggregationSearchCollectModeBenchmark {
             }
         }
         client.admin().indices().prepareRefresh().execute().actionGet();
-        COUNT = client.prepareCount().setQuery(matchAllQuery()).execute().actionGet().getCount();
+        COUNT = client.prepareSearch().setSize(0).setQuery(matchAllQuery()).execute().actionGet().getHits().totalHits();
         System.out.println("--> Number of docs in index: " + COUNT);
 
         List<StatsResult> stats = new ArrayList<>();

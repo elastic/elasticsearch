@@ -351,28 +351,86 @@ to `false`.
 [float]
 === Native (Java) Scripts
 
-Even though `groovy` is pretty fast, this allows to register native Java based
-scripts for faster execution.
+Sometimes `groovy` and `expressions` aren't enough. For those times you can
+implement a native script.
 
-In order to allow for scripts, the `NativeScriptFactory` needs to be
-implemented that constructs the script that will be executed. There are
-two main types, one that extends `AbstractExecutableScript` and one that
-extends `AbstractSearchScript` (probably the one most users will extend,
-with additional helper classes in `AbstractLongSearchScript`,
-`AbstractDoubleSearchScript`, and `AbstractFloatSearchScript`).
+The best way to implement a native script is to write a plugin and install it.
+The plugin {plugins}/plugin-authors.html[documentation] has more information on
+how to write a plugin so that Elasticsearch will properly load it.
 
-Registering them can either be done by settings, for example:
-`script.native.my.type` set to `sample.MyNativeScriptFactory` will
-register a script named `my`. Another option is in a plugin, access
-`ScriptModule` and call `registerScript` on it.
+To register the actual script you'll need to implement `NativeScriptFactory`
+to construct the script. The actual script will extend either
+`AbstractExecutableScript` or `AbstractSearchScript`. The second one is likely
+the most useful and has several helpful subclasses you can extend like
+`AbstractLongSearchScript`, `AbstractDoubleSearchScript`, and
+`AbstractFloatSearchScript`. Finally, your plugin should register the native
+script by declaring the `onModule(ScriptModule)` method.
 
-Executing the script is done by specifying the `lang` as `native`, and
-the name of the script as the `script`.
+If you squashed the whole thing into one class it'd look like:
 
-Note, the scripts need to be in the classpath of elasticsearch. One
-simple way to do it is to create a directory under plugins (choose a
-descriptive name), and place the jar / classes files there. They will be
-automatically loaded.
+[source,java]
+--------------------------------------------------
+public class MyNativeScriptPlugin extends Plugin {
+    @Override
+    public String name() {
+        return "my-native-script";
+    }
+    @Override
+    public String description() {
+        return "my native script that does something great";
+    }
+    public void onModule(ScriptModule scriptModule) {
+        scriptModule.registerScript("my_script", MyNativeScriptFactory.class);
+    }
+
+    public static class MyNativeScriptFactory implements NativeScriptFactory {
+        @Override
+        public ExecutableScript newScript(@Nullable Map<String, Object> params) {
+            return new MyNativeScript();
+        }
+        @Override
+        public boolean needsScores() {
+            return false;
+        }
+    }
+
+    public static class MyNativeScript extends AbstractFloatSearchScript {
+        @Override
+        public float runAsFloat() {
+            float a = (float) source().get("a");
+            float b = (float) source().get("b");
+            return a * b;
+        }
+    }
+}
+--------------------------------------------------
+
+You can execute the script by specifying its `lang` as `native`, and the name
+of the script as the `id`:
+
+[source,js]
+--------------------------------------------------
+curl -XPOST localhost:9200/_search -d '{
+  "query": {
+    "function_score": {
+      "query": {
+        "match": {
+          "body": "foo"
+        }
+      },
+      "functions": [
+        {
+          "script_score": {
+            "id": "my_script",
+            "lang" : "native"
+          }
+        }
+      ]
+    }
+  }
+}'
+--------------------------------------------------
+
 
 [float]
 === Lucene Expressions Scripts
@@ -624,16 +682,3 @@ power of the second argument.
 |`hypot(x, y)` |Returns sqrt(_x2_ + _y2_) without intermediate overflow
 or underflow.
 |=======================================================================
-
-[float]
-=== Arithmetic precision in MVEL
-
-When dividing two numbers using MVEL based scripts, the engine tries to
-be smart and adheres to the default behaviour of java. This means if you
-divide two integers (you might have configured the fields as integer in
-the mapping), the result will also be an integer. This means, if a
-calculation like `1/num` is happening in your scripts and `num` is an
-integer with the value of `8`, the result is `0` even though you were
-expecting it to be `0.125`. You may need to enforce precision by
-explicitly using a double like `1.0/num` in order to get the expected
-result.

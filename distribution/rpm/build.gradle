@@ -1,0 +1,4 @@
+
+/*task buildRpm(type: Rpm) {
+  dependsOn deps
+}*/

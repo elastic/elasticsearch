@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -334,5 +335,23 @@ public class JarHellTests extends ESTestCase {
         } catch (IllegalStateException expected) {
             assertTrue(expected.getMessage().contains("should not contain empty elements"));
         }
+    }
+
+    /**
+     * Make sure a "bogus" windows classpath element is accepted, java's classpath parsing accepts it,
+     * therefore eclipse OSGI code does it :)
+     */
+    public void testCrazyEclipseClassPathWindows() throws Exception {
+        assumeTrue("test is designed for windows-like systems only", ";".equals(System.getProperty("path.separator")));
+        assumeTrue("test is designed for windows-like systems only", "\\".equals(System.getProperty("file.separator")));
+
+        URL expected[] = {
+            PathUtils.get("c:\\element1").toUri().toURL(),
+            PathUtils.get("c:\\element2").toUri().toURL(),
+            PathUtils.get("c:\\element3").toUri().toURL(),
+            PathUtils.get("c:\\element 4").toUri().toURL(),
+        };
+        URL actual[] = JarHell.parseClassPath("c:\\element1;c:\\element2;/c:/element3;/c:/element 4");
+        assertArrayEquals(expected, actual);
     }
 }

@@ -1,0 +1,185 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import com.bmuschko.gradle.nexus.NexusPlugin
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
+
+buildscript {
+  repositories {
+    mavenCentral()
+  }
+  dependencies {
+    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+  }
+}
+
+// common maven publishing configuration
+subprojects {
+  plugins.withType(NexusPlugin).whenPluginAdded {
+    modifyPom {
+      project {
+        url 'https://github.com/elastic/elasticsearch'
+        inceptionYear '2009'
+
+        scm {
+          url 'https://github.com/elastic/elasticsearch'
+          connection 'scm:https://elastic@github.com/elastic/elasticsearch'
+          developerConnection 'scm:git://github.com/elastic/elasticsearch.git'
+        }
+
+        licenses {
+          license {
+            name 'The Apache Software License, Version 2.0'
+            url 'http://www.apache.org/licenses/LICENSE-2.0.txt'
+            distribution 'repo'
+          }
+        }
+      }
+    }  
+    extraArchive {
+      javadoc = false
+      tests = false
+    }
+    // we have our own username/password prompts so that they only happen once
+    // TODO: add gpg signing prompts
+    project.gradle.taskGraph.whenReady { taskGraph ->
+      if (taskGraph.allTasks.any { it.name == 'uploadArchives' }) {
+        Console console = System.console()
+        if (project.hasProperty('nexusUsername') == false) {
+          String nexusUsername = console.readLine('\nNexus username: ')
+          project.rootProject.allprojects.each {
+            it.ext.nexusUsername = nexusUsername
+          }
+        }
+        if (project.hasProperty('nexusPassword') == false) {
+          String nexusPassword = new String(console.readPassword('\nNexus password: '))
+          project.rootProject.allprojects.each {
+            it.ext.nexusPassword = nexusPassword
+          }
+        }
+      }
+    }
+  }
+}
+
+if (hasProperty('projectsPrefix') == false) {
+  allprojects {
+    project.ext['projectsPrefix'] = ''
+  }  
+}
+
+allprojects {
+  // injecting groovy property variables into all projects
+  project.ext {
+    // minimum java 8
+    sourceCompatibility = JavaVersion.VERSION_1_8
+    targetCompatibility = sourceCompatibility
+
+    // dependency versions that are used in more than one place
+    versions = [
+      lucene:             "${luceneVersion}",
+      randomizedrunner:   '2.2.0',
+      httpclient:         '4.3.6'
+    ]
+  }
+}
+
+subprojects {
+  repositories {
+    mavenCentral()
+    maven {
+      name 'sonatype-snapshots'
+      url 'http://oss.sonatype.org/content/repositories/snapshots/'
+    }
+    if (versions.lucene.contains('-snapshot')) {
+      String revision = (luceneVersion =~ /\d\.\d\.\d-snapshot-(\d+)/)[0][1]
+      maven {
+        name 'lucene-snapshots'
+        url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+      }
+    }
+  }
+
+  // include license and notice in jars
+  gradle.projectsEvaluated {
+    tasks.withType(Jar) {
+      into('META-INF') {
+        from project.rootProject.rootDir
+        include 'LICENSE.txt'   
+        include 'NOTICE.txt'   
+      }
+    }
+  }
+
+  configurations {
+    all {
+      resolutionStrategy {
+        //failOnVersionConflict()
+
+        dependencySubstitution {
+          substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
+          substitute module("org.elasticsearch:elasticsearch:${version}") with project("${projectsPrefix}:core")
+          // so that eclipse doesn't have circular references
+          // the downside is, if you hack on test-framework, you have to gradle install
+          // the first prop detects eclipse itself, the second detects eclipse from commandline
+          if (System.getProperty("eclipse.launcher") == null && gradle.startParameter.taskNames.contains('eclipse') == false) {
+            substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
+          }
+          substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project("${projectsPrefix}:distribution:zip")
+        }
+      }
+    }
+  }
+}
+
+// intellij configuration
+allprojects {
+  apply plugin: 'idea'
+}
+
+if (hasProperty('projectsPrefix') == false) {
+  idea {
+    project {
+      languageLevel = sourceCompatibility
+      vcs = 'Git'
+    }
+  }
+}
+
+// eclipse configuration
+allprojects {
+  apply plugin: 'eclipse'
+
+  plugins.withType(JavaBasePlugin) {
+    eclipse.classpath.defaultOutputDir = new File(project.buildDir, 'eclipse')
+    eclipse.classpath.file.whenMerged { classpath ->
+      // give each source folder a unique corresponding output folder
+      int i = 0;
+      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
+        i++;
+        // this is *NOT* a path or a file.
+        folder.output = "build/eclipse/" + i
+      }
+    }
+  }
+  // otherwise the eclipse merging is *super confusing*
+  tasks.eclipse.dependsOn(cleanEclipse)
+}
+
+

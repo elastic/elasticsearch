@@ -21,12 +21,6 @@ package org.elasticsearch.indices.cache.request;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
-import com.google.common.cache.Cache;
-import com.google.common.cache.CacheBuilder;
-import com.google.common.cache.RemovalListener;
-import com.google.common.cache.RemovalNotification;
-import com.google.common.cache.Weigher;
-
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
@@ -35,9 +29,11 @@ import org.elasticsearch.action.search.SearchType;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.cache.*;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -51,16 +47,9 @@ import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.EnumSet;
-import java.util.Iterator;
-import java.util.Set;
-import java.util.concurrent.Callable;
+import java.util.*;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.common.Strings.hasLength;
 
 /**
  * The indices request cache allows to cache a shard level request stage responses, helping with improving
@@ -90,7 +79,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
     @Deprecated
     public static final String DEPRECATED_INDICES_CACHE_QUERY_SIZE = "indices.cache.query.size";
     public static final String INDICES_CACHE_QUERY_EXPIRE = "indices.requests.cache.expire";
-    public static final String INDICES_CACHE_QUERY_CONCURRENCY_LEVEL = "indices.requests.cache.concurrency_level";
 
     private static final Set<SearchType> CACHEABLE_SEARCH_TYPES = EnumSet.of(SearchType.QUERY_THEN_FETCH, SearchType.QUERY_AND_FETCH);
 
@@ -107,7 +95,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
     //TODO make these changes configurable on the cluster level
     private final String size;
     private final TimeValue expire;
-    private final int concurrencyLevel;
 
     private volatile Cache<Key, Value> cache;
 
@@ -133,11 +120,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         this.size = size;
 
         this.expire = settings.getAsTime(INDICES_CACHE_QUERY_EXPIRE, null);
-        // defaults to 4, but this is a busy map for all indices, increase it a bit by default
-        this.concurrencyLevel =  settings.getAsInt(INDICES_CACHE_QUERY_CONCURRENCY_LEVEL, 16);
-        if (concurrencyLevel <= 0) {
-            throw new IllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
-        }
         buildCache();
 
         this.reaper = new Reaper();
@@ -162,23 +144,15 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
     private void buildCache() {
         long sizeInBytes = MemorySizeValue.parseBytesSizeValueOrHeapRatio(size, INDICES_CACHE_QUERY_SIZE).bytes();
 
-        CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.newBuilder()
-                .maximumWeight(sizeInBytes).weigher(new QueryCacheWeigher()).removalListener(this);
-        cacheBuilder.concurrencyLevel(concurrencyLevel);
+        CacheBuilder<Key, Value> cacheBuilder = CacheBuilder.<Key, Value>builder()
+                .setMaximumWeight(sizeInBytes).weigher((k, v) -> k.ramBytesUsed() + v.ramBytesUsed()).removalListener(this);
+        // cacheBuilder.concurrencyLevel(concurrencyLevel);
 
         if (expire != null) {
-            cacheBuilder.expireAfterAccess(expire.millis(), TimeUnit.MILLISECONDS);
+            cacheBuilder.setExpireAfterAccess(TimeUnit.MILLISECONDS.toNanos(expire.millis()));
         }
 
         cache = cacheBuilder.build();
-    }
-
-    private static class QueryCacheWeigher implements Weigher<Key, Value> {
-
-        @Override
-        public int weigh(Key key, Value value) {
-            return (int) (key.ramBytesUsed() + value.ramBytesUsed());
-        }
     }
 
     public void close() {
@@ -197,9 +171,6 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
 
     @Override
     public void onRemoval(RemovalNotification<Key, Value> notification) {
-        if (notification.getKey() == null) {
-            return;
-        }
         notification.getKey().shard.requestCache().onRemoval(notification);
     }
 
@@ -207,8 +178,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
      * Can the shard request be cached at all?
      */
     public boolean canCache(ShardSearchRequest request, SearchContext context) {
-        // TODO: for now, template is not supported, though we could use the generated bytes as the key
-        if (hasLength(request.templateSource())) {
+        if (request.template() != null) {
             return false;
         }
 
@@ -231,7 +201,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (!isCacheEnabled(index.settings(), Boolean.FALSE)) {
+            if (!isCacheEnabled(index.getSettings(), Boolean.FALSE)) {
                 return false;
             }
         } else if (!request.requestCache()) {
@@ -258,8 +228,8 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
     public void loadIntoContext(final ShardSearchRequest request, final SearchContext context, final QueryPhase queryPhase) throws Exception {
         assert canCache(request, context);
         Key key = buildKey(request, context);
-        Loader loader = new Loader(queryPhase, context, key);
-        Value value = cache.get(key, loader);
+        Loader loader = new Loader(queryPhase, context);
+        Value value = cache.computeIfAbsent(key, loader);
         if (loader.isLoaded()) {
             key.shard.requestCache().onMiss();
             // see if its the first time we see this reader, and make sure to register a cleanup key
@@ -267,7 +237,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
             if (!registeredClosedListeners.containsKey(cleanupKey)) {
                 Boolean previous = registeredClosedListeners.putIfAbsent(cleanupKey, Boolean.TRUE);
                 if (previous == null) {
-                    context.searcher().getIndexReader().addReaderClosedListener(cleanupKey);
+                    ElasticsearchDirectoryReader.addReaderCloseListener(context.searcher().getDirectoryReader(), cleanupKey);
                 }
             }
         } else {
@@ -279,17 +249,15 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
     }
 
-    private static class Loader implements Callable<Value> {
+    private static class Loader implements CacheLoader<Key, Value> {
 
         private final QueryPhase queryPhase;
         private final SearchContext context;
-        private final IndicesRequestCache.Key key;
         private boolean loaded;
 
-        Loader(QueryPhase queryPhase, SearchContext context, IndicesRequestCache.Key key) {
+        Loader(QueryPhase queryPhase, SearchContext context) {
             this.queryPhase = queryPhase;
             this.context = context;
-            this.key = key;
         }
 
         public boolean isLoaded() {
@@ -297,7 +265,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         }
 
         @Override
-        public Value call() throws Exception {
+        public Value load(Key key) throws Exception {
             queryPhase.execute(context);
 
             /* BytesStreamOutput allows to pass the expected size but by default uses
@@ -376,7 +344,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         @Override
         public int hashCode() {
             int result = shard.hashCode();
-            result = 31 * result + (int) (readerVersion ^ (readerVersion >>> 32));
+            result = 31 * result + Long.hashCode(readerVersion);
             result = 31 * result + value.hashCode();
             return result;
         }
@@ -411,7 +379,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
         @Override
         public int hashCode() {
             int result = indexShard.hashCode();
-            result = 31 * result + (int) (readerVersion ^ (readerVersion >>> 32));
+            result = 31 * result + Long.hashCode(readerVersion);
             return result;
         }
     }
@@ -473,7 +441,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
 
             if (!currentKeysToClean.isEmpty() || !currentFullClean.isEmpty()) {
                 CleanupKey lookupKey = new CleanupKey(null, -1);
-                for (Iterator<Key> iterator = cache.asMap().keySet().iterator(); iterator.hasNext(); ) {
+                for (Iterator<Key> iterator = cache.keys().iterator(); iterator.hasNext(); ) {
                     Key key = iterator.next();
                     if (currentFullClean.contains(key.shard)) {
                         iterator.remove();
@@ -487,7 +455,7 @@ public class IndicesRequestCache extends AbstractComponent implements RemovalLis
                 }
             }
 
-            cache.cleanUp();
+            cache.refresh();
             currentKeysToClean.clear();
             currentFullClean.clear();
         }

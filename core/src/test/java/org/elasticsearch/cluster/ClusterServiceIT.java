@@ -37,21 +37,29 @@ import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.MockLogAppender;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 /**
  *
@@ -65,7 +73,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         return pluginList(TestPlugin.class);
     }
 
-    @Test
     public void testTimeoutUpdateTask() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -134,7 +141,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(executeCalled.get(), equalTo(false));
     }
 
-    @Test
     public void testAckedUpdateTask() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -211,7 +217,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @Test
     public void testAckedUpdateTaskSameClusterState() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -283,7 +288,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @Test
     public void testMasterAwareExecution() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -340,7 +344,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertFalse("non-master cluster state update task was not executed", taskFailed[0]);
     }
 
-    @Test
     public void testAckedUpdateTaskNoAckExpected() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -413,7 +416,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(onFailure.get(), equalTo(false));
     }
 
-    @Test
     public void testAckedUpdateTaskTimeoutZero() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -490,7 +492,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         assertThat(processedLatch.await(1, TimeUnit.SECONDS), equalTo(true));
     }
 
-    @Test
     public void testPendingUpdateTask() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -626,7 +627,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         block2.countDown();
     }
 
-    @Test
     public void testLocalNodeMasterListenerCallbacks() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "zen")
@@ -705,7 +705,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
     /**
      * Note, this test can only work as long as we have a single thread executor executing the state update tasks!
      */
-    @Test
     public void testPrioritizedTasks() throws Exception {
         Settings settings = settingsBuilder()
                 .put("discovery.type", "local")
@@ -738,7 +737,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     @TestLogging("cluster:TRACE") // To ensure that we log cluster state events on TRACE level
     public void testClusterStateUpdateLogging() throws Exception {
         Settings settings = settingsBuilder()
@@ -828,7 +826,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         mockAppender.assertAllExpectationsMatched();
     }
 
-    @Test
     @TestLogging("cluster:WARN") // To ensure that we log cluster state events on WARN level
     public void testLongClusterStateUpdateLogging() throws Exception {
         Settings settings = settingsBuilder()

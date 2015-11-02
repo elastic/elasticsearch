@@ -24,21 +24,18 @@ import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.RandomAccessOrds;
 import org.elasticsearch.common.settings.Settings;
-import org.junit.Test;
 
 import java.util.Random;
 
 import static org.hamcrest.Matchers.equalTo;
 
 public class FilterFieldDataTests extends AbstractFieldDataTestCase {
-
     @Override
     protected FieldDataType getFieldDataType() {
         // TODO Auto-generated method stub
         return null;
     }
 
-    @Test
     public void testFilterByFrequency() throws Exception {
         Random random = getRandom();
         for (int i = 0; i < 1000; i++) {
@@ -61,7 +58,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         writer.forceMerge(1, true);
         LeafReaderContext context = refreshReader();
         String[] formats = new String[] { "paged_bytes"};
-        
+
         for (String format : formats) {
             {
                 ifdService.clear();
@@ -84,7 +81,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                 assertThat(1L, equalTo(bytesValues.getValueCount()));
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("5"));
             }
-            
+
             {
                 ifdService.clear(); // test # docs with value
                 FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
@@ -96,7 +93,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
             }
-            
+
             {
                 ifdService.clear();
                 FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
@@ -108,7 +105,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
                 assertThat(bytesValues.lookupOrd(0).utf8ToString(), equalTo("10"));
                 assertThat(bytesValues.lookupOrd(1).utf8ToString(), equalTo("100"));
             }
-            
+
             {
                 ifdService.clear();
                 FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
@@ -125,10 +122,8 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         }
 
     }
-    
-    @Test
-    public void testFilterByRegExp() throws Exception {
 
+    public void testFilterByRegExp() throws Exception {
         int hundred  = 0;
         int ten  = 0;
         int five  = 0;
@@ -182,6 +177,6 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
     @Override
     public void testEmpty() throws Exception {
-        // No need to test empty usage here
+        assumeTrue("No need to test empty usage here", false);
     }
 }

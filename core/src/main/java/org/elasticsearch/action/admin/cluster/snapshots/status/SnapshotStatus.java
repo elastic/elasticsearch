@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -33,10 +32,13 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Status of a snapshot
@@ -49,7 +51,7 @@ public class SnapshotStatus implements ToXContent, Streamable {
 
     private List<SnapshotIndexShardStatus> shards;
 
-    private ImmutableMap<String, SnapshotIndexStatus> indicesStatus;
+    private Map<String, SnapshotIndexStatus> indicesStatus;
 
     private SnapshotShardsStats shardsStats;
 
@@ -100,7 +102,7 @@ public class SnapshotStatus implements ToXContent, Streamable {
             return this.indicesStatus;
         }
 
-        ImmutableMap.Builder<String, SnapshotIndexStatus> indicesStatus = ImmutableMap.builder();
+        Map<String, SnapshotIndexStatus> indicesStatus = new HashMap<>();
 
         Set<String> indices = new HashSet<>();
         for (SnapshotIndexShardStatus shard : shards) {
@@ -116,7 +118,7 @@ public class SnapshotStatus implements ToXContent, Streamable {
             }
             indicesStatus.put(index, new SnapshotIndexStatus(index, shards));
         }
-        this.indicesStatus = indicesStatus.build();
+        this.indicesStatus = unmodifiableMap(indicesStatus);
         return this.indicesStatus;
 
     }

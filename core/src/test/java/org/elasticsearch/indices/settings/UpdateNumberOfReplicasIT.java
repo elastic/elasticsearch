@@ -21,12 +21,11 @@ package org.elasticsearch.indices.settings;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.count.CountResponse;
+import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -39,14 +38,12 @@ import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
-
     @Override
     protected int maximumNumberOfReplicas() {
         return 1;
     }
 
-    @Test
-    public void simpleUpdateNumberOfReplicasIT() throws Exception {
+    public void testSimpleUpdateNumberOfReplicas() throws Exception {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test", 2));
         logger.info("Running Cluster Health");
@@ -70,7 +67,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         refresh();
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).get();
+            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
             assertHitCount(countResponse, 10l);
         }
 
@@ -100,7 +97,7 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 3));
 
         for (int i = 0; i < 10; i++) {
-            CountResponse countResponse = client().prepareCount().setQuery(matchAllQuery()).get();
+            SearchResponse countResponse = client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get();
             assertHitCount(countResponse, 10l);
         }
 
@@ -122,7 +119,6 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testAutoExpandNumberOfReplicas0ToData() throws IOException {
         internalCluster().ensureAtMostNumDataNodes(2);
         logger.info("--> creating index test with auto expand replicas");
@@ -178,7 +174,6 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries));
     }
 
-    @Test
     public void testAutoExpandNumberReplicas1ToData() throws IOException {
         logger.info("--> creating index test with auto expand replicas");
         internalCluster().ensureAtMostNumDataNodes(2);
@@ -234,7 +229,6 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries));
     }
 
-    @Test
     public void testAutoExpandNumberReplicas2() {
         logger.info("--> creating index test with auto expand replicas set to 0-2");
         assertAcked(prepareCreate("test", 3, settingsBuilder().put("auto_expand_replicas", "0-2")));
@@ -267,7 +261,6 @@ public class UpdateNumberOfReplicasIT extends ESIntegTestCase {
         assertThat(clusterHealth.getIndices().get("test").getActiveShards(), equalTo(numShards.numPrimaries * 4));
     }
 
-    @Test
     public void testUpdateWithInvalidNumberOfReplicas() {
         createIndex("test");
         try {

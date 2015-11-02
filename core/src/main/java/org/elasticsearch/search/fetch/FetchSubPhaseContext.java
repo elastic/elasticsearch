@@ -33,7 +33,7 @@ public class FetchSubPhaseContext {
     /**
      * Set if this phase should be executed at all.
      */
-    void setHitExecutionNeeded(boolean hitExecutionNeeded) {
+    public void setHitExecutionNeeded(boolean hitExecutionNeeded) {
         this.hitExecutionNeeded = hitExecutionNeeded;
     }
 

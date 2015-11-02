@@ -1,0 +1,66 @@
+import org.apache.tools.ant.filters.ReplaceTokens
+
+plugins {
+  id 'groovy'
+  id 'com.bmuschko.nexus' version '2.3.1'
+}
+// TODO: move common IDE configuration to a common file to include
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+
+/*idea {
+  project {
+    languageLevel = '1.8'
+    vcs = 'Git'
+  }
+}*/
+
+group = 'org.elasticsearch.gradle'
+archivesBaseName = 'build-tools'
+
+repositories {
+  mavenCentral()
+  maven {
+    name 'sonatype-snapshots'
+    url "https://oss.sonatype.org/content/repositories/snapshots/"
+  }
+  jcenter()
+}
+
+dependencies {
+  compile gradleApi()
+  compile localGroovy()
+  compile 'com.carrotsearch.randomizedtesting:junit4-ant:2.2.0'
+  compile('junit:junit:4.11') {
+    transitive = false
+  }
+  compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
+  compile 'com.netflix.nebula:gradle-info-plugin:3.0.3'
+  compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
+  compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
+  compile 'de.thetaphi:forbiddenapis:2.0'
+}
+
+Properties props = new Properties()
+props.load(project.file('../gradle.properties').newDataInputStream())
+version = props.getProperty('version')
+
+processResources {
+  inputs.file('../gradle.properties')
+  filter ReplaceTokens, tokens: [
+    'version': props.getProperty('version'),
+    'luceneVersion': props.getProperty('luceneVersion')
+  ]
+}
+
+extraArchive {
+  javadoc = false
+  tests = false
+}
+
+eclipse {
+  classpath {
+    defaultOutputDir = new File(file('build'), 'eclipse')
+  }
+}
+

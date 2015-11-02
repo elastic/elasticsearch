@@ -25,15 +25,14 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBuilder> {
-
     /**
      * @return a TermQuery with random field name and value, optional random boost and queryname
      */
@@ -56,13 +55,17 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
         }
     }
 
-    @Test(expected = ParsingException.class)
     public void testTermArray() throws IOException {
         String queryAsString = "{\n" +
                 "    \"term\": {\n" +
                 "        \"age\": [34, 35]\n" +
                 "    }\n" +
                 "}";
-        parseQuery(queryAsString);
+        try {
+            parseQuery(queryAsString);
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), is("[term] query does not support array of values"));
+        }
     }
 }

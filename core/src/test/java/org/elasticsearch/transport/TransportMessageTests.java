@@ -23,7 +23,6 @@ import org.elasticsearch.Version;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -32,8 +31,6 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class TransportMessageTests extends ESTestCase {
-
-    @Test
     public void testSerialization() throws Exception {
         Message message = new Message();
         message.putHeader("key1", "value1");
@@ -57,7 +54,6 @@ public class TransportMessageTests extends ESTestCase {
         assertThat(key1, is("value1"));
     }
 
-    @Test
     public void testCopyHeadersAndContext() throws Exception {
         Message m1 = new Message();
         m1.putHeader("key1", "value1");

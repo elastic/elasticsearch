@@ -23,18 +23,32 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.*;
-import org.apache.lucene.search.*;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexOptions;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.MultiReader;
+import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.search.QueryUtils;
+import org.apache.lucene.search.ScoreDoc;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.DefaultSimilarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
@@ -42,8 +56,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class BlendedTermQueryTests extends ESTestCase {
-
-    @Test
     public void testBooleanQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
@@ -97,7 +109,6 @@ public class BlendedTermQueryTests extends ESTestCase {
 
     }
 
-    @Test
     public void testDismaxQuery() throws IOException {
         Directory dir = newDirectory();
         IndexWriter w = new IndexWriter(dir, newIndexWriterConfig(new MockAnalyzer(random())));
@@ -171,7 +182,6 @@ public class BlendedTermQueryTests extends ESTestCase {
         dir.close();
     }
 
-    @Test
     public void testBasics() {
         final int iters = scaledRandomIntBetween(5, 25);
         for (int j = 0; j < iters; j++) {
@@ -209,7 +219,6 @@ public class BlendedTermQueryTests extends ESTestCase {
         return searcher;
     }
 
-    @Test
     public void testExtractTerms() throws IOException {
         Set<Term> terms = new HashSet<>();
         int num = scaledRandomIntBetween(1, 10);

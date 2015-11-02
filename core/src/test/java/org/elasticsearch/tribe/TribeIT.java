@@ -45,14 +45,15 @@ import org.elasticsearch.test.TestCluster;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Map;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -136,7 +137,6 @@ public class TribeIT extends ESIntegTestCase {
         tribeClient = tribeNode.client();
     }
 
-    @Test
     public void testGlobalReadWriteBlocks() throws Exception {
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
         internalCluster().client().admin().indices().prepareCreate("test1").get();
@@ -161,20 +161,19 @@ public class TribeIT extends ESIntegTestCase {
             // all is well!
         }
         try {
-            tribeClient.admin().indices().prepareOptimize("test1").execute().actionGet();
+            tribeClient.admin().indices().prepareForceMerge("test1").execute().actionGet();
             fail("cluster block should be thrown");
         } catch (ClusterBlockException e) {
             // all is well!
         }
         try {
-            tribeClient.admin().indices().prepareOptimize("test2").execute().actionGet();
+            tribeClient.admin().indices().prepareForceMerge("test2").execute().actionGet();
             fail("cluster block should be thrown");
         } catch (ClusterBlockException e) {
             // all is well!
         }
     }
 
-    @Test
     public void testIndexWriteBlocks() throws Exception {
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
         assertAcked(internalCluster().client().admin().indices().prepareCreate("test1"));
@@ -208,7 +207,6 @@ public class TribeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testOnConflictDrop() throws Exception {
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
         assertAcked(cluster().client().admin().indices().prepareCreate("conflict"));
@@ -232,7 +230,6 @@ public class TribeIT extends ESIntegTestCase {
         assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().hasIndex("conflict"), equalTo(false));
     }
 
-    @Test
     public void testOnConflictPrefer() throws Exception {
         testOnConflictPrefer(randomBoolean() ? "t1" : "t2");
     }
@@ -260,7 +257,6 @@ public class TribeIT extends ESIntegTestCase {
         assertThat(tribeClient.admin().cluster().prepareState().get().getState().getMetaData().index("conflict").getSettings().get(TribeService.TRIBE_NAME), equalTo(tribe));
     }
 
-    @Test
     public void testTribeOnOneCluster() throws Exception {
         setupTribeNode(Settings.EMPTY);
         logger.info("create 2 indices, test1 on t1, and test2 on t2");
@@ -283,7 +279,7 @@ public class TribeIT extends ESIntegTestCase {
         tribeClient.admin().indices().prepareRefresh().get();
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareCount().get(), 2l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 2l);
         assertHitCount(tribeClient.prepareSearch().get(), 2l);
         assertBusy(new Runnable() {
             @Override
@@ -302,7 +298,7 @@ public class TribeIT extends ESIntegTestCase {
 
 
         logger.info("verify they are there");
-        assertHitCount(tribeClient.prepareCount().get(), 4l);
+        assertHitCount(tribeClient.prepareSearch().setSize(0).get(), 4l);
         assertHitCount(tribeClient.prepareSearch().get(), 4l);
         assertBusy(new Runnable() {
             @Override
@@ -337,7 +333,6 @@ public class TribeIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testCloseAndOpenIndex() throws Exception {
         //create an index and close it even before starting the tribe node
         assertAcked(internalCluster().client().admin().indices().prepareCreate("test1"));

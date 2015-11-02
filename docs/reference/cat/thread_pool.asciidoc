@@ -57,7 +57,7 @@ Currently available <<modules-threadpool,thread pools>>:
 |`get` |`g` |Thread pool used for <<docs-get,get>> operations
 |`index` |`i` |Thread pool used for <<docs-index_,index>>/<<docs-delete,delete>> operations
 |`management` |`ma` |Thread pool used for management of Elasticsearch (e.g. cluster management)
-|`optimize` |`o` |Thread pool used for <<indices-optimize,optimize>> operations
+|`force_merge` |`fm` |Thread pool used for <<indices-forcemerge,force merge>> operations
 |`percolate` |`p` |Thread pool used for <<search-percolate,percolator>> operations
 |`refresh` |`r` |Thread pool used for <<indices-refresh,refresh>> operations
 |`search` |`s` |Thread pool used for <<search-search,search>>/<<search-count,count>> operations

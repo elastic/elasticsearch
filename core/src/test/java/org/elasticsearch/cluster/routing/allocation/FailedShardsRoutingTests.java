@@ -24,30 +24,36 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  *
  */
 public class FailedShardsRoutingTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(FailedShardsRoutingTests.class);
 
-    @Test
     public void testFailedShardPrimaryRelocatingToAndFrom() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
@@ -136,8 +142,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(clusterState.routingTable().index("test").shard(0).replicaShards().get(0).currentNodeId(), anyOf(equalTo(origPrimaryNodeId), equalTo("node3")));
     }
 
-    @Test
-    public void failPrimaryStartedCheckReplicaElected() {
+    public void testFailPrimaryStartedCheckReplicaElected() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -218,8 +223,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(strategy.applyFailedShard(clusterState, shardToFail).changed(), equalTo(false));
     }
 
-    @Test
-    public void firstAllocationFailureSingleNode() {
+    public void testFirstAllocationFailureSingleNode() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -275,8 +279,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(strategy.applyFailedShard(clusterState, firstShard).changed(), equalTo(false));
     }
 
-    @Test
-    public void singleShardMultipleAllocationFailures() {
+    public void testSingleShardMultipleAllocationFailures() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -332,8 +335,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         }
     }
 
-    @Test
-    public void firstAllocationFailureTwoNodes() {
+    public void testFirstAllocationFailureTwoNodes() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -393,8 +395,7 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(strategy.applyFailedShard(clusterState, firstShard).changed(), equalTo(false));
     }
 
-    @Test
-    public void rebalanceFailure() {
+    public void testRebalanceFailure() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.concurrent_recoveries", 10)
                 .put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, "always")
@@ -489,7 +490,6 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").get(0).shardId(), not(equalTo(shardToFail.shardId())));
     }
 
-    @Test
     public void testFailAllReplicasInitializingOnPrimaryFail() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .build());
@@ -536,7 +536,6 @@ public class FailedShardsRoutingTests extends ESAllocationTestCase {
         assertThat(routingResult.changed(), equalTo(false));
     }
 
-    @Test
     public void testFailAllReplicasInitializingOnPrimaryFailWhileHavingAReplicaToElect() {
         AllocationService allocation = createAllocationService(settingsBuilder()
                 .build());

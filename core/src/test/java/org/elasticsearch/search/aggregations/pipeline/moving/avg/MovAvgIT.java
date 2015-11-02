@@ -19,12 +19,10 @@
 
 package org.elasticsearch.search.aggregations.pipeline.moving.avg;
 
-
-import com.google.common.collect.EvictingQueue;
-
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram.Bucket;
@@ -34,12 +32,22 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregationHelperTests;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.derivative.Derivative;
-import org.elasticsearch.search.aggregations.pipeline.movavg.models.*;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.EwmaModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltLinearModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.HoltWintersModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.LinearModel;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelBuilder;
+import org.elasticsearch.search.aggregations.pipeline.movavg.models.SimpleModel;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.avg;
@@ -51,15 +59,14 @@ import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorB
 import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.movingAvg;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 import static org.hamcrest.core.IsNull.nullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
 public class MovAvgIT extends ESIntegTestCase {
-
     private static final String INTERVAL_FIELD = "l_value";
     private static final String VALUE_FIELD = "v_value";
-    private static final String GAP_FIELD = "g_value";
 
     static int interval;
     static int numBuckets;
@@ -85,6 +92,7 @@ public class MovAvgIT extends ESIntegTestCase {
             name = s;
         }
 
+        @Override
         public String toString(){
             return name;
         }
@@ -99,6 +107,7 @@ public class MovAvgIT extends ESIntegTestCase {
             name = s;
         }
 
+        @Override
         public String toString(){
             return name;
         }
@@ -170,7 +179,7 @@ public class MovAvgIT extends ESIntegTestCase {
      */
     private void setupExpected(MovAvgType type, MetricTarget target, int windowSize) {
         ArrayList<Double> values = new ArrayList<>(numBuckets);
-        EvictingQueue<Double> window = EvictingQueue.create(windowSize);
+        EvictingQueue<Double> window = new EvictingQueue<>(windowSize);
 
         for (PipelineAggregationHelperTests.MockBucket mockBucket : mockHisto) {
             double metricValue;
@@ -348,8 +357,8 @@ public class MovAvgIT extends ESIntegTestCase {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -394,9 +403,7 @@ public class MovAvgIT extends ESIntegTestCase {
     /**
      * test simple moving average on single value field
      */
-    @Test
-    public void simpleSingleValuedField() {
-
+    public void testSimpleSingleValuedField() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
@@ -446,9 +453,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void linearSingleValuedField() {
-
+    public void testLinearSingleValuedField() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
@@ -498,9 +503,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void ewmaSingleValuedField() {
-
+    public void testEwmaSingleValuedField() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
@@ -550,9 +553,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void holtSingleValuedField() {
-
+    public void testHoltSingleValuedField() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
@@ -602,9 +603,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void HoltWintersValuedField() {
-
+    public void testHoltWintersValuedField() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
@@ -658,7 +657,6 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testPredictNegativeKeysAtStart() {
 
         SearchResponse response = client()
@@ -710,8 +708,6 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void testSizeZeroWindow() {
         try {
             client()
@@ -727,13 +723,11 @@ public class MovAvgIT extends ESIntegTestCase {
                                             .setBucketsPaths("the_metric"))
                     ).execute().actionGet();
             fail("MovingAvg should not accept a window that is zero");
-
-        } catch (SearchPhaseExecutionException exception) {
-           // All good
+        } catch (SearchPhaseExecutionException e) {
+           assertThat(e.getMessage(), is("all shards failed"));
         }
     }
 
-    @Test
     public void testBadParent() {
         try {
             client()
@@ -754,7 +748,6 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNegativeWindow() {
         try {
             client()
@@ -778,7 +771,6 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNoBucketsInHistogram() {
 
         SearchResponse response = client()
@@ -803,7 +795,6 @@ public class MovAvgIT extends ESIntegTestCase {
         assertThat(buckets.size(), equalTo(0));
     }
 
-    @Test
     public void testNoBucketsInHistogramWithPredict() {
         int numPredictions = randomIntBetween(1,10);
         SearchResponse response = client()
@@ -829,7 +820,6 @@ public class MovAvgIT extends ESIntegTestCase {
         assertThat(buckets.size(), equalTo(0));
     }
 
-    @Test
     public void testZeroPrediction() {
         try {
             client()
@@ -852,7 +842,6 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNegativePrediction() {
         try {
             client()
@@ -875,7 +864,6 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testHoltWintersNotEnoughData() {
         try {
             SearchResponse response = client()
@@ -903,9 +891,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testTwoMovAvgsWithPredictions() {
-
         SearchResponse response = client()
                 .prepareSearch("double_predict")
                 .setTypes("type")
@@ -1017,7 +1003,6 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testBadModelParams() {
         try {
             SearchResponse response = client()
@@ -1038,9 +1023,7 @@ public class MovAvgIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void HoltWintersMinimization() {
-
+    public void testHoltWintersMinimization() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
@@ -1128,9 +1111,7 @@ public class MovAvgIT extends ESIntegTestCase {
      *
      * We can simulate this by setting the window size == size of histo
      */
-    @Test
-    public void minimizeNotEnoughData() {
-
+    public void testMinimizeNotEnoughData() {
         SearchResponse response = client()
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
@@ -1185,9 +1166,7 @@ public class MovAvgIT extends ESIntegTestCase {
     /**
      * Only some models can be minimized, should throw exception for: simple, linear
      */
-    @Test
-    public void checkIfNonTunableCanBeMinimized() {
-
+    public void testCheckIfNonTunableCanBeMinimized() {
         try {
             client()
                 .prepareSearch("idx").setTypes("type")
@@ -1230,9 +1209,7 @@ public class MovAvgIT extends ESIntegTestCase {
     /**
      * These models are all minimizable, so they should not throw exceptions
      */
-    @Test
-    public void checkIfTunableCanBeMinimized() {
-
+    public void testCheckIfTunableCanBeMinimized() {
         MovAvgModelBuilder[] builders = new MovAvgModelBuilder[]{
                 new EwmaModel.EWMAModelBuilder(),
                 new HoltLinearModel.HoltLinearModelBuilder(),
@@ -1260,9 +1237,7 @@ public class MovAvgIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testUnrecognizedParams() {
-
         MovAvgModelBuilder[] builders = new MovAvgModelBuilder[]{
                 new SimpleModel.SimpleModelBuilder(),
                 new LinearModel.LinearModelBuilder(),
@@ -1381,7 +1356,7 @@ public class MovAvgIT extends ESIntegTestCase {
                 return new SimpleModel.SimpleModelBuilder();
         }
     }
-    
+
     private ValuesSourceMetricsAggregationBuilder randomMetric(String name, String field) {
         int rand = randomIntBetween(0,3);
 
@@ -1394,7 +1369,7 @@ public class MovAvgIT extends ESIntegTestCase {
                 return avg(name).field(field);
             default:
                 return avg(name).field(field);
-        }    
+        }
     }
 
 }

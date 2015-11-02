@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -32,7 +31,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class JsonSettingsLoaderTests extends ESTestCase {
-    @Test
     public void testSimpleJsonSettings() throws Exception {
         String json = "/org/elasticsearch/common/settings/loader/test-settings.json";
         Settings settings = settingsBuilder()

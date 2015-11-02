@@ -27,10 +27,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 /**
@@ -38,7 +37,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
 public class FullRollingRestartIT extends ESIntegTestCase {
-
     protected void assertTimeout(ClusterHealthRequestBuilder requestBuilder) {
         ClusterHealthResponse clusterHealth = requestBuilder.get();
         if (clusterHealth.isTimedOut()) {
@@ -52,7 +50,6 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         return 1;
     }
 
-    @Test
     public void testFullRollingRestart() throws Exception {
         Settings settings = Settings.builder().put(ZenDiscovery.SETTING_JOIN_TIMEOUT, "30s").build();
         internalCluster().startNode(settings);
@@ -88,7 +85,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> refreshing and checking data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
         }
 
         // now start shutting nodes down
@@ -106,7 +103,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> stopped two nodes, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
         }
 
         // closing the 3rd node
@@ -124,7 +121,7 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         logger.info("--> one node left, verifying data");
         refresh();
         for (int i = 0; i < 10; i++) {
-            assertHitCount(client().prepareCount().setQuery(matchAllQuery()).get(), 2000l);
+            assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
         }
     }
 }

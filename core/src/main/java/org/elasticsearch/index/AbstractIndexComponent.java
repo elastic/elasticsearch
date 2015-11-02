@@ -23,7 +23,6 @@ import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  *
@@ -32,32 +31,23 @@ public abstract class AbstractIndexComponent implements IndexComponent {
 
     protected final ESLogger logger;
     protected final DeprecationLogger deprecationLogger;
-    protected final Index index;
-    protected final Settings indexSettings;
+    protected final IndexSettings indexSettings;
 
     /**
      * Constructs a new index component, with the index name and its settings.
-     *
-     * @param index         The index name
-     * @param indexSettings The index settings
      */
-    protected AbstractIndexComponent(Index index, @IndexSettings Settings indexSettings) {
-        this.index = index;
-        this.indexSettings = indexSettings;
-        this.logger = Loggers.getLogger(getClass(), indexSettings, index);
+    protected AbstractIndexComponent(IndexSettings indexSettings) {
+        this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings(), indexSettings.getIndex());
         this.deprecationLogger = new DeprecationLogger(logger);
+        this.indexSettings = indexSettings;
     }
 
     @Override
     public Index index() {
-        return this.index;
+        return indexSettings.getIndex();
     }
 
-    public Settings indexSettings() {
+    public IndexSettings getIndexSettings() {
         return indexSettings;
-    }
-
-    public String nodeName() {
-        return indexSettings.get("name", "");
     }
 }

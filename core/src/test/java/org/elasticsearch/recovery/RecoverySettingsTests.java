@@ -22,18 +22,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.util.concurrent.TimeUnit;
 
 public class RecoverySettingsTests extends ESSingleNodeTestCase {
-
     @Override
     protected boolean resetNodeAfterTest() {
         return true;
     }
 
-    @Test
     public void testAllSettingsAreDynamicallyUpdatable() {
         innerTestSettings(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, randomIntBetween(1, 200), ByteSizeUnit.BYTES, new Validator() {
             @Override

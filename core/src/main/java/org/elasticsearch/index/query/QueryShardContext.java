@@ -19,11 +19,9 @@
 
 package org.elasticsearch.index.query;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.search.similarities.Similarity;
@@ -37,7 +35,11 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.fielddata.IndexFieldData;
-import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.ContentPath;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilders;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.query.support.NestedScope;
@@ -53,6 +55,8 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Context object used to create lucene queries on the shard level.
@@ -79,8 +83,6 @@ public class QueryShardContext {
         typesContext.remove();
     }
 
-    private final Index index;
-
     private final Version indexVersionCreated;
 
     private final IndexQueryParserService indexQueryParser;
@@ -99,9 +101,8 @@ public class QueryShardContext {
 
     boolean isFilter;
 
-    public QueryShardContext(Index index, IndexQueryParserService indexQueryParser) {
-        this.index = index;
-        this.indexVersionCreated = Version.indexCreated(indexQueryParser.indexSettings());
+    public QueryShardContext(IndexQueryParserService indexQueryParser) {
+        this.indexVersionCreated = indexQueryParser.getIndexCreatedVersion();
         this.indexQueryParser = indexQueryParser;
         this.parseContext = new QueryParseContext(indexQueryParser.indicesQueriesRegistry());
     }
@@ -128,7 +129,7 @@ public class QueryShardContext {
     }
 
     public Index index() {
-        return this.index;
+        return this.indexQueryParser.index();
     }
 
     public IndexQueryParserService indexQueryParserService() {
@@ -148,7 +149,7 @@ public class QueryShardContext {
     }
 
     public Similarity searchSimilarity() {
-        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity() : null;
+        return indexQueryParser.similarityService != null ? indexQueryParser.similarityService.similarity(indexQueryParser.mapperService) : null;
     }
 
     public String defaultField() {
@@ -172,7 +173,7 @@ public class QueryShardContext {
         return queryParser;
     }
 
-    public BitSetProducer bitsetFilter(Filter filter) {
+    public BitSetProducer bitsetFilter(Query filter) {
         return indexQueryParser.bitsetFilterCache.getBitSetProducer(filter);
     }
 
@@ -186,8 +187,9 @@ public class QueryShardContext {
         }
     }
 
-    public ImmutableMap<String, Query> copyNamedQueries() {
-        return ImmutableMap.copyOf(namedQueries);
+    public Map<String, Query> copyNamedQueries() {
+        // This might be a good use case for CopyOnWriteHashMap
+        return unmodifiableMap(new HashMap<>(namedQueries));
     }
 
     public void combineNamedQueries(QueryShardContext context) {

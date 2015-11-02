@@ -60,6 +60,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
         Set<String> metrics = Strings.splitStringByCommaToSet(request.param("metric", "_all"));
 
         NodesStatsRequest nodesStatsRequest = new NodesStatsRequest(nodesIds);
+        nodesStatsRequest.timeout(request.param("timeout"));
 
         if (metrics.size() == 1 && metrics.contains("_all")) {
             nodesStatsRequest.all();
@@ -76,6 +77,7 @@ public class RestNodesStatsAction extends BaseRestHandler {
             nodesStatsRequest.process(metrics.contains("process"));
             nodesStatsRequest.breaker(metrics.contains("breaker"));
             nodesStatsRequest.script(metrics.contains("script"));
+            nodesStatsRequest.discovery(metrics.contains("discovery"));
 
             // check for index specific metrics
             if (metrics.contains("indices")) {

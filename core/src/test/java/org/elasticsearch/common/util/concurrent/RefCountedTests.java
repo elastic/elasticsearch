@@ -21,7 +21,6 @@ package org.elasticsearch.common.util.concurrent;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
@@ -34,8 +33,6 @@ import static org.hamcrest.Matchers.is;
 /**
  */
 public class RefCountedTests extends ESTestCase {
-
-    @Test
     public void testRefCount() throws IOException {
         MyRefCounted counted = new MyRefCounted();
 
@@ -87,7 +84,6 @@ public class RefCountedTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testMultiThreaded() throws InterruptedException {
         final MyRefCounted counted = new MyRefCounted();
         Thread[] threads = new Thread[randomIntBetween(2, 5)];

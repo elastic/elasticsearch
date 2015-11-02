@@ -178,7 +178,7 @@ You can use {ref}/modules-network.html[core network host settings] or
 ==============================================
 
 [[discovery-ec2-network-host]]
-==== EC2 Network Host
+===== EC2 Network Host
 
 When the `discovery-ec2` plugin is installed, the following are also allowed
 as valid network host settings:

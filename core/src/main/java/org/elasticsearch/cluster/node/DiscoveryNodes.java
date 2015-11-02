@@ -22,6 +22,7 @@ package org.elasticsearch.cluster.node;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.common.Booleans;
@@ -33,7 +34,12 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.transport.TransportAddress;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * This class holds all {@link DiscoveryNode} in the cluster and provides convenience methods to
@@ -374,9 +380,9 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
                             }
                         } else {
                             for (DiscoveryNode node : this) {
-                                for (Map.Entry<String, String> entry : node.attributes().entrySet()) {
-                                    String attrName = entry.getKey();
-                                    String attrValue = entry.getValue();
+                                for (ObjectObjectCursor<String, String> entry : node.attributes()) {
+                                    String attrName = entry.key;
+                                    String attrValue = entry.value;
                                     if (Regex.simpleMatch(matchAttrName, attrName) && Regex.simpleMatch(matchAttrValue, attrValue)) {
                                         resolvedNodesIds.add(node.id());
                                     }
@@ -563,6 +569,7 @@ public class DiscoveryNodes extends AbstractDiffable<DiscoveryNodes> implements 
         }
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (masterNodeId == null) {
             out.writeBoolean(false);

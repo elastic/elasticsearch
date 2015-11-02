@@ -75,7 +75,7 @@ public final class ShardStateMetaData {
 
     @Override
     public int hashCode() {
-        int result = (int) (version ^ (version >>> 32));
+        int result = Long.hashCode(version);
         result = 31 * result + (indexUUID != null ? indexUUID.hashCode() : 0);
         result = 31 * result + (primary ? 1 : 0);
         return result;

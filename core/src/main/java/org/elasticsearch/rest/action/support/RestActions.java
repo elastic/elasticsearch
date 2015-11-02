@@ -19,18 +19,19 @@
 
 package org.elasticsearch.rest.action.support;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.index.query.Operator;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.query.QueryStringQueryBuilder;
+import org.elasticsearch.index.query.*;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.RestRequest;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 import java.io.IOException;
 
@@ -85,7 +86,7 @@ public class RestActions {
         builder.endObject();
     }
 
-    public static QuerySourceBuilder parseQuerySource(RestRequest request) {
+    public static QueryBuilder<?> urlParamsToQueryBuilder(RestRequest request) {
         String queryString = request.param("q");
         if (queryString == null) {
             return null;
@@ -100,7 +101,17 @@ public class RestActions {
         if (defaultOperator != null) {
             queryBuilder.defaultOperator(Operator.fromString(defaultOperator));
         }
-        return new QuerySourceBuilder().setQuery(queryBuilder);
+        return queryBuilder;
+    }
+
+    public static SearchSourceBuilder getRestSearchSource(BytesReference sourceBytes, IndicesQueriesRegistry queryRegistry,
+            ParseFieldMatcher parseFieldMatcher)
+            throws IOException {
+        XContentParser parser = XContentFactory.xContent(sourceBytes).createParser(sourceBytes);
+        QueryParseContext queryParseContext = new QueryParseContext(queryRegistry);
+        queryParseContext.reset(parser);
+        queryParseContext.parseFieldMatcher(parseFieldMatcher);
+        return SearchSourceBuilder.parseSearchSource(parser, queryParseContext);
     }
 
     /**
@@ -120,6 +131,19 @@ public class RestActions {
         }
 
         return content;
+    }
+
+    public static QueryBuilder<?> getQueryContent(BytesReference source, IndicesQueriesRegistry indicesQueriesRegistry, ParseFieldMatcher parseFieldMatcher) {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        try (XContentParser requestParser = XContentFactory.xContent(source).createParser(source)) {
+            context.reset(requestParser);
+            context.parseFieldMatcher(parseFieldMatcher);
+            return context.parseTopLevelQueryBuilder();
+        } catch (IOException e) {
+            throw new ElasticsearchException("failed to parse source", e);
+        } finally {
+            context.reset(null);
+        }
     }
 
     /**

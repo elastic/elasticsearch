@@ -29,7 +29,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
@@ -40,11 +39,8 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(PrimaryNotRelocatedWhileBeingRecoveredTests.class);
 
-
-    @Test
     public void testPrimaryNotRelocatedWhileBeingRecoveredFrom() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put("cluster.routing.allocation.node_concurrent_recoveries", 10)

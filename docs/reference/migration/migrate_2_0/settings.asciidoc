@@ -3,7 +3,7 @@
 ==== Command line flags
 
 Command line flags using single dash notation must be now specified as the first arguments.
-For example if previously using: 
+For example if previously using:
 
 [source,sh]
 ---------------
@@ -14,7 +14,7 @@ This will now need to be changed to:
 
 [source,sh]
 ---------------
-./elasticsearch -Des.path.conf=/opt/elasticsearch/conf/test_node --node.name=test_node 
+./elasticsearch -Des.path.conf=/opt/elasticsearch/conf/test_node --node.name=test_node
 ---------------
 
 for the flag to take effect.
@@ -164,3 +164,19 @@ the `logging.yml` configuration file with the `file.layout.conversionPattern`
 setting.
 
 Remove mapping.date.round_ceil setting for date math parsing #8889 (issues: #8556, #8598)
+
+==== Custom config file
+
+It is no longer possible to specify a custom config file with the `CONF_FILE`
+environment variable, or the `-Des.config`, `-Des.default.config`, or
+`-Delasticsearch.config` parameters.
+
+Instead, the config file must be named `elasticsearch.yml` and must be located
+in the default `config/` directory, or in the directory specified in the
+`CONF_DIR` environment variable.
+
+==== `ES_CLASSPATH removed`
+
+The `ES_CLASSPATH` environment variable is no longer used to set the class
+path. External libraries should preferably be loaded using the plugin
+mechanism or, if you really must, be copied to the `lib/` directory.

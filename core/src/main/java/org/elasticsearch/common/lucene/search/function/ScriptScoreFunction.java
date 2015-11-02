@@ -111,9 +111,9 @@ public class ScriptScoreFunction extends ScoreFunction {
                     exp = ((ExplainableSearchScript) leafScript).explain(subQueryScore);
                 } else {
                     double score = score(docId, subQueryScore.getValue());
-                    String explanation = "script score function, computed with script:\"" + sScript;
+                    String explanation = "script score function, computed with script:\"" + sScript + "\"";
                     if (sScript.getParams() != null) {
-                        explanation += "\" and parameters: \n" + sScript.getParams().toString();
+                        explanation += " and parameters: \n" + sScript.getParams().toString();
                     }
                     Explanation scoreExp = Explanation.match(
                             subQueryScore.getValue(), "_score: ",

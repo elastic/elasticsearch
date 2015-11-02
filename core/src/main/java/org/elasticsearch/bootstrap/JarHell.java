@@ -104,7 +104,9 @@ public class JarHell {
      */
     @SuppressForbidden(reason = "resolves against CWD because that is how classpaths work")
     static URL[] parseClassPath(String classPath) {
-        String elements[] = classPath.split(System.getProperty("path.separator"));
+        String pathSeparator = System.getProperty("path.separator");
+        String fileSeparator = System.getProperty("file.separator");
+        String elements[] = classPath.split(pathSeparator);
         URL urlElements[] = new URL[elements.length];
         for (int i = 0; i < elements.length; i++) {
             String element = elements[i];
@@ -118,6 +120,20 @@ public class JarHell {
             if (element.isEmpty()) {
                 throw new IllegalStateException("Classpath should not contain empty elements! (outdated shell script from a previous version?) classpath='" + classPath + "'");
             }
+            // we should be able to just Paths.get() each element, but unfortunately this is not the
+            // whole story on how classpath parsing works: if you want to know, start at sun.misc.Launcher,
+            // be sure to stop before you tear out your eyes. we just handle the "alternative" filename
+            // specification which java seems to allow, explicitly, right here...
+            if (element.startsWith("/") && "\\".equals(fileSeparator)) {
+                // "correct" the entry to become a normal entry
+                // change to correct file separators
+                element = element.replace("/", "\\");
+                // if there is a drive letter, nuke the leading separator
+                if (element.length() >= 3 && element.charAt(2) == ':') {
+                    element = element.substring(1);
+                }
+            }
+            // now just parse as ordinary file
             try {
                 urlElements[i] = PathUtils.get(element).toUri().toURL();
             } catch (MalformedURLException e) {

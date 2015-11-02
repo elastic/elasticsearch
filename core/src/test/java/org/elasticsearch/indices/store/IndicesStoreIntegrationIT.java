@@ -27,7 +27,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
@@ -44,13 +50,17 @@ import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
 import org.elasticsearch.test.disruption.SingleNodeDisruption;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.transport.*;
-import org.junit.Test;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.TransportException;
+import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.TransportRequestOptions;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -63,7 +73,6 @@ import java.util.concurrent.TimeUnit;
 
 import static java.lang.Thread.sleep;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -72,7 +81,6 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class IndicesStoreIntegrationIT extends ESIntegTestCase {
-
     @Override
     protected Settings nodeSettings(int nodeOrdinal) { // simplify this and only use a single data path
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal)).put("path.data", "")
@@ -94,8 +102,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // so we cannot check state consistency of this cluster
     }
 
-    @Test
-    public void indexCleanup() throws Exception {
+    public void testIndexCleanup() throws Exception {
         final String masterNode = internalCluster().startNode(Settings.builder().put("node.data", false));
         final String node_1 = internalCluster().startNode(Settings.builder().put("node.master", false));
         final String node_2 = internalCluster().startNode(Settings.builder().put("node.master", false));
@@ -164,9 +171,8 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     }
 
-    @Test
     /* Test that shard is deleted in case ShardActiveRequest after relocation and next incoming cluster state is an index delete. */
-    public void shardCleanupIfShardDeletionAfterRelocationFailedAndIndexDeleted() throws Exception {
+    public void testShardCleanupIfShardDeletionAfterRelocationFailedAndIndexDeleted() throws Exception {
         final String node_1 = internalCluster().startNode();
         logger.info("--> creating index [test] with one shard and on replica");
         assertAcked(prepareCreate("test").setSettings(
@@ -226,8 +232,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(Files.exists(indexDirectory(node_2, "test")), equalTo(false));
     }
 
-    @Test
-    public void shardsCleanup() throws Exception {
+    public void testShardsCleanup() throws Exception {
         final String node_1 = internalCluster().startNode();
         final String node_2 = internalCluster().startNode();
         logger.info("--> creating index [test] with one shard and on replica");
@@ -286,8 +291,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         assertThat(waitForShardDeletion(node_4, "test", 0), equalTo(false));
     }
 
-
-    @Test
     @TestLogging("cluster.service:TRACE")
     public void testShardActiveElsewhereDoesNotDeleteAnother() throws Exception {
         InternalTestCluster.Async<String> masterFuture = internalCluster().startNodeAsync(
@@ -367,7 +370,6 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testShardActiveElseWhere() throws Exception {
         List<String> nodes = internalCluster().startNodesAsync(2).get();
 

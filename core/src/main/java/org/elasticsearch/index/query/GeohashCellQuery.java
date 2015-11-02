@@ -20,10 +20,11 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -131,7 +132,7 @@ public class GeohashCellQuery {
         }
 
         public Builder point(double lat, double lon) {
-            this.geohash = XGeoHashUtils.stringEncode(lon, lat);
+            this.geohash = GeoHashUtils.stringEncode(lon, lat);
             return this;
         }
 
@@ -205,7 +206,7 @@ public class GeohashCellQuery {
 
             Query query;
             if (neighbors) {
-                query = create(context, geoFieldType, geohash, XGeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
+                query = create(context, geoFieldType, geohash, GeoHashUtils.addNeighbors(geohash, new ArrayList<CharSequence>(8)));
             } else {
                 query = create(context, geoFieldType, geohash, null);
             }
@@ -318,19 +319,25 @@ public class GeohashCellQuery {
                         parser.nextToken();
                         boost = parser.floatValue();
                     } else {
-                        fieldName = field;
-                        token = parser.nextToken();
-                        if (token == Token.VALUE_STRING) {
-                            // A string indicates either a geohash or a lat/lon
-                            // string
-                            String location = parser.text();
-                            if (location.indexOf(",") > 0) {
-                                geohash = GeoUtils.parseGeoPoint(parser).geohash();
+                        if (fieldName == null) {
+                            fieldName = field;
+                            token = parser.nextToken();
+                            if (token == Token.VALUE_STRING) {
+                                // A string indicates either a geohash or a
+                                // lat/lon
+                                // string
+                                String location = parser.text();
+                                if (location.indexOf(",") > 0) {
+                                    geohash = GeoUtils.parseGeoPoint(parser).geohash();
+                                } else {
+                                    geohash = location;
+                                }
                             } else {
-                                geohash = location;
+                                geohash = GeoUtils.parseGeoPoint(parser).geohash();
                             }
                         } else {
-                            geohash = GeoUtils.parseGeoPoint(parser).geohash();
+                            throw new ParsingException(parser.getTokenLocation(), "[" + NAME +
+                                    "] field name already set to [" + fieldName + "] but found [" + field + "]");
                         }
                     }
                 } else {

@@ -35,6 +35,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
 import org.elasticsearch.transport.RequestHandlerRegistry;
@@ -43,15 +45,12 @@ import org.elasticsearch.transport.TransportRequest;
 import org.jboss.netty.channel.Channel;
 import org.jboss.netty.channel.ChannelPipeline;
 import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.Collection;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -60,7 +59,6 @@ import static org.hamcrest.Matchers.is;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 1)
 public class NettyTransportIT extends ESIntegTestCase {
-
     // static so we can use it in anonymous classes
     private static String channelProfileName = null;
 
@@ -76,7 +74,6 @@ public class NettyTransportIT extends ESIntegTestCase {
         return pluginList(ExceptionThrowingNettyTransport.TestPlugin.class);
     }
 
-    @Test
     public void testThatConnectionFailsAsIntended() throws Exception {
         Client transportClient = internalCluster().transportClient();
         ClusterHealthResponse clusterIndexHealths = transportClient.admin().cluster().prepareHealth().get();

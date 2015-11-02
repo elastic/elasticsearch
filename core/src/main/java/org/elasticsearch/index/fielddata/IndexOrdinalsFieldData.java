@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 
 
@@ -33,12 +34,12 @@ public interface IndexOrdinalsFieldData extends IndexFieldData.Global<AtomicOrdi
      * potentially from a cache.
      */
     @Override
-    IndexOrdinalsFieldData loadGlobal(IndexReader indexReader);
+    IndexOrdinalsFieldData loadGlobal(DirectoryReader indexReader);
 
     /**
      * Load a global view of the ordinals for the given {@link IndexReader}.
      */
     @Override
-    IndexOrdinalsFieldData localGlobalDirect(IndexReader indexReader) throws Exception;
+    IndexOrdinalsFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception;
 
 }

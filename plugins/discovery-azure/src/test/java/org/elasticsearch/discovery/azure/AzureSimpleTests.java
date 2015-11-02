@@ -20,12 +20,11 @@
 package org.elasticsearch.discovery.azure;
 
 import org.elasticsearch.cloud.azure.AbstractAzureComputeServiceTestCase;
+import org.elasticsearch.cloud.azure.AzureComputeServiceSimpleMock;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Discovery;
 import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
-import org.elasticsearch.cloud.azure.AzureComputeServiceSimpleMock;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.Matchers.notNullValue;
 
@@ -34,13 +33,11 @@ import static org.hamcrest.Matchers.notNullValue;
         transportClientRatio = 0.0,
         numClientNodes = 0)
 public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
-
     public AzureSimpleTests() {
         super(AzureComputeServiceSimpleMock.TestPlugin.class);
     }
 
-    @Test
-    public void one_node_should_run_using_private_ip() {
+    public void testOneNodeDhouldRunUsingPrivateIp() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
                 .put(Discovery.HOST_TYPE, "private_ip");
@@ -53,8 +50,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
         checkNumberOfNodes(1);
     }
 
-    @Test
-    public void one_node_should_run_using_public_ip() {
+    public void testOneNodeShouldRunUsingPublicIp() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
                 .put(Discovery.HOST_TYPE, "public_ip");
@@ -67,8 +63,7 @@ public class AzureSimpleTests extends AbstractAzureComputeServiceTestCase {
         checkNumberOfNodes(1);
     }
 
-    @Test
-    public void one_node_should_run_using_wrong_settings() {
+    public void testOneNodeShouldRunUsingWrongSettings() {
         Settings.Builder settings = Settings.settingsBuilder()
                 .put(Management.SERVICE_NAME, "dummy")
                 .put(Discovery.HOST_TYPE, "do_not_exist");

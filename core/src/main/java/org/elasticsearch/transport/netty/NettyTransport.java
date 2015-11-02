@@ -19,8 +19,6 @@
 
 package org.elasticsearch.transport.netty;
 
-import java.nio.charset.StandardCharsets;
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -93,6 +91,7 @@ import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
 import java.nio.channels.CancelledKeyException;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -115,6 +114,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_CLIENT;
 import static org.elasticsearch.common.network.NetworkService.TcpSettings.TCP_BLOCKING_SERVER;
@@ -340,12 +340,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public Map<String, BoundTransportAddress> profileBoundAddresses() {
-        return ImmutableMap.copyOf(profileBoundAddresses);
+        return unmodifiableMap(new HashMap<>(profileBoundAddresses));
     }
 
-    private InetSocketAddress createPublishAddress(String publishHost, int publishPort) {
+    private InetSocketAddress createPublishAddress(String publishHosts[], int publishPort) {
         try {
-            return new InetSocketAddress(networkService.resolvePublishHostAddress(publishHost), publishPort);
+            return new InetSocketAddress(networkService.resolvePublishHostAddresses(publishHosts), publishPort);
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
@@ -436,11 +436,11 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
     private void bindServerBootstrap(final String name, final Settings settings) {
         // Bind and start to accept incoming connections.
         InetAddress hostAddresses[];
-        String bindHost = settings.get("bind_host");
+        String bindHosts[] = settings.getAsArray("bind_host", null);
         try {
-            hostAddresses = networkService.resolveBindHostAddress(bindHost);
+            hostAddresses = networkService.resolveBindHostAddresses(bindHosts);
         } catch (IOException e) {
-            throw new BindTransportException("Failed to resolve host [" + bindHost + "]", e);
+            throw new BindTransportException("Failed to resolve host " + Arrays.toString(bindHosts) + "", e);
         }
         if (logger.isDebugEnabled()) {
             String[] addresses = new String[hostAddresses.length];
@@ -453,7 +453,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             bindServerBootstrap(name, hostAddress, settings);
         }
     }
-        
+
     private void bindServerBootstrap(final String name, final InetAddress hostAddress, Settings profileSettings) {
 
         String port = profileSettings.get("port");
@@ -493,8 +493,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             if (boundTransportAddress == null) {
                 // no address is bound, so lets create one with the publish address information from the settings or the bound address as a fallback
                 int publishPort = profileSettings.getAsInt("publish_port", boundAddress.getPort());
-                String publishHost = profileSettings.get("publish_host", boundAddress.getHostString());
-                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                String publishHosts[] = profileSettings.getAsArray("publish_host", new String[] { boundAddress.getHostString() });
+                InetSocketAddress publishAddress = createPublishAddress(publishHosts, publishPort);
                 profileBoundAddresses.put(name, new BoundTransportAddress(new TransportAddress[]{new InetSocketTransportAddress(boundAddress)}, new InetSocketTransportAddress(publishAddress)));
             } else {
                 // TODO: support real multihoming with publishing. Today we update the bound addresses so only the prioritized address is published
@@ -511,8 +511,8 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
                 // these calls are different from the profile ones due to the way the settings for a profile are created. If we want to merge the code for the default profile and
                 // other profiles together, we need to change how the profileSettings are built for the default profile...
                 int publishPort = settings.getAsInt("transport.netty.publish_port", settings.getAsInt("transport.publish_port", boundAddress.getPort()));
-                String publishHost = settings.get("transport.netty.publish_host", settings.get("transport.publish_host", settings.get("transport.host")));
-                InetSocketAddress publishAddress = createPublishAddress(publishHost, publishPort);
+                String publishHosts[] = settings.getAsArray("transport.netty.publish_host", settings.getAsArray("transport.publish_host", settings.getAsArray("transport.host", null)));
+                InetSocketAddress publishAddress = createPublishAddress(publishHosts, publishPort);
                 this.boundAddress = new BoundTransportAddress(new TransportAddress[]{new InetSocketTransportAddress(boundAddress)}, new InetSocketTransportAddress(publishAddress));
             } else {
                 // the default profile is already bound to one address and has the publish address, copy the existing bound addresses as is and append the new address.
@@ -657,15 +657,15 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
 
     @Override
     public TransportAddress[] addressesFromString(String address, int perAddressLimit) throws Exception {
-        return parse(address, settings.get("transport.profiles.default.port", 
-                              settings.get("transport.netty.port", 
-                              settings.get("transport.tcp.port", 
+        return parse(address, settings.get("transport.profiles.default.port",
+                              settings.get("transport.netty.port",
+                              settings.get("transport.tcp.port",
                               DEFAULT_PORT_RANGE))), perAddressLimit);
     }
-    
+
     // this code is a take on guava's HostAndPort, like a HostAndPortRange
-    
-    // pattern for validating ipv6 bracked addresses. 
+
+    // pattern for validating ipv6 bracked addresses.
     // not perfect, but PortsRange should take care of any port range validation, not a regex
     private static final Pattern BRACKET_PATTERN = Pattern.compile("^\\[(.*:.*)\\](?::([\\d\\-]*))?$");
 
@@ -698,12 +698,12 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             }
           }
         }
-        
+
         // if port isn't specified, fill with the default
         if (portString == null || portString.isEmpty()) {
             portString = defaultPortRange;
         }
-        
+
         // generate address for each port in the range
         Set<InetAddress> addresses = new HashSet<>(Arrays.asList(InetAddress.getAllByName(host)));
         List<TransportAddress> transportAddresses = new ArrayList<>();

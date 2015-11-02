@@ -18,15 +18,21 @@
  */
 package org.elasticsearch.action.index;
 
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
+
+import java.util.Arrays;
+import java.util.HashSet;
+import java.util.Set;
+
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 /**
-  */
+ */
 public class IndexRequestTests extends ESTestCase {
-
-    @Test
     public void testIndexRequestOpTypeFromString() throws Exception {
         String create = "create";
         String index = "index";
@@ -39,9 +45,26 @@ public class IndexRequestTests extends ESTestCase {
         assertThat(IndexRequest.OpType.fromString(indexUpper), equalTo(IndexRequest.OpType.INDEX));
     }
 
-    @Test(expected= IllegalArgumentException.class)
-    public void testReadBogusString(){
-        String foobar = "foobar";
-        IndexRequest.OpType.fromString(foobar);
+    public void testReadBogusString() {
+        try {
+            IndexRequest.OpType.fromString("foobar");
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("opType [foobar] not allowed"));
+        }
+    }
+
+    public void testCreateOperationRejectsVersions() {
+        Set<VersionType> allButInternalSet = new HashSet<>(Arrays.asList(VersionType.values()));
+        allButInternalSet.remove(VersionType.INTERNAL);
+        VersionType[] allButInternal = allButInternalSet.toArray(new VersionType[]{});
+        IndexRequest request = new IndexRequest("index", "type", "1");
+        request.opType(IndexRequest.OpType.CREATE);
+        request.versionType(randomFrom(allButInternal));
+        assertThat(request.validate().validationErrors(), not(empty()));
+
+        request.versionType(VersionType.INTERNAL);
+        request.version(randomIntBetween(0, Integer.MAX_VALUE));
+        assertThat(request.validate().validationErrors(), not(empty()));
     }
 }

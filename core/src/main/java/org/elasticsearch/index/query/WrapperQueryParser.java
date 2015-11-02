@@ -44,7 +44,7 @@ public class WrapperQueryParser implements QueryParser {
         }
         String fieldName = parser.currentName();
         if (!fieldName.equals("query")) {
-            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
+            throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was" + fieldName);
         }
         parser.nextToken();
 

@@ -25,11 +25,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.GeoValidationMethod;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoBoundingBoxQuery;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,9 +38,7 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class GeoBoundingBoxIT extends ESIntegTestCase {
-
-    @Test
-    public void simpleBoundingBoxTest() throws Exception {
+    public void testSimpleBoundingBoxTest() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject();
@@ -109,8 +107,7 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void limitsBoundingBoxTest() throws Exception {
+    public void testLimitsBoundingBox() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject();
@@ -212,8 +209,7 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("9"));
     }
 
-    @Test
-    public void limit2BoundingBoxTest() throws Exception {
+    public void testLimit2BoundingBox() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject();
@@ -263,8 +259,7 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
-    public void completeLonRangeTest() throws Exception {
+    public void testCompleteLonRange() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
                 .endObject().endObject();

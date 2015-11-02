@@ -93,7 +93,7 @@ public class ScrollSearchBenchmark {
         }
 
         client.admin().indices().prepareRefresh(indexName).get();
-        System.out.printf(Locale.ENGLISH, "--> Number of docs in index: %d\n", client.prepareCount().get().getCount());
+        System.out.printf(Locale.ENGLISH, "--> Number of docs in index: %d\n", client.prepareSearch().setSize(0).get().getHits().totalHits());
 
         Long counter = numDocs;
         SearchResponse searchResponse = client.prepareSearch(indexName)

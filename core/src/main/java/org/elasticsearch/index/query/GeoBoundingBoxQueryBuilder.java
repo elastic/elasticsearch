@@ -314,8 +314,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     public GeoBoundingBoxQueryBuilder doReadFrom(StreamInput in) throws IOException {
         String fieldName = in.readString();
         GeoBoundingBoxQueryBuilder geo = new GeoBoundingBoxQueryBuilder(fieldName);
-        geo.topLeft = geo.topLeft.readFrom(in);
-        geo.bottomRight = geo.bottomRight.readFrom(in);
+        geo.topLeft = in.readGeoPoint();
+        geo.bottomRight = in.readGeoPoint();
         geo.type = GeoExecType.readTypeFrom(in);
         geo.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
         return geo;
@@ -324,8 +324,8 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
     @Override
     public void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
-        topLeft.writeTo(out);
-        bottomRight.writeTo(out);
+        out.writeGeoPoint(topLeft);
+        out.writeGeoPoint(bottomRight);
         type.writeTo(out);
         validationMethod.writeTo(out);
     }

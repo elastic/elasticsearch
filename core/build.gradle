@@ -1,0 +1,122 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.test.RestSpecHack
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'com.bmuschko.nexus'
+apply plugin: 'nebula.optional-base'
+
+archivesBaseName = 'elasticsearch'
+
+versions << [
+  jackson:  '2.6.2',
+  log4j:    '1.2.17',
+  slf4j:    '1.6.2'
+]
+
+dependencies {
+
+  // lucene
+  compile "org.apache.lucene:lucene-core:${versions.lucene}"
+  compile "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  compile "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
+  compile "org.apache.lucene:lucene-queries:${versions.lucene}"
+  compile "org.apache.lucene:lucene-memory:${versions.lucene}"
+  compile "org.apache.lucene:lucene-highlighter:${versions.lucene}"
+  compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
+  compile "org.apache.lucene:lucene-join:${versions.lucene}"
+  compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
+
+  compile 'org.elasticsearch:securesm:1.0'
+
+  // utilities
+  compile 'commons-cli:commons-cli:1.3.1'
+  compile 'com.carrotsearch:hppc:0.7.1'
+
+  // time handling, remove with java 8 time
+  compile 'joda-time:joda-time:2.8.2'
+  // joda 2.0 moved to using volatile fields for datetime
+  // When updating to a new version, make sure to update our copy of BaseDateTime
+  compile 'org.joda:joda-convert:1.2'
+
+  // json and yaml
+  compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  compile(group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: versions.jackson) {
+    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
+  }
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  // network stack
+  compile 'io.netty:netty:3.10.5.Final'
+  // compression of transport protocol
+  compile 'com.ning:compress-lzf:1.0.2'
+  // percentiles aggregation
+  compile 'com.tdunning:t-digest:3.0'
+  // precentil ranks aggregation
+  compile 'org.hdrhistogram:HdrHistogram:2.1.6'
+
+  // lucene spatial
+  compile 'com.spatial4j:spatial4j:0.5', optional
+  compile 'com.vividsolutions:jts:1.13', optional
+
+  // templating
+  compile 'com.github.spullara.mustache.java:compiler:0.9.1', optional
+
+  // logging
+  compile "log4j:log4j:${versions.log4j}", optional
+  compile "log4j:apache-log4j-extras:${versions.log4j}", optional
+  compile "org.slf4j:slf4j-api:${versions.slf4j}", optional
+
+  compile 'net.java.dev.jna:jna:4.1.0', optional
+
+  testCompile("org.elasticsearch:test-framework:${version}") {
+    // tests use the locally compiled version of core
+    exclude group: 'org.elasticsearch', module: 'elasticsearch'
+  }
+}
+
+compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"
+
+forbiddenPatterns {
+  exclude '**/*.json'
+  exclude '**/*.jmx'
+  exclude '**/org/elasticsearch/cluster/routing/shard_routes.txt'
+}
+
+task integTest(type: RandomizedTestingTask,
+               group: JavaBasePlugin.VERIFICATION_GROUP,
+               description: 'Multi-node tests',
+               dependsOn: test.dependsOn) {
+  configure(BuildPlugin.commonTestConfig(project))
+  classpath = project.test.classpath
+  testClassesDir = project.test.testClassesDir
+  include '**/*IT.class'
+}
+check.dependsOn integTest
+integTest.mustRunAfter test
+
+RestSpecHack.configureDependencies(project)
+Task copyRestSpec = RestSpecHack.configureTask(project, true)
+integTest.dependsOn copyRestSpec
+

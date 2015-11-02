@@ -30,6 +30,8 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
+
 public class ScriptContextTests extends ESTestCase {
 
     private static final String PLUGIN_NAME = "testplugin";
@@ -59,7 +61,7 @@ public class ScriptContextTests extends ESTestCase {
                 scriptService.compile(script, new ScriptContext.Plugin(PLUGIN_NAME, "custom_globally_disabled_op"), contextAndHeaders);
                 fail("script compilation should have been rejected");
             } catch (ScriptException e) {
-                assertTrue(e.getMessage(), e.getMessage().contains("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
+                assertThat(e.getMessage(), containsString("scripts of type [" + scriptType + "], operation [" + PLUGIN_NAME + "_custom_globally_disabled_op] and lang [" + MockScriptEngine.NAME + "] are disabled"));
             }
         }
     }

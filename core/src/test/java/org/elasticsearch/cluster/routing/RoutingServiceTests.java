@@ -34,10 +34,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
-import java.util.Collections;
-import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -60,14 +57,12 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         routingService.shutdown();
     }
 
-    @Test
     public void testReroute() {
         assertThat(routingService.hasReroutedAndClear(), equalTo(false));
         routingService.reroute("test");
         assertThat(routingService.hasReroutedAndClear(), equalTo(true));
     }
 
-    @Test
     public void testNoDelayedUnassigned() throws Exception {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()
@@ -76,7 +71,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
                 .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test"))).build();
+                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
         // starting primaries
@@ -96,7 +91,6 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         assertThat(routingService.hasReroutedAndClear(), equalTo(false));
     }
 
-    @Test
     @TestLogging("_root:DEBUG")
     public void testDelayedUnassignedScheduleReroute() throws Exception {
         AllocationService allocation = createAllocationService();
@@ -106,7 +100,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
                 .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test"))).build();
+                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
         // starting primaries
@@ -144,7 +138,6 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         assertThat(routingService.getRegisteredNextDelaySetting(), equalTo(Long.MAX_VALUE));
     }
 
-    @Test
     public void testDelayedUnassignedDoesNotRerouteForNegativeDelays() throws Exception {
         AllocationService allocation = createAllocationService();
         MetaData metaData = MetaData.builder()
@@ -153,7 +146,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
                 .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test"))).build();
+                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1")).build();
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
         // starting primaries

@@ -34,7 +34,6 @@ import org.elasticsearch.indices.recovery.RecoveryStatus;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -46,7 +45,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThan;
 
 public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
-
     final static RecoveryTarget.RecoveryListener listener = new RecoveryTarget.RecoveryListener() {
         @Override
         public void onRecoveryDone(RecoveryState state) {
@@ -59,7 +57,6 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         }
     };
 
-    @Test
     public void testLastAccessTimeUpdate() throws Exception {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
@@ -79,7 +76,6 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testRecoveryTimeout() throws InterruptedException {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
@@ -106,7 +102,6 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
 
     }
 
-    @Test
     public void testRecoveryCancellationNoPredicate() throws Exception {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));
@@ -122,7 +117,6 @@ public class RecoveriesCollectionTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testRecoveryCancellationPredicate() throws Exception {
         createIndex();
         final RecoveriesCollection collection = new RecoveriesCollection(logger, getInstanceFromNode(ThreadPool.class));

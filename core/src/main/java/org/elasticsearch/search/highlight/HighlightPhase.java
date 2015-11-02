@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.highlight;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -40,12 +39,15 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
 /**
  *
  */
 public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
-
     private static final List<String> STANDARD_HIGHLIGHTERS_BY_PRECEDENCE = Arrays.asList("fvh", "postings", "plain");
+    private static final Map<String, ? extends SearchParseElement> PARSE_ELEMENTS = singletonMap("highlight",
+            new HighlighterParseElement());
 
     private final Highlighters highlighters;
 
@@ -57,7 +59,7 @@ public class HighlightPhase extends AbstractComponent implements FetchSubPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        return ImmutableMap.of("highlight", new HighlighterParseElement());
+        return PARSE_ELEMENTS;
     }
 
     @Override

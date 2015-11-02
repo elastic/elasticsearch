@@ -47,7 +47,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.engine.DocumentAlreadyExistsException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.Mapping;
@@ -97,6 +96,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
     protected TransportRequestOptions transportOptions() {
         return BulkAction.INSTANCE.transportOptions(settings);
     }
+
     @Override
     protected BulkShardResponse newResponseInstance() {
         return new BulkShardResponse();
@@ -416,7 +416,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                 } catch (Throwable t) {
                     t = ExceptionsHelper.unwrapCause(t);
                     boolean retry = false;
-                    if (t instanceof VersionConflictEngineException || (t instanceof DocumentAlreadyExistsException && translate.operation() == UpdateHelper.Operation.UPSERT)) {
+                    if (t instanceof VersionConflictEngineException) {
                         retry = true;
                     }
                     return new UpdateResult(translate, indexRequest, retry, t, null);
@@ -460,20 +460,12 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                     SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, indexRequest.source()).index(shardId.getIndex()).type(indexRequest.type()).id(indexRequest.id())
                             .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
-                    final Engine.IndexingOperation operation;
-                    if (indexRequest.opType() == IndexRequest.OpType.INDEX) {
-                        operation = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA);
-                    } else {
-                        assert indexRequest.opType() == IndexRequest.OpType.CREATE : indexRequest.opType();
-                        operation = indexShard.prepareCreate(sourceToParse,
-                                indexRequest.version(), indexRequest.versionType(),
-                                Engine.Operation.Origin.REPLICA);
-                    }
+                    final Engine.Index operation = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA);
                     Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
                     if (update != null) {
                         throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
                     }
-                    operation.execute(indexShard);
+                    indexShard.index(operation);
                     location = locationToSync(location, operation.getTranslogLocation());
                 } catch (Throwable e) {
                     // if its not an ignore replica failure, we need to make sure to bubble up the failure
@@ -500,7 +492,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             }
         }
 
-       processAfter(request.refresh(), indexShard, location);
+        processAfter(request.refresh(), indexShard, location);
     }
 
     private void applyVersion(BulkItemRequest item, long version, VersionType versionType) {

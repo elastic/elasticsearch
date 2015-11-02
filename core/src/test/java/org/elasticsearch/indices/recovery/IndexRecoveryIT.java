@@ -49,6 +49,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.store.MockFSDirectoryService;
@@ -59,7 +60,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +70,6 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayWithSize;
@@ -158,8 +157,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 .get().isAcknowledged());
     }
 
-    @Test
-    public void gatewayRecoveryTest() throws Exception {
+    public void testGatewayRecovery() throws Exception {
         logger.info("--> start nodes");
         String node = internalCluster().startNode();
 
@@ -184,8 +182,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(recoveryState.getIndex());
     }
 
-    @Test
-    public void gatewayRecoveryTestActiveOnly() throws Exception {
+    public void testGatewayRecoveryTestActiveOnly() throws Exception {
         logger.info("--> start nodes");
         internalCluster().startNode();
 
@@ -202,8 +199,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(recoveryStates.size(), equalTo(0));  // Should not expect any responses back
     }
 
-    @Test
-    public void replicaRecoveryTest() throws Exception {
+    public void testReplicaRecovery() throws Exception {
         logger.info("--> start node A");
         String nodeA = internalCluster().startNode();
 
@@ -243,9 +239,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(nodeBRecoveryState.getIndex());
     }
 
-    @Test
     @TestLogging("indices.recovery:TRACE")
-    public void rerouteRecoveryTest() throws Exception {
+    public void testRerouteRecovery() throws Exception {
         logger.info("--> start node A");
         final String nodeA = internalCluster().startNode();
 
@@ -433,8 +428,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         validateIndexRecoveryState(nodeCRecoveryStates.get(0).getIndex());
     }
 
-    @Test
-    public void snapshotRecoveryTest() throws Exception {
+    public void testSnapshotRecovery() throws Exception {
         logger.info("--> start node A");
         String nodeA = internalCluster().startNode();
 
@@ -516,7 +510,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
 
         indexRandom(true, docs);
         flush();
-        assertThat(client().prepareCount(INDEX_NAME).get().getCount(), equalTo((long) numDocs));
+        assertThat(client().prepareSearch(INDEX_NAME).setSize(0).get().getHits().totalHits(), equalTo((long) numDocs));
         return client().admin().indices().prepareStats(INDEX_NAME).execute().actionGet();
     }
 
@@ -528,8 +522,7 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertThat(indexState.recoveredBytesPercent(), lessThanOrEqualTo(100.0f));
     }
 
-    @Test
-    public void disconnectsWhileRecoveringTest() throws Exception {
+    public void testDisconnectsWhileRecovering() throws Exception {
         final String indexName = "test";
         final Settings nodeSettings = Settings.builder()
                 .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, "100ms")

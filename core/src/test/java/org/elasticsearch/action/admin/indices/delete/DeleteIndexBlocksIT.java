@@ -21,14 +21,11 @@ package org.elasticsearch.action.admin.indices.delete;
 
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class DeleteIndexBlocksIT extends ESIntegTestCase {
-
-    @Test
     public void testDeleteIndexWithBlocks() {
         createIndex("test");
         ensureGreen("test");

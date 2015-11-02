@@ -29,28 +29,22 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
  * source shard to the target shard.
  */
-public class RecoverySource extends AbstractComponent {
+public class RecoverySource extends AbstractComponent implements IndexEventListener{
 
     public static class Actions {
         public static final String START_RECOVERY = "internal:index/shard/recovery/start_recovery";
@@ -72,19 +66,16 @@ public class RecoverySource extends AbstractComponent {
         this.transportService = transportService;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
-        this.indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
-            @Override
-            public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                               @IndexSettings Settings indexSettings) {
-                if (indexShard != null) {
-                    ongoingRecoveries.cancel(indexShard, "shard is closed");
-                }
-            }
-        });
-
         this.recoverySettings = recoverySettings;
-
         transportService.registerRequestHandler(Actions.START_RECOVERY, StartRecoveryRequest::new, ThreadPool.Names.GENERIC, new StartRecoveryTransportRequestHandler());
+    }
+
+    @Override
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
+                                       Settings indexSettings) {
+        if (indexShard != null) {
+            ongoingRecoveries.cancel(indexShard, "shard is closed");
+        }
     }
 
     private RecoveryResponse recover(final StartRecoveryRequest request) {

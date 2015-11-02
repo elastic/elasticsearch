@@ -18,11 +18,10 @@
  */
 package org.elasticsearch.common;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.is;
@@ -31,8 +30,7 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class Base64Tests extends ESTestCase {
-
-    @Test // issue #6334
+    // issue #6334
     public void testBase64DecodeWithExtraCharactersAfterPadding() throws Exception {
         String plain = randomAsciiOfLengthBetween(1, 20) + ":" + randomAsciiOfLengthBetween(1, 20);
         String encoded = Base64.encodeBytes(plain.getBytes(StandardCharsets.UTF_8));

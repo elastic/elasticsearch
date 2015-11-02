@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Iterator;
 
 public class MultiTermVectorsResponse extends ActionResponse implements Iterable<MultiTermVectorsItemResponse>, ToXContent {
@@ -120,7 +120,7 @@ public class MultiTermVectorsResponse extends ActionResponse implements Iterable
 
     @Override
     public Iterator<MultiTermVectorsItemResponse> iterator() {
-        return Iterators.forArray(responses);
+        return Arrays.stream(responses).iterator();
     }
 
     @Override

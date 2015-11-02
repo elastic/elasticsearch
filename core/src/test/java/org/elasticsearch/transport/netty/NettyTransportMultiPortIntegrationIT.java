@@ -28,17 +28,22 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.junit.annotations.Network;
 import org.elasticsearch.transport.TransportModule;
-import org.junit.Test;
 
 import java.net.InetAddress;
 import java.util.Locale;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 @ClusterScope(scope = Scope.SUITE, numDataNodes = 1, numClientNodes = 0)
 public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
@@ -64,7 +69,6 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
         return builder.build();
     }
 
-    @Test
     public void testThatTransportClientCanConnect() throws Exception {
         Settings settings = settingsBuilder()
                 .put("cluster.name", internalCluster().getClusterName())
@@ -78,7 +82,6 @@ public class NettyTransportMultiPortIntegrationIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     @Network
     public void testThatInfosAreExposed() throws Exception {
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().clear().setTransport(true).get();

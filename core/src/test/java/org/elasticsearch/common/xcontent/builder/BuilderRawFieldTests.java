@@ -25,34 +25,27 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class BuilderRawFieldTests extends ESTestCase {
-
-    @Test
     public void testJsonRawField() throws IOException {
         testRawField(XContentType.JSON);
     }
 
-    @Test
     public void testSmileRawField() throws IOException {
         testRawField(XContentType.SMILE);
     }
 
-    @Test
     public void testYamlRawField() throws IOException {
         testRawField(XContentType.YAML);
     }
 
-    @Test
     public void testCborRawField() throws IOException {
         testRawField(XContentType.CBOR);
     }

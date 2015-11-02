@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -91,8 +90,7 @@ public class FilterIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void simple() throws Exception {
+    public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filter("tag1").filter(termQuery("tag", "tag1")))
                 .execute().actionGet();
@@ -108,8 +106,7 @@ public class FilterIT extends ESIntegTestCase {
 
     // See NullPointer issue when filters are empty:
     // https://github.com/elasticsearch/elasticsearch/issues/8438
-    @Test
-    public void emptyFilterDeclarations() throws Exception {
+    public void testEmptyFilterDeclarations() throws Exception {
         QueryBuilder emptyFilter = new BoolQueryBuilder();
         SearchResponse response = client().prepareSearch("idx").addAggregation(filter("tag1").filter(emptyFilter)).execute().actionGet();
 
@@ -120,8 +117,7 @@ public class FilterIT extends ESIntegTestCase {
         assertThat(filter.getDocCount(), equalTo((long) numDocs));
     }
 
-    @Test
-    public void withSubAggregation() throws Exception {
+    public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(filter("tag1")
                         .filter(termQuery("tag", "tag1"))
@@ -149,9 +145,7 @@ public class FilterIT extends ESIntegTestCase {
         assertThat((double) filter.getProperty("avg_value.value"), equalTo((double) sum / numTag1Docs));
     }
 
-    @Test
-    public void withContextBasedSubAggregation() throws Exception {
-
+    public void testWithContextBasedSubAggregation() throws Exception {
         try {
             client().prepareSearch("idx")
                     .addAggregation(filter("tag1")
@@ -162,12 +156,12 @@ public class FilterIT extends ESIntegTestCase {
             fail("expected execution to fail - an attempt to have a context based numeric sub-aggregation, but there is not value source" +
                     "context which the sub-aggregation can inherit");
 
-        } catch (ElasticsearchException ese) {
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), is("all shards failed"));
         }
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)

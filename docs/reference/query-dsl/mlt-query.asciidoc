@@ -149,7 +149,7 @@ input, the other one for term selection and for query formation.
 ==== Document Input Parameters
 
 [horizontal]
-`like`:: coming[2.0.0-beta1]
+`like`::
 The only *required* parameter of the MLT query is `like` and follows a
 versatile syntax, in which the user can specify free form text and/or a single
 or multiple documents (see examples above). The syntax to specify documents is
@@ -162,7 +162,7 @@ follows a similar syntax to the `per_field_analyzer` parameter of the
 Additionally, to provide documents not necessarily present in the index,
 <<docs-termvectors-artificial-doc,artificial documents>> are also supported.
 
-`unlike`:: coming[2.0.0-beta1] 
+`unlike`:: 
 The `unlike` parameter is used in conjunction with `like` in order not to
 select terms found in a chosen set of documents. In other words, we could ask
 for documents `like: "Apple"`, but `unlike: "cake crumble tree"`. The syntax
@@ -172,10 +172,10 @@ is the same as `like`.
 A list of fields to fetch and analyze the text from. Defaults to the `_all`
 field for free text and to all possible fields for document inputs.
 
-`like_text`:: deprecated[2.0.0-beta1,Replaced by `like`]
+`like_text`::
 The text to find documents like it.
 
-`ids` or `docs`:: deprecated[2.0.0-beta1,Replaced by `like`]
+`ids` or `docs`::
 A list of documents following the same syntax as the <<docs-multi-get,Multi GET API>>.
 
 [float]

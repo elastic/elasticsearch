@@ -200,10 +200,9 @@ We have just covered a very small portion of what Elasticsearch is all about. Fo
 
 h3. Building from Source
 
-Elasticsearch uses "Maven":http://maven.apache.org for its build system.
+Elasticsearch uses "Gradle":http://gradle.org for its build system. You'll need to have a modern version of Gradle installed - 2.6 should do.
 
-In order to create a distribution, simply run the @mvn clean package
--DskipTests@ command in the cloned directory.
+In order to create a distribution, simply run the @gradle build@ command in the cloned directory.
 
 The distribution for each project will be created under the @target/releases@ directory in that project.
 

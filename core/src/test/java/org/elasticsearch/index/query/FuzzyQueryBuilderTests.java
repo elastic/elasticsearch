@@ -26,7 +26,6 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -66,7 +65,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         }
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new FuzzyQueryBuilder(null, "text");
@@ -90,7 +88,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         }
     }
 
-    @Test
     public void testUnsupportedFuzzinessForStringType() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
@@ -106,7 +103,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         }
     }
 
-    @Test
     public void testToQueryWithStringField() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
@@ -128,7 +124,6 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
     }
 
-    @Test
     public void testToQueryWithNumericField() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +

@@ -20,6 +20,7 @@
 package org.elasticsearch.search.fetch.innerhits;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -42,12 +43,16 @@ public class InnerHitsBuilder implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("inner_hits");
+        innerXContent(builder, params);
+        return builder.endObject();
+    }
+
+    public void innerXContent(XContentBuilder builder, Params params) throws IOException {
         for (Map.Entry<String, InnerHitsHolder> entry : innerHits.entrySet()) {
             builder.startObject(entry.getKey());
             entry.getValue().toXContent(builder, params);
             builder.endObject();
         }
-        return builder.endObject();
     }
 
     /**
@@ -261,187 +266,12 @@ public class InnerHitsBuilder implements ToXContent {
             return this;
         }
 
-        public HighlightBuilder highlightBuilder() {
+        public BytesReference highlighter() {
             return sourceBuilder().highlighter();
         }
 
-        /**
-         * Adds a field to be highlighted with default fragment size of 100 characters, and
-         * default number of fragments of 5.
-         *
-         * @param name The field to highlight
-         */
-        public InnerHit addHighlightedField(String name) {
-            highlightBuilder().field(name);
-            return this;
-        }
-
-
-        /**
-         * Adds a field to be highlighted with a provided fragment size (in characters), and
-         * default number of fragments of 5.
-         *
-         * @param name         The field to highlight
-         * @param fragmentSize The size of a fragment in characters
-         */
-        public InnerHit addHighlightedField(String name, int fragmentSize) {
-            highlightBuilder().field(name, fragmentSize);
-            return this;
-        }
-
-        /**
-         * Adds a field to be highlighted with a provided fragment size (in characters), and
-         * a provided (maximum) number of fragments.
-         *
-         * @param name              The field to highlight
-         * @param fragmentSize      The size of a fragment in characters
-         * @param numberOfFragments The (maximum) number of fragments
-         */
-        public InnerHit addHighlightedField(String name, int fragmentSize, int numberOfFragments) {
-            highlightBuilder().field(name, fragmentSize, numberOfFragments);
-            return this;
-        }
-
-        /**
-         * Adds a field to be highlighted with a provided fragment size (in characters),
-         * a provided (maximum) number of fragments and an offset for the highlight.
-         *
-         * @param name              The field to highlight
-         * @param fragmentSize      The size of a fragment in characters
-         * @param numberOfFragments The (maximum) number of fragments
-         */
-        public InnerHit addHighlightedField(String name, int fragmentSize, int numberOfFragments,
-                                            int fragmentOffset) {
-            highlightBuilder().field(name, fragmentSize, numberOfFragments, fragmentOffset);
-            return this;
-        }
-
-        /**
-         * Adds a highlighted field.
-         */
-        public InnerHit addHighlightedField(HighlightBuilder.Field field) {
-            highlightBuilder().field(field);
-            return this;
-        }
-
-        /**
-         * Set a tag scheme that encapsulates a built in pre and post tags. The allows schemes
-         * are <tt>styled</tt> and <tt>default</tt>.
-         *
-         * @param schemaName The tag scheme name
-         */
-        public InnerHit setHighlighterTagsSchema(String schemaName) {
-            highlightBuilder().tagsSchema(schemaName);
-            return this;
-        }
-
-        public InnerHit setHighlighterFragmentSize(Integer fragmentSize) {
-            highlightBuilder().fragmentSize(fragmentSize);
-            return this;
-        }
-
-        public InnerHit setHighlighterNumOfFragments(Integer numOfFragments) {
-            highlightBuilder().numOfFragments(numOfFragments);
-            return this;
-        }
-
-        public InnerHit setHighlighterFilter(Boolean highlightFilter) {
-            highlightBuilder().highlightFilter(highlightFilter);
-            return this;
-        }
-
-        /**
-         * The encoder to set for highlighting
-         */
-        public InnerHit setHighlighterEncoder(String encoder) {
-            highlightBuilder().encoder(encoder);
-            return this;
-        }
-
-        /**
-         * Explicitly set the pre tags that will be used for highlighting.
-         */
-        public InnerHit setHighlighterPreTags(String... preTags) {
-            highlightBuilder().preTags(preTags);
-            return this;
-        }
-
-        /**
-         * Explicitly set the post tags that will be used for highlighting.
-         */
-        public InnerHit setHighlighterPostTags(String... postTags) {
-            highlightBuilder().postTags(postTags);
-            return this;
-        }
-
-        /**
-         * The order of fragments per field. By default, ordered by the order in the
-         * highlighted text. Can be <tt>score</tt>, which then it will be ordered
-         * by score of the fragments.
-         */
-        public InnerHit setHighlighterOrder(String order) {
-            highlightBuilder().order(order);
-            return this;
-        }
-
-        public InnerHit setHighlighterRequireFieldMatch(boolean requireFieldMatch) {
-            highlightBuilder().requireFieldMatch(requireFieldMatch);
-            return this;
-        }
-
-        public InnerHit setHighlighterBoundaryMaxScan(Integer boundaryMaxScan) {
-            highlightBuilder().boundaryMaxScan(boundaryMaxScan);
-            return this;
-        }
-
-        public InnerHit setHighlighterBoundaryChars(char[] boundaryChars) {
-            highlightBuilder().boundaryChars(boundaryChars);
-            return this;
-        }
-
-        /**
-         * The highlighter type to use.
-         */
-        public InnerHit setHighlighterType(String type) {
-            highlightBuilder().highlighterType(type);
-            return this;
-        }
-
-        public InnerHit setHighlighterFragmenter(String fragmenter) {
-            highlightBuilder().fragmenter(fragmenter);
-            return this;
-        }
-
-        /**
-         * Sets a query to be used for highlighting all fields instead of the search query.
-         */
-        public InnerHit setHighlighterQuery(QueryBuilder highlightQuery) {
-            highlightBuilder().highlightQuery(highlightQuery);
-            return this;
-        }
-
-        /**
-         * Sets the size of the fragment to return from the beginning of the field if there are no matches to
-         * highlight and the field doesn't also define noMatchSize.
-         *
-         * @param noMatchSize integer to set or null to leave out of request.  default is null.
-         * @return this builder for chaining
-         */
-        public InnerHit setHighlighterNoMatchSize(Integer noMatchSize) {
-            highlightBuilder().noMatchSize(noMatchSize);
-            return this;
-        }
-
-        /**
-         * Sets the maximum number of phrases the fvh will consider if the field doesn't also define phraseLimit.
-         */
-        public InnerHit setHighlighterPhraseLimit(Integer phraseLimit) {
-            highlightBuilder().phraseLimit(phraseLimit);
-            return this;
-        }
-
-        public InnerHit setHighlighterOptions(Map<String, Object> options) {
-            highlightBuilder().options(options);
+        public InnerHit highlighter(HighlightBuilder highlightBuilder) {
+            sourceBuilder().highlighter(highlightBuilder);
             return this;
         }
 
@@ -460,24 +290,8 @@ public class InnerHitsBuilder implements ToXContent {
             return this;
         }
 
-
-
-
-        /**
-         * Adds a nested inner hit definition that collects inner hits for hits
-         * on this inner hit level.
-         */
-        public InnerHit addNestedInnerHits(String name, String path, InnerHit innerHit) {
-            sourceBuilder().innerHitsBuilder().addNestedInnerHits(name, path, innerHit);
-            return this;
-        }
-
-        /**
-         * Adds a nested inner hit definition that collects inner hits for hits
-         * on this inner hit level.
-         */
-        public InnerHit addParentChildInnerHits(String name, String type, InnerHit innerHit) {
-            sourceBuilder().innerHitsBuilder().addParentChildInnerHits(name, type, innerHit);
+        public InnerHit innerHits(InnerHitsBuilder innerHitsBuilder) {
+            sourceBuilder().innerHits(innerHitsBuilder);
             return this;
         }
 

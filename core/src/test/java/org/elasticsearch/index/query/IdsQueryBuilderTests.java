@@ -25,7 +25,6 @@ import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParsingException;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -33,16 +32,21 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.is;
 
 public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder> {
-
     /**
-     * check that parser throws exception on missing values field
+     * Check that parser throws exception on missing values field.
      */
-    @Test(expected=ParsingException.class)
     public void testIdsNotProvided() throws IOException {
         String noIdsFieldQuery = "{\"ids\" : { \"type\" : \"my_type\"  }";
-        parseQuery(noIdsFieldQuery);
+        try {
+            parseQuery(noIdsFieldQuery);
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), containsString("no ids values provided"));
+        }
     }
 
     @Override
@@ -135,6 +139,17 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             fail("must be not null");
         } catch(IllegalArgumentException e) {
             //all good
+        }
+    }
+
+    // see #7686.
+    public void testIdsQueryWithInvalidValues() throws Exception {
+        String query = "{ \"ids\": { \"values\": [[1]] } }";
+        try {
+            parseQuery(query);
+            fail("Expected ParsingException");
+        } catch (ParsingException e) {
+            assertThat(e.getMessage(), is("Illegal value for id, expecting a string or number, got: START_ARRAY"));
         }
     }
 }

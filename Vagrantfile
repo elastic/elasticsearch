@@ -32,7 +32,10 @@ Vagrant.configure(2) do |config|
   end
   config.vm.define "vivid" do |config|
     config.vm.box = "ubuntu/vivid64"
-    ubuntu_common config
+    ubuntu_common config, extra: <<-SHELL
+      # Install Jayatana so we can work around it being present.
+      [ -f /usr/share/java/jayatanaag.jar ] || install jayatana
+    SHELL
   end
   # Wheezy's backports don't contain Openjdk 8 and the backflips required to
   # get the sun jdk on there just aren't worth it. We have jessie for testing
@@ -116,11 +119,11 @@ SOURCE_PROMPT
   end
 end
 
-def ubuntu_common(config)
-  deb_common config, 'apt-add-repository -y ppa:openjdk-r/ppa > /dev/null 2>&1', 'openjdk-r-*'
+def ubuntu_common(config, extra: '')
+  deb_common config, 'apt-add-repository -y ppa:openjdk-r/ppa > /dev/null 2>&1', 'openjdk-r-*', extra: extra
 end
 
-def deb_common(config, add_openjdk_repository_command, openjdk_list)
+def deb_common(config, add_openjdk_repository_command, openjdk_list, extra: '')
   # http://foo-o-rama.com/vagrant--stdin-is-not-a-tty--fix.html
   config.vm.provision "fix-no-tty", type: "shell" do |s|
       s.privileged = false
@@ -137,6 +140,7 @@ def deb_common(config, add_openjdk_repository_command, openjdk_list)
         (echo "Importing java-8 ppa" &&
           #{add_openjdk_repository_command} &&
           apt-get update)
+      #{extra}
 SHELL
   )
 end

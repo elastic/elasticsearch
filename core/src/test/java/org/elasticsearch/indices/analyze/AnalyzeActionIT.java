@@ -24,24 +24,25 @@ import org.elasticsearch.action.admin.indices.analyze.AnalyzeRequestBuilder;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.rest.action.admin.indices.analyze.RestAnalyzeAction;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  *
  */
 public class AnalyzeActionIT extends ESIntegTestCase {
-    
-    @Test
-    public void simpleAnalyzerTests() throws Exception {
+    public void testSimpleAnalyzerTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
@@ -70,9 +71,8 @@ public class AnalyzeActionIT extends ESIntegTestCase {
             assertThat(token.getPosition(), equalTo(3));
         }
     }
-    
-    @Test
-    public void analyzeNumericField() throws IOException {
+
+    public void testAnalyzeNumericField() throws IOException {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")).addMapping("test", "long", "type=long", "double", "type=double"));
         ensureGreen("test");
 
@@ -90,9 +90,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void analyzeWithNoIndex() throws Exception {
-
+    public void testAnalyzeWithNoIndex() throws Exception {
         AnalyzeResponse analyzeResponse = client().admin().indices().prepareAnalyze("THIS IS A TEST").setAnalyzer("simple").get();
         assertThat(analyzeResponse.getTokens().size(), equalTo(4));
 
@@ -120,9 +118,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void analyzeWithCharFilters() throws Exception {
-
+    public void testAnalyzeWithCharFilters() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(settingsBuilder().put(indexSettings())
                         .put("index.analysis.char_filter.custom_mapping.type", "mapping")
@@ -152,8 +148,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(token.getTerm(), equalTo("fish"));
     }
 
-    @Test
-    public void analyzerWithFieldOrTypeTests() throws Exception {
+    public void testAnalyzerWithFieldOrTypeTests() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 
@@ -173,7 +168,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         }
     }
 
-    @Test // issue #5974
+    // issue #5974
     public void testThatStandardAndDefaultAnalyzersAreSame() throws Exception {
         AnalyzeResponse response = client().admin().indices().prepareAnalyze("this is a test").setAnalyzer("standard").get();
         assertTokens(response, "this", "is", "a", "test");
@@ -196,7 +191,6 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         return randomBoolean() ? "test" : "alias";
     }
 
-    @Test
     public void testParseXContentForAnalyzeReuqest() throws Exception {
         BytesReference content =  XContentFactory.jsonBuilder()
             .startObject()
@@ -215,7 +209,6 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         assertThat(analyzeRequest.tokenFilters(), equalTo(new String[]{"lowercase"}));
     }
 
-    @Test
     public void testParseXContentForAnalyzeRequestWithInvalidJsonThrowsException() throws Exception {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
 
@@ -228,7 +221,6 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testParseXContentForAnalyzeRequestWithUnknownParamThrowsException() throws Exception {
         AnalyzeRequest analyzeRequest = new AnalyzeRequest("for test");
         BytesReference invalidContent =XContentFactory.jsonBuilder()
@@ -246,9 +238,7 @@ public class AnalyzeActionIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void analyzerWithMultiValues() throws Exception {
-
+    public void testAnalyzerWithMultiValues() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias")));
         ensureGreen();
 

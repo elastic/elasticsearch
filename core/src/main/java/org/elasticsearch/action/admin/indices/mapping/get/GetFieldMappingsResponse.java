@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.mapping.get;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -35,12 +33,13 @@ import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
+import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 
 /** Response object for {@link GetFieldMappingsRequest} API */
 public class GetFieldMappingsResponse extends ActionResponse implements ToXContent {
 
-    private Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = ImmutableMap.of();
+    private Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings = emptyMap();
 
     GetFieldMappingsResponse(Map<String, Map<String, Map<String, FieldMappingMetaData>>> mappings) {
         this.mappings = mappings;

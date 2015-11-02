@@ -21,14 +21,12 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanWithinQuery;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithinQueryBuilder> {
-
     @Override
     protected SpanWithinQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2);
@@ -40,7 +38,6 @@ public class SpanWithinQueryBuilderTests extends AbstractQueryTestCase<SpanWithi
         assertThat(query, instanceOf(SpanWithinQuery.class));
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             new SpanWithinQueryBuilder(null, SpanTermQueryBuilder.PROTOTYPE);

@@ -45,17 +45,19 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
-import org.junit.Test;
 
 import java.nio.file.Path;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
@@ -65,11 +67,9 @@ import static org.hamcrest.Matchers.hasSize;
  */
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 public class ClusterRerouteIT extends ESIntegTestCase {
-
     private final ESLogger logger = Loggers.getLogger(ClusterRerouteIT.class);
 
-    @Test
-    public void rerouteWithCommands_disableAllocationSettings() throws Exception {
+    public void testRerouteWithCommands_disableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, "none")
@@ -77,8 +77,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         rerouteWithCommands(commonSettings);
     }
 
-    @Test
-    public void rerouteWithCommands_enableAllocationSettings() throws Exception {
+    public void testRerouteWithCommands_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
                 .build();
@@ -146,8 +145,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(state.getRoutingNodes().node(state.nodes().resolveNode(node_2).id()).get(0).state(), equalTo(ShardRoutingState.STARTED));
     }
 
-    @Test
-    public void rerouteWithAllocateLocalGateway_disableAllocationSettings() throws Exception {
+    public void testRerouteWithAllocateLocalGateway_disableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, "none")
@@ -155,15 +153,13 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         rerouteWithAllocateLocalGateway(commonSettings);
     }
 
-    @Test
-    public void rerouteWithAllocateLocalGateway_enableAllocationSettings() throws Exception {
+    public void testRerouteWithAllocateLocalGateway_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
     }
 
-    @Test
     public void testDelayWithALargeAmountOfShards() throws Exception {
         Settings commonSettings = settingsBuilder()
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CONCURRENT_RECOVERIES, 1)
@@ -264,8 +260,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void rerouteExplain() {
+    public void testRerouteExplain() {
         Settings commonSettings = settingsBuilder().build();
 
         logger.info("--> starting a node");
@@ -307,7 +302,6 @@ public class ClusterRerouteIT extends ESIntegTestCase {
         assertThat(explanation.decisions().type(), equalTo(Decision.Type.YES));
     }
 
-    @Test
     public void testClusterRerouteWithBlocks() throws Exception {
         List<String> nodesIds = internalCluster().startNodesAsync(2).get();
 

@@ -25,7 +25,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -36,23 +35,18 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
  * shards possibly not active at all (cause they haven't allocated) will still work.
  */
 public class SearchWhileCreatingIndexIT extends ESIntegTestCase {
-
-    @Test
     public void testIndexCausesIndexCreation() throws Exception {
         searchWhileCreatingIndex(false, 1); // 1 replica in our default...
     }
 
-    @Test
     public void testNoReplicas() throws Exception {
         searchWhileCreatingIndex(true, 0);
     }
 
-    @Test
     public void testOneReplica() throws Exception {
         searchWhileCreatingIndex(true, 1);
     }
 
-    @Test
     public void testTwoReplicas() throws Exception {
         searchWhileCreatingIndex(true, 2);
     }

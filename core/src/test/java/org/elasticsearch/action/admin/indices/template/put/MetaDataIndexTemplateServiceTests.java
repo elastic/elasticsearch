@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService.PutReques
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -39,7 +38,6 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MetaDataIndexTemplateServiceTests extends ESTestCase {
-    @Test
     public void testIndexTemplateInvalidNumberOfShards() {
         PutRequest request = new PutRequest("test", "test_shards");
         request.template("test_shards*");
@@ -54,7 +52,6 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
         assertThat(throwables.get(0).getMessage(), containsString("index must have 1 or more primary shards"));
     }
 
-    @Test
     public void testIndexTemplateValidationAccumulatesValidationErrors() {
         PutRequest request = new PutRequest("test", "putTemplate shards");
         request.template("_test_shards*");
@@ -77,12 +74,9 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 null,
                 null,
                 null,
-                null,
-                null,
                 Version.CURRENT,
                 null,
                 new HashSet<>(),
-                null,
                 null
         );
         MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, null);

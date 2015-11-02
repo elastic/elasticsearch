@@ -22,7 +22,6 @@ Each package features a configuration file, which allows you to set the followin
 `LOG_DIR`::               Log directory, defaults to `/var/log/elasticsearch`
 `DATA_DIR`::              Data directory, defaults to `/var/lib/elasticsearch`
 `CONF_DIR`::              Configuration file directory (which needs to include `elasticsearch.yml` and `logging.yml` files), defaults to `/etc/elasticsearch`
-`CONF_FILE`::             Path to configuration file, defaults to `/etc/elasticsearch/elasticsearch.yml`
 `ES_JAVA_OPTS`::          Any additional java options you may want to apply. This may be useful, if you need to set the `node.name` property, but do not want to change the `elasticsearch.yml` configuration file, because it is distributed via a provisioning system like puppet or chef. Example: `ES_JAVA_OPTS="-Des.node.name=search-01"`
 `RESTART_ON_UPGRADE`::    Configure restart on package upgrade, defaults to `false`. This means you will have to restart your elasticsearch instance after installing a package manually. The reason for this is to ensure, that upgrades in a cluster do not result in a continuous shard reallocation resulting in high network traffic and reducing the response times of your cluster.
 `ES_GC_LOG_FILE` ::       The absolute log file path for creating a garbage collection logfile, which is done by the JVM. Note that this logfile can grow pretty quick and thus is disabled by default.
@@ -39,6 +38,8 @@ The debian package does not start up the service by default. The reason for this
 sudo update-rc.d elasticsearch defaults 95 10
 sudo /etc/init.d/elasticsearch start
 --------------------------------------------------
+
+Users running Debian 8 or Ubuntu 14 or later may require configuration of systemd instead of `update-rc.d`. In those cases, please refer to the <<using-systemd>> section.
 
 [float]
 ===== Installing the oracle JDK
@@ -70,11 +71,11 @@ sudo /sbin/chkconfig --add elasticsearch
 sudo service elasticsearch start
 --------------------------------------------------
 
-
+[[using-systemd]]
 [float]
-===== Using systemd
+==== Using systemd
 
-Distributions like SUSE do not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services (at least in newer versions, otherwise use the `chkconfig` commands above). The configuration file is also placed at `/etc/sysconfig/elasticsearch`. After installing the RPM, you have to change the systemd configuration and then start up elasticsearch
+Distributions like Debian Jessie, Ubuntu 14, and many of the SUSE derivitives do not use the `chkconfig` tool to register services, but rather `systemd` and its command `/bin/systemctl` to start and stop services (at least in newer versions, otherwise use the `chkconfig` commands above). The configuration file is also placed at `/etc/sysconfig/elasticsearch` if the system is rpm based and `/etc/default/elasticsearch` if it is deb. After installing the RPM, you have to change the systemd configuration and then start up elasticsearch
 
 [source,sh]
 --------------------------------------------------

@@ -29,7 +29,6 @@ import org.elasticsearch.search.aggregations.bucket.range.Range.Bucket;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -123,8 +122,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void simple() throws Exception {
+    public void testSimple() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(geoDistance("amsterdam_rings")
                         .field("location")
@@ -146,7 +144,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
-        assertThat((String) (String) bucket.getKey(), equalTo("*-500.0"));
+        assertThat((String) bucket.getKey(), equalTo("*-500.0"));
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(0.0));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(500.0));
         assertThat(bucket.getFromAsString(), equalTo("0.0"));
@@ -155,7 +153,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
 
         bucket = buckets.get(1);
         assertThat(bucket, notNullValue());
-        assertThat((String) (String) bucket.getKey(), equalTo("500.0-1000.0"));
+        assertThat((String) bucket.getKey(), equalTo("500.0-1000.0"));
         assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(500.0));
         assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(1000.0));
         assertThat(bucket.getFromAsString(), equalTo("500.0"));
@@ -172,8 +170,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1l));
     }
 
-    @Test
-    public void simple_WithCustomKeys() throws Exception {
+    public void testSimpleWithCustomKeys() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(geoDistance("amsterdam_rings")
                         .field("location")
@@ -221,8 +218,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1l));
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
 
         SearchResponse response = client().prepareSearch("idx_unmapped")
@@ -272,8 +268,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(geoDistance("amsterdam_rings")
                         .field("location")
@@ -321,9 +316,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(1l));
     }
 
-
-    @Test
-    public void withSubAggregation() throws Exception {
+    public void testWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(geoDistance("amsterdam_rings")
                         .field("location")
@@ -409,8 +402,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat((Terms) propertiesCities[2], sameInstance(cities));
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field("value").interval(1l).minDocCount(0)
@@ -437,8 +429,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
         assertThat(buckets.get(0).getDocCount(), equalTo(0l));
     }
 
-    @Test
-    public void multiValues() throws Exception {
+    public void testMultiValues() throws Exception {
         SearchResponse response = client().prepareSearch("idx-multi")
                 .addAggregation(geoDistance("amsterdam_rings")
                         .field("location")

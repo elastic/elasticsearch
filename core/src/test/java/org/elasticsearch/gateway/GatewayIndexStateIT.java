@@ -34,12 +34,11 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster.RestartCallback;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
@@ -50,9 +49,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
 
     private final ESLogger logger = Loggers.getLogger(GatewayIndexStateIT.class);
 
-    @Test
     public void testMappingMetaDataParsed() throws Exception {
-
         logger.info("--> starting 1 nodes");
         internalCluster().startNode();
 
@@ -79,9 +76,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(mappingMd.routing().required(), equalTo(true));
     }
 
-    @Test
     public void testSimpleOpenClose() throws Exception {
-
         logger.info("--> starting 2 nodes");
         internalCluster().startNodesAsync(2).get();
 
@@ -94,7 +89,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
         assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(test.totalNumShards));
 
@@ -105,7 +100,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().admin().indices().prepareClose("test").get();
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> verifying that the state is green");
@@ -131,7 +126,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
         assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(test.totalNumShards));
 
@@ -142,7 +137,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         logger.info("--> closing test index...");
         client().admin().indices().prepareClose("test").execute().actionGet();
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> restarting nodes...");
@@ -151,7 +146,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> trying to index into a closed index ...");
@@ -169,7 +164,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(test.numPrimaries));
         assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(test.totalNumShards));
 
@@ -181,7 +176,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "2").setSource("field1", "value1").execute().actionGet();
     }
 
-    @Test
     public void testJustMasterNode() throws Exception {
         logger.info("--> cleaning nodes");
 
@@ -206,7 +200,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(clusterStateResponse.getState().metaData().hasIndex("test"), equalTo(true));
     }
 
-    @Test
     public void testJustMasterNodeAndJustDataNode() throws Exception {
         logger.info("--> cleaning nodes");
 
@@ -223,7 +216,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1").setSource("field1", "value1").setTimeout("100ms").execute().actionGet();
     }
 
-    @Test
     public void testTwoNodesSingleDoc() throws Exception {
         logger.info("--> cleaning nodes");
 
@@ -246,7 +238,7 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         client().admin().indices().prepareClose("test").execute().actionGet();
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().execute().actionGet();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> opening the index...");
@@ -263,7 +255,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDanglingIndicesConflictWithAlias() throws Exception {
         logger.info("--> starting two nodes");
         internalCluster().startNodesAsync(2).get();
@@ -323,7 +314,6 @@ public class GatewayIndexStateIT extends ESIntegTestCase {
         assertThat(client().prepareGet("test", "type1", "1").execute().actionGet().isExists(), equalTo(true));
     }
 
-    @Test
     public void testDanglingIndices() throws Exception {
         logger.info("--> starting two nodes");
 

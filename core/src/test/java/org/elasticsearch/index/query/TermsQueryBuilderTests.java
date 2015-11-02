@@ -19,8 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -30,7 +28,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -39,15 +36,15 @@ import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.indices.cache.query.terms.TermsLookup;
 import org.hamcrest.Matchers;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
-
     private List<Object> randomTerms;
     private String termsPath;
 
@@ -128,21 +125,28 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         assertEquals(expectedTerms + " vs. " + booleanTerms, expectedTerms, booleanTerms);
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testEmtpyFieldName() {
-        if (randomBoolean()) {
-            new TermsQueryBuilder(null, "term");
-        } else {
-            new TermsQueryBuilder("", "term");
+        try {
+            if (randomBoolean()) {
+                new TermsQueryBuilder(null, "term");
+            } else {
+                new TermsQueryBuilder("", "term");
+            }
+            fail("Expected IllegalArgumentException");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("field name cannot be null."));
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testEmtpyTermsLookup() {
-        new TermsQueryBuilder("field", (TermsLookup) null);
+        try {
+            new TermsQueryBuilder("field", (TermsLookup) null);
+            fail("Expected IllegalArgumentException");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("No value or termsLookup specified for terms query"));
+        }
     }
 
-    @Test
     public void testNullValues() {
         try {
             switch (randomInt(6)) {
@@ -174,7 +178,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
-    @Test(expected=IllegalArgumentException.class)
     public void testBothValuesAndLookupSet() throws IOException {
         String query = "{\n" +
                 "  \"terms\": {\n" +
@@ -190,61 +193,12 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 "    }\n" +
                 "  }\n" +
                 "}";
-        QueryBuilder termsQueryBuilder = parseQuery(query);
-    }
-
-    public void testDeprecatedXContent() throws IOException {
-        String query = "{\n" +
-                "  \"terms\": {\n" +
-                "    \"field\": [\n" +
-                "      \"blue\",\n" +
-                "      \"pill\"\n" +
-                "    ],\n" +
-                "    \"disable_coord\": true\n" +
-                "  }\n" +
-                "}";
         try {
             parseQuery(query);
-            fail("disable_coord is deprecated");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [disable_coord] used, replaced by [Use [bool] query instead]", ex.getMessage());
+            fail("Expected IllegalArgumentException");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("Both values and termsLookup specified for terms query"));
         }
-
-        TermsQueryBuilder queryBuilder = (TermsQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
-        TermsQueryBuilder copy = assertSerialization(queryBuilder);
-        assertTrue(queryBuilder.disableCoord());
-        assertTrue(copy.disableCoord());
-        Query luceneQuery = queryBuilder.toQuery(createShardContext());
-        assertThat(luceneQuery, instanceOf(BooleanQuery.class));
-        BooleanQuery booleanQuery = (BooleanQuery) luceneQuery;
-        assertThat(booleanQuery.isCoordDisabled(), equalTo(true));
-
-        String randomMinShouldMatch = RandomPicks.randomFrom(random(), Arrays.asList("min_match", "min_should_match", "minimum_should_match"));
-        query = "{\n" +
-                "  \"terms\": {\n" +
-                "    \"field\": [\n" +
-                "      \"value1\",\n" +
-                "      \"value2\",\n" +
-                "      \"value3\",\n" +
-                "      \"value4\"\n" +
-                "    ],\n" +
-                "    \"" + randomMinShouldMatch +"\": \"25%\"\n" +
-                "  }\n" +
-                "}";
-        try {
-            parseQuery(query);
-            fail(randomMinShouldMatch + " is deprecated");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [" + randomMinShouldMatch + "] used, replaced by [Use [bool] query instead]", ex.getMessage());
-        }
-        queryBuilder = (TermsQueryBuilder) parseQuery(query, ParseFieldMatcher.EMPTY);
-        copy = assertSerialization(queryBuilder);
-        assertEquals("25%", queryBuilder.minimumShouldMatch());
-        assertEquals("25%", copy.minimumShouldMatch());
-        luceneQuery = queryBuilder.toQuery(createShardContext());
-        assertThat(luceneQuery, instanceOf(BooleanQuery.class));
-        booleanQuery = (BooleanQuery) luceneQuery;
-        assertThat(booleanQuery.getMinimumNumberShouldMatch(), equalTo(1));
     }
 
     @Override
@@ -289,7 +243,6 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
         }
     }
 
-    @Test
     public void testTermsQueryWithMultipleFields() throws IOException {
         String query = XContentFactory.jsonBuilder().startObject()
                 .startObject("terms").array("foo", 123).array("bar", 456).endObject()

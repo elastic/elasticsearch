@@ -20,7 +20,6 @@
 package org.elasticsearch.index.mapper.multifield;
 
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
-import org.elasticsearch.action.count.CountResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -28,22 +27,22 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Map;
 
-import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.constantScoreQuery;
+import static org.elasticsearch.index.query.QueryBuilders.geoDistanceQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
 public class MultiFieldsIntegrationIT extends ESIntegTestCase {
-
-    @Test
     public void testMultiFields() throws Exception {
         assertAcked(
             client().admin().indices().prepareCreate("my-index")
@@ -101,7 +100,6 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testGeoPointMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
@@ -124,15 +122,14 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "51,19").setRefresh(true).get();
-        CountResponse countResponse = client().prepareCount("my-index")
+        SearchResponse countResponse = client().prepareSearch("my-index").setSize(0)
                 .setQuery(constantScoreQuery(geoDistanceQuery("a").point(51, 19).distance(50, DistanceUnit.KILOMETERS)))
                 .get();
-        assertThat(countResponse.getCount(), equalTo(1l));
-        countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "51,19")).get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
+        countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "51,19")).get();
+        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testTokenCountMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
@@ -167,11 +164,10 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "my tokens").setRefresh(true).get();
-        CountResponse countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "my tokens")).get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "my tokens")).get();
+        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testCompletionMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
@@ -193,11 +189,10 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "complete me").setRefresh(true).get();
-        CountResponse countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "complete me")).get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "complete me")).get();
+        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
     }
 
-    @Test
     public void testIpMultiField() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("my-index")
@@ -219,8 +214,8 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "127.0.0.1").setRefresh(true).get();
-        CountResponse countResponse = client().prepareCount("my-index").setQuery(matchQuery("a.b", "127.0.0.1")).get();
-        assertThat(countResponse.getCount(), equalTo(1l));
+        SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "127.0.0.1")).get();
+        assertThat(countResponse.getHits().totalHits(), equalTo(1l));
     }
 
     private XContentBuilder createMappingSource(String fieldType) throws IOException {

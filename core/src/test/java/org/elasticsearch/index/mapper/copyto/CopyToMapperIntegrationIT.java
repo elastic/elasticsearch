@@ -27,7 +27,6 @@ import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -37,9 +36,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class CopyToMapperIntegrationIT extends ESIntegTestCase {
-
-
-    @Test
     public void testDynamicTemplateCopyTo() throws Exception {
         assertAcked(
                 client().admin().indices().prepareCreate("test-idx")
@@ -56,7 +52,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
         client().admin().indices().prepareRefresh("test-idx").execute().actionGet();
 
         SubAggCollectionMode aggCollectionMode = randomFrom(SubAggCollectionMode.values());
-        
+
         SearchResponse response = client().prepareSearch("test-idx")
                 .setQuery(QueryBuilders.termQuery("even", true))
                 .addAggregation(AggregationBuilders.terms("test").field("test_field").size(recordCount * 2)

@@ -87,4 +87,10 @@ public interface Discovery extends LifecycleComponent<Discovery> {
             super(msg, cause, args);
         }
     }
+
+    /**
+     * @return stats about the discovery
+     */
+    DiscoveryStats stats();
+
 }

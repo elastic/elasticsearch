@@ -23,11 +23,9 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.de.GermanStemFilter;
 import org.apache.lucene.analysis.miscellaneous.SetKeywordMarkerFilter;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
@@ -36,9 +34,8 @@ public class GermanStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final CharArraySet exclusions;
 
-    @Inject
-    public GermanStemTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public GermanStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.exclusions = Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET);
     }
 

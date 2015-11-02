@@ -6,7 +6,7 @@ binary packages, but no source packages, as the packages are created as part of 
 build.
 
 We have split the major versions in separate urls to avoid accidental upgrades across major version.
-For all 0.90.x releases use 0.90 as version number, for 1.0.x use 1.0, for 1.1.x use 1.1 etc.
+For all 2.x releases use 2.x as version number, for 3.x.y use 3.x etc...
 
 We use the PGP key https://pgp.mit.edu/pks/lookup?op=vindex&search=0xD27D666CD88E42B4[D88E42B4],
 Elasticsearch Signing Key, with fingerprint
@@ -25,11 +25,11 @@ Download and install the Public Signing Key:
 wget -qO - https://packages.elastic.co/GPG-KEY-elasticsearch | sudo apt-key add -
 --------------------------------------------------
 
-Save the repository definition to  `/etc/apt/sources.list.d/elasticsearch-{branch}.list`:
+Save the repository definition to  +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+:
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-echo "deb http://packages.elastic.co/elasticsearch/{branch}/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-{branch}.list
+echo "deb http://packages.elastic.co/elasticsearch/{major-version}/debian stable main" | sudo tee -a /etc/apt/sources.list.d/elasticsearch-{major-version}.list
 --------------------------------------------------
 
 [WARNING]
@@ -57,9 +57,9 @@ If two entries exist for the same Elasticsearch repository, you will see an erro
 
 ["literal",subs="attributes,callouts"]
 
-Duplicate sources.list entry http://packages.elastic.co/elasticsearch/{branch}/debian/ ...`
+Duplicate sources.list entry http://packages.elastic.co/elasticsearch/{major-version}/debian/ ...`
 
-Examine +/etc/apt/sources.list.d/elasticsearch-{branch}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
+Examine +/etc/apt/sources.list.d/elasticsearch-{major-version}.list+ for the duplicate entry or locate the duplicate entry amongst the files in `/etc/apt/sources.list.d/` and the `/etc/apt/sources.list` file.
 ==================================================
 
 Configure Elasticsearch to automatically start during bootup. If your
@@ -93,9 +93,9 @@ in a file with a `.repo` suffix, for example `elasticsearch.repo`
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-[elasticsearch-{branch}]
-name=Elasticsearch repository for {branch}.x packages
-baseurl=http://packages.elastic.co/elasticsearch/{branch}/centos
+[elasticsearch-{major-version}]
+name=Elasticsearch repository for {major-version} packages
+baseurl=http://packages.elastic.co/elasticsearch/{major-version}/centos
 gpgcheck=1
 gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1

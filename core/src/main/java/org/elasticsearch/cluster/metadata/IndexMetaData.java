@@ -21,7 +21,6 @@ package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.Diffable;
@@ -29,8 +28,6 @@ import org.elasticsearch.cluster.DiffableUtils;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.node.DiscoveryNodeFilters;
-import org.elasticsearch.cluster.routing.HashFunction;
-import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -167,16 +164,12 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     public static final String SETTING_PRIORITY = "index.priority";
     public static final String SETTING_CREATION_DATE_STRING = "index.creation_date_string";
     public static final String SETTING_INDEX_UUID = "index.uuid";
-    public static final String SETTING_LEGACY_ROUTING_HASH_FUNCTION = "index.legacy.routing.hash.type";
-    public static final String SETTING_LEGACY_ROUTING_USE_TYPE = "index.legacy.routing.use_type";
     public static final String SETTING_DATA_PATH = "index.data_path";
     public static final String SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE = "index.shared_filesystem.recover_on_any_node";
     public static final String INDEX_UUID_NA_VALUE = "_na_";
 
-
-    // hard-coded hash function as of 2.0
-    // older indices will read which hash function to use in their index settings
-    private static final HashFunction MURMUR3_HASH_FUNCTION = new Murmur3HashFunction();
+    private final int numberOfShards;
+    private final int numberOfReplicas;
 
     private final String index;
     private final long version;
@@ -200,15 +193,24 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
     private final Version indexCreatedVersion;
     private final Version indexUpgradedVersion;
     private final org.apache.lucene.util.Version minimumCompatibleLuceneVersion;
-    private final HashFunction routingHashFunction;
-    private final boolean useTypeForRouting;
 
     private IndexMetaData(String index, long version, State state, Settings settings, ImmutableOpenMap<String, MappingMetaData> mappings, ImmutableOpenMap<String, AliasMetaData> aliases, ImmutableOpenMap<String, Custom> customs) {
-        if (settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null) == null) {
+        Integer maybeNumberOfShards = settings.getAsInt(SETTING_NUMBER_OF_SHARDS, null);
+        if (maybeNumberOfShards == null) {
             throw new IllegalArgumentException("must specify numberOfShards for index [" + index + "]");
         }
-        if (settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null) == null) {
+        int numberOfShards = maybeNumberOfShards;
+        if (numberOfShards <= 0) {
+            throw new IllegalArgumentException("must specify positive number of shards for index [" + index + "]");
+        }
+
+        Integer maybeNumberOfReplicas = settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, null);
+        if (maybeNumberOfReplicas == null) {
             throw new IllegalArgumentException("must specify numberOfReplicas for index [" + index + "]");
+        }
+        int numberOfReplicas = maybeNumberOfReplicas;
+        if (numberOfReplicas < 0) {
+            throw new IllegalArgumentException("must specify non-negative number of shards for index [" + index + "]");
         }
         this.index = index;
         this.version = version;
@@ -216,7 +218,9 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         this.settings = settings;
         this.mappings = mappings;
         this.customs = customs;
-        this.totalNumberOfShards = numberOfShards() * (numberOfReplicas() + 1);
+        this.numberOfShards = numberOfShards;
+        this.numberOfReplicas = numberOfReplicas;
+        this.totalNumberOfShards = numberOfShards * (numberOfReplicas + 1);
         this.aliases = aliases;
 
         Map<String, String> requireMap = settings.getByPrefix("index.routing.allocation.require.").getAsMap();
@@ -249,39 +253,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         } else {
             this.minimumCompatibleLuceneVersion = null;
         }
-        final String hashFunction = settings.get(SETTING_LEGACY_ROUTING_HASH_FUNCTION);
-        if (hashFunction == null) {
-            routingHashFunction = MURMUR3_HASH_FUNCTION;
-        } else {
-            final Class<? extends HashFunction> hashFunctionClass;
-            try {
-                hashFunctionClass = Class.forName(hashFunction).asSubclass(HashFunction.class);
-            } catch (ClassNotFoundException|NoClassDefFoundError e) {
-                throw new ElasticsearchException("failed to load custom hash function [" + hashFunction + "]", e);
-            }
-            try {
-                routingHashFunction = hashFunctionClass.newInstance();
-            } catch (InstantiationException | IllegalAccessException e) {
-                throw new IllegalStateException("Cannot instantiate hash function", e);
-            }
-        }
-        useTypeForRouting = settings.getAsBoolean(SETTING_LEGACY_ROUTING_USE_TYPE, false);
-    }
-
-    public String index() {
-        return index;
     }
 
     public String getIndex() {
-        return index();
-    }
-
-    public String indexUUID() {
-        return settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
+        return index;
     }
 
     public String getIndexUUID() {
-        return indexUUID();
+        return settings.get(SETTING_INDEX_UUID, INDEX_UUID_NA_VALUE);
     }
 
     /**
@@ -289,15 +268,11 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
      */
     public boolean isSameUUID(String otherUUID) {
         assert otherUUID != null;
-        assert indexUUID() != null;
-        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(indexUUID())) {
+        assert getIndexUUID() != null;
+        if (INDEX_UUID_NA_VALUE.equals(otherUUID) || INDEX_UUID_NA_VALUE.equals(getIndexUUID())) {
             return true;
         }
         return otherUUID.equals(getIndexUUID());
-    }
-
-    public long version() {
-        return this.version;
     }
 
     public long getVersion() {
@@ -308,24 +283,16 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
      * Return the {@link Version} on which this index has been created. This
      * information is typically useful for backward compatibility.
      */
-    public Version creationVersion() {
-        return indexCreatedVersion;
-    }
-
     public Version getCreationVersion() {
-        return creationVersion();
+        return indexCreatedVersion;
     }
 
     /**
      * Return the {@link Version} on which this index has been upgraded. This
      * information is typically useful for backward compatibility.
      */
-    public Version upgradeVersion() {
+    public Version getUpgradedVersion() {
         return indexUpgradedVersion;
-    }
-
-    public Version getUpgradeVersion() {
-        return upgradeVersion();
     }
 
     /**
@@ -335,91 +302,36 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         return minimumCompatibleLuceneVersion;
     }
 
-    /**
-     * Return the {@link HashFunction} that should be used for routing.
-     */
-    public HashFunction routingHashFunction() {
-        return routingHashFunction;
-    }
-
-    public HashFunction getRoutingHashFunction() {
-        return routingHashFunction();
-    }
-
-    /**
-     * Return whether routing should use the _type in addition to the _id in
-     * order to decide which shard a document should go to.
-     */
-    public boolean routingUseType() {
-        return useTypeForRouting;
-    }
-
-    public boolean getRoutingUseType() {
-        return routingUseType();
-    }
-
-    public long creationDate() {
+    public long getCreationDate() {
         return settings.getAsLong(SETTING_CREATION_DATE, -1l);
     }
 
-    public long getCreationDate() {
-        return creationDate();
-    }
-
-    public State state() {
+    public State getState() {
         return this.state;
     }
 
-    public State getState() {
-        return state();
-    }
-
-    public int numberOfShards() {
-        return settings.getAsInt(SETTING_NUMBER_OF_SHARDS, -1);
-    }
-
     public int getNumberOfShards() {
-        return numberOfShards();
-    }
-
-    public int numberOfReplicas() {
-        return settings.getAsInt(SETTING_NUMBER_OF_REPLICAS, -1);
+        return numberOfShards;
     }
 
     public int getNumberOfReplicas() {
-        return numberOfReplicas();
-    }
-
-    public int totalNumberOfShards() {
-        return totalNumberOfShards;
+        return numberOfReplicas;
     }
 
     public int getTotalNumberOfShards() {
-        return totalNumberOfShards();
-    }
-
-    public Settings settings() {
-        return settings;
+        return totalNumberOfShards;
     }
 
     public Settings getSettings() {
-        return settings();
-    }
-
-    public ImmutableOpenMap<String, AliasMetaData> aliases() {
-        return this.aliases;
+        return settings;
     }
 
     public ImmutableOpenMap<String, AliasMetaData> getAliases() {
-        return aliases();
-    }
-
-    public ImmutableOpenMap<String, MappingMetaData> mappings() {
-        return mappings;
+        return this.aliases;
     }
 
     public ImmutableOpenMap<String, MappingMetaData> getMappings() {
-        return mappings();
+        return mappings;
     }
 
     @Nullable
@@ -441,10 +353,6 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             return mapping;
         }
         return mappings.get(MapperService.DEFAULT_MAPPING);
-    }
-
-    public ImmutableOpenMap<String, Custom> customs() {
-        return this.customs;
     }
 
     public ImmutableOpenMap<String, Custom> getCustoms() {
@@ -670,10 +578,10 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public Builder(IndexMetaData indexMetaData) {
-            this.index = indexMetaData.index();
+            this.index = indexMetaData.getIndex();
             this.state = indexMetaData.state;
             this.version = indexMetaData.version;
-            this.settings = indexMetaData.settings();
+            this.settings = indexMetaData.getSettings();
             this.mappings = ImmutableOpenMap.builder(indexMetaData.mappings);
             this.aliases = ImmutableOpenMap.builder(indexMetaData.aliases);
             this.customs = ImmutableOpenMap.builder(indexMetaData.customs);
@@ -810,21 +718,21 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
         }
 
         public static void toXContent(IndexMetaData indexMetaData, XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject(indexMetaData.index(), XContentBuilder.FieldCaseConversion.NONE);
+            builder.startObject(indexMetaData.getIndex(), XContentBuilder.FieldCaseConversion.NONE);
 
-            builder.field("version", indexMetaData.version());
-            builder.field("state", indexMetaData.state().toString().toLowerCase(Locale.ENGLISH));
+            builder.field("version", indexMetaData.getVersion());
+            builder.field("state", indexMetaData.getState().toString().toLowerCase(Locale.ENGLISH));
 
             boolean binary = params.paramAsBoolean("binary", false);
 
             builder.startObject("settings");
-            for (Map.Entry<String, String> entry : indexMetaData.settings().getAsMap().entrySet()) {
+            for (Map.Entry<String, String> entry : indexMetaData.getSettings().getAsMap().entrySet()) {
                 builder.field(entry.getKey(), entry.getValue());
             }
             builder.endObject();
 
             builder.startArray("mappings");
-            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.mappings()) {
+            for (ObjectObjectCursor<String, MappingMetaData> cursor : indexMetaData.getMappings()) {
                 if (binary) {
                     builder.value(cursor.value.source().compressed());
                 } else {
@@ -837,14 +745,14 @@ public class IndexMetaData implements Diffable<IndexMetaData>, FromXContentBuild
             }
             builder.endArray();
 
-            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.customs()) {
+            for (ObjectObjectCursor<String, Custom> cursor : indexMetaData.getCustoms()) {
                 builder.startObject(cursor.key, XContentBuilder.FieldCaseConversion.NONE);
                 cursor.value.toXContent(builder, params);
                 builder.endObject();
             }
 
             builder.startObject("aliases");
-            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.aliases().values()) {
+            for (ObjectCursor<AliasMetaData> cursor : indexMetaData.getAliases().values()) {
                 AliasMetaData.Builder.toXContent(cursor.value, builder, params);
             }
             builder.endObject();

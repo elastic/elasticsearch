@@ -31,7 +31,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms.Order;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.InternalBucketMetricValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -52,7 +51,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class PercolatorAggregationsIT extends ESIntegTestCase {
 
-    @Test
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregations() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
@@ -118,7 +116,6 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregationsAndPipelineAggregations() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
@@ -194,7 +191,6 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testSignificantAggs() throws Exception {
         client().admin().indices().prepareCreate("test").execute().actionGet();
         ensureGreen();
@@ -205,7 +201,6 @@ public class PercolatorAggregationsIT extends ESIntegTestCase {
         assertNoFailures(response);
     }
 
-    @Test
     public void testSingleShardAggregations() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("SETTING_NUMBER_OF_SHARDS", 1))
                 .addMapping("type", "field1", "type=string", "field2", "type=string"));

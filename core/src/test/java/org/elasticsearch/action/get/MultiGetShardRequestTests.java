@@ -24,7 +24,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -32,8 +31,6 @@ import static org.elasticsearch.test.VersionUtils.randomVersion;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 public class MultiGetShardRequestTests extends ESTestCase {
-
-    @Test
     public void testSerialization() throws IOException {
         MultiGetRequest multiGetRequest = new MultiGetRequest();
         if (randomBoolean()) {

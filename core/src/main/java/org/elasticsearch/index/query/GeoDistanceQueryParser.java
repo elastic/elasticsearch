@@ -130,8 +130,13 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
                 } else if ("validation_method".equals(currentFieldName)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
-                    point.resetFromString(parser.text());
-                    fieldName = currentFieldName;
+                    if (fieldName == null) {
+                        point.resetFromString(parser.text());
+                        fieldName = currentFieldName;
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "[" + GeoDistanceQueryBuilder.NAME +
+                                "] field name already set to [" + fieldName + "] but found [" + currentFieldName + "]");
+                    }
                 }
             }
         }

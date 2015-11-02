@@ -35,7 +35,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndexPrimaryShardNotAllocatedException;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -46,10 +45,8 @@ import static org.hamcrest.Matchers.nullValue;
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
 public class SimpleIndexStateIT extends ESIntegTestCase {
-
     private final ESLogger logger = Loggers.getLogger(SimpleIndexStateIT.class);
 
-    @Test
     public void testSimpleOpenClose() {
         logger.info("--> creating test index");
         createIndex("test");
@@ -60,7 +57,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
         assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(numShards.totalNumShards));
 
@@ -72,7 +69,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         assertThat(closeIndexResponse.isAcknowledged(), equalTo(true));
 
         stateResponse = client().admin().cluster().prepareState().get();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.CLOSE));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.CLOSE));
         assertThat(stateResponse.getState().routingTable().index("test"), nullValue());
 
         logger.info("--> trying to index into a closed index ...");
@@ -91,7 +88,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         ensureGreen();
 
         stateResponse = client().admin().cluster().prepareState().get();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.OPEN));
 
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
         assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(numShards.totalNumShards));
@@ -100,7 +97,6 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
     }
 
-    @Test
     public void testFastCloseAfterCreateDoesNotClose() {
         logger.info("--> creating test index that cannot be allocated");
         client().admin().indices().prepareCreate("test").setSettings(Settings.settingsBuilder()
@@ -127,7 +123,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         NumShards numShards = getNumShards("test");
 
         ClusterStateResponse stateResponse = client().admin().cluster().prepareState().get();
-        assertThat(stateResponse.getState().metaData().index("test").state(), equalTo(IndexMetaData.State.OPEN));
+        assertThat(stateResponse.getState().metaData().index("test").getState(), equalTo(IndexMetaData.State.OPEN));
         assertThat(stateResponse.getState().routingTable().index("test").shards().size(), equalTo(numShards.numPrimaries));
         assertThat(stateResponse.getState().routingTable().index("test").shardsWithState(ShardRoutingState.STARTED).size(), equalTo(numShards.totalNumShards));
 
@@ -135,9 +131,7 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
     }
 
-    @Test
     public void testConsistencyAfterIndexCreationFailure() {
-
         logger.info("--> deleting test index....");
         try {
             client().admin().indices().prepareDelete("test").get();
@@ -157,5 +151,4 @@ public class SimpleIndexStateIT extends ESIntegTestCase {
         CreateIndexResponse response = client().admin().indices().prepareCreate("test").setSettings(settingsBuilder().put("number_of_shards", 1)).get();
         assertThat(response.isAcknowledged(), equalTo(true));
     }
-
 }

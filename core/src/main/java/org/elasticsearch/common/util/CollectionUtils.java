@@ -23,15 +23,12 @@ import com.carrotsearch.hppc.DoubleArrayList;
 import com.carrotsearch.hppc.FloatArrayList;
 import com.carrotsearch.hppc.LongArrayList;
 import com.carrotsearch.hppc.ObjectArrayList;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.util.*;
 
 import java.util.*;
 
 /** Collections-related utility methods. */
-public enum CollectionUtils {
-    CollectionUtils;
-
+public class CollectionUtils {
     public static void sort(LongArrayList list) {
         sort(list.buffer, list.size());
     }
@@ -366,13 +363,6 @@ public enum CollectionUtils {
 
     }
 
-    /**
-     * Combines multiple iterators into a single iterator.
-     */
-    public static <T> Iterator<T> concat(Iterator<? extends T>... iterators) {
-        return Iterators.<T>concat(iterators);
-    }
-
     public static <E> ArrayList<E> iterableAsArrayList(Iterable<? extends E> elements) {
         if (elements == null) {
             throw new NullPointerException("elements");
@@ -457,5 +447,4 @@ public enum CollectionUtils {
 
         return result;
     }
-
 }

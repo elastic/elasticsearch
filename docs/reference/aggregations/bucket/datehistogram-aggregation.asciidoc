@@ -281,7 +281,7 @@ had a value.
 {
     "aggs" : {
         "publish_date" : {
-             "datehistogram" : {
+             "date_histogram" : {
                  "field" : "publish_date",
                  "interval": "year",
                  "missing": "2000-01-01" <1>

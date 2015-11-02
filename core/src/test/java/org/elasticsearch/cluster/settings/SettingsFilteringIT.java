@@ -28,7 +28,6 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -85,10 +84,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         }
     }
 
-
-    @Test
     public void testSettingsFiltering() {
-
         assertAcked(client().admin().indices().prepareCreate("test-idx").setSettings(Settings.builder()
                 .put("filter_test.foo", "test")
                 .put("filter_test.bar1", "test")
@@ -105,5 +101,4 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         assertThat(settings.get("index.filter_test.notbar"), equalTo("test"));
         assertThat(settings.get("index.filter_test.notfoo"), equalTo("test"));
     }
-
 }

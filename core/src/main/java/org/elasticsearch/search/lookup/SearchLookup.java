@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.lookup;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -36,17 +35,10 @@ public class SearchLookup {
 
     final FieldsLookup fieldsLookup;
 
-    final IndexLookup indexLookup;
-
-    final ImmutableMap<String, Object> asMap;
-
     public SearchLookup(MapperService mapperService, IndexFieldDataService fieldDataService, @Nullable String[] types) {
-        ImmutableMap.Builder<String, Object> builder = ImmutableMap.builder();
         docMap = new DocLookup(mapperService, fieldDataService, types);
         sourceLookup = new SourceLookup();
         fieldsLookup = new FieldsLookup(mapperService, types);
-        indexLookup = new IndexLookup(builder);
-        asMap = builder.build();
     }
 
     public LeafSearchLookup getLeafSearchLookup(LeafReaderContext context) {
@@ -54,8 +46,8 @@ public class SearchLookup {
                 docMap.getLeafDocLookup(context),
                 sourceLookup,
                 fieldsLookup.getLeafFieldsLookup(context),
-                indexLookup.getLeafIndexLookup(context),
-                asMap);
+                IndexLookup.getLeafIndexLookup(context),
+                IndexLookup.NAMES);
     }
 
     public DocLookup doc() {

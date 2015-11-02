@@ -20,6 +20,8 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -121,6 +123,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
 
     /** Add several fields to run the query against with a specific boost. */
     public SimpleQueryStringBuilder fields(Map<String, Float> fields) {
+        Objects.requireNonNull(fields, "fields cannot be null");
         this.fieldsAndWeights.putAll(fields);
         return this;
     }
@@ -284,8 +287,20 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
-        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
-            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
+        if (query instanceof BooleanQuery) {
+            BooleanQuery booleanQuery = (BooleanQuery) query;
+            if (booleanQuery.clauses().size() > 1
+                    && ((booleanQuery.clauses().iterator().next().getQuery() instanceof BooleanQuery) == false)) {
+                // special case for one term query and more than one field: (f1:t1 f2:t1 f3:t1)
+                // we need to wrap this in additional BooleanQuery so minimum_should_match is applied correctly
+                BooleanQuery.Builder builder = new BooleanQuery.Builder();
+                builder.add(new BooleanClause(booleanQuery, Occur.SHOULD));
+                booleanQuery = builder.build();
+            }
+            if (minimumShouldMatch != null) {
+                booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+            }
+            query = booleanQuery;
         }
         return query;
     }

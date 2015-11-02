@@ -19,15 +19,20 @@
 
 package org.elasticsearch.indices.fielddata.cache;
 
-import com.google.common.cache.*;
-import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.util.Accountable;
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.cache.RemovalListener;
+import org.elasticsearch.common.cache.RemovalNotification;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
@@ -43,13 +48,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.ToLongBiFunction;
 
 /**
  */
 public class IndicesFieldDataCache extends AbstractComponent implements RemovalListener<IndicesFieldDataCache.Key, Accountable> {
 
     public static final String FIELDDATA_CLEAN_INTERVAL_SETTING = "indices.fielddata.cache.cleanup_interval";
-    public static final String FIELDDATA_CACHE_CONCURRENCY_LEVEL = "indices.fielddata.cache.concurrency_level";
     public static final String INDICES_FIELDDATA_CACHE_SIZE_KEY = "indices.fielddata.cache.size";
 
 
@@ -66,17 +71,11 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         this.indicesFieldDataCacheListener = indicesFieldDataCacheListener;
         final String size = settings.get(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1");
         final long sizeInBytes = settings.getAsMemory(INDICES_FIELDDATA_CACHE_SIZE_KEY, "-1").bytes();
-        CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.newBuilder()
+        CacheBuilder<Key, Accountable> cacheBuilder = CacheBuilder.<Key, Accountable>builder()
                 .removalListener(this);
         if (sizeInBytes > 0) {
-            cacheBuilder.maximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
+            cacheBuilder.setMaximumWeight(sizeInBytes).weigher(new FieldDataWeigher());
         }
-        // defaults to 4, but this is a busy map for all indices, increase it a bit by default
-        final int concurrencyLevel =  settings.getAsInt(FIELDDATA_CACHE_CONCURRENCY_LEVEL, 16);
-        if (concurrencyLevel <= 0) {
-            throw new IllegalArgumentException("concurrency_level must be > 0 but was: " + concurrencyLevel);
-        }
-        cacheBuilder.concurrencyLevel(concurrencyLevel);
 
         logger.debug("using size [{}] [{}]", size, new ByteSizeValue(sizeInBytes));
         cache = cacheBuilder.build();
@@ -108,7 +107,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         final Accountable value = notification.getValue();
         for (IndexFieldDataCache.Listener listener : key.listeners) {
             try {
-                listener.onRemoval(key.shardId, indexCache.fieldNames, indexCache.fieldDataType, notification.wasEvicted(), value.ramBytesUsed());
+                listener.onRemoval(key.shardId, indexCache.fieldNames, indexCache.fieldDataType, notification.getRemovalReason() == RemovalNotification.RemovalReason.EVICTED, value.ramBytesUsed());
             } catch (Throwable e) {
                 // load anyway since listeners should not throw exceptions
                 logger.error("Failed to call listener on field data cache unloading", e);
@@ -116,10 +115,9 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
     }
 
-    public static class FieldDataWeigher implements Weigher<Key, Accountable> {
-
+    public static class FieldDataWeigher implements ToLongBiFunction<Key, Accountable> {
         @Override
-        public int weigh(Key key, Accountable ramUsage) {
+        public long applyAsLong(Key key, Accountable ramUsage) {
             int weight = (int) Math.min(ramUsage.ramBytesUsed(), Integer.MAX_VALUE);
             return weight == 0 ? 1 : weight;
         }
@@ -150,13 +148,13 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
             final ShardId shardId = ShardUtils.extractShardId(context.reader());
             final Key key = new Key(this, context.reader().getCoreCacheKey(), shardId);
             //noinspection unchecked
-            final Accountable accountable = cache.get(key, () -> {
+            final Accountable accountable = cache.computeIfAbsent(key, k -> {
                 context.reader().addCoreClosedListener(IndexFieldCache.this);
                 for (Listener listener : this.listeners) {
-                    key.listeners.add(listener);
+                    k.listeners.add(listener);
                 }
                 final AtomicFieldData fieldData = indexFieldData.loadDirect(context);
-                for (Listener listener : key.listeners) {
+                for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldNames, fieldDataType, fieldData);
                     } catch (Throwable e) {
@@ -170,17 +168,17 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
         }
 
         @Override
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader, final IFD indexFieldData) throws Exception {
             final ShardId shardId = ShardUtils.extractShardId(indexReader);
             final Key key = new Key(this, indexReader.getCoreCacheKey(), shardId);
             //noinspection unchecked
-            final Accountable accountable = cache.get(key, () -> {
-                indexReader.addReaderClosedListener(IndexFieldCache.this);
+            final Accountable accountable = cache.computeIfAbsent(key, k -> {
+                ElasticsearchDirectoryReader.addReaderCloseListener(indexReader, IndexFieldCache.this);
                 for (Listener listener : this.listeners) {
-                    key.listeners.add(listener);
+                    k.listeners.add(listener);
                 }
                 final Accountable ifd = (Accountable) indexFieldData.localGlobalDirect(indexReader);
-                for (Listener listener : key.listeners) {
+                for (Listener listener : k.listeners) {
                     try {
                         listener.onCache(shardId, fieldNames, fieldDataType, ifd);
                     } catch (Throwable e) {
@@ -207,44 +205,28 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
 
         @Override
         public void clear() {
-            for (Key key : cache.asMap().keySet()) {
+            for (Key key : cache.keys()) {
                 if (key.indexCache.index.equals(index)) {
                     cache.invalidate(key);
                 }
             }
-            // Note that cache invalidation in Guava does not immediately remove
-            // values from the cache. In the case of a cache with a rare write or
-            // read rate, it's possible for values to persist longer than desired.
-            //
-            // Note this is intended by the Guava developers, see:
-            // https://code.google.com/p/guava-libraries/wiki/CachesExplained#Eviction
-            // (the "When Does Cleanup Happen" section)
-
-            // We call it explicitly here since it should be a "rare" operation, and
-            // if a user runs it he probably wants to see memory returned as soon as
-            // possible
-            cache.cleanUp();
+            // force eviction
+            cache.refresh();
         }
 
         @Override
         public void clear(String fieldName) {
-            for (Key key : cache.asMap().keySet()) {
+            for (Key key : cache.keys()) {
                 if (key.indexCache.index.equals(index)) {
                     if (key.indexCache.fieldNames.fullName().equals(fieldName)) {
                         cache.invalidate(key);
                     }
                 }
             }
-            // we call cleanUp() because this is a manual operation, should happen
+            // we call refresh because this is a manual operation, should happen
             // rarely and probably means the user wants to see memory returned as
             // soon as possible
-            cache.cleanUp();
-        }
-
-        @Override
-        public void clear(IndexReader indexReader) {
-            cache.invalidate(new Key(this, indexReader.getCoreCacheKey(), null));
-            // don't call cache.cleanUp here as it would have bad performance implications
+            cache.refresh();
         }
     }
 
@@ -305,7 +287,7 @@ public class IndicesFieldDataCache extends AbstractComponent implements RemovalL
                 logger.trace("running periodic field data cache cleanup");
             }
             try {
-                this.cache.cleanUp();
+                this.cache.refresh();
             } catch (Exception e) {
                 logger.warn("Exception during periodic field data cache cleanup:", e);
             }

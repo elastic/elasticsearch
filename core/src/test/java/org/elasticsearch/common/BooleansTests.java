@@ -21,7 +21,6 @@ package org.elasticsearch.common;
 
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.Locale;
 
@@ -29,8 +28,6 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
 
 public class BooleansTests extends ESTestCase {
-
-    @Test
     public void testIsBoolean() {
         String[] booleans = new String[]{"true", "false", "on", "off", "yes", "no", "0", "1"};
         String[] notBooleans = new String[]{"11", "00", "sdfsdfsf", "F", "T"};
@@ -46,8 +43,8 @@ public class BooleansTests extends ESTestCase {
             assertThat("recognized [" + nb + "] as boolean", Booleans.isBoolean(t.toCharArray(), "prefix".length(), nb.length()), Matchers.equalTo(false));
         }
     }
-    @Test
-    public void parseBoolean() {
+
+    public void testParseBoolean() {
         assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes", "1"), randomBoolean()), is(true));
         assertThat(Booleans.parseBoolean(randomFrom("false", "off", "no", "0"), randomBoolean()), is(false));
         assertThat(Booleans.parseBoolean(randomFrom("true", "on", "yes").toUpperCase(Locale.ROOT), randomBoolean()), is(true));
@@ -69,8 +66,7 @@ public class BooleansTests extends ESTestCase {
         assertThat(Booleans.parseBoolean(chars,0, chars.length, randomBoolean()), is(true));
     }
 
-    @Test
-    public void parseBooleanExact() {
+    public void testParseBooleanExact() {
         assertThat(Booleans.parseBooleanExact(randomFrom("true", "on", "yes", "1")), is(true));
         assertThat(Booleans.parseBooleanExact(randomFrom("false", "off", "no", "0")), is(false));
         try {

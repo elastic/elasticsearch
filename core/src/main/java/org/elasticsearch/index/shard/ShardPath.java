@@ -20,12 +20,10 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.IndexSettings;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
@@ -116,8 +114,8 @@ public final class ShardPath {
      * directories with a valid shard state exist the one with the highest version will be used.
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
-    public static ShardPath loadShardPath(ESLogger logger, NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
-        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+    public static ShardPath loadShardPath(ESLogger logger, NodeEnvironment env, ShardId shardId, IndexSettings indexSettings) throws IOException {
+        final String indexUUID = indexSettings.getUUID();
         final Path[] paths = env.availableShardPaths(shardId);
         Path loadedPath = null;
         for (Path path : paths) {
@@ -140,13 +138,13 @@ public final class ShardPath {
         } else {
             final Path dataPath;
             final Path statePath = loadedPath;
-            if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
-                dataPath = env.resolveCustomLocation(indexSettings, shardId);
+            if (indexSettings.hasCustomDataPath()) {
+                dataPath = env.resolveCustomLocation(indexSettings.getSettings(), shardId);
             } else {
                 dataPath = statePath;
             }
             logger.debug("{} loaded data path [{}], state path [{}]", shardId, dataPath, statePath);
-            return new ShardPath(NodeEnvironment.hasCustomDataPath(indexSettings), dataPath, statePath, indexUUID, shardId);
+            return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, indexUUID, shardId);
         }
     }
 
@@ -154,8 +152,8 @@ public final class ShardPath {
      * This method tries to delete left-over shards where the index name has been reused but the UUID is different
      * to allow the new shard to be allocated.
      */
-    public static void deleteLeftoverShardDirectory(ESLogger logger, NodeEnvironment env, ShardLock lock, @IndexSettings Settings indexSettings) throws IOException {
-        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+    public static void deleteLeftoverShardDirectory(ESLogger logger, NodeEnvironment env, ShardLock lock, IndexSettings indexSettings) throws IOException {
+        final String indexUUID = indexSettings.getUUID();
         final Path[] paths = env.availableShardPaths(lock.getShardId());
         for (Path path : paths) {
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, path);
@@ -163,7 +161,7 @@ public final class ShardPath {
                 if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
                     logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
                     assert Files.isDirectory(path) : path + " is not a directory";
-                    NodeEnvironment.acquireFSLockForPaths(indexSettings, paths);
+                    NodeEnvironment.acquireFSLockForPaths(indexSettings.getSettings(), paths);
                     IOUtils.rm(path);
                 }
             }
@@ -198,14 +196,14 @@ public final class ShardPath {
         return reservedBytes;
     }
 
-    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings,
+    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, IndexSettings indexSettings,
                                                   long avgShardSizeInBytes, Map<Path,Integer> dataPathToShardCount) throws IOException {
 
         final Path dataPath;
         final Path statePath;
 
-        if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
-            dataPath = env.resolveCustomLocation(indexSettings, shardId);
+        if (indexSettings.hasCustomDataPath()) {
+            dataPath = env.resolveCustomLocation(indexSettings.getSettings(), shardId);
             statePath = env.nodePaths()[0].resolve(shardId);
         } else {
 
@@ -244,9 +242,8 @@ public final class ShardPath {
             dataPath = statePath;
         }
 
-        final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
-
-        return new ShardPath(NodeEnvironment.hasCustomDataPath(indexSettings), dataPath, statePath, indexUUID, shardId);
+        final String indexUUID = indexSettings.getUUID();
+        return new ShardPath(indexSettings.hasCustomDataPath(), dataPath, statePath, indexUUID, shardId);
     }
 
     @Override

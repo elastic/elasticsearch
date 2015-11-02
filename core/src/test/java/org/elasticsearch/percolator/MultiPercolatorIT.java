@@ -26,27 +26,33 @@ import org.elasticsearch.action.percolate.PercolateSourceBuilder;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.action.percolate.PercolateSourceBuilder.docBuilder;
-import static org.elasticsearch.common.xcontent.XContentFactory.*;
-import static org.elasticsearch.index.query.QueryBuilders.*;
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.smileBuilder;
+import static org.elasticsearch.common.xcontent.XContentFactory.yamlBuilder;
+import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
+import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.percolator.PercolatorTestUtil.convertFromTextArray;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertMatchCount;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.arrayContaining;
+import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.arrayWithSize;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
  */
 public class MultiPercolatorIT extends ESIntegTestCase {
-
-    @Test
     public void testBasics() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string"));
         ensureGreen();
@@ -117,7 +123,6 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         assertThat(item.getErrorMessage(), containsString("document missing"));
     }
 
-    @Test
     public void testWithRouting() throws Exception {
         assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string"));
         ensureGreen();
@@ -197,7 +202,6 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         assertThat(item.getErrorMessage(), containsString("document missing"));
     }
 
-    @Test
     public void testExistingDocsOnly() throws Exception {
         createIndex("test");
 
@@ -273,7 +277,6 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         assertThat(response.items()[numPercolateRequest].getResponse().getMatches().length, equalTo(numQueries));
     }
 
-    @Test
     public void testWithDocsOnly() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -349,8 +352,6 @@ public class MultiPercolatorIT extends ESIntegTestCase {
         assertThat(response.items()[numPercolateRequest].getResponse().getMatches().length, equalTo(numQueries));
     }
 
-
-    @Test
     public void testNestedMultiPercolation() throws IOException {
         initNestedIndexAndPercolation();
         MultiPercolateRequestBuilder mpercolate= client().prepareMultiPercolate();

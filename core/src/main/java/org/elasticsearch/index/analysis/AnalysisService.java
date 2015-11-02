@@ -21,7 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
@@ -29,9 +28,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -51,159 +50,19 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     private final NamedAnalyzer defaultSearchAnalyzer;
     private final NamedAnalyzer defaultSearchQuoteAnalyzer;
 
-
-    public AnalysisService(IndexSettings indexSettings) {
-        this(indexSettings, null, null, null, null, null);
-    }
-
-    @Inject
-    public AnalysisService(IndexSettings indexSettings, @Nullable IndicesAnalysisService indicesAnalysisService,
-                           @Nullable Map<String, AnalyzerProviderFactory> analyzerFactoryFactories,
-                           @Nullable Map<String, TokenizerFactoryFactory> tokenizerFactoryFactories,
-                           @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
-                           @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
+    public AnalysisService(IndexSettings indexSettings,
+                           Map<String, AnalyzerProvider> analyzerProviders,
+                           Map<String, TokenizerFactory> tokenizerFactoryFactories,
+                           Map<String, CharFilterFactory> charFilterFactoryFactories,
+                           Map<String, TokenFilterFactory> tokenFilterFactoryFactories) {
         super(indexSettings);
-        Settings defaultSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexSettings.getIndexVersionCreated()).build();
-        Map<String, TokenizerFactory> tokenizers = new HashMap<>();
-        if (tokenizerFactoryFactories != null) {
-            Map<String, Settings> tokenizersSettings = this.indexSettings.getSettings().getGroups("index.analysis.tokenizer");
-            for (Map.Entry<String, TokenizerFactoryFactory> entry : tokenizerFactoryFactories.entrySet()) {
-                String tokenizerName = entry.getKey();
-                TokenizerFactoryFactory tokenizerFactoryFactory = entry.getValue();
-
-                Settings tokenizerSettings = tokenizersSettings.get(tokenizerName);
-                if (tokenizerSettings == null) {
-                    tokenizerSettings = defaultSettings;
-                }
-
-                TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, tokenizerSettings);
-                tokenizers.put(tokenizerName, tokenizerFactory);
-                tokenizers.put(Strings.toCamelCase(tokenizerName), tokenizerFactory);
-            }
-        }
-
-        if (indicesAnalysisService != null) {
-            for (Map.Entry<String, PreBuiltTokenizerFactoryFactory> entry : indicesAnalysisService.tokenizerFactories().entrySet()) {
-                String name = entry.getKey();
-                if (!tokenizers.containsKey(name)) {
-                    tokenizers.put(name, entry.getValue().create(name, defaultSettings));
-                }
-                name = Strings.toCamelCase(entry.getKey());
-                if (!name.equals(entry.getKey())) {
-                    if (!tokenizers.containsKey(name)) {
-                        tokenizers.put(name, entry.getValue().create(name, defaultSettings));
-                    }
-                }
-            }
-        }
-
-        this.tokenizers = unmodifiableMap(tokenizers);
-
-        Map<String, CharFilterFactory> charFilters = new HashMap<>();
-        if (charFilterFactoryFactories != null) {
-            Map<String, Settings> charFiltersSettings = this.indexSettings.getSettings().getGroups("index.analysis.char_filter");
-            for (Map.Entry<String, CharFilterFactoryFactory> entry : charFilterFactoryFactories.entrySet()) {
-                String charFilterName = entry.getKey();
-                CharFilterFactoryFactory charFilterFactoryFactory = entry.getValue();
-
-                Settings charFilterSettings = charFiltersSettings.get(charFilterName);
-                if (charFilterSettings == null) {
-                    charFilterSettings = defaultSettings;
-                }
-
-                CharFilterFactory tokenFilterFactory = charFilterFactoryFactory.create(charFilterName, charFilterSettings);
-                charFilters.put(charFilterName, tokenFilterFactory);
-                charFilters.put(Strings.toCamelCase(charFilterName), tokenFilterFactory);
-            }
-        }
-
-        if (indicesAnalysisService != null) {
-            for (Map.Entry<String, PreBuiltCharFilterFactoryFactory> entry : indicesAnalysisService.charFilterFactories().entrySet()) {
-                String name = entry.getKey();
-                if (!charFilters.containsKey(name)) {
-                    charFilters.put(name, entry.getValue().create(name, defaultSettings));
-                }
-                name = Strings.toCamelCase(entry.getKey());
-                if (!name.equals(entry.getKey())) {
-                    if (!charFilters.containsKey(name)) {
-                        charFilters.put(name, entry.getValue().create(name, defaultSettings));
-                    }
-                }
-            }
-        }
-
-        this.charFilters = unmodifiableMap(charFilters);
-
-        Map<String, TokenFilterFactory> tokenFilters = new HashMap<>();
-        if (tokenFilterFactoryFactories != null) {
-            Map<String, Settings> tokenFiltersSettings = this.indexSettings.getSettings().getGroups("index.analysis.filter");
-            for (Map.Entry<String, TokenFilterFactoryFactory> entry : tokenFilterFactoryFactories.entrySet()) {
-                String tokenFilterName = entry.getKey();
-                TokenFilterFactoryFactory tokenFilterFactoryFactory = entry.getValue();
-
-                Settings tokenFilterSettings = tokenFiltersSettings.get(tokenFilterName);
-                if (tokenFilterSettings == null) {
-                    tokenFilterSettings = defaultSettings;
-                }
-
-                TokenFilterFactory tokenFilterFactory = tokenFilterFactoryFactory.create(tokenFilterName, tokenFilterSettings);
-                tokenFilters.put(tokenFilterName, tokenFilterFactory);
-                tokenFilters.put(Strings.toCamelCase(tokenFilterName), tokenFilterFactory);
-            }
-        }
-
-        // pre initialize the globally registered ones into the map
-        if (indicesAnalysisService != null) {
-            for (Map.Entry<String, PreBuiltTokenFilterFactoryFactory> entry : indicesAnalysisService.tokenFilterFactories().entrySet()) {
-                String name = entry.getKey();
-                if (!tokenFilters.containsKey(name)) {
-                    tokenFilters.put(name, entry.getValue().create(name, defaultSettings));
-                }
-                name = Strings.toCamelCase(entry.getKey());
-                if (!name.equals(entry.getKey())) {
-                    if (!tokenFilters.containsKey(name)) {
-                        tokenFilters.put(name, entry.getValue().create(name, defaultSettings));
-                    }
-                }
-            }
-        }
-        this.tokenFilters = unmodifiableMap(tokenFilters);
-
-        Map<String, AnalyzerProvider> analyzerProviders = new HashMap<>();
-        if (analyzerFactoryFactories != null) {
-            Map<String, Settings> analyzersSettings = this.indexSettings.getSettings().getGroups("index.analysis.analyzer");
-            for (Map.Entry<String, AnalyzerProviderFactory> entry : analyzerFactoryFactories.entrySet()) {
-                String analyzerName = entry.getKey();
-                AnalyzerProviderFactory analyzerFactoryFactory = entry.getValue();
-
-                Settings analyzerSettings = analyzersSettings.get(analyzerName);
-                if (analyzerSettings == null) {
-                    analyzerSettings = defaultSettings;
-                }
-
-                AnalyzerProvider analyzerFactory = analyzerFactoryFactory.create(analyzerName, analyzerSettings);
-                analyzerProviders.put(analyzerName, analyzerFactory);
-            }
-        }
-        if (indicesAnalysisService != null) {
-            for (Map.Entry<String, PreBuiltAnalyzerProviderFactory> entry : indicesAnalysisService.analyzerProviderFactories().entrySet()) {
-                String name = entry.getKey();
-                Version indexVersion = indexSettings.getIndexVersionCreated();
-                if (!analyzerProviders.containsKey(name)) {
-                    analyzerProviders.put(name, entry.getValue().create(name, Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
-                }
-                String camelCaseName = Strings.toCamelCase(name);
-                if (!camelCaseName.equals(entry.getKey()) && !analyzerProviders.containsKey(camelCaseName)) {
-                    analyzerProviders.put(camelCaseName, entry.getValue().create(name, Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build()));
-                }
-            }
-        }
+        this.tokenizers = unmodifiableMap(tokenizerFactoryFactories);
+        this.charFilters = unmodifiableMap(charFilterFactoryFactories);
+        this.tokenFilters = unmodifiableMap(tokenFilterFactoryFactories);
+        analyzerProviders = new HashMap<>(analyzerProviders);
 
         if (!analyzerProviders.containsKey("default")) {
             analyzerProviders.put("default", new StandardAnalyzerProvider(indexSettings, null, "default", Settings.Builder.EMPTY_SETTINGS));
-        }
-        if (!analyzerProviders.containsKey("default_index")) {
-            analyzerProviders.put("default_index", analyzerProviders.get("default"));
         }
         if (!analyzerProviders.containsKey("default_search")) {
             analyzerProviders.put("default_search", analyzerProviders.get("default"));
@@ -213,7 +72,9 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
         }
 
         Map<String, NamedAnalyzer> analyzers = new HashMap<>();
-        for (AnalyzerProvider analyzerFactory : analyzerProviders.values()) {
+        for (Map.Entry<String, AnalyzerProvider> entry : analyzerProviders.entrySet()) {
+            AnalyzerProvider analyzerFactory = entry.getValue();
+            String name = entry.getKey();
             /*
              * Lucene defaults positionIncrementGap to 0 in all analyzers but
              * Elasticsearch defaults them to 0 only before version 2.0
@@ -245,10 +106,12 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
                     analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
                 }
             } else {
-                analyzer = new NamedAnalyzer(analyzerFactory.name(), analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
+                analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
             }
-            analyzers.put(analyzerFactory.name(), analyzer);
-            analyzers.put(Strings.toCamelCase(analyzerFactory.name()), analyzer);
+            if (analyzers.containsKey(name)) {
+                throw new IllegalStateException("already registered analyzer with name: " + name);
+            }
+            analyzers.put(name, analyzer);
             String strAliases = this.indexSettings.getSettings().get("index.analysis.analyzer." + analyzerFactory.name() + ".alias");
             if (strAliases != null) {
                 for (String alias : Strings.commaDelimitedListToStringArray(strAliases)) {

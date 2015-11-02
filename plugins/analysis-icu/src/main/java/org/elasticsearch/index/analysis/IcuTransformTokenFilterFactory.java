@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.icu.ICUTransformFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 
@@ -37,7 +38,7 @@ public class IcuTransformTokenFilterFactory extends AbstractTokenFilterFactory {
     private final Transliterator transliterator;
 
     @Inject
-    public IcuTransformTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public IcuTransformTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.id = settings.get("id", "Null");
         String s = settings.get("dir", "forward");

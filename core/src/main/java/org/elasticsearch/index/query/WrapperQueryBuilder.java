@@ -20,9 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-
-import java.nio.charset.StandardCharsets;
-
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -32,6 +29,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 
 /**
@@ -110,7 +108,8 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
         try (XContentParser qSourceParser = XContentFactory.xContent(source).createParser(source)) {
             final QueryShardContext contextCopy = new QueryShardContext(context.indexQueryParserService());
             contextCopy.reset(qSourceParser);
-            QueryBuilder result = contextCopy.parseContext().parseInnerQueryBuilder();
+            contextCopy.parseFieldMatcher(context.indexQueryParserService().parseFieldMatcher());
+            QueryBuilder<?> result = contextCopy.parseContext().parseInnerQueryBuilder();
             context.combineNamedQueries(contextCopy);
             return result.toQuery(context);
         }

@@ -21,9 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.cjk.CJKBigramFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.Arrays;
@@ -49,8 +48,7 @@ public final class CJKBigramFilterFactory extends AbstractTokenFilterFactory {
     private final int flags;
     private final boolean outputUnigrams;
 
-    @Inject
-    public CJKBigramFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public CJKBigramFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         outputUnigrams = settings.getAsBoolean("output_unigrams", false);
         final String[] asArray = settings.getAsArray("ignored_scripts");

@@ -36,7 +36,7 @@ NOTE: Rivers were used to import data from external systems into Elasticsearch p
 releases 2.0 and later do not support rivers.
 
 [float]
-==== Supported by the community:
+==== Supported by Elasticsearch:
 
 * https://www.elastic.co/guide/en/logstash/current/plugins-outputs-elasticsearch.html[Logstash output to Elasticsearch]:
   The Logstash `elasticsearch` output plugin.
@@ -65,6 +65,9 @@ releases 2.0 and later do not support rivers.
 
 * https://github.com/salyh/elasticsearch-imap[IMAP/POP3/Mail importer]:
   The Mail importer allows to fetch data from IMAP and POP3 servers for indexing into Elasticsearch (by Hendrik Saly)
+
+* https://github.com/dadoonet/fscrawler[FS Crawler]:
+  The File System (FS) crawler allows to index documents (PDF, Open Office...) from your local file system and over SSH. (by David Pilato)
 
 [float]
 [[deployment]]

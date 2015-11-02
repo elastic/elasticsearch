@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices;
 
-import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
@@ -28,8 +27,6 @@ import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.indices.analysis.HunspellService;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -53,8 +50,6 @@ public class IndicesModule extends AbstractModule {
 
     private final ExtensionPoint.ClassSet<QueryParser> queryParsers
         = new ExtensionPoint.ClassSet<>("query_parser", QueryParser.class);
-    private final ExtensionPoint.InstanceMap<String, Dictionary> hunspellDictionaries
-        = new ExtensionPoint.InstanceMap<>("hunspell_dictionary", String.class, Dictionary.class);
 
     public IndicesModule() {
         registerBuiltinQueryParsers();
@@ -116,14 +111,10 @@ public class IndicesModule extends AbstractModule {
         queryParsers.registerExtension(queryParser);
     }
 
-    public void registerHunspellDictionary(String name, Dictionary dictionary) {
-        hunspellDictionaries.registerExtension(name, dictionary);
-    }
 
     @Override
     protected void configure() {
         bindQueryParsersExtension();
-        bindHunspellExtension();
 
         bind(IndicesService.class).asEagerSingleton();
         bind(RecoverySettings.class).asEagerSingleton();
@@ -148,11 +139,5 @@ public class IndicesModule extends AbstractModule {
     protected void bindQueryParsersExtension() {
         queryParsers.bind(binder());
         bind(IndicesQueriesRegistry.class).asEagerSingleton();
-    }
-
-    protected void bindHunspellExtension() {
-        hunspellDictionaries.bind(binder());
-        bind(HunspellService.class).asEagerSingleton();
-        bind(IndicesAnalysisService.class).asEagerSingleton();
     }
 }

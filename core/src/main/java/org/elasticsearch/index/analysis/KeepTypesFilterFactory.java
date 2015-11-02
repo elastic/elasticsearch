@@ -21,10 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.TypeTokenFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.Arrays;
@@ -41,14 +39,12 @@ import java.util.Set;
  * <li>{@value #KEEP_TYPES_KEY} the array of words / tokens to keep.</li>
  * </ul>
  */
-@AnalysisSettingsRequired
 public class KeepTypesFilterFactory extends AbstractTokenFilterFactory {
     private final Set<String> keepTypes;
     private static final String KEEP_TYPES_KEY = "types";
 
-    @Inject
     public KeepTypesFilterFactory(IndexSettings indexSettings,
-                                 Environment env, @Assisted String name, @Assisted Settings settings) {
+                                 Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         final String[] arrayKeepTypes = settings.getAsArray(KEEP_TYPES_KEY, null);

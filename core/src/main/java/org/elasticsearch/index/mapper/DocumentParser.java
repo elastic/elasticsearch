@@ -92,9 +92,6 @@ class DocumentParser implements Closeable {
             if (parser == null) {
                 parser = XContentHelper.createParser(source.source());
             }
-            if (mapping.sourceTransforms.length > 0) {
-                parser = transform(mapping, parser);
-            }
             context.reset(parser, new ParseContext.Document(), source);
 
             // will result in START_OBJECT
@@ -764,27 +761,8 @@ class DocumentParser implements Closeable {
         return mapper;
     }
 
-    private static XContentParser transform(Mapping mapping, XContentParser parser) throws IOException {
-        Map<String, Object> transformed;
-        try (XContentParser autoCloses = parser) {
-            transformed = transformSourceAsMap(mapping, parser.mapOrdered());
-        }
-        XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).value(transformed);
-        return parser.contentType().xContent().createParser(builder.bytes());
-    }
-
     private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper.Dynamic dynamic) {
         return dynamic == null ? ObjectMapper.Dynamic.TRUE : dynamic;
-    }
-
-    static Map<String, Object> transformSourceAsMap(Mapping mapping, Map<String, Object> sourceAsMap) {
-        if (mapping.sourceTransforms.length == 0) {
-            return sourceAsMap;
-        }
-        for (Mapping.SourceTransform transform : mapping.sourceTransforms) {
-            sourceAsMap = transform.transformSourceAsMap(sourceAsMap);
-        }
-        return sourceAsMap;
     }
 
     @Override

@@ -21,9 +21,8 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ar.ArabicStemFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 /**
@@ -31,8 +30,7 @@ import org.elasticsearch.index.IndexSettings;
  */
 public class ArabicStemTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    @Inject
-    public ArabicStemTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public ArabicStemTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
     }
 

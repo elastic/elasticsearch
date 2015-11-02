@@ -21,8 +21,9 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.charfilter.HTMLStripCharFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.io.Reader;
@@ -34,8 +35,7 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
 public class HtmlStripCharFilterFactory extends AbstractCharFilterFactory {
     private final Set<String> escapedTags;
 
-    @Inject
-    public HtmlStripCharFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public HtmlStripCharFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name);
         String[] escapedTags = settings.getAsArray("escaped_tags");
         if (escapedTags.length > 0) {

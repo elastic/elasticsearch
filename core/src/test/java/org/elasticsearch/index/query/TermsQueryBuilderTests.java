@@ -42,7 +42,10 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.containsString;
 
 public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuilder> {
     private List<Object> randomTerms;
@@ -195,9 +198,9 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
                 "}";
         try {
             parseQuery(query);
-            fail("Expected IllegalArgumentException");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("Both values and termsLookup specified for terms query"));
+            fail("Expected ParsingException");
+        } catch(ParsingException e) {
+            assertThat(e.getMessage(), containsString("[" + TermsQueryBuilder.NAME + "] query does not support more than one field."));
         }
     }
 
@@ -251,7 +254,7 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             parseQuery(query);
             fail("parsing should have failed");
         } catch (ParsingException ex) {
-            assertThat(ex.getMessage(), equalTo("[terms] query does not support multiple fields"));
+            assertThat(ex.getMessage(), equalTo("[" + TermsQueryBuilder.NAME + "] query does not support multiple fields"));
         }
     }
 }

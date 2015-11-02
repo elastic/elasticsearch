@@ -20,9 +20,8 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 /**
@@ -32,8 +31,7 @@ public class ChineseAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stand
 
     private final StandardAnalyzer analyzer;
 
-    @Inject
-    public ChineseAnalyzerProvider(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public ChineseAnalyzerProvider(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         // old index: best effort
         analyzer = new StandardAnalyzer();

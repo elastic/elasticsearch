@@ -20,9 +20,12 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -36,6 +39,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -59,7 +63,8 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisModule;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
@@ -70,10 +75,10 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.*;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -99,6 +104,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.containsString;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -156,6 +162,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         index = new Index(randomAsciiOfLengthBetween(1, 10));
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.emptyList());
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
@@ -207,11 +214,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     }
                 },
                 new IndexSettingsModule(index, indexSettings),
-                new AnalysisModule(indexSettings, new IndicesAnalysisService(indexSettings)),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.emptyList());
+                        try {
+                            bind(AnalysisService.class).toInstance(new AnalysisRegistry(null, new Environment(settings)).build(idxSettings));
+                        } catch (IOException e) {
+                            throw new ElasticsearchException(e);
+                        }
                         SimilarityService service = new SimilarityService(idxSettings, Collections.emptyMap());
                         bind(SimilarityService.class).toInstance(service);
                         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));
@@ -317,6 +327,52 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     /**
+     * Test that unknown field trigger ParsingException.
+     * To find the right position in the root query, we add a marker as `queryName` which
+     * all query builders support. The added bogus field after that should trigger the exception.
+     * Queries that allow arbitrary field names at this level need to override this test.
+     */
+    public void testUnknownField() throws IOException {
+        String marker = "#marker#";
+        QB testQuery;
+        do {
+            testQuery = createTestQueryBuilder();
+        } while (testQuery.toString().contains(marker));
+        testQuery.queryName(marker); // to find root query to add additional bogus field there
+        String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker +  "\", \"bogusField\" : \"someValue\"");
+        try {
+            parseQuery(queryAsString);
+            fail("ParsingException expected.");
+        } catch (ParsingException e) {
+            // we'd like to see the offending field name here
+            assertThat(e.getMessage(), containsString("bogusField"));
+        }
+     }
+
+     /**
+     * Test that adding additional object into otherwise correct query string
+     * should always trigger some kind of Parsing Exception.
+     */
+    public void testUnknownObjectException() throws IOException {
+        String validQuery = createTestQueryBuilder().toString();
+        assertThat(validQuery, containsString("{"));
+        for (int insertionPosition = 0; insertionPosition < validQuery.length(); insertionPosition++) {
+            if (validQuery.charAt(insertionPosition) == '{') {
+                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : " + validQuery.substring(insertionPosition) + "}";
+                try {
+                    parseQuery(testQuery);
+                    fail("some parsing exception expected for query: " + testQuery);
+                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                    // different kinds of exception wordings depending on location
+                    // of mutation, so no simple asserts possible here
+                } catch (JsonParseException e) {
+                    // mutation produced invalid json
+                }
+            }
+        }
+    }
+
+    /**
      * Returns alternate string representation of the query that need to be tested as they are never used as output
      * of {@link QueryBuilder#toXContent(XContentBuilder, ToXContent.Params)}. By default there are no alternate versions.
      */
@@ -356,7 +412,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);
-        return context.parseInnerQueryBuilder();
+        QueryBuilder parseInnerQueryBuilder = context.parseInnerQueryBuilder();
+        assertTrue(parser.nextToken() == null);
+        return parseInnerQueryBuilder;
     }
 
     /**

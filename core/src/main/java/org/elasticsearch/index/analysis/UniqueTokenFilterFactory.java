@@ -21,8 +21,7 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.miscellaneous.UniqueTokenFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 
@@ -33,9 +32,7 @@ public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean onlyOnSamePosition;
 
-    @Inject
-    public UniqueTokenFilterFactory(IndexSettings indexSettings,
-                                    @Assisted String name, @Assisted Settings settings) {
+    public UniqueTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.onlyOnSamePosition = settings.getAsBoolean("only_on_same_position", false);
     }

@@ -21,23 +21,20 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.pattern.PatternReplaceFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 
 import java.util.regex.Pattern;
 
-@AnalysisSettingsRequired
 public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Pattern pattern;
     private final String replacement;
     private final boolean all;
 
-    @Inject
-    public PatternReplaceTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public PatternReplaceTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         String sPattern = settings.get("pattern", null);

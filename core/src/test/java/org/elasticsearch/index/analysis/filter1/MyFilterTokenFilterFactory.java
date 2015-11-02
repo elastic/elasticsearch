@@ -21,15 +21,14 @@ package org.elasticsearch.index.analysis.filter1;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
 
 public class MyFilterTokenFilterFactory extends AbstractTokenFilterFactory {
 
-    @Inject
-    public MyFilterTokenFilterFactory(IndexSettings indexSettings, String name) {
+    public MyFilterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, Settings.Builder.EMPTY_SETTINGS);
     }
 

@@ -21,8 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.ja.JapanesePartOfSpeechStopFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -35,8 +33,7 @@ public class KuromojiPartOfSpeechFilterFactory extends AbstractTokenFilterFactor
 
     private final Set<String> stopTags = new HashSet<String>();
 
-    @Inject
-    public KuromojiPartOfSpeechFilterFactory(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public KuromojiPartOfSpeechFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         List<String> wordList = Analysis.getWordList(env, settings, "stoptags");
         if (wordList != null) {

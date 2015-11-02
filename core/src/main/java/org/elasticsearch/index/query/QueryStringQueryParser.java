@@ -96,7 +96,7 @@ public class QueryStringQueryParser implements QueryParser {
                         fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -154,17 +154,19 @@ public class QueryStringQueryParser implements QueryParser {
                     try {
                         timeZone = parser.text();
                     } catch (IllegalArgumentException e) {
-                        throw new ParsingException(parser.getTokenLocation(), "[query_string] time_zone [" + parser.text() + "] is unknown");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] time_zone [" + parser.text() + "] is unknown");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         if (queryString == null) {
-            throw new ParsingException(parser.getTokenLocation(), "query_string must be provided with a [query]");
+            throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] must be provided with a [query]");
         }
 
         QueryStringQueryBuilder queryStringQuery = new QueryStringQueryBuilder(queryString);

@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -100,6 +101,21 @@ public class WrapperQueryBuilderTests extends AbstractQueryTestCase<WrapperQuery
             fail("cannot be null or empty");
         } catch (IllegalArgumentException e) {
             // expected
+        }
+    }
+
+    /**
+     * Replace the generic test from superclass, wrapper query only expects
+     * to find `query` field with nested query and should throw exception for
+     * anything else.
+     */
+    @Override
+    public void testUnknownField() throws IOException {
+        try {
+            parseQuery("{ \"" + WrapperQueryBuilder.NAME + "\" : {\"bogusField\" : \"someValue\"} }");
+            fail("ParsingException expected.");
+        } catch (ParsingException e) {
+            assertTrue(e.getMessage().contains("bogusField"));
         }
     }
 }

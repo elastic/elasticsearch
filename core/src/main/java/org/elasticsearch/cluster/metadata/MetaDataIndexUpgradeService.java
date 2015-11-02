@@ -32,7 +32,6 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.ScriptService;
 
 import java.util.Collections;
 import java.util.Set;
@@ -49,13 +48,9 @@ import static org.elasticsearch.common.util.set.Sets.newHashSet;
  * are restored from a repository.
  */
 public class MetaDataIndexUpgradeService extends AbstractComponent {
-
-    private final ScriptService scriptService;
-
     @Inject
-    public MetaDataIndexUpgradeService(Settings settings, ScriptService scriptService) {
+    public MetaDataIndexUpgradeService(Settings settings) {
         super(settings);
-        this.scriptService = scriptService;
     }
 
     /**
@@ -221,9 +216,8 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             IndexSettings indexSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
 
-
             try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
-                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, scriptService)) {
+                try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
                         mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
@@ -257,7 +251,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
         };
 
         public FakeAnalysisService(IndexSettings indexSettings) {
-            super(indexSettings);
+            super(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
         }
 
         @Override

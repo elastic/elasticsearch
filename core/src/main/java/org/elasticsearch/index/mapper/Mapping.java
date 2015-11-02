@@ -43,26 +43,13 @@ public final class Mapping implements ToXContent {
 
     public static final List<String> LEGACY_INCLUDE_IN_OBJECT = Arrays.asList("_all", "_id", "_parent", "_routing", "_timestamp", "_ttl");
 
-    /**
-     * Transformations to be applied to the source before indexing and/or after loading.
-     */
-    public interface SourceTransform extends ToXContent {
-        /**
-         * Transform the source when it is expressed as a map.  This is public so it can be transformed the source is loaded.
-         * @param sourceAsMap source to transform.  This may be mutated by the script.
-         * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
-         */
-        Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap);
-    }
-
     final Version indexCreated;
     final RootObjectMapper root;
     final MetadataFieldMapper[] metadataMappers;
     final Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappersMap;
-    final SourceTransform[] sourceTransforms;
     volatile Map<String, Object> meta;
 
-    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, SourceTransform[] sourceTransforms, Map<String, Object> meta) {
+    public Mapping(Version indexCreated, RootObjectMapper rootObjectMapper, MetadataFieldMapper[] metadataMappers, Map<String, Object> meta) {
         this.indexCreated = indexCreated;
         this.root = rootObjectMapper;
         this.metadataMappers = metadataMappers;
@@ -81,7 +68,6 @@ public final class Mapping implements ToXContent {
             }
         });
         this.rootMappersMap = unmodifiableMap(rootMappersMap);
-        this.sourceTransforms = sourceTransforms;
         this.meta = meta;
     }
 
@@ -94,7 +80,7 @@ public final class Mapping implements ToXContent {
      * Generate a mapping update for the given root object mapper.
      */
     public Mapping mappingUpdate(Mapper rootObjectMapper) {
-        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, metadataMappers, sourceTransforms, meta);
+        return new Mapping(indexCreated, (RootObjectMapper) rootObjectMapper, metadataMappers, meta);
     }
 
     /** Get the root mapper with the given class. */
@@ -126,19 +112,6 @@ public final class Mapping implements ToXContent {
         root.toXContent(builder, params, new ToXContent() {
             @Override
             public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                if (sourceTransforms.length > 0) {
-                    if (sourceTransforms.length == 1) {
-                        builder.field("transform");
-                        sourceTransforms[0].toXContent(builder, params);
-                    } else {
-                        builder.startArray("transform");
-                        for (SourceTransform transform: sourceTransforms) {
-                            transform.toXContent(builder, params);
-                        }
-                        builder.endArray();
-                    }
-                }
-
                 if (meta != null && !meta.isEmpty()) {
                     builder.field("_meta", meta);
                 }

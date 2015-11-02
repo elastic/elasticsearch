@@ -41,7 +41,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.*;
-import org.elasticsearch.index.analysis.AnalysisModule;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -59,7 +59,6 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -87,17 +86,18 @@ import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 public class IndicesService extends AbstractLifecycleComponent<IndicesService> implements Iterable<IndexService> {
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
-    private final IndicesAnalysisService indicesAnalysisService;
-
     private final Injector injector;
-
     private final PluginsService pluginsService;
     private final NodeEnvironment nodeEnv;
     private final TimeValue shardsClosedTimeout;
     private final IndicesWarmer indicesWarmer;
     private final IndicesQueryCache indicesQueryCache;
-
+    private final AnalysisRegistry analysisRegistry;
     private volatile Map<String, IndexServiceInjectorPair> indices = emptyMap();
+
+    public AnalysisRegistry getAnalysis() {
+        return analysisRegistry;
+    }
 
     static class IndexServiceInjectorPair {
         private final IndexService indexService;
@@ -122,10 +122,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final IndexStoreConfig indexStoreConfig;
 
+    @Override
+    protected void doStart() {
+    }
+
     @Inject
-    public IndicesService(Settings settings, IndicesAnalysisService indicesAnalysisService, Injector injector, PluginsService pluginsService, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesQueryCache indicesQueryCache, IndicesWarmer indicesWarmer) {
+    public IndicesService(Settings settings, Injector injector, PluginsService pluginsService, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesQueryCache indicesQueryCache, IndicesWarmer indicesWarmer, AnalysisRegistry analysisRegistry) {
         super(settings);
-        this.indicesAnalysisService = indicesAnalysisService;
         this.injector = injector;
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
@@ -133,11 +136,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.indicesQueryCache = indicesQueryCache;
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.indexStoreConfig = new IndexStoreConfig(settings);
+        this.analysisRegistry = analysisRegistry;
         nodeSettingsService.addListener(indexStoreConfig);
-    }
-
-    @Override
-    protected void doStart() {
     }
 
     @Override
@@ -172,7 +172,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     @Override
     protected void doClose() {
         IOUtils.closeWhileHandlingException(injector.getInstance(RecoverySettings.class),
-            indicesAnalysisService);
+            analysisRegistry);
     }
 
     /**
@@ -310,12 +310,11 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         for (Module pluginModule : pluginsService.indexModules(idxSettings.getSettings())) {
             modules.add(pluginModule);
         }
-        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, indicesQueryCache, indicesWarmer);
+        final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, indicesQueryCache, indicesWarmer, analysisRegistry);
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
         indexModule.addIndexEventListener(oldShardsStats);
-        modules.add(new AnalysisModule(idxSettings.getSettings(), indicesAnalysisService));
         modules.add(indexModule);
         pluginsService.processModules(modules);
         final IndexEventListener listener = indexModule.freeze();

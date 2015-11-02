@@ -26,7 +26,7 @@ import org.apache.lucene.analysis.miscellaneous.WordDelimiterIterator;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.util.Version;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -43,8 +43,7 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     private final int flags;
     private final CharArraySet protoWords;
 
-    @Inject
-    public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public WordDelimiterTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
 
         // Sample Format for the type table:

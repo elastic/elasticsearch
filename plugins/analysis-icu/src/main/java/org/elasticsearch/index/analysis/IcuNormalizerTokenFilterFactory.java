@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 
@@ -37,8 +38,7 @@ public class IcuNormalizerTokenFilterFactory extends AbstractTokenFilterFactory 
 
     private final String name;
 
-    @Inject
-    public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public IcuNormalizerTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.name = settings.get("name", "nfkc_cf");
     }

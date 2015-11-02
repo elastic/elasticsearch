@@ -25,8 +25,6 @@ import org.apache.lucene.analysis.core.StopFilter;
 import org.apache.lucene.analysis.ja.JapaneseAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.apache.lucene.search.suggest.analyzing.SuggestStopFilter;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -45,8 +43,7 @@ public class JapaneseStopTokenFilterFactory extends AbstractTokenFilterFactory{
 
     private final boolean removeTrailing;
 
-    @Inject
-    public JapaneseStopTokenFilterFactory(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public JapaneseStopTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.ignoreCase = settings.getAsBoolean("ignore_case", false);
         this.removeTrailing = settings.getAsBoolean("remove_trailing", true);

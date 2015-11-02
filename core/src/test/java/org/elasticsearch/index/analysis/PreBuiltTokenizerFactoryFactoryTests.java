@@ -24,6 +24,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltTokenizers;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.CoreMatchers.not;
 
@@ -31,13 +33,13 @@ import static org.hamcrest.CoreMatchers.not;
  *
  */
 public class PreBuiltTokenizerFactoryFactoryTests extends ESTestCase {
-    public void testThatDifferentVersionsCanBeLoaded() {
+    public void testThatDifferentVersionsCanBeLoaded() throws IOException {
         PreBuiltTokenizerFactoryFactory factory = new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.STANDARD.getTokenizerFactory(Version.CURRENT));
 
         // different es versions, same lucene version, thus cached
-        TokenizerFactory former090TokenizerFactory = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
-        TokenizerFactory former090TokenizerFactoryCopy = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
-        TokenizerFactory currentTokenizerFactory = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        TokenizerFactory former090TokenizerFactory = factory.get(null, null, "standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
+        TokenizerFactory former090TokenizerFactoryCopy = factory.get(null, null, "standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
+        TokenizerFactory currentTokenizerFactory = factory.get(null, null, "standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactoryCopy)));

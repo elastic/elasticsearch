@@ -21,8 +21,6 @@ package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.eu.BasqueAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -34,8 +32,7 @@ public class BasqueAnalyzerProvider extends AbstractIndexAnalyzerProvider<Basque
 
     private final BasqueAnalyzer analyzer;
 
-    @Inject
-    public BasqueAnalyzerProvider(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public BasqueAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, name, settings);
         analyzer = new BasqueAnalyzer(Analysis.parseStopWords(env, settings, BasqueAnalyzer.getDefaultStopSet()),
                                       Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));

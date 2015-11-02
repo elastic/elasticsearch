@@ -30,12 +30,15 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.pl.PolishAnalysisBinderProcessor;
 import org.elasticsearch.index.analysis.pl.PolishStemTokenFilterFactory;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
+import org.elasticsearch.plugin.analysis.stempel.AnalysisStempelPlugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
+
+import java.io.IOException;
+import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
@@ -44,21 +47,21 @@ import static org.hamcrest.Matchers.instanceOf;
 /**
  */
 public class PolishAnalysisTests extends ESTestCase {
-    public void testDefaultsPolishAnalysis() {
+    public void testDefaultsPolishAnalysis() throws IOException {
         Index index = new Index("test");
         Settings settings = settingsBuilder()
                 .put("path.home", createTempDir())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
-        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(EMPTY_SETTINGS), new EnvironmentModule(new Environment(settings))).createInjector();
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new AnalysisModule(EMPTY_SETTINGS, parentInjector.getInstance(IndicesAnalysisService.class)).addProcessor(new PolishAnalysisBinderProcessor()))
-                .createChildInjector(parentInjector);
 
-        AnalysisService analysisService = injector.getInstance(AnalysisService.class);
+        AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
+        new AnalysisStempelPlugin().onModule(analysisModule);
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
+                new EnvironmentModule(new Environment(settings)), analysisModule)
+                .createInjector();
 
+        final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings, Collections.emptyList()));
         TokenFilterFactory tokenizerFactory = analysisService.tokenFilter("polish_stem");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(PolishStemTokenFilterFactory.class));
 

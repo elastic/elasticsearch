@@ -24,12 +24,9 @@ import org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.Lucene43HyphenationCompoundWordTokenFilter;
 import org.apache.lucene.analysis.compound.hyphenation.HyphenationTree;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisSettingsRequired;
 import org.xml.sax.InputSource;
 
 import java.nio.file.Files;
@@ -40,13 +37,11 @@ import java.nio.file.Path;
  *
  * @see org.apache.lucene.analysis.compound.HyphenationCompoundWordTokenFilter
  */
-@AnalysisSettingsRequired
 public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundWordTokenFilterFactory {
 
     private final HyphenationTree hyphenationTree;
 
-    @Inject
-    public HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
+    public HyphenationCompoundWordTokenFilterFactory(IndexSettings indexSettings, Environment env, String name, Settings settings) {
         super(indexSettings, env, name, settings);
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);

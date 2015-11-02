@@ -18,6 +18,7 @@
  */
 
 import com.bmuschko.gradle.nexus.NexusPlugin
+import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
 buildscript {
   repositories {
@@ -134,7 +135,12 @@ subprojects {
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
           substitute module("org.elasticsearch:elasticsearch:${version}") with project("${projectsPrefix}:core")
-          substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
+          // so that eclipse doesn't have circular references
+          // the downside is, if you hack on test-framework, you have to gradle install
+          // the first prop detects eclipse itself, the second detects eclipse from commandline
+          if (System.getProperty("eclipse.launcher") == null && gradle.startParameter.taskNames.contains('eclipse') == false) {
+            substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
+          }
           substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project("${projectsPrefix}:distribution:zip")
         }
       }
@@ -142,26 +148,49 @@ subprojects {
   }
 }
 
-// IDE configuration
+// intellij configuration
 allprojects {
   apply plugin: 'idea'
-  apply plugin: 'eclipse'
-
-  // TODO: similar for intellij
-  eclipse {
-    classpath {
-      defaultOutputDir = new File(project.buildDir, 'eclipse')
-    }
-  }
 }
 
-idea {
-  if (project != null) {
-    // could be null, if this project is attached to another...
+if (hasProperty('projectsPrefix') == false) {
+  idea {
     project {
       languageLevel = sourceCompatibility
       vcs = 'Git'
     }
   }
 }
+
+// eclipse configuration
+allprojects {
+  apply plugin: 'eclipse'
+
+  plugins.withType(JavaBasePlugin) {
+    eclipse.classpath.defaultOutputDir = new File(project.buildDir, 'eclipse')
+    eclipse.classpath.file.whenMerged { classpath ->
+      // give each source folder a unique corresponding output folder
+      int i = 0;
+      classpath.entries.findAll { it instanceof SourceFolder }.each { folder ->
+        i++;
+        // this is *NOT* a path or a file.
+        folder.output = "build/eclipse/" + i
+      }
+    }
+  }
+  task cleanEclipseSettings(type: Delete) {
+    delete '.settings'
+  }
+  task copyEclipseSettings(type: Copy) {
+    // TODO: "package this up" for external builds
+    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
+    into '.settings'
+  }
+  // otherwise .settings is not nuked entirely
+  tasks.cleanEclipse.dependsOn(cleanEclipseSettings)
+  // otherwise the eclipse merging is *super confusing*
+  tasks.eclipse.dependsOn(cleanEclipse)
+  tasks.eclipse.dependsOn(copyEclipseSettings)
+}
+
 

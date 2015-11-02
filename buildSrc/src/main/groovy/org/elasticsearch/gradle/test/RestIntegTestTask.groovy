@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
-import com.carrotsearch.gradle.randomizedtesting.RandomizedTestingTask
+import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task

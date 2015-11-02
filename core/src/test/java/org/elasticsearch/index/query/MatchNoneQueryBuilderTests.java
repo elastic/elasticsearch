@@ -27,20 +27,15 @@ import java.io.IOException;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase {
+public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase<MatchNoneQueryBuilder> {
 
     @Override
-    protected boolean supportsBoostAndQueryName() {
-        return false;
-    }
-
-    @Override
-    protected AbstractQueryBuilder doCreateTestQueryBuilder() {
+    protected MatchNoneQueryBuilder doCreateTestQueryBuilder() {
         return new MatchNoneQueryBuilder();
     }
 
     @Override
-    protected void doAssertLuceneQuery(AbstractQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+    protected void doAssertLuceneQuery(MatchNoneQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.clauses().size(), equalTo(0));

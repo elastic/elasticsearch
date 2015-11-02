@@ -209,30 +209,6 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         return indexSettings.getIndexVersionCreated();
     }
 
-    /**
-     * Selectively parses a query from a top level query or query_binary json field from the specified source.
-     */
-    public ParsedQuery parseTopLevelQuery(BytesReference source) {
-        XContentParser parser = null;
-        try {
-            parser = XContentFactory.xContent(source).createParser(source);
-            QueryShardContext queryShardContext = cache.get();
-            queryShardContext.reset(parser);
-            queryShardContext.parseFieldMatcher(parseFieldMatcher);
-            try {
-                QueryBuilder<?> queryBuilder = queryShardContext.parseContext().parseTopLevelQueryBuilder();
-                Query query = toQuery(queryBuilder, queryShardContext);
-                return new ParsedQuery(query, queryShardContext.copyNamedQueries());
-            } finally {
-                queryShardContext.reset(null);
-            }
-        } catch (ParsingException | QueryShardException e) {
-            throw e;
-        } catch (Throwable e) {
-            throw new ParsingException(parser == null ? null : parser.getTokenLocation(), "Failed to parse", e);
-        }
-    }
-
     private ParsedQuery innerParse(QueryShardContext context, XContentParser parser) throws IOException, QueryShardException {
         context.reset(parser);
         try {

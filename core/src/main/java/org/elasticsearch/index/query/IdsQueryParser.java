@@ -79,7 +79,7 @@ public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
                         types.add(value);
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[ids] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
@@ -89,12 +89,14 @@ public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[ids] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         if (!idsProvided) {
-            throw new ParsingException(parser.getTokenLocation(), "[ids] query, no ids values provided");
+            throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] query, no ids values provided");
         }
 
         IdsQueryBuilder query = new IdsQueryBuilder(types.toArray(new String[types.size()]));

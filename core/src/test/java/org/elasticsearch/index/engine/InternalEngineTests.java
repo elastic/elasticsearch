@@ -1724,7 +1724,7 @@ public class InternalEngineTests extends ESTestCase {
     private Mapping dynamicUpdate() {
         BuilderContext context = new BuilderContext(Settings.EMPTY, new ContentPath());
         final RootObjectMapper root = MapperBuilders.rootObject("some_type").build(context);
-        return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], new Mapping.SourceTransform[0], emptyMap());
+        return new Mapping(Version.CURRENT, root, new MetadataFieldMapper[0], emptyMap());
     }
 
     public void testUpgradeOldIndex() throws IOException {
@@ -1920,13 +1920,12 @@ public class InternalEngineTests extends ESTestCase {
             RootObjectMapper.Builder rootBuilder = new RootObjectMapper.Builder("test");
             Index index = new Index(indexName);
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
-            AnalysisService analysisService = new AnalysisService(indexSettings);
+            AnalysisService analysisService = new AnalysisService(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
-            MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, null);
+            MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService);
             DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);
-            DocumentMapperParser parser = new DocumentMapperParser(indexSettings, mapperService, analysisService, similarityService, null);
+            DocumentMapperParser parser = new DocumentMapperParser(indexSettings, mapperService, analysisService, similarityService);
             this.docMapper = b.build(mapperService, parser);
-
         }
 
         @Override

@@ -20,8 +20,11 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
@@ -41,6 +44,7 @@ import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -69,6 +73,7 @@ public final class IndexModule extends AbstractModule {
     private final IndexSettings indexSettings;
     private final IndexStoreConfig indexStoreConfig;
     private final IndicesQueryCache indicesQueryCache;
+    private final AnalysisRegistry analysisRegistry;
     // pkg private so tests can mock
     Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
@@ -81,11 +86,12 @@ public final class IndexModule extends AbstractModule {
     private IndicesWarmer indicesWarmer;
 
 
-    public IndexModule(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig, IndicesQueryCache indicesQueryCache, IndicesWarmer warmer) {
+    public IndexModule(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig, IndicesQueryCache indicesQueryCache, IndicesWarmer warmer, AnalysisRegistry analysisRegistry) {
         this.indexStoreConfig = indexStoreConfig;
         this.indexSettings = indexSettings;
         this.indicesQueryCache = indicesQueryCache;
         this.indicesWarmer = warmer;
+        this.analysisRegistry = analysisRegistry;
         registerQueryCache(INDEX_QUERY_CACHE, IndexQueryCache::new);
         registerQueryCache(NONE_QUERY_CACHE, (a, b) -> new NoneQueryCache(a));
     }
@@ -216,6 +222,11 @@ public final class IndexModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        try {
+            bind(AnalysisService.class).toInstance(analysisRegistry.build(indexSettings));
+        } catch (IOException e) {
+            throw new ElasticsearchException("can't create analysis service", e);
+        }
         bind(EngineFactory.class).to(engineFactoryImpl).asEagerSingleton();
         bind(IndexSearcherWrapperFactory.class).toInstance(indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get());
         bind(IndexEventListener.class).toInstance(freeze());

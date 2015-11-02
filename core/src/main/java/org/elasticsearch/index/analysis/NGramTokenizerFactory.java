@@ -23,9 +23,8 @@ import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
 
 import java.lang.reflect.Field;
@@ -88,8 +87,7 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
         return builder.build();
     }
 
-    @Inject
-    public NGramTokenizerFactory(IndexSettings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public NGramTokenizerFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
         super(indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

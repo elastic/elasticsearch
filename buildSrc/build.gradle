@@ -46,11 +46,11 @@ props.load(project.file('../gradle.properties').newDataInputStream())
 version = props.getProperty('version')
 
 processResources {
-    inputs.file('../gradle.properties')
-    filter ReplaceTokens, tokens: [
-        'version': props.getProperty('version'),
-        'luceneVersion': props.getProperty('luceneVersion')
-    ]
+  inputs.file('../gradle.properties')
+  filter ReplaceTokens, tokens: [
+    'version': props.getProperty('version'),
+    'luceneVersion': props.getProperty('luceneVersion')
+  ]
 }
 
 extraArchive {

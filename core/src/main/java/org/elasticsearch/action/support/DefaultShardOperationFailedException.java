@@ -117,7 +117,7 @@ public class DefaultShardOperationFailedException implements ShardOperationFaile
 
     @Override
     public String toString() {
-        return "[" + index + "][" + shardId + "] failed, reason [" + reason() + "]";
+        return "[" + index + "][" + shardId + "] failed, reason [" + reason() + "], cause [" + ExceptionsHelper.stackTrace(reason) + "]";
     }
 
     @Override

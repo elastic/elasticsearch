@@ -36,20 +36,23 @@ import java.util.Objects;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.systemPropertyAsBoolean;
 
-/** 
+/**
  * Initializes natives and installs test security manager
  * (init'd early by base classes to ensure it happens regardless of which
- * test case happens to be first, test ordering, etc). 
+ * test case happens to be first, test ordering, etc).
  * <p>
  * The idea is to mimic as much as possible what happens with ES in production
  * mode (e.g. assign permissions and install security manager the same way)
  */
 public class BootstrapForTesting {
-    
+
     // TODO: can we share more code with the non-test side here
     // without making things complex???
 
     static {
+        // Set the system property before anything has a chance to trigger its use
+        System.setProperty("es.logger.prefix", "");
+
         // make sure java.io.tmpdir exists always (in case code uses it in a static initializer)
         Path javaTmpDir = PathUtils.get(Objects.requireNonNull(System.getProperty("java.io.tmpdir"),
                                                                "please set ${java.io.tmpdir} in pom.xml"));
@@ -64,7 +67,7 @@ public class BootstrapForTesting {
 
         // initialize probes
         Bootstrap.initializeProbes();
-        
+
         // check for jar hell
         try {
             JarHell.checkJarHell();

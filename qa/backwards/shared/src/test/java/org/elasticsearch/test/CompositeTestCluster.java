@@ -22,6 +22,7 @@ import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.google.common.base.Predicate;
 import com.google.common.collect.Collections2;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
@@ -50,7 +51,7 @@ import static org.junit.Assert.assertThat;
 public class CompositeTestCluster extends TestCluster {
     private final InternalTestCluster cluster;
     private final ExternalNode[] externalNodes;
-    private final ExternalClient client = new ExternalClient();
+    private ExternalClient client;
     private static final String NODE_PREFIX = "external_";
 
     public CompositeTestCluster(InternalTestCluster cluster, int numExternalNodes, ExternalNode externalNode) throws IOException {
@@ -73,10 +74,24 @@ public class CompositeTestCluster extends TestCluster {
         cluster.beforeTest(random, transportClientRatio);
         Settings defaultSettings = cluster.getDefaultSettings();
         final Client client = cluster.size() > 0 ? cluster.client() : cluster.clientNodeClient();
+        StringBuilder unicastHosts = new StringBuilder(cluster.unicastHosts());
+        boolean first = unicastHosts.length() == 0;
+        for (int i = 0; i < externalNodes.length; i++) {
+            if (!externalNodes[i].running()) {
+                continue;
+            }
+            if (first) {
+                first = false;
+            } else {
+                unicastHosts.append(',');
+            }
+            unicastHosts.append("localhost:").append(externalNodes[i].getTransportAddress().getPort());
+        }
         for (int i = 0; i < externalNodes.length; i++) {
             if (!externalNodes[i].running()) {
                 try {
-                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i);
+                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i, unicastHosts.toString());
+                    unicastHosts.append(",localhost:").append(externalNodes[i].getTransportAddress().getPort());
                 } catch (InterruptedException e) {
                     Thread.interrupted();
                     return;
@@ -84,6 +99,7 @@ public class CompositeTestCluster extends TestCluster {
             }
             externalNodes[i].reset(random.nextLong());
         }
+        this.client = new ExternalClient();
         if (size() > 0) {
             client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).get();
         }
@@ -144,9 +160,12 @@ public class CompositeTestCluster extends TestCluster {
             final Client existingClient = cluster.client();
             ExternalNode externalNode = RandomPicks.randomFrom(random, runningNodes);
             externalNode.stop();
+            nodeSettings = Settings.builder().put(nodeSettings).put("path.data", externalNode.dataPath().toString()).build();
             String s = cluster.startNode(nodeSettings);
             ExternalNode.waitForNode(existingClient, s);
             assertNoTimeout(existingClient.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size())).get());
+            // Rebuild the client, potentially using the new list of nodes
+            client = new ExternalClient();
             return true;
         }
         return false;
@@ -206,6 +225,18 @@ public class CompositeTestCluster extends TestCluster {
     @Override
     public int numDataNodes() {
         return runningNodes().size() + cluster.numDataNodes();
+    }
+
+    @Override
+    public int maximumNumberOfReplicasThatCanBeReliablyAssigned() {
+        /*
+         * We assume that all nodes not part of the internal test cluster are on
+         * older versions of Lucene. This is not always true but underestimating
+         * this nuber is safe. The trouble with nodes of an older version of
+         * Lucene is that you can't restore a replica from a node of the new
+         * version to a node of the old version.
+         */
+        return cluster.maximumNumberOfReplicasThatCanBeReliablyAssigned();
     }
 
     @Override
@@ -279,6 +310,11 @@ public class CompositeTestCluster extends TestCluster {
 
     public InternalTestCluster internalCluster() {
         return cluster;
+    }
+
+    @Override
+    protected Settings settingsForRandomRepoPath() {
+        return cluster.getDefaultSettings();
     }
 
     private synchronized Client internalClient() {

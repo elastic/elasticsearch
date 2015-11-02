@@ -113,6 +113,7 @@
         <module>smoke-test-plugins</module>
         <module>smoke-test-multinode</module>
         <module>smoke-test-client</module>
+        <module>backwards</module>
     </modules>
 
     <profiles>

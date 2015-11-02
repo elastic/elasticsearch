@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -42,7 +43,6 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCase {
-
     static final String INDEX_NAME = "testidx";
     static final String DOC_TYPE = "doc";
     static final String TEXT_FIELD = "text";
@@ -51,9 +51,8 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
     /**
      * Simple upgrade test for streaming significant terms buckets
      */
-    @Test
+    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/13522")
     public void testBucketStreaming() throws IOException, ExecutionException, InterruptedException {
-
         logger.debug("testBucketStreaming: indexing documents");
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
@@ -96,7 +95,6 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
     }
 
     private void checkSignificantTermsAggregationCorrect() {
-
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                 .addAggregation(new TermsBuilder("class").field(CLASS_FIELD).subAggregation(
                         new SignificantTermsBuilder("sig_terms")

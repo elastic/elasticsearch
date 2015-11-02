@@ -24,6 +24,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -44,6 +45,7 @@ public class TransportClientBackwardsCompatibilityIT extends ESBackcompatTestCas
 
         Settings settings = Settings.builder().put(requiredSettings()).put("client.transport.nodes_sampler_interval", "1s")
                 .put("name", "transport_client_sniff_mode").put(ClusterName.SETTING, cluster().getClusterName())
+                .put("path.home", PathUtils.get(".").toAbsolutePath())
                 .put("client.transport.sniff", true).build();
 
         CompositeTestCluster compositeTestCluster = backwardsCluster();

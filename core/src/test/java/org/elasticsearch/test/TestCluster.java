@@ -20,6 +20,7 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.hppc.ObjectArrayList;
+
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.client.Client;
@@ -27,6 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.repositories.RepositoryMissingException;
@@ -34,10 +37,12 @@ import org.elasticsearch.repositories.RepositoryMissingException;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.Random;
 import java.util.Set;
 
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 
 /**
  * Base test cluster that exposes the basis to run tests against any elasticsearch cluster, whose layout
@@ -111,6 +116,16 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
      * Returns the number of data nodes in the cluster.
      */
     public abstract int numDataNodes();
+
+    /**
+     * Returns the maximum number of replicas that can be consistently assigned
+     * in this cluster. In a cluster where all nodes are the same version this
+     * should just be one less than the number of nodes in the cluster, but in a
+     * cluster of mixed version nodes this is more complicated.
+     */
+    public int maximumNumberOfReplicasThatCanBeReliablyAssigned() {
+        return numDataNodes() - 1;
+    };
 
     /**
      * Returns the number of data and master eligible nodes in the cluster.
@@ -219,6 +234,24 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
                 }
             }
         }
+    }
+
+    /**
+     * Returns path to a random directory that can be used to create a temporary file system repo
+     */
+    public final Path randomRepoPath() {
+        Environment environment = new Environment(settingsForRandomRepoPath());
+        Path[] repoFiles = environment.repoFiles();
+        assert repoFiles.length > 0;
+        Path path;
+        do {
+            path = repoFiles[0].resolve(ESTestCase.randomAsciiOfLength(10));
+        } while (Files.exists(path));
+        return path;
+    }
+
+    protected Settings settingsForRandomRepoPath() {
+        throw new UnsupportedOperationException("unsupported cluster type");
     }
 
     /**

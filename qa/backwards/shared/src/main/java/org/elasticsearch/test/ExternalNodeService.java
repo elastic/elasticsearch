@@ -297,7 +297,7 @@ public class ExternalNodeService {
                 process = builder.start();
                 BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
 
-                Matcher m = readUntilMatches(stdout, "http bound", ".+\\[http .+bound_addresses \\{127\\.0\\.0\\.1:(\\d+)\\}.+",
+                Matcher m = readUntilMatches(stdout, "http bound", ".+\\[http .+bound_addresses \\{(?:127\\.0\\.0\\.1|\\[::1\\]):(\\d+)\\}.+",
                         timeValueSeconds(20));
                 port = m.group(1);
                 message("bound to [localhost:" + port + "]");

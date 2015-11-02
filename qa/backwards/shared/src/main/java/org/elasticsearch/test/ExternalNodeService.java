@@ -49,6 +49,7 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
+import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -293,11 +294,13 @@ public class ExternalNodeService {
             builder.redirectErrorStream(true);
             Process process = null;
             String port = null;
+            BufferedReader stdout = null;
             try {
                 process = builder.start();
-                BufferedReader stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+                stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+                message("Process forked");
 
-                Matcher m = readUntilMatches(stdout, "http bound", ".+\\[http .+bound_addresses \\{(?:127\\.0\\.0\\.1|\\[::1\\]):(\\d+)\\}.+",
+                Matcher m = readUntilMatches(stdout, "http bound", ".+\\[http .+bound_addresses .+\\{(?:127\\.0\\.0\\.1|\\[::1\\]):(\\d+)\\}.+",
                         timeValueSeconds(20));
                 port = m.group(1);
                 message("bound to [localhost:" + port + "]");
@@ -306,10 +309,21 @@ public class ExternalNodeService {
                 process.getInputStream().close();
             } finally {
                 if (process != null && (port == null || !runningElasticsearches.containsKey(port))) {
-                    logger.warn("It looks like we failed to launch elasticsearch. Kill -9ing it just to make sure it doesn't linger.");
-                    logger.warn("We tried to start it like this: {}", startReproduction);
+                    logger.error("It looks like we failed to launch elasticsearch. Kill -9ing it just to make sure it doesn't linger.");
+                    logger.error("We tried to start it like this: {}", startReproduction);
                     // In Java 1.8 this should be destroyForcibly
                     process.destroy();
+                    if (stdout != null) {
+                        try {
+                            stdout.reset();
+                            CharBuffer lines = CharBuffer.allocate(1024 * 1024);
+                            stdout.read(lines);
+                            lines.flip();
+                            logger.error("We were able to capture some of elasticsearch's output. Hopefully this will be useful in figuring out the failure:\n{}", lines.toString());
+                        } catch (IOException e) {
+                            logger.warn("Sadly we couldn't capture any of its output.", e);
+                        }
+                    }
                 }
             }
         }
@@ -368,6 +382,7 @@ public class ExternalNodeService {
             Future<Matcher> f = readLines.submit(new Callable<Matcher>() {
                 @Override
                 public Matcher call() throws IOException {
+                    reader.mark(1024 * 1024);
                     String line;
                     while ((line = reader.readLine()) != null) {
                         logger.debug("Elasticsearch logged {}", line);

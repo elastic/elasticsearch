@@ -67,6 +67,11 @@ The modules in this section are:
 
     Configure the transport networking layer, used internally by Elasticsearch
     to communicate between nodes.
+    
+<<modules-tribe,Tribe nodes>>::
+
+    A tribe node joins one ore more clusters and act as a federated 
+    client accross them.
 --
 
 

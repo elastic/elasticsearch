@@ -326,152 +326,63 @@ vagrant plugin install vagrant-cachier
 . Validate your installed dependencies:
 
 -------------------------------------
-gradle :qa:vagrant:validate
+gradle :qa:vagrant:checkVagrantVersion
 -------------------------------------
 
-. Download the VMs. Since Maven or ant or something eats the progress reports
-from Vagrant when you run it inside mvn its probably best if you run this one
-time to setup all the VMs one at a time. Run this to download and setup the VMs
-we use for testing by default:
+. Download and smoke test the VMs with `gradle vagrantSmokeTest` or
+`gradle vagrantSmokeTestAllDistros`. The first time you run this it will
+download the base images and provision the boxes and immediately quit. If you
+you this again it'll skip the download step.
 
---------------------------------------------------------
-vagrant up --provision trusty --provider virtualbox && vagrant halt trusty
-vagrant up --provision centos-7 --provider virtualbox && vagrant halt centos-7
---------------------------------------------------------
+. Run the tests with `gradle checkPackages`. This will cause gradle to build
+the tar, zip, and deb packages and all the plugins. It will then run the tests
+on ubuntu-1404 and centos-7. We chose those two distributions as the default
+because they cover deb and rpm packaging and SyvVinit and systemd.
 
-or run this to download and setup all the VMs:
+You can run on all the VMs by running `gradle checkPackagesAllDistros`. You can
+run a particular VM with a command like `gradle checkOel7`. See `gradle tasks`
+for a list. Its important to know that if you ctrl-c any of these `gradle`
+commands then the boxes will remain running and you'll have to terminate them
+with `vagrant halt`.
 
--------------------------------------------------------------------------------
-vagrant halt
-for box in $(vagrant status | grep 'poweroff\|not created' | cut -f1 -d' '); do
-  vagrant up --provision $box --provider virtualbox
-  vagrant halt $box
-done
--------------------------------------------------------------------------------
-
-. Smoke test the maven/ant dance that we use to get vagrant involved in
-integration testing is working:
-
----------------------------------------------
-mvn -Dtests.vagrant -Psmoke-vms -pl qa/vagrant verify
----------------------------------------------
-
-or this to validate all the VMs:
-
--------------------------------------------------
-mvn -Dtests.vagrant=all -Psmoke-vms -pl qa/vagrant verify
--------------------------------------------------
-
-That will start up the VMs and then immediate quit.
-
-. Finally run the tests. The fastest way to get this started is to run:
-
------------------------------------
-mvn clean install -DskipTests
-mvn -Dtests.vagrant -pl qa/vagrant verify
------------------------------------
-
-You could just run:
-
---------------------
-mvn -Dtests.vagrant verify
---------------------
-
-but that will run all the tests. Which is probably a good thing, but not always
-what you want.
-
-Whichever snippet you run mvn will build the tar, zip and deb packages. If you
-have rpmbuild installed it'll build the rpm package as well. Then mvn will
-spin up trusty and verify the tar, zip, and deb package. If you have rpmbuild
-installed it'll spin up centos-7 and verify the tar, zip and rpm packages. We
-chose those two distributions as the default because they cover deb and rpm
-packaging and SyvVinit and systemd.
-
-You can control the boxes that are used for testing like so. Run just
-fedora-22 with:
-
---------------------------------------------
-mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest=fedora-22
---------------------------------------------
-
-or run jessie and trusty:
-
-------------------------------------------------------------------
-mvn -Dtests.vagrant -pl qa/vagrant verify -DboxesToTest='jessie, trusty'
-------------------------------------------------------------------
-
-or run all the boxes:
-
----------------------------------------
-mvn -Dtests.vagrant=all -pl qa/vagrant verify
----------------------------------------
-
-If you want to run a specific test on several boxes you can do:
-
----------------------------------------
-mvn -Dtests.vagrant=all -pl qa/vagrant verify -DtestScripts=*tar*.bats
----------------------------------------
-
-Its important to know that if you ctrl-c any of these `mvn` runs that you'll
-probably leave a VM up. You can terminate it by running:
-
-------------
-vagrant halt
-------------
-
-This is just regular vagrant so you can run normal multi box vagrant commands
-to test things manually. Just run:
-
----------------------------------------
-vagrant up trusty --provider virtualbox && vagrant ssh trusty
----------------------------------------
-
-to get an Ubuntu or
-
--------------------------------------------
-vagrant up centos-7 --provider virtualbox && vagrant ssh centos-7
--------------------------------------------
-
-to get a CentOS. Once you are done with them you should halt them:
-
--------------------
-vagrant halt trusty
--------------------
+All the regular vagrant commands should just work so you can get a shell in a
+VM running trusty by running
+`vagrant up ubuntu-1404 --provider virtualbox && vagrant ssh ubuntu-1404`.
 
 These are the linux flavors the Vagrantfile currently supports:
 
-* precise aka Ubuntu 12.04
-* trusty aka Ubuntu 14.04
-* vivid aka Ubuntun 15.04
-* jessie aka Debian 8, the current debina stable distribution
+* ubuntu-1204 aka precise
+* ubuntu-1404 aka trusty
+* ubuntu-1504 aka vivid
+* debian-8 aka jessie, the current debian stable distribution
 * centos-6
 * centos-7
 * fedora-22
 * oel-7 aka Oracle Enterprise Linux 7
 * sles-12
+* opensuse-13
 
 We're missing the following from the support matrix because there aren't high
 quality boxes available in vagrant atlas:
 
 * sles-11
-* opensuse-13
 * oel-6
 
 We're missing the follow because our tests are very linux/bash centric:
 
 * Windows Server 2012
 
-Its important to think of VMs like cattle: if they become lame you just shoot
+Its important to think of VMs like cattle. If they become lame you just shoot
 them and let vagrant reprovision them. Say you've hosed your precise VM:
 
 ----------------------------------------------------
-vagrant ssh precise -c 'sudo rm -rf /bin'; echo oops
+vagrant ssh ubuntu-1404 -c 'sudo rm -rf /bin'; echo oops
 ----------------------------------------------------
 
 All you've got to do to get another one is
 
 ----------------------------------------------
-vagrant destroy -f trusty && vagrant up trusty --provider virtualbox
+vagrant destroy -f ubuntu-1404 && vagrant up ubuntu-1404 --provider virtualbox
 ----------------------------------------------
 
 The whole process takes a minute and a half on a modern laptop, two and a half
@@ -489,13 +400,8 @@ vagrant halt
 vagrant destroy -f
 ------------------
 
-
-----------
-vagrant up
-----------
-
-would normally start all the VMs but we've prevented that because that'd
-consume a ton of ram.
+`vagrant up` would normally start all the VMs but we've prevented that because
+that'd consume a ton of ram.
 
 == Testing scripts more directly
 
@@ -504,7 +410,7 @@ destructive. When working with a single package its generally faster to run its
 tests in a tighter loop than maven provides. In one window:
 
 --------------------------------
-mvn -pl distribution/rpm package
+gradle :distribution:rpm:assemble
 --------------------------------
 
 and in another window:
@@ -518,10 +424,7 @@ sudo bats $BATS/*rpm*.bats
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-# Build all the distributions fresh but skip recompiling elasticsearch:
-mvn -amd -pl distribution install -DskipTests
-# Copy them all the testroot
-mvn -Dtests.vagrant -pl qa/vagrant pre-integration-test
+gradle copyDepsToTestRoot
 vagrant up trusty --provider virtualbox && vagrant ssh trusty
 cd $TESTROOT
 sudo bats $BATS/*.bats

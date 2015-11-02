@@ -19,6 +19,9 @@
 
 * http://github.com/Aconex/elasticflume[elasticflume]:
   http://github.com/cloudera/flume[Flume] sink implementation.
+  
+  * https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer/tree/branch2.0[Kafka Standalone Consumer(Indexer)]
+  Kafka Standalone Consumer [Indexer] will read messages from Kafka, in batches, process and bulk-index them into ElasticSearch. Flexible and scalable ! More documentation in above GitHub repo's Wiki.
 
 * http://code.google.com/p/terrastore/wiki/Search_Integration[Terrastore Search]:
   http://code.google.com/p/terrastore/[Terrastore] integration module with elasticsearch.
@@ -91,6 +94,3 @@
 
 * https://doc.tiki.org/Elasticsearch[Tiki Wiki CMS Groupware]
   Tiki has native support for Elasticsearch. This provides faster & better search (facets, etc), along with some Natural Language Processing features (ex.: More like this)
-
-* https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer[Kafka Standalone Consumer]
-  Easily Scaleable & Extendable, Kafka Standalone Consumer that will read the messages from Kafka, processes and index them in ElasticSearch

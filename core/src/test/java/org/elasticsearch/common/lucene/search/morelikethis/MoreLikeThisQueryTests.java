@@ -67,4 +67,39 @@ public class MoreLikeThisQueryTests extends ESTestCase {
         reader.close();
         indexWriter.close();
     }
+
+    public void testAgainstMaxDocFreqPct() throws Exception {
+        Directory dir = new RAMDirectory();
+        IndexWriter indexWriter = new IndexWriter(dir, new IndexWriterConfig(Lucene.STANDARD_ANALYZER));
+        indexWriter.commit();
+
+        Document document = new Document();
+        document.add(new TextField("_id", "1", Field.Store.YES));
+        document.add(new TextField("text", "lucene", Field.Store.YES));
+        indexWriter.addDocument(document);
+
+        document = new Document();
+        document.add(new TextField("_id", "2", Field.Store.YES));
+        document.add(new TextField("text", "lucene release one", Field.Store.YES));
+        indexWriter.addDocument(document);
+
+        document = new Document();
+        document.add(new TextField("_id", "2", Field.Store.YES));
+        document.add(new TextField("text", "lucene release another", Field.Store.YES));
+        indexWriter.addDocument(document);
+
+        IndexReader reader = DirectoryReader.open(indexWriter, true);
+        IndexSearcher searcher = new IndexSearcher(reader);
+
+        MoreLikeThisQuery mltQuery = new MoreLikeThisQuery("", new String[]{"text"}, Lucene.STANDARD_ANALYZER);
+        mltQuery.setLikeText("lucene release");
+        mltQuery.setMinTermFrequency(1);
+        mltQuery.setMinDocFreq(1);
+        mltQuery.setMaxDocFreqPct(80);
+        long count = searcher.count(mltQuery);
+        assertThat(count, equalTo(2l));
+
+        reader.close();
+        indexWriter.close();
+    }
 }

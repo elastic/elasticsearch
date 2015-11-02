@@ -20,10 +20,12 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -76,6 +78,7 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.*;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -343,6 +346,29 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         } catch (ParsingException e) {
             // we'd like to see the offending field name here
             assertThat(e.getMessage(), containsString("bogusField"));
+        }
+     }
+
+     /**
+     * Test that adding additional object into otherwise correct query string
+     * should always trigger some kind of Parsing Exception.
+     */
+    public void testUnknownObjectException() throws IOException {
+        String validQuery = createTestQueryBuilder().toString();
+        assertThat(validQuery, containsString("{"));
+        for (int insertionPosition = 0; insertionPosition < validQuery.length(); insertionPosition++) {
+            if (validQuery.charAt(insertionPosition) == '{') {
+                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : " + validQuery.substring(insertionPosition) + "}";
+                try {
+                    parseQuery(testQuery);
+                    fail("some parsing exception expected for query: " + testQuery);
+                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                    // different kinds of exception wordings depending on location
+                    // of mutation, so no simple asserts possible here
+                } catch (JsonParseException e) {
+                    // mutation produced invalid json
+                }
+            }
         }
     }
 

@@ -62,11 +62,15 @@ public class TermsQueryParser implements QueryParser {
                 // skip
             } else if (token == XContentParser.Token.START_ARRAY) {
                 if  (fieldName != null) {
-                    throw new ParsingException(parser.getTokenLocation(), "[terms] query does not support multiple fields");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query does not support multiple fields");
                 }
                 fieldName = currentFieldName;
                 values = parseValues(parser);
             } else if (token == XContentParser.Token.START_OBJECT) {
+                if  (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query does not support more than one field. "
+                            + "Already got: [" + fieldName + "] but also found [" + currentFieldName +"]");
+                }
                 fieldName = currentFieldName;
                 termsLookup = TermsLookup.parseTermsLookup(parser);
             } else if (token.isValue()) {
@@ -75,13 +79,15 @@ public class TermsQueryParser implements QueryParser {
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[terms] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 
         if (fieldName == null) {
-            throw new ParsingException(parser.getTokenLocation(), "terms query requires a field name, followed by array of terms or a document lookup specification");
+            throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query requires a field name, followed by array of terms or a document lookup specification");
         }
         return new TermsQueryBuilder(fieldName, values, termsLookup)
                 .boost(boost)

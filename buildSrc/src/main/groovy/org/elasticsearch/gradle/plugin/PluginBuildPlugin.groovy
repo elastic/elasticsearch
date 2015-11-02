@@ -85,7 +85,7 @@ class PluginBuildPlugin extends BuildPlugin {
         PluginPropertiesTask buildProperties = project.tasks.create(name: 'pluginProperties', type: PluginPropertiesTask)
         File pluginMetadata = project.file("src/main/plugin-metadata")
         project.sourceSets.test {
-            output.dir(buildProperties.propertiesFile.parentFile, builtBy: 'pluginProperties')
+            output.dir(buildProperties.generatedResourcesDir, builtBy: 'pluginProperties')
             resources {
                 srcDir pluginMetadata
             }

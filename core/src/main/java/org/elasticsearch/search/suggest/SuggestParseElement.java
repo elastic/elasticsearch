@@ -23,7 +23,6 @@ import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
@@ -45,13 +44,13 @@ public final class SuggestParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.queryParserService(),
+        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(),
                 context.shardTarget().index(), context.shardTarget().shardId(), context);
         context.suggest(suggestionSearchContext);
     }
 
     public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService,
-            IndexQueryParserService queryParserService, String index, int shardId, HasContextAndHeaders headersContext) throws IOException {
+            String index, int shardId, HasContextAndHeaders headersContext) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
 
         BytesRef globalText = null;
@@ -90,7 +89,7 @@ public final class SuggestParseElement implements SearchParseElement {
                             throw new IllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
                         final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
-                        suggestionContext = contextParser.parse(parser, mapperService, queryParserService, headersContext);
+                        suggestionContext = contextParser.parse(parser, mapperService, headersContext);
                     }
                 }
                 if (suggestionContext != null) {

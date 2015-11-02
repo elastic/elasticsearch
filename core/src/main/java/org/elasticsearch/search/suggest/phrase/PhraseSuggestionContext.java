@@ -25,7 +25,6 @@ import java.util.Map;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.search.suggest.DirectSpellcheckerSettings;
 import org.elasticsearch.search.suggest.Suggester;
@@ -33,7 +32,6 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContex
 
 class PhraseSuggestionContext extends SuggestionContext {
     private final BytesRef SEPARATOR = new BytesRef(" ");
-    private IndexQueryParserService queryParserService;
     private float maxErrors = 0.5f;
     private BytesRef separator = SEPARATOR;
     private float realworldErrorLikelihood = 0.95f;
@@ -110,14 +108,6 @@ class PhraseSuggestionContext extends SuggestionContext {
 
     public WordScorer.WordScorerFactory model() {
         return scorer;
-    }
-
-    public void setQueryParserService(IndexQueryParserService queryParserService) {
-        this.queryParserService = queryParserService;
-    }
-
-    public IndexQueryParserService getQueryParserService() {
-        return queryParserService;
     }
 
     static class DirectCandidateGenerator extends DirectSpellcheckerSettings {

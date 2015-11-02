@@ -27,6 +27,7 @@ import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.util.CloseableThreadLocal;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
@@ -81,6 +82,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -152,6 +154,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndicesQueryCache indicesQueryCache;
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
+    private final IndexServicesProvider provider;
 
     private TimeValue refreshInterval;
 
@@ -252,12 +255,13 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.flushThresholdSize = this.indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
         this.disableFlush = this.indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
         this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
-
+        this.provider = provider;
         this.searcherWrapper = indexSearcherWrapper;
-        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, provider.getQueryParserService(), indexingService, mapperService, indexFieldDataService);
+        this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, indexingService, mapperService, newQueryShardContext(), indexFieldDataService);
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             percolatorQueriesRegistry.enableRealTimePercolator();
         }
+
 
         // We start up inactive
         active.set(false);
@@ -762,7 +766,7 @@ public class IndexShard extends AbstractIndexShardComponent {
                         engine.flushAndClose();
                     }
                 } finally { // playing safe here and close the engine even if the above succeeds - close can be called multiple times
-                    IOUtils.close(engine, percolatorQueriesRegistry);
+                    IOUtils.close(engine, percolatorQueriesRegistry, queryShardContextCache);
                 }
             }
         }
@@ -1596,6 +1600,25 @@ public class IndexShard extends AbstractIndexShardComponent {
             this.cause = cause;
             this.indexUUID = indexUUID;
         }
+    }
+
+    private CloseableThreadLocal<QueryShardContext> queryShardContextCache = new CloseableThreadLocal<QueryShardContext>() {
+        // TODO We should get rid of this threadlocal but I think it should be a sep change
+        @Override
+        protected QueryShardContext initialValue() {
+            return newQueryShardContext();
+        }
+    };
+
+    private QueryShardContext newQueryShardContext() {
+        return new QueryShardContext(idxSettings, provider.getClient(), indexCache.bitsetFilterCache(), indexFieldDataService,  mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
+    }
+
+    /**
+     * Returns a threadlocal QueryShardContext for this shard.
+     */
+    public QueryShardContext getQueryShardContext() {
+        return queryShardContextCache.get();
     }
 
 }

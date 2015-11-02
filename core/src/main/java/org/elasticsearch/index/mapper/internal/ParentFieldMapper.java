@@ -220,8 +220,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
                 return super.termsQuery(values, context);
             }
 
-            List<String> types = new ArrayList<>(context.mapperService().types().size());
-            for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
+            List<String> types = new ArrayList<>(context.getMapperService().types().size());
+            for (DocumentMapper documentMapper : context.getMapperService().docMappers(false)) {
                 if (!documentMapper.parentFieldMapper().active()) {
                     types.add(documentMapper.type());
                 }

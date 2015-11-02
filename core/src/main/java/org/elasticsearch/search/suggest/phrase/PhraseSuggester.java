@@ -29,12 +29,13 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.lucene.Lucene.EarlyTerminatingCollector;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.common.text.Text;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
@@ -55,10 +56,11 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
     private final BytesRef SEPARATOR = new BytesRef(" ");
     private static final String SUGGESTION_TEMPLATE_VAR_NAME = "suggestion";
     private final ScriptService scriptService;
+    private final IndicesService indicesService;
 
-    @Inject
-    public PhraseSuggester(ScriptService scriptService) {
+    public PhraseSuggester(ScriptService scriptService, IndicesService indicesService) {
         this.scriptService = scriptService;
+        this.indicesService = indicesService;
     }
 
     /*
@@ -117,7 +119,9 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                     vars.put(SUGGESTION_TEMPLATE_VAR_NAME, spare.toString());
                     final ExecutableScript executable = scriptService.executable(collateScript, vars);
                     final BytesReference querySource = (BytesReference) executable.run();
-                    final ParsedQuery parsedQuery = suggestion.getQueryParserService().parse(querySource);
+                    IndexService indexService = indicesService.indexService(suggestion.getIndex());
+                    IndexShard shard = indexService.getShard(suggestion.getShard());
+                    final ParsedQuery parsedQuery = shard.getQueryShardContext().parse(querySource);
                     collateMatch = Lucene.exists(searcher, parsedQuery.query());
                 }
                 if (!collateMatch && !collatePrune) {

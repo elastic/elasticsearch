@@ -183,7 +183,7 @@ public final class QueryRescorer implements Rescorer {
     private static final ObjectParser<QueryRescoreContext, SearchContext> RESCORE_PARSER = new ObjectParser<>("query", null);
 
     static {
-        RESCORE_PARSER.declareObject(QueryRescoreContext::setParsedQuery, (p, c) -> c.queryParserService().parse(p), new ParseField("rescore_query"));
+        RESCORE_PARSER.declareObject(QueryRescoreContext::setParsedQuery, (p, c) -> c.indexShard().getQueryShardContext().parse(p), new ParseField("rescore_query"));
         RESCORE_PARSER.declareFloat(QueryRescoreContext::setQueryWeight, new ParseField("query_weight"));
         RESCORE_PARSER.declareFloat(QueryRescoreContext::setRescoreQueryWeight, new ParseField("rescore_query_weight"));
         RESCORE_PARSER.declareString(QueryRescoreContext::setScoreMode, new ParseField("score_mode"));

@@ -66,6 +66,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
@@ -75,6 +76,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.*;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
@@ -122,10 +124,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     private static Injector injector;
-    private static IndexQueryParserService queryParserService;
+    private static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static QueryShardContext queryShardContext;
+    private static IndexFieldDataService indexFieldDataService;
 
-    protected static IndexQueryParserService queryParserService() {
-        return queryParserService;
+
+    protected static QueryShardContext queryShardContext() {
+        return queryShardContext;
+    }
+
+    protected static IndexFieldDataService indexFieldDataService() {
+        return indexFieldDataService;
     }
 
     private static Index index;
@@ -233,9 +242,13 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     }
                 }
         ).createInjector();
-        queryParserService = injector.getInstance(IndexQueryParserService.class);
-
-        MapperService mapperService = queryParserService.mapperService;
+        SimilarityService similarityService = injector.getInstance(SimilarityService.class);
+        indexFieldDataService = injector.getInstance(IndexFieldDataService.class);
+        ScriptService scriptService = injector.getInstance(ScriptService.class);
+        MapperService mapperService = injector.getInstance(MapperService.class);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));
+        indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
+        queryShardContext = new QueryShardContext(idxSettings, proxy, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
@@ -264,10 +277,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         terminate(injector.getInstance(ThreadPool.class));
         injector = null;
         index = null;
-        queryParserService = null;
+        queryShardContext = null;
         currentTypes = null;
         namedWriteableRegistry = null;
         randomTypes = null;
+        indicesQueriesRegistry = null;
+        indexFieldDataService = null;
     }
 
     @Before
@@ -542,7 +557,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private QueryParser<?> queryParser(String queryId) {
-        return queryParserService.indicesQueriesRegistry().queryParsers().get(queryId);
+        return indicesQueriesRegistry.queryParsers().get(queryId);
     }
 
     //we use the streaming infra to create a copy of the query provided as argument
@@ -562,7 +577,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryShardContext} based on the base test index and queryParserService
      */
     protected static QueryShardContext createShardContext() {
-        QueryShardContext queryCreationContext = new QueryShardContext(queryParserService);
+        QueryShardContext queryCreationContext = queryShardContext.clone();
         queryCreationContext.reset();
         queryCreationContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         return queryCreationContext;
@@ -572,7 +587,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createParseContext() {
-        QueryParseContext queryParseContext = new QueryParseContext(queryParserService.indicesQueriesRegistry());
+        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
         queryParseContext.reset(null);
         queryParseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         return queryParseContext;

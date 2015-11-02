@@ -222,8 +222,9 @@ public final class IndexModule extends AbstractModule {
 
     @Override
     protected void configure() {
+        final IndexSettings settings = indexSettings.newWithListener(settingsConsumers);
         try {
-            bind(AnalysisService.class).toInstance(analysisRegistry.build(indexSettings));
+            bind(AnalysisService.class).toInstance(analysisRegistry.build(settings));
         } catch (IOException e) {
             throw new ElasticsearchException("can't create analysis service", e);
         }
@@ -234,7 +235,6 @@ public final class IndexModule extends AbstractModule {
         bind(IndexServicesProvider.class).asEagerSingleton();
         bind(MapperService.class).asEagerSingleton();
         bind(IndexFieldDataService.class).asEagerSingleton();
-        final IndexSettings settings = new IndexSettings(indexSettings.getIndexMetaData(), indexSettings.getNodeSettings(), settingsConsumers);
         bind(IndexSettings.class).toInstance(settings);
 
         final String storeType = settings.getSettings().get(STORE_TYPE);

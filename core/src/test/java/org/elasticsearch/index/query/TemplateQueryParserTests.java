@@ -44,13 +44,17 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -121,9 +125,13 @@ public class TemplateQueryParserTests extends ESTestCase {
                     }
                 }
         ).createInjector();
-
-        IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryShardContext(queryParserService);
+        SimilarityService similarityService = injector.getInstance(SimilarityService.class);
+        IndexFieldDataService indexFieldDataService = injector.getInstance(IndexFieldDataService.class);
+        ScriptService scriptService = injector.getInstance(ScriptService.class);
+        MapperService mapperService = injector.getInstance(MapperService.class);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));
+        IndicesQueriesRegistry indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
+        context = new QueryShardContext(idxSettings, proxy, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
     }
 
     @Override

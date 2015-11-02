@@ -267,7 +267,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
         // the remaining tests requires either a mapping that we register with types in base test setup
         // no strict field resolution (version before V_1_4_0_Beta1)
-        if (getCurrentTypes().length > 0 || shardContext.indexQueryParserService().getIndexCreatedVersion().before(Version.V_1_4_0_Beta1)) {
+        if (getCurrentTypes().length > 0 || shardContext.indexVersionCreated().before(Version.V_1_4_0_Beta1)) {
             Query luceneQuery = queryBuilder.toQuery(shardContext);
             assertThat(luceneQuery, instanceOf(BooleanQuery.class));
             TermQuery termQuery = (TermQuery) ((BooleanQuery) luceneQuery).clauses().get(0).getQuery();

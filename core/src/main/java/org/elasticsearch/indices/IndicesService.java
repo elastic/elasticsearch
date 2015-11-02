@@ -28,12 +28,16 @@ import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.*;
 import org.elasticsearch.common.io.FileSystemUtils;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -50,7 +54,7 @@ import org.elasticsearch.index.get.GetStats;
 import org.elasticsearch.index.indexing.IndexingStats;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -60,6 +64,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsService;
@@ -72,6 +77,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -93,6 +99,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final IndicesWarmer indicesWarmer;
     private final IndicesQueryCache indicesQueryCache;
     private final AnalysisRegistry analysisRegistry;
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final ClusterService clusterService;
+    private final IndexNameExpressionResolver indexNameExpressionResolver;
+
     private volatile Map<String, IndexServiceInjectorPair> indices = emptyMap();
 
     public AnalysisRegistry getAnalysis() {
@@ -127,7 +137,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     @Inject
-    public IndicesService(Settings settings, Injector injector, PluginsService pluginsService, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesQueryCache indicesQueryCache, IndicesWarmer indicesWarmer, AnalysisRegistry analysisRegistry) {
+    public IndicesService(Settings settings, Injector injector, PluginsService pluginsService, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, IndicesQueryCache indicesQueryCache, IndicesWarmer indicesWarmer, AnalysisRegistry analysisRegistry, IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService) {
         super(settings);
         this.injector = injector;
         this.pluginsService = pluginsService;
@@ -137,6 +147,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.shardsClosedTimeout = settings.getAsTime(INDICES_SHARDS_CLOSED_TIMEOUT, new TimeValue(1, TimeUnit.DAYS));
         this.indexStoreConfig = new IndexStoreConfig(settings);
         this.analysisRegistry = analysisRegistry;
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
+        this.clusterService = clusterService;
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
         nodeSettingsService.addListener(indexStoreConfig);
     }
 
@@ -282,6 +295,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
 
+
     /**
      * Creates a new {@link IndexService} for the given metadata.
      * @param indexMetaData the index metadata to create the index for
@@ -292,8 +306,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
-
-        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST);
+        final String indexName = indexMetaData.getIndex();
+        final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(indexName, indexExpression, clusterService.state());
+        final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, Collections.EMPTY_LIST, indexNameMatcher);
         Index index = new Index(indexMetaData.getIndex());
         if (indices.containsKey(index.name())) {
             throw new IndexAlreadyExistsException(index);
@@ -384,9 +399,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
             logger.debug("[{}] closing mapper service (reason [{}])", index, reason);
             indexInjector.getInstance(MapperService.class).close();
-            logger.debug("[{}] closing index query parser service (reason [{}])", index, reason);
-            indexInjector.getInstance(IndexQueryParserService.class).close();
-
             logger.debug("[{}] closed... (reason [{}])", index, reason);
             listener.afterIndexClosed(indexService.index(), indexService.getIndexSettings().getSettings());
             if (delete) {
@@ -785,5 +797,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
             return deleteList.size();
         }
+    }
+
+    public QueryParseContext newQueryParserContext() {
+        return new QueryParseContext(indicesQueriesRegistry);
     }
 }

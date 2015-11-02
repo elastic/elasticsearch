@@ -504,7 +504,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
     protected Query doToQuery(QueryShardContext context) throws IOException {
         MultiMatchQuery multiMatchQuery = new MultiMatchQuery(context);
         if (analyzer != null) {
-            if (context.analysisService().analyzer(analyzer) == null) {
+            if (context.getAnalysisService().analyzer(analyzer) == null) {
                 throw new QueryShardException(context, "[" + NAME + "] analyzer [" + analyzer + "] not found");
             }
             multiMatchQuery.setAnalyzer(analyzer);
@@ -539,7 +539,7 @@ public class MultiMatchQueryBuilder extends AbstractQueryBuilder<MultiMatchQuery
             }
         }
 
-        Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.mapperService(), fieldsBoosts);
+        Map<String, Float> newFieldsBoosts = handleFieldsMatchPattern(context.getMapperService(), fieldsBoosts);
 
         Query query = multiMatchQuery.parse(type, newFieldsBoosts, value, minimumShouldMatch);
         if (query == null) {

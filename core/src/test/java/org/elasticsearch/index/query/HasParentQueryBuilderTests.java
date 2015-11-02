@@ -49,7 +49,7 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
 
     public void setUp() throws Exception {
         super.setUp();
-        MapperService mapperService = queryParserService().mapperService;
+        MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=string",
                 INT_FIELD_NAME, "type=integer",
@@ -70,8 +70,8 @@ public class HasParentQueryBuilderTests extends AbstractQueryTestCase<HasParentQ
     }
 
     protected void setSearchContext(String[] types) {
-        final MapperService mapperService = queryParserService().mapperService;
-        final IndexFieldDataService fieldData = queryParserService().fieldDataService;
+        final MapperService mapperService = queryShardContext().getMapperService();
+        final IndexFieldDataService fieldData = indexFieldDataService();
         TestSearchContext testSearchContext = new TestSearchContext() {
             private InnerHitsContext context;
 

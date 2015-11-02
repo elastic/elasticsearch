@@ -33,7 +33,7 @@ public class FilterBinaryParseElement implements SearchParseElement {
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         byte[] filterSource = parser.binaryValue();
         try (XContentParser fSourceParser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-            ParsedQuery filter = context.queryParserService().parseInnerFilter(fSourceParser);
+            ParsedQuery filter = context.indexShard().getQueryShardContext().parseInnerFilter(fSourceParser);
             if (filter != null) {
                 context.parsedPostFilter(filter);
             }

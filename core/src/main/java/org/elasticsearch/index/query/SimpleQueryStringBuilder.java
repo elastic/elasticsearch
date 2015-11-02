@@ -261,7 +261,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         } else {
             for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
                 if (Regex.isSimpleMatchPattern(fieldEntry.getKey())) {
-                    for (String fieldName : context.mapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
+                    for (String fieldName : context.getMapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
                         resolvedFieldsAndWeights.put(fieldName, fieldEntry.getValue());
                     }
                 } else {
@@ -273,9 +273,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         // Use standard analyzer by default if none specified
         Analyzer luceneAnalyzer;
         if (analyzer == null) {
-            luceneAnalyzer = context.mapperService().searchAnalyzer();
+            luceneAnalyzer = context.getMapperService().searchAnalyzer();
         } else {
-            luceneAnalyzer = context.analysisService().analyzer(analyzer);
+            luceneAnalyzer = context.getAnalysisService().analyzer(analyzer);
             if (luceneAnalyzer == null) {
                 throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");

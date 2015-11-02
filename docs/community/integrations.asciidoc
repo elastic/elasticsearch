@@ -20,7 +20,7 @@
 * http://github.com/Aconex/elasticflume[elasticflume]:
   http://github.com/cloudera/flume[Flume] sink implementation.
   
-  * https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer/tree/branch2.0[Kafka Standalone Consumer(Indexer)]
+  * https://github.com/reachkrishnaraj/kafka-elasticsearch-standalone-consumer/tree/branch2.0[Kafka Standalone Consumer(Indexer)]:
   Kafka Standalone Consumer [Indexer] will read messages from Kafka, in batches, process and bulk-index them into ElasticSearch. Flexible and scalable ! More documentation in above GitHub repo's Wiki.
 
 * http://code.google.com/p/terrastore/wiki/Search_Integration[Terrastore Search]:

@@ -251,7 +251,7 @@ public class Ec2DiscoveryTests extends ESTestCase {
         for (int i=0; i<3; i++) {
             provider.buildDynamicNodes();
         }
-        assertEquals(provider.fetchCount, is(3));
+        assertThat(provider.fetchCount, is(3));
     }
 
     public void testGetNodeListCached() throws Exception {
@@ -268,11 +268,11 @@ public class Ec2DiscoveryTests extends ESTestCase {
         for (int i=0; i<3; i++) {
             provider.buildDynamicNodes();
         }
-        assertEquals(provider.fetchCount, is(1));
+        assertThat(provider.fetchCount, is(1));
         Thread.sleep(1_000L); // wait for cache to expire
         for (int i=0; i<3; i++) {
             provider.buildDynamicNodes();
         }
-        assertEquals(provider.fetchCount, is(2));
+        assertThat(provider.fetchCount, is(2));
     }
 }

@@ -49,6 +49,8 @@ public final class Data {
 
     @SuppressWarnings("unchecked")
     public <T> T getProperty(String path) {
+        // TODO: we should not rely on any core class, so we should have custom map extract value logic:
+        // also XContentMapValues has no support to get specific values from arrays, see: https://github.com/elastic/elasticsearch/issues/14324
         return (T) XContentMapValues.extractValue(path, document);
     }
 

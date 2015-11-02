@@ -298,9 +298,9 @@ public class ExternalNodeService {
             try {
                 process = builder.start();
                 stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
-                message("Process forked");
+                message("process forked");
 
-                Matcher m = readUntilMatches(stdout, "http bound", ".+\\[http .+bound_addresses .*\\{(?:127\\.0\\.0\\.1|\\[::1\\]):(\\d+)\\}.+",
+                Matcher m = readUntilMatches(stdout, "http bound", ".+\\[http .+bound_addresses .*\\{(?:127\\.0\\.0\\.1|\\[::1\\]):(\\d+)\\}.*",
                         timeValueSeconds(20));
                 port = m.group(1);
                 message("bound to [localhost:" + port + "]");

@@ -25,24 +25,24 @@ import com.carrotsearch.randomizedtesting.TraceFormatting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.internal.AssumptionViolatedException;
 import org.junit.runner.Description;
 import org.junit.runner.notification.Failure;
 import org.junit.runner.notification.RunListener;
 
+import java.lang.annotation.ElementType;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
+import java.lang.annotation.Target;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Locale;
 import java.util.TimeZone;
 
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_ITERATIONS;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_PREFIX;
 import static com.carrotsearch.randomizedtesting.SysGlobals.SYSPROP_TESTMETHOD;
-import static org.elasticsearch.test.ESIntegTestCase.TESTS_CLUSTER;
-import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_BLACKLIST;
-import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SPEC;
-import static org.elasticsearch.test.rest.ESRestTestCase.REST_TESTS_SUITE;
-import static org.elasticsearch.test.rest.ESRestTestCase.Rest;
 
 /**
  * A {@link RunListener} that emits to {@link System#err} a string with command
@@ -89,12 +89,17 @@ public class ReproduceInfoPrinter extends RunListener {
         MavenMessageBuilder mavenMessageBuilder = new MavenMessageBuilder(b);
         mavenMessageBuilder.appendAllOpts(failure.getDescription());
 
-        //Rest tests are a special case as they allow for additional parameters
-        if (failure.getDescription().getTestClass().isAnnotationPresent(Rest.class)) {
-            mavenMessageBuilder.appendRestTestsProperties();
-        }
-
         System.err.println(b.toString());
+    }
+
+    /**
+     * Declared on test classes to add extra properties to the reproduction
+     * info. Note that this is scanned from all superclasses.
+     */
+    @Retention(RetentionPolicy.RUNTIME)
+    @Target(ElementType.TYPE)
+    public static @interface Properties {
+        String[] value();
     }
 
     protected TraceFormatting traces() {
@@ -122,7 +127,27 @@ public class ReproduceInfoPrinter extends RunListener {
                 super.appendOpt(SYSPROP_TESTMETHOD(), "\"" + description.getMethodName() + "\"");
             }
 
+            List<String> properties = new ArrayList<>();
+            scanProperties(description.getTestClass(), properties);
+            appendProperties(properties.toArray(new String[properties.size()]));
             return appendESProperties();
+        }
+
+        /**
+         * Scans c and its superclasses for the {@linkplain Properties}
+         * annotations, copying all the listed properties in order from
+         * superclass to subclass.
+         */
+        private void scanProperties(Class<?> c, List<String> properties) {
+            if (Object.class.equals(c) == false) {
+                scanProperties(c.getSuperclass(), properties);
+            }
+            Properties extraParameterAnnocation = c.getAnnotation(Properties.class);
+            if (extraParameterAnnocation != null) {
+                for (String property : extraParameterAnnocation.value()) {
+                    properties.add(property);
+                }
+            }
         }
 
         @Override
@@ -149,29 +174,21 @@ public class ReproduceInfoPrinter extends RunListener {
                 return this;
             }
             if (Strings.hasLength(value)) {
+                if (value.indexOf(' ') >= 0) {
+                    return super.appendOpt(sysPropName, '"' + value + '"');
+                }
                 return super.appendOpt(sysPropName, value);
             }
             return this;
         }
 
         public ReproduceErrorMessageBuilder appendESProperties() {
-            appendProperties("es.logger.level");
-            if (inVerifyPhase()) {
-                // these properties only make sense for integration tests
-                appendProperties("es.node.mode", "es.node.local", TESTS_CLUSTER, ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES);
-            }
-            appendProperties("tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms", 
-                             "tests.client.ratio", "tests.heap.size", "tests.bwc", "tests.bwc.version");
             if (System.getProperty("tests.jvm.argline") != null && !System.getProperty("tests.jvm.argline").isEmpty()) {
                 appendOpt("tests.jvm.argline", "\"" + System.getProperty("tests.jvm.argline") + "\"");
             }
             appendOpt("tests.locale", Locale.getDefault().toString());
             appendOpt("tests.timezone", TimeZone.getDefault().getID());
             return this;
-        }
-
-        public ReproduceErrorMessageBuilder appendRestTestsProperties() {
-            return appendProperties(REST_TESTS_SUITE, REST_TESTS_SPEC, REST_TESTS_BLACKLIST);
         }
 
         protected ReproduceErrorMessageBuilder appendProperties(String... properties) {

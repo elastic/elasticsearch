@@ -50,7 +50,6 @@ import java.text.NumberFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -88,7 +87,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");

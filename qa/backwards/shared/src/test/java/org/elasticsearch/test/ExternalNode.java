@@ -20,28 +20,26 @@ package org.elasticsearch.test;
 
 import com.google.common.base.Predicate;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
 import org.elasticsearch.transport.TransportModule;
 
+import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.TimeUnit;
@@ -58,93 +56,99 @@ final class ExternalNode implements Closeable {
             .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")
             .put("node.mode", "network").build(); // we need network mode for this
 
-    private final Path path;
+    private final String version;
     private final Random random;
     private final NodeConfigurationSource nodeConfigurationSource;
-    private Process process;
+    private final ExternalNodeServiceClient nodeServiceClient;
+    private int port;
     private NodeInfo nodeInfo;
     private final String clusterName;
     private TransportClient client;
+    private String nodeName;
 
     private final ESLogger logger = Loggers.getLogger(getClass());
     private Settings externalNodeSettings;
 
 
-    ExternalNode(Path path, long seed, NodeConfigurationSource nodeConfigurationSource) {
-        this(path, null, seed, nodeConfigurationSource);
+    ExternalNode(String version, long seed, ExternalNodeServiceClient nodeServiceClient, NodeConfigurationSource nodeConfigurationSource) {
+        this(version, null, seed, nodeServiceClient, nodeConfigurationSource);
     }
 
-    ExternalNode(Path path, String clusterName, long seed, NodeConfigurationSource nodeConfigurationSource) {
-        if (!Files.isDirectory(path)) {
-            throw new IllegalArgumentException("path must be a directory");
-        }
-        this.path = path;
+    ExternalNode(String version, String clusterName, long seed, ExternalNodeServiceClient nodeServiceClient, NodeConfigurationSource nodeConfigurationSource) {
+        this.version = version;
         this.clusterName = clusterName;
         this.random = new Random(seed);
         this.nodeConfigurationSource = nodeConfigurationSource;
+        this.nodeServiceClient = nodeServiceClient;
     }
 
-    synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
-        ExternalNode externalNode = new ExternalNode(path, clusterName, random.nextLong(), nodeConfigurationSource);
+    synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal, String unicastHosts) throws IOException, InterruptedException {
+        ExternalNode externalNode = new ExternalNode(version, clusterName, random.nextLong(), nodeServiceClient, nodeConfigurationSource);
         Settings settings = Settings.builder().put(defaultSettings).put(nodeConfigurationSource.nodeSettings(nodeOrdinal)).build();
-        externalNode.startInternal(localNode, settings, nodeName, clusterName);
+        externalNode.startInternal(localNode, settings, nodeName, clusterName, unicastHosts);
         return externalNode;
     }
 
-    @SuppressForbidden(reason = "needs java.io.File api to start a process")
-    synchronized void startInternal(Client client, Settings settings, String nodeName, String clusterName) throws IOException, InterruptedException {
-        if (process != null) {
+    synchronized void startInternal(Client client, Settings settings, String nodeName, String clusterName, String unicastHosts) throws IOException, InterruptedException {
+        if (running()) {
             throw new IllegalStateException("Already started");
         }
-        List<String> params = new ArrayList<>();
+        this.nodeName = nodeName;
+        StringBuilder args = new StringBuilder();
+        args.append(version);
 
-        if (!Constants.WINDOWS) {
-            params.add("bin/elasticsearch");
-        } else {
-            params.add("bin/elasticsearch.bat");
-        }
-        params.add("-Des.cluster.name=" + clusterName);
-        params.add("-Des.node.name=" + nodeName);
         Settings.Builder externaNodeSettingsBuilder = Settings.builder();
-        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
-            switch (entry.getKey()) {
-                case "cluster.name":
-                case "node.name":
-                case "path.home":
-                case "node.mode":
-                case "node.local":
-                case TransportModule.TRANSPORT_TYPE_KEY:
-                case DiscoveryModule.DISCOVERY_TYPE_KEY:
-                case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
-                case InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING:
-                    continue;
-                default:
-                    externaNodeSettingsBuilder.put(entry.getKey(), entry.getValue());
+        externaNodeSettingsBuilder.put("cluster.name", clusterName);
+        externaNodeSettingsBuilder.put("node.name", nodeName);
+        externaNodeSettingsBuilder.put("path.data", dataPath());
+        externaNodeSettingsBuilder.put("path.logs", logPath());
 
+        for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
+            String found = externaNodeSettingsBuilder.get(entry.getKey());
+            if (found != null) {
+                logger.warn("Suppressing setting for external node [{}={}] because its being overridden to [{}]", entry.getKey(),
+                        entry.getValue(), found);
+                continue;
+            }
+            switch (entry.getKey()) {
+            case "path.home":
+            case "node.local":
+            case "path.repo":
+            case "path.shared_data":
+            case TransportModule.TRANSPORT_TYPE_KEY:
+            case DiscoveryModule.DISCOVERY_TYPE_KEY:
+            case TransportModule.TRANSPORT_SERVICE_TYPE_KEY:
+            case InternalSettingsPreparer.IGNORE_SYSTEM_PROPERTIES_SETTING:
+                logger.warn("Suppressing setting for external node [{}={}]", entry.getKey(), entry.getValue());
+                continue;
+            default:
+                externaNodeSettingsBuilder.put(entry.getKey(), entry.getValue());
             }
         }
         this.externalNodeSettings = externaNodeSettingsBuilder.put(REQUIRED_SETTINGS).build();
         for (Map.Entry<String, String> entry : externalNodeSettings.getAsMap().entrySet()) {
-            params.add("-Des." + entry.getKey() + "=" + entry.getValue());
+            args.append(" -Des.").append(entry.getKey()).append('=').append(entry.getValue());
         }
 
-        params.add("-Des.path.home=" + PathUtils.get(".").toAbsolutePath());
-        params.add("-Des.path.conf=" + path + "/config");
+        args.append(" -D").append(UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS).append('=').append(unicastHosts);
 
-        ProcessBuilder builder = new ProcessBuilder(params);
-        builder.directory(path.toFile());
-        builder.inheritIO();
         boolean success = false;
         try {
-            logger.info("starting external node [{}] with: {}", nodeName, builder.command());
-            process = builder.start();
-            this.nodeInfo = null;
+            logger.info("starting external node [{}] with: {}", nodeName, args);
+            port = nodeServiceClient.start(args.toString());
             if (waitForNode(client, nodeName)) {
                 nodeInfo = nodeInfo(client, nodeName);
                 assert nodeInfo != null;
                 logger.info("external node {} found, version [{}], build {}", nodeInfo.getNode(), nodeInfo.getVersion(), nodeInfo.getBuild());
             } else {
-                throw new IllegalStateException("Node [" + nodeName + "] didn't join the cluster");
+                logger.error("Node [{}] didn't join the cluster.", nodeName);
+                try (BufferedReader log = Files.newBufferedReader(logPath().resolve(clusterName + ".log"))) {
+                    String line;
+                    while ((line = log.readLine()) != null) {
+                        logger.error(line);
+                    }
+                }
+                throw new IllegalStateException("Node [" + nodeName + "] didn't join the cluster.");
             }
             success = true;
         } finally {
@@ -199,6 +203,7 @@ final class ExternalNode implements Closeable {
             Settings clientSettings = settingsBuilder().put(externalNodeSettings)
                     .put("client.transport.nodes_sampler_interval", "1s")
                     .put("name", "transport_client_" + nodeInfo.getNode().name())
+                    .put("path.home", PathUtils.get(".").toAbsolutePath())
                     .put(ClusterName.SETTING, clusterName).put("client.transport.sniff", false).build();
             TransportClient client = TransportClient.builder().settings(clientSettings).build();
             client.addTransportAddress(addr);
@@ -213,27 +218,29 @@ final class ExternalNode implements Closeable {
 
     synchronized void stop() {
         if (running()) {
-            try {
-                if (this.client != null) {
-                    client.close();
-                }
-            } finally {
-                process.destroy();
-                try {
-                    process.waitFor();
-                } catch (InterruptedException e) {
-                    Thread.interrupted();
-                }
-                process = null;
-                nodeInfo = null;
-
+            logger.warn("Stopping client for {}", nodeName);
+            nodeServiceClient.stop(port);
+            port = 0;
+            if (client != null) {
+                client.close();
             }
         }
     }
 
+    public Path rootPath() {
+        return PathUtils.get(System.getProperty("java.io.tmpdir"), "external", clusterName, nodeName).toAbsolutePath();
+    }
+
+    public Path dataPath() {
+        return rootPath().resolve("data");
+    }
+
+    public Path logPath() {
+        return rootPath().resolve("logs");
+    }
 
     synchronized boolean running() {
-        return process != null;
+        return port != 0;
     }
 
     @Override

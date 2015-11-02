@@ -19,19 +19,20 @@
 package org.elasticsearch.test;
 
 import com.carrotsearch.randomizedtesting.annotations.TestGroup;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
+import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 
@@ -41,10 +42,6 @@ import java.lang.annotation.Inherited;
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Random;
 
@@ -86,10 +83,11 @@ import static org.hamcrest.Matchers.is;
  *
  */
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
-@ESBackcompatTestCase.Backwards
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
+@ReproduceInfoPrinter.Properties({ ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY,
+        ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY_VERSION, ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY_PATH,
+        ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY_PATH, ESBackcompatTestCase.TESTS_COMPATIBILITY })
 public abstract class ESBackcompatTestCase extends ESIntegTestCase {
-
     /**
      * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from
      * via the commandline -D{@value #TESTS_BACKWARDS_COMPATIBILITY}
@@ -104,31 +102,21 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     /**
      * Property that allows to adapt the tests behaviour to older features/bugs based on the input version
      */
-    private static final String TESTS_COMPATIBILITY = "tests.compatibility";
+    public static final String TESTS_COMPATIBILITY = "tests.compatibility";
 
     private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
 
-    private static Path backwardsCompatibilityPath() {
-        String path = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_PATH);
-        if (path == null || path.isEmpty()) {
-            throw new IllegalArgumentException("Must specify backwards test path with property " + TESTS_BACKWARDS_COMPATIBILITY_PATH);
-        }
+    public static String backwardsCompatibilityVersion() {
         String version = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
         if (version == null || version.isEmpty()) {
             throw new IllegalArgumentException("Must specify backwards test version with property " + TESTS_BACKWARDS_COMPATIBILITY_VERSION);
         }
-        if (Version.fromString(version).before(Version.CURRENT.minimumCompatibilityVersion())) {
+        Version v = Version.fromString(version);
+        if (v.before(Version.CURRENT.minimumCompatibilityVersion())) {
             throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
                 "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
-        Path file = PathUtils.get(path, "elasticsearch-" + version);
-        if (!Files.exists(file)) {
-            throw new IllegalArgumentException("Backwards tests location is missing: " + file.toAbsolutePath());
-        }
-        if (!Files.isDirectory(file)) {
-            throw new IllegalArgumentException("Backwards tests location is not a directory: " + file.toAbsolutePath());
-        }
-        return file;
+        return version;
     }
 
     @Override
@@ -139,6 +127,20 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
             builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
         }
         return builder;
+    }
+
+    @Override
+    public Settings indexSettings() {
+        // IndexMetaData.SETTING_DATA_PATH looks like it breaks backwards compatibility tests
+        Settings settings = super.indexSettings();
+        if (settings.get(IndexMetaData.SETTING_DATA_PATH) == null) {
+            return settings;
+        }
+        logger.warn("Removing {} from settings for index during backwards compatiblity test because it is suspected of breaking the tests.",
+                IndexMetaData.SETTING_DATA_PATH);
+        Settings.Builder builder = Settings.settingsBuilder().put(settings);
+        builder.remove(IndexMetaData.SETTING_DATA_PATH);
+        return builder.build();
     }
 
     /**
@@ -185,7 +187,9 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
         TestCluster cluster = super.buildTestCluster(scope, seed);
-        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityPath(), randomLong(), new NodeConfigurationSource() {
+        logger.info("Build internal cluster at {}", new Object[] {cluster.httpAddresses()});
+        ExternalNodeServiceClient nodeServiceClient = new ExternalNodeServiceClient();
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityVersion(), randomLong(), nodeServiceClient, new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return externalNodeSettings(nodeOrdinal);
@@ -212,15 +216,12 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         return finalSettings.build();
     }
 
-    protected int minExternalNodes() { return 1; }
+    protected int minExternalNodes() {
+        return 1;
+    }
 
     protected int maxExternalNodes() {
         return 2;
-    }
-
-    @Override
-    protected int maximumNumberOfReplicas() {
-        return 1;
     }
 
     protected Settings requiredSettings() {
@@ -272,15 +273,5 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     @Target(ElementType.TYPE)
     @TestGroup(enabled = false, sysProperty = ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY)
     public @interface Backwards {
-    }
-
-    /**
-     * If a test is annotated with {@link CompatibilityVersion}
-     * all randomized settings will only contain settings or mappings which are compatible with the specified version ID.
-     */
-    @Retention(RetentionPolicy.RUNTIME)
-    @Target({ElementType.TYPE})
-    public @interface CompatibilityVersion {
-        int version();
     }
 }

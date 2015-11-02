@@ -17,33 +17,27 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.indices.upgrade;
+package org.elasticsearch.bwcompat;
 
 import com.google.common.base.Predicate;
+
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.indices.segments.IndexSegments;
-import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
-import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
-import org.elasticsearch.action.admin.indices.segments.ShardSegments;
-import org.elasticsearch.action.admin.indices.upgrade.get.IndexUpgradeStatus;
-import org.elasticsearch.action.admin.indices.upgrade.get.UpgradeStatusResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.assertNotUpgraded;
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.assertUpgraded;
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.hasAncientSegments;
+import static org.elasticsearch.action.admin.indices.upgrade.UpgradeAssertions.isUpgraded;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 
@@ -73,7 +67,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
         for (int i = 0; i < numIndexes; ++i) {
             final String indexName = "test" + i;
             indexNames[i] = indexName;
-            
+
             Settings settings = Settings.builder()
                 .put("index.routing.allocation.exclude._name", backwardsCluster().newNodePattern())
                 // don't allow any merges so that we can check segments are upgraded
@@ -106,7 +100,7 @@ public class UpgradeIT extends ESBackcompatTestCase {
             } else {
                 assertEquals(0, flush(indexName).getFailedShards());
             }
-            
+
             // index more docs that won't be flushed
             numDocs = scaledRandomIntBetween(100, 1000);
             docs = new ArrayList<>();
@@ -133,14 +127,14 @@ public class UpgradeIT extends ESBackcompatTestCase {
         ensureGreen();
         logger.info("--> Nodes upgrade complete");
         logSegmentsState();
-        
+
         assertNotUpgraded(client());
         final String indexToUpgrade = "test" + randomInt(numIndexes - 1);
 
         // This test fires up another node running an older version of ES, but because wire protocol changes across major ES versions, it
         // means we can never generate ancient segments in this test (unless Lucene major version bumps but ES major version does not):
         assertFalse(hasAncientSegments(client(), indexToUpgrade));
-        
+
         logger.info("--> Running upgrade on index " + indexToUpgrade);
         assertNoFailures(client().admin().indices().prepareUpgrade(indexToUpgrade).get());
         awaitBusy(new Predicate<Object>() {
@@ -162,88 +156,6 @@ public class UpgradeIT extends ESBackcompatTestCase {
         assertUpgraded(client());
     }
 
-    public static void assertNotUpgraded(Client client, String... index) throws Exception {
-        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            assertTrue("index " + status.getIndex() + " should not be zero sized", status.getTotalBytes() != 0);
-            // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
-            // mysteriously happens after the second round of docs are indexed
-            assertTrue("index " + status.getIndex() + " should have recovered some segments from transaction log",
-                       status.getTotalBytes() >= status.getToUpgradeBytes());
-            assertTrue("index " + status.getIndex() + " should need upgrading", status.getToUpgradeBytes() != 0);
-        }
-    }
-
-    public static void assertNoAncientSegments(Client client, String... index) throws Exception {
-        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            assertTrue("index " + status.getIndex() + " should not be zero sized", status.getTotalBytes() != 0);
-            // TODO: it would be better for this to be strictly greater, but sometimes an extra flush
-            // mysteriously happens after the second round of docs are indexed
-            assertTrue("index " + status.getIndex() + " should not have any ancient segments",
-                       status.getToUpgradeBytesAncient() == 0);
-            assertTrue("index " + status.getIndex() + " should have recovered some segments from transaction log",
-                       status.getTotalBytes() >= status.getToUpgradeBytes());
-            assertTrue("index " + status.getIndex() + " should need upgrading", status.getToUpgradeBytes() != 0);
-        }
-    }
-
-    /** Returns true if there are any ancient segments. */
-    public static boolean hasAncientSegments(Client client, String index) throws Exception {
-        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            if (status.getToUpgradeBytesAncient() != 0) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /** Returns true if there are any old but not ancient segments. */
-    public static boolean hasOldButNotAncientSegments(Client client, String index) throws Exception {
-        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            if (status.getToUpgradeBytes() > status.getToUpgradeBytesAncient()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    public static void assertUpgraded(Client client, String... index) throws Exception {
-        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            assertTrue("index " + status.getIndex() + " should not be zero sized", status.getTotalBytes() != 0);
-            assertEquals("index " + status.getIndex() + " should be upgraded",
-                0, status.getToUpgradeBytes());
-        }
-        
-        // double check using the segments api that all segments are actually upgraded
-        IndicesSegmentResponse segsRsp;
-        if (index == null) {
-            segsRsp = client().admin().indices().prepareSegments().execute().actionGet();
-        } else {
-            segsRsp = client().admin().indices().prepareSegments(index).execute().actionGet();
-        }
-        for (IndexSegments indexSegments : segsRsp.getIndices().values()) {
-            for (IndexShardSegments shard : indexSegments) {
-                for (ShardSegments segs : shard.getShards()) {
-                    for (Segment seg : segs.getSegments()) {
-                        assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
-                                     Version.CURRENT.luceneVersion.major, seg.version.major);
-                        assertEquals("Index " + indexSegments.getIndex() + " has unupgraded segment " + seg.toString(),
-                                     Version.CURRENT.luceneVersion.minor, seg.version.minor);
-                    }
-                }
-            }
-        }
-    }
-
-    static boolean isUpgraded(Client client, String index) throws Exception {
-        ESLogger logger = Loggers.getLogger(UpgradeIT.class);
-        int toUpgrade = 0;
-        for (IndexUpgradeStatus status : getUpgradeStatus(client, index)) {
-            logger.info("Index: " + status.getIndex() + ", total: " + status.getTotalBytes() + ", toUpgrade: " + status.getToUpgradeBytes());
-            toUpgrade += status.getToUpgradeBytes();
-        }
-        return toUpgrade == 0;
-    }
-
     static class UpgradeStatus {
         public final String indexName;
         public final int totalBytes;
@@ -257,12 +169,5 @@ public class UpgradeIT extends ESBackcompatTestCase {
             this.toUpgradeBytesAncient = toUpgradeBytesAncient;
             assert toUpgradeBytesAncient <= toUpgradeBytes;
         }
-    }
-
-    @SuppressWarnings("unchecked")
-    static Collection<IndexUpgradeStatus> getUpgradeStatus(Client client, String... indices) throws Exception {
-        UpgradeStatusResponse upgradeStatusResponse = client.admin().indices().prepareUpgradeStatus(indices).get();
-        assertNoFailures(upgradeStatusResponse);
-        return upgradeStatusResponse.getIndices().values();
     }
 }

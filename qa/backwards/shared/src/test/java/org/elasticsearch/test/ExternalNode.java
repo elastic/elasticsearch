@@ -38,6 +38,7 @@ import org.elasticsearch.transport.TransportModule;
 import java.io.BufferedReader;
 import java.io.Closeable;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
@@ -142,7 +143,7 @@ final class ExternalNode implements Closeable {
                 logger.info("external node {} found, version [{}], build {}", nodeInfo.getNode(), nodeInfo.getVersion(), nodeInfo.getBuild());
             } else {
                 logger.error("Node [{}] didn't join the cluster.", nodeName);
-                try (BufferedReader log = Files.newBufferedReader(logPath().resolve(clusterName + ".log"))) {
+                try (BufferedReader log = Files.newBufferedReader(logPath().resolve(clusterName + ".log"), StandardCharsets.UTF_8)) {
                     String line;
                     while ((line = log.readLine()) != null) {
                         logger.error(line);

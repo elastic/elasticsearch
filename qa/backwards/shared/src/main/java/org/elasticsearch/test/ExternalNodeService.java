@@ -308,7 +308,8 @@ public class ExternalNodeService {
                 if (process != null && (port == null || !runningElasticsearches.containsKey(port))) {
                     logger.warn("It looks like we failed to launch elasticsearch. Kill -9ing it just to make sure it doesn't linger.");
                     logger.warn("We tried to start it like this: {}", startReproduction);
-                    process.destroyForcibly();
+                    // In Java 1.8 this should be destroyForcibly
+                    process.destroy();
                 }
             }
         }
@@ -327,7 +328,8 @@ public class ExternalNodeService {
             message("killing elasticsearch bound to localhost:" + port);
             elasticsearch.destroy();
             try {
-                elasticsearch.waitFor(10, TimeUnit.SECONDS);
+                // In Java 1.8 we can use a timeout! We really should have a timeout here....
+                elasticsearch.waitFor();
             } catch (InterruptedException e) {
                 message("timed out waiting for elasticsearch to stop!");
                 runningElasticsearches.put(port, elasticsearch);
@@ -429,7 +431,8 @@ public class ExternalNodeService {
             }
             for (Map.Entry<String, Process> elasticsearch : runningElasticsearches.entrySet()) {
                 logger.debug("Kill -9ing elasticsearch running at localhost:{}", elasticsearch.getKey());
-                elasticsearch.getValue().destroyForcibly();
+                // In Java 1.8 this should be destroyForcibly.
+                elasticsearch.getValue().destroy();
             }
             for (Map.Entry<String, Process> elasticsearch : runningElasticsearches.entrySet()) {
                 try {

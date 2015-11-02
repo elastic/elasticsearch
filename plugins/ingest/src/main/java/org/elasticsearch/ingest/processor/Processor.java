@@ -25,8 +25,8 @@ import org.elasticsearch.ingest.Data;
 import java.util.Map;
 
 /**
- * An processor implementation may modify the data belonging to a document.
- * If and what exactly is modified is upto the implementation.
+ * A processor implementation may modify the data belonging to a document.
+ * Whether changes are made and what exactly is modified is up to the implementation.
  */
 public interface Processor {
 
@@ -36,7 +36,7 @@ public interface Processor {
     void execute(Data data);
 
     /**
-     * A builder to contruct a processor to be used in a pipeline.
+     * A builder to construct a processor to be used in a pipeline.
      */
     interface Builder {
 

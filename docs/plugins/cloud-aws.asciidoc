@@ -173,6 +173,11 @@ The following are a list of settings (prefixed with `discovery.ec2`) that can fu
     Defaults to `3s`. If no unit like `ms`, `s` or `m` is specified,
     milliseconds are used.
 
+`node_cache_time`::
+
+    How long the list of hosts is cached to prevent further requests to the AWS API.
+    Defaults to `10s`.
+
 [IMPORTANT]
 .Binding the network host
 ==============================================

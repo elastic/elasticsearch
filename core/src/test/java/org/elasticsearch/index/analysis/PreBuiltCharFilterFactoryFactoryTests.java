@@ -24,18 +24,20 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.analysis.PreBuiltCharFilters;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
+
 import static org.hamcrest.CoreMatchers.is;
 
 /**
  *
  */
 public class PreBuiltCharFilterFactoryFactoryTests extends ESTestCase {
-    public void testThatDifferentVersionsCanBeLoaded() {
+    public void testThatDifferentVersionsCanBeLoaded() throws IOException {
         PreBuiltCharFilterFactoryFactory factory = new PreBuiltCharFilterFactoryFactory(PreBuiltCharFilters.HTML_STRIP.getCharFilterFactory(Version.CURRENT));
 
-        CharFilterFactory former090TokenizerFactory = factory.create("html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
-        CharFilterFactory former090TokenizerFactoryCopy = factory.create("html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
-        CharFilterFactory currentTokenizerFactory = factory.create("html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
+        CharFilterFactory former090TokenizerFactory = factory.get(null, null, "html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
+        CharFilterFactory former090TokenizerFactoryCopy = factory.get(null, null, "html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_0).build());
+        CharFilterFactory currentTokenizerFactory = factory.get(null, null, "html_strip", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(former090TokenizerFactory));
         assertThat(currentTokenizerFactory, is(former090TokenizerFactoryCopy));

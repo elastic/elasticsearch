@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -37,18 +38,21 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.IndexCache;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -56,6 +60,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -82,11 +87,12 @@ public class TemplateQueryParserTests extends ESTestCase {
                     throw new UnsupportedOperationException("client is just a dummy");
                 });
         Index index = new Index("test");
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesModule(settings) {
+                new IndicesModule() {
                     @Override
                     public void configure() {
                         // skip services
@@ -95,13 +101,19 @@ public class TemplateQueryParserTests extends ESTestCase {
                 },
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),
-                new IndexCacheModule(settings),
-                new AnalysisModule(settings, new IndicesAnalysisService(settings)),
-                new SimilarityModule(index, settings),
-                new IndexNameModule(index),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
+                        try {
+                            bind(AnalysisService.class).toInstance(new AnalysisRegistry(null, new Environment(settings)).build(idxSettings));
+                        } catch (IOException e) {
+                            throw new ElasticsearchException(e);
+                        }
+                        SimilarityService service = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
+                        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));
+                        bind(BitsetFilterCache.class).toInstance(bitsetFilterCache);
+                        bind(IndexCache.class).toInstance(new IndexCache(idxSettings, new NoneQueryCache(idxSettings), bitsetFilterCache));
+                        bind(SimilarityService.class).toInstance(service);
                         bind(Client.class).toInstance(proxy); // not needed here
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
@@ -111,7 +123,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         ).createInjector();
 
         IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryShardContext(index, queryParserService);
+        context = new QueryShardContext(queryParserService);
     }
 
     @Override

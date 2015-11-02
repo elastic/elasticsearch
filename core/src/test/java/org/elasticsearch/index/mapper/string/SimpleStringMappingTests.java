@@ -365,7 +365,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     public void testDocValuesFielddata() throws Exception {
         IndexService indexService = createIndex("index");
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
 
         assertFalse(new Builder("anything").index(false).build(ctx).fieldType().hasDocValues());
         assertTrue(new Builder("anything").index(false).fieldDataSettings(DOC_VALUES_SETTINGS).build(ctx).fieldType().hasDocValues());
@@ -404,7 +404,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
 
     public void testDocValues() throws Exception {
         // doc values only work on non-analyzed content
-        final BuilderContext ctx = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         try {
             new StringFieldMapper.Builder("anything").docValues(true).build(ctx);
             fail();

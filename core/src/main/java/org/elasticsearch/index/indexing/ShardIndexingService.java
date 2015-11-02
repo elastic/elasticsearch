@@ -25,6 +25,7 @@ import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -48,9 +49,9 @@ public class ShardIndexingService extends AbstractIndexShardComponent {
 
     private volatile Map<String, StatsHolder> typesStats = emptyMap();
 
-    public ShardIndexingService(ShardId shardId, Settings indexSettings) {
+    public ShardIndexingService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
-        this.slowLog = new IndexingSlowLog(indexSettings);
+        this.slowLog = new IndexingSlowLog(this.indexSettings);
     }
 
     /**

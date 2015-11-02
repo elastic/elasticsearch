@@ -8,8 +8,7 @@ work/
 logs/
 .DS_Store
 build/
-target/
-*-execution-hints.log
+**/.local*
 docs/html/
 docs/build.log
 /tmp/
@@ -31,3 +30,7 @@ nb-configuration.xml
 nbactions.xml
 
 dependency-reduced-pom.xml
+
+# old patterns specific to maven
+*-execution-hints.log
+target/

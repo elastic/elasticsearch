@@ -25,7 +25,7 @@ import com.spatial4j.core.distance.DistanceUtils;
 import org.apache.lucene.spatial.prefix.tree.Cell;
 import org.apache.lucene.spatial.prefix.tree.GeohashPrefixTree;
 import org.apache.lucene.spatial.prefix.tree.QuadPrefixTree;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -414,7 +414,7 @@ public class GeoUtilsTests extends ESTestCase {
 
     public void testParseGeoPointGeohash() throws IOException {
         for (int i = 0; i < 100; i++) {
-            int geoHashLength = randomIntBetween(1, XGeoHashUtils.PRECISION);
+            int geoHashLength = randomIntBetween(1, GeoHashUtils.PRECISION);
             StringBuilder geohashBuilder = new StringBuilder(geoHashLength);
             for (int j = 0; j < geoHashLength; j++) {
                 geohashBuilder.append(BASE_32[randomInt(BASE_32.length - 1)]);

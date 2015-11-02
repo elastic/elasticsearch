@@ -847,6 +847,19 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(results, arrayContainingInAnyOrder("foo1-closed", "foo2-closed", "foo3"));
     }
 
+    public void testDedupConcreteIndices() {
+        MetaData.Builder mdBuilder = MetaData.builder()
+                .put(indexBuilder("index1").putAlias(AliasMetaData.builder("alias1")));
+        ClusterState state = ClusterState.builder(new ClusterName("_name")).metaData(mdBuilder).build();
+        IndicesOptions[] indicesOptions = new IndicesOptions[]{ IndicesOptions.strictExpandOpen(), IndicesOptions.strictExpand(),
+                IndicesOptions.lenientExpandOpen(), IndicesOptions.strictExpandOpenAndForbidClosed()};
+        for (IndicesOptions options : indicesOptions) {
+            IndexNameExpressionResolver.Context context = new IndexNameExpressionResolver.Context(state, options);
+            String[] results = indexNameExpressionResolver.concreteIndices(context, "index1", "index1", "alias1");
+            assertThat(results, equalTo(new String[]{"index1"}));
+        }
+    }
+
     private MetaData metaDataBuilder(String... indices) {
         MetaData.Builder mdBuilder = MetaData.builder();
         for (String concreteIndex : indices) {

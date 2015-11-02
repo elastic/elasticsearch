@@ -27,6 +27,9 @@ import org.elasticsearch.common.unit.TimeValue;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
@@ -90,13 +93,21 @@ public class NetworkService extends AbstractComponent {
         customNameResolvers.add(customNameResolver);
     }
 
-    public InetAddress[] resolveBindHostAddress(String bindHost) throws IOException {
+    /**
+     * Resolves {@code bindHosts} to a list of internet addresses. The list will
+     * not contain duplicate addresses.
+     * @param bindHosts list of hosts to bind to. this may contain special pseudo-hostnames
+     *                  such as _local_ (see the documentation). if it is null, it will be populated
+     *                  based on global default settings.
+     * @return unique set of internet addresses
+     */
+    public InetAddress[] resolveBindHostAddresses(String bindHosts[]) throws IOException {
         // first check settings
-        if (bindHost == null) {
-            bindHost = settings.get(GLOBAL_NETWORK_BINDHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING));
+        if (bindHosts == null) {
+            bindHosts = settings.getAsArray(GLOBAL_NETWORK_BINDHOST_SETTING, settings.getAsArray(GLOBAL_NETWORK_HOST_SETTING, null));
         }
         // next check any registered custom resolvers
-        if (bindHost == null) {
+        if (bindHosts == null) {
             for (CustomNameResolver customNameResolver : customNameResolvers) {
                 InetAddress addresses[] = customNameResolver.resolveDefault();
                 if (addresses != null) {
@@ -105,31 +116,44 @@ public class NetworkService extends AbstractComponent {
             }
         }
         // finally, fill with our default
-        if (bindHost == null) {
-            bindHost = DEFAULT_NETWORK_HOST;
+        if (bindHosts == null) {
+            bindHosts = new String[] { DEFAULT_NETWORK_HOST };
         }
-        InetAddress addresses[] = resolveInetAddress(bindHost);
+        InetAddress addresses[] = resolveInetAddresses(bindHosts);
 
         // try to deal with some (mis)configuration
-        if (addresses != null) {
-            for (InetAddress address : addresses) {
-                // check if its multicast: flat out mistake
-                if (address.isMulticastAddress()) {
-                    throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
-                }
+        for (InetAddress address : addresses) {
+            // check if its multicast: flat out mistake
+            if (address.isMulticastAddress()) {
+                throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
+            }
+            // check if its a wildcard address: this is only ok if its the only address!
+            if (address.isAnyLocalAddress() && addresses.length > 1) {
+                throw new IllegalArgumentException("bind address: {" + NetworkAddress.format(address) + "} is wildcard, but multiple addresses specified: this makes no sense");
             }
         }
         return addresses;
     }
 
+    /**
+     * Resolves {@code publishHosts} to a single publish address. The fact that it returns
+     * only one address is just a current limitation.
+     * <p>
+     * If {@code publishHosts} resolves to more than one address, <b>then one is selected with magic</b>,
+     * and the user is warned (they can always just be more specific).
+     * @param publishHosts list of hosts to publish as. this may contain special pseudo-hostnames
+     *                     such as _local_ (see the documentation). if it is null, it will be populated
+     *                     based on global default settings.
+     * @return single internet address
+     */
     // TODO: needs to be InetAddress[]
-    public InetAddress resolvePublishHostAddress(String publishHost) throws IOException {
+    public InetAddress resolvePublishHostAddresses(String publishHosts[]) throws IOException {
         // first check settings
-        if (publishHost == null) {
-            publishHost = settings.get(GLOBAL_NETWORK_PUBLISHHOST_SETTING, settings.get(GLOBAL_NETWORK_HOST_SETTING));
+        if (publishHosts == null) {
+            publishHosts = settings.getAsArray(GLOBAL_NETWORK_PUBLISHHOST_SETTING, settings.getAsArray(GLOBAL_NETWORK_HOST_SETTING, null));
         }
         // next check any registered custom resolvers
-        if (publishHost == null) {
+        if (publishHosts == null) {
             for (CustomNameResolver customNameResolver : customNameResolvers) {
                 InetAddress addresses[] = customNameResolver.resolveDefault();
                 if (addresses != null) {
@@ -138,30 +162,59 @@ public class NetworkService extends AbstractComponent {
             }
         }
         // finally, fill with our default
-        if (publishHost == null) {
-            publishHost = DEFAULT_NETWORK_HOST;
+        if (publishHosts == null) {
+            publishHosts = new String[] { DEFAULT_NETWORK_HOST };
         }
+        InetAddress addresses[] = resolveInetAddresses(publishHosts);
         // TODO: allow publishing multiple addresses
-        InetAddress address = resolveInetAddress(publishHost)[0];
+        // for now... the hack begins
 
-        // try to deal with some (mis)configuration
-        if (address != null) {
+        // 1. single wildcard address, probably set by network.host: expand to all interface addresses.
+        if (addresses.length == 1 && addresses[0].isAnyLocalAddress()) {
+            HashSet<InetAddress> all = new HashSet<>(Arrays.asList(NetworkUtils.getAllAddresses()));
+            addresses = all.toArray(new InetAddress[all.size()]);
+        }
+
+        // 2. try to deal with some (mis)configuration
+        for (InetAddress address : addresses) {
             // check if its multicast: flat out mistake
             if (address.isMulticastAddress()) {
                 throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is invalid: multicast address");
             }
-            // wildcard address, probably set by network.host
+            // check if its a wildcard address: this is only ok if its the only address!
+            // (if it was a single wildcard address, it was replaced by step 1 above)
             if (address.isAnyLocalAddress()) {
-                InetAddress old = address;
-                address = NetworkUtils.getFirstNonLoopbackAddresses()[0];
-                logger.warn("publish address: {{}} is a wildcard address, falling back to first non-loopback: {{}}", 
-                            NetworkAddress.format(old), NetworkAddress.format(address));
+                throw new IllegalArgumentException("publish address: {" + NetworkAddress.format(address) + "} is wildcard, but multiple addresses specified: this makes no sense");
             }
         }
-        return address;
+        
+        // 3. warn user if we end out with multiple publish addresses
+        if (addresses.length > 1) {
+            List<InetAddress> sorted = new ArrayList<>(Arrays.asList(addresses));
+            NetworkUtils.sortAddresses(sorted);
+            addresses = new InetAddress[] { sorted.get(0) };
+            logger.warn("publish host: {} resolves to multiple addresses, auto-selecting {{}} as single publish address", 
+                    Arrays.toString(publishHosts), NetworkAddress.format(addresses[0]));
+        }
+        return addresses[0];
+    }
+    
+    /** resolves (and deduplicates) host specification */
+    private InetAddress[] resolveInetAddresses(String hosts[]) throws IOException {
+        if (hosts.length == 0) {
+            throw new IllegalArgumentException("empty host specification");
+        }
+        // deduplicate, in case of resolver misconfiguration
+        // stuff like https://bugzilla.redhat.com/show_bug.cgi?id=496300
+        HashSet<InetAddress> set = new HashSet<>();
+        for (String host : hosts) {
+            set.addAll(Arrays.asList(resolveInternal(host)));
+        }
+        return set.toArray(new InetAddress[set.size()]);
     }
 
-    private InetAddress[] resolveInetAddress(String host) throws IOException {
+    /** resolves a single host specification */
+    private InetAddress[] resolveInternal(String host) throws IOException {
         if ((host.startsWith("#") && host.endsWith("#")) || (host.startsWith("_") && host.endsWith("_"))) {
             host = host.substring(1, host.length() - 1);
             // allow custom resolvers to have special names
@@ -178,12 +231,18 @@ public class NetworkService extends AbstractComponent {
                     return NetworkUtils.filterIPV4(NetworkUtils.getLoopbackAddresses());
                 case "local:ipv6":
                     return NetworkUtils.filterIPV6(NetworkUtils.getLoopbackAddresses());
-                case "non_loopback":
-                    return NetworkUtils.getFirstNonLoopbackAddresses();
-                case "non_loopback:ipv4":
-                    return NetworkUtils.filterIPV4(NetworkUtils.getFirstNonLoopbackAddresses());
-                case "non_loopback:ipv6":
-                    return NetworkUtils.filterIPV6(NetworkUtils.getFirstNonLoopbackAddresses());
+                case "site":
+                    return NetworkUtils.getSiteLocalAddresses();
+                case "site:ipv4":
+                    return NetworkUtils.filterIPV4(NetworkUtils.getSiteLocalAddresses());
+                case "site:ipv6":
+                    return NetworkUtils.filterIPV6(NetworkUtils.getSiteLocalAddresses());
+                case "global":
+                    return NetworkUtils.getGlobalAddresses();
+                case "global:ipv4":
+                    return NetworkUtils.filterIPV4(NetworkUtils.getGlobalAddresses());
+                case "global:ipv6":
+                    return NetworkUtils.filterIPV6(NetworkUtils.getGlobalAddresses());
                 default:
                     /* an interface specification */
                     if (host.endsWith(":ipv4")) {
@@ -197,6 +256,6 @@ public class NetworkService extends AbstractComponent {
                     }
             }
         }
-        return NetworkUtils.getAllByName(host);
+        return InetAddress.getAllByName(host);
     }
 }

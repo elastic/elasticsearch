@@ -63,10 +63,59 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+=== REST API changes
+
 ==== search exists api removed
 
 The search exists api has been removed in favour of using the search api with
 `size` set to `0` and `terminate_after` set to `1`.
+
+==== `/_optimize` endpoint removed
+
+The deprecated `/_optimize` endpoint has been removed. The `/_forcemerge`
+endpoint should be used in lieu of optimize.
+
+==== Deprecated queries removed
+
+The following deprecated queries have been removed:
+* `filtered`: use `bool` query instead, which supports `filter` clauses too
+* `and`: use `must` clauses in a `bool` query instead
+* `or`: use should clauses in a `bool` query instead
+* `limit`: use `terminate_after` parameter instead
+* `fquery`: obsolete after filters and queries have been merged
+* `query`: obsolete after filters and queries have been merged
+
+==== Unified fuzziness parameter
+
+* Removed support for the deprecated `min_similarity` parameter in `fuzzy query`, in favour of `similarity`.
+* Removed support for the deprecated `fuzzy_min_sim` parameter in `query_string` query, in favour of `similarity`.
+* Removed support for the deprecated `edit_distance` parameter in completion suggester, in favour of `similarity`.
+
+==== indices query
+
+Removed support for the deprecated `filter` and `no_match_filter` fields in `indices` query,
+in favour of `query` and `no_match_query`.
+
+==== nested query
+
+Removed support for the deprecated `filter` fields in `nested` query, in favour of `query`.
+
+==== terms query
+
+Removed support for the deprecated `minimum_should_match` and `disable_coord` in `terms` query, use `bool` query instead.
+Removed also support for the deprecated `execution` parameter.
+
+==== function_score query
+
+Removed support for the top level `filter` element in `function_score` query, replaced by `query`.
+
+==== highlighters
+
+Removed support for multiple highlighter names, the only supported ones are: `plain`, `fvh` and `postings`.
+
+==== top level filter
+
+Removed support for the deprecated top level `filter` in the search api, replaced by `post_filter`.
 
 === Parent/Child changes
 
@@ -85,7 +134,7 @@ which does the exact same thing.
 
 ==== `sum` score mode removed
 
-The `sum` score mode has been removed in favour of the `total` mode which doesn the same and is already available in
+The `sum` score mode has been removed in favour of the `total` mode which does the same and is already available in
 previous versions.
 
 ==== `max_children` option
@@ -108,6 +157,12 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 `discovery.zen.ping.timeout` and `discovery.zen.ping_timeout`. The former two have been removed and
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
+
+=== Mapping changes ===
+
+==== Transform removed
+
+The `transform` feature from mappings has been removed. It made issues very hard to debug.
 
 === Plugins
 
@@ -249,7 +304,7 @@ Also reusing new Operator enum.
 Removed `MoreLikeThisQueryBuilder.Item#id(String id)`, `Item#doc(BytesReference doc)`,
 `Item#doc(XContentBuilder doc)`. Use provided constructors instead.
 
-Removed `MoreLikeThisQueryBuilder#addLike` in favor of texts and/or items beeing provided
+Removed `MoreLikeThisQueryBuilder#addLike` in favor of texts and/or items being provided
 at construction time. Using arrays there instead of lists now.
 
 Removed `MoreLikeThisQueryBuilder#addUnlike` in favor to using the `unlike` methods
@@ -329,3 +384,9 @@ to index a document only if it doesn't already exist.
 Two cache concurrency level settings `indices.requests.cache.concurrency_level` and
 `indices.fielddata.cache.concurrency_level` because they no longer apply to the cache implementation used for the
 request cache and the field data cache.
+
+=== Remove bind option of `non_loopback`
+
+This setting would arbitrarily pick the first interface not marked as loopback. Instead, specify by address
+scope (e.g. `_local_,_site_` for all loopback and private network addresses) or by explicit interface names,
+hostnames, or addresses. 

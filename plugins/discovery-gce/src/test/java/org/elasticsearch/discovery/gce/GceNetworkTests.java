@@ -78,8 +78,8 @@ public class GceNetworkTests extends ESTestCase {
      * Test that we don't have any regression with network host core settings such as
      * network.host: _local_
      */
-    public void testNetworkHostCoreLocal() throws IOException {
-        resolveGce("_local_", new NetworkService(Settings.EMPTY).resolveBindHostAddress(NetworkService.DEFAULT_NETWORK_HOST));
+    public void networkHostCoreLocal() throws IOException {
+        resolveGce("_local_", new NetworkService(Settings.EMPTY).resolveBindHostAddresses(new String[] { NetworkService.DEFAULT_NETWORK_HOST }));
     }
 
     /**
@@ -107,7 +107,7 @@ public class GceNetworkTests extends ESTestCase {
         GceComputeServiceMock mock = new GceComputeServiceMock(nodeSettings, networkService);
         networkService.addCustomNameResolver(new GceNameResolver(nodeSettings, mock));
         try {
-            InetAddress[] addresses = networkService.resolveBindHostAddress(null);
+            InetAddress[] addresses = networkService.resolveBindHostAddresses(null);
             if (expected == null) {
                 fail("We should get a IllegalArgumentException when setting network.host: _gce:doesnotexist_");
             }

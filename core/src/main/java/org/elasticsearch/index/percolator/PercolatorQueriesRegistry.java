@@ -30,12 +30,12 @@ import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.indexing.IndexingOperationListener;
@@ -46,7 +46,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.percolator.PercolatorService;
@@ -85,7 +84,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private final CounterMetric currentMetric = new CounterMetric();
     private final CounterMetric numberOfQueries = new CounterMetric();
 
-    public PercolatorQueriesRegistry(ShardId shardId, @IndexSettings Settings indexSettings, IndexQueryParserService queryParserService,
+    public PercolatorQueriesRegistry(ShardId shardId, IndexSettings indexSettings,  IndexQueryParserService queryParserService,
                                      ShardIndexingService indexingService, MapperService mapperService,
                                      IndexFieldDataService indexFieldDataService) {
         super(shardId, indexSettings);
@@ -93,7 +92,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         this.mapperService = mapperService;
         this.indexingService = indexingService;
         this.indexFieldDataService = indexFieldDataService;
-        this.mapUnmappedFieldsAsString = indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
+        this.mapUnmappedFieldsAsString = this.indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
         mapperService.addTypeListener(percolateTypeListener);
     }
 

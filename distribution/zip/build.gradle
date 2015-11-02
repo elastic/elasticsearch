@@ -1,0 +1,11 @@
+
+task buildZip(type: Zip, dependsOn: deps) {
+  baseName = 'elasticsearch'
+  with archivesFiles
+}
+
+artifacts {
+  'default' buildZip
+  archives buildZip
+}
+

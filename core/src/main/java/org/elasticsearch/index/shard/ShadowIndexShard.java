@@ -21,12 +21,11 @@ package org.elasticsearch.index.shard;
 import java.io.IOException;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexServicesProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.merge.MergeStats;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
 
@@ -38,8 +37,8 @@ import org.elasticsearch.index.translog.TranslogStats;
  */
 public final class ShadowIndexShard extends IndexShard {
 
-    public ShadowIndexShard(ShardId shardId, @IndexSettings Settings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) throws IOException {
-        super(shardId, indexSettings, path, store, provider);
+    public ShadowIndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexSearcherWrapper wrapper, IndexServicesProvider provider) throws IOException {
+        super(shardId, indexSettings, path, store, wrapper, provider);
     }
 
     /**

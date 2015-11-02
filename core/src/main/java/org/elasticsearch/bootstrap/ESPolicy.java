@@ -21,14 +21,12 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.net.URI;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
 import java.security.Policy;
 import java.security.ProtectionDomain;
-import java.security.URIParameter;
 import java.util.Map;
 
 /** custom policy for union of static and dynamic permissions */
@@ -42,13 +40,11 @@ final class ESPolicy extends Policy {
     final Policy template;
     final Policy untrusted;
     final PermissionCollection dynamic;
-    final Map<String,PermissionCollection> plugins;
+    final Map<String,Policy> plugins;
 
-    public ESPolicy(PermissionCollection dynamic, Map<String,PermissionCollection> plugins) throws Exception {
-        URI policyUri = getClass().getResource(POLICY_RESOURCE).toURI();
-        URI untrustedUri = getClass().getResource(UNTRUSTED_RESOURCE).toURI();
-        this.template = Policy.getInstance("JavaPolicy", new URIParameter(policyUri));
-        this.untrusted = Policy.getInstance("JavaPolicy", new URIParameter(untrustedUri));
+    public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins) {
+        this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), JarHell.parseClassPath());
+        this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), new URL[0]);
         this.dynamic = dynamic;
         this.plugins = plugins;
     }
@@ -69,9 +65,10 @@ final class ESPolicy extends Policy {
             if (BootstrapInfo.UNTRUSTED_CODEBASE.equals(location.getFile())) {
                 return untrusted.implies(domain, permission);
             }
-            // check for an additional plugin permission
-            PermissionCollection plugin = plugins.get(location.getFile());
-            if (plugin != null && plugin.implies(permission)) {
+            // check for an additional plugin permission: plugin policy is
+            // only consulted for its codesources.
+            Policy plugin = plugins.get(location.getFile());
+            if (plugin != null && plugin.implies(domain, permission)) {
                 return true;
             }
         }

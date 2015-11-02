@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.instanceOf;
 public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
     private static final String RESOURCE = "/org/elasticsearch/index/analysis/keep_analysis.json";
 
-    public void testLoadWithoutSettings() {
+    public void testLoadWithoutSettings() throws IOException {
         AnalysisService analysisService = AnalysisTestsHelper.createAnalysisServiceFromClassPath(createTempDir(), RESOURCE);
         TokenFilterFactory tokenFilter = analysisService.tokenFilter("keep");
         Assert.assertNull(tokenFilter);
@@ -49,8 +49,9 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
         try {
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             Assert.fail("path and array are configured");
-        } catch (Exception e) {
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        } catch (IllegalArgumentException e) {
+        } catch (IOException e) {
+            fail("expected IAE");
         }
     }
 
@@ -64,8 +65,9 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
             // test our none existing setup is picked up
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             fail("expected an exception due to non existent keep_words_path");
-        } catch (Throwable e) {
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        } catch (IllegalArgumentException e) {
+        } catch (IOException e) {
+            fail("expected IAE");
         }
 
         settings = Settings.settingsBuilder().put(settings)
@@ -75,8 +77,9 @@ public class KeepFilterFactoryTests extends ESTokenStreamTestCase {
             // test our none existing setup is picked up
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             fail("expected an exception indicating that you can't use [keep_words_path] with [keep_words] ");
-        } catch (Throwable e) {
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        } catch (IllegalArgumentException e) {
+        } catch (IOException e) {
+            fail("expected IAE");
         }
 
     }

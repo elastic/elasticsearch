@@ -24,9 +24,8 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DisabledIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
@@ -41,7 +40,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -61,13 +59,10 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
 
-    private static final IndexFieldData.Builder MISSING_DOC_VALUES_BUILDER = new IndexFieldData.Builder() {
-        @Override
-        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
-            throw new IllegalStateException("Can't load fielddata on [" + fieldType.names().fullName()
-                    + "] of index [" + index.getName() + "] because fielddata is unsupported on fields of type ["
-                    + fieldType.fieldDataType().getType() + "]. Use doc values instead.");
-        }
+    private static final IndexFieldData.Builder MISSING_DOC_VALUES_BUILDER = (indexProperties, fieldType, cache, breakerService, mapperService1) -> {
+        throw new IllegalStateException("Can't load fielddata on [" + fieldType.names().fullName()
+                + "] of index [" + indexProperties.getIndex().getName() + "] because fielddata is unsupported on fields of type ["
+                + fieldType.fieldDataType().getType() + "]. Use doc values instead.");
     };
 
     private static final String ARRAY_FORMAT = "array";
@@ -161,10 +156,11 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     };
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
 
+
     @Inject
-    public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
+    public IndexFieldDataService(IndexSettings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
                                  CircuitBreakerService circuitBreakerService, MapperService mapperService) {
-        super(index, indexSettings);
+        super(indexSettings);
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
         this.mapperService = mapperService;
@@ -206,7 +202,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         }
         final boolean docValues = fieldType.hasDocValues();
         IndexFieldData.Builder builder = null;
-        String format = type.getFormat(indexSettings);
+        String format = type.getFormat(indexSettings.getSettings());
         if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
             logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");
             format = null;
@@ -233,9 +229,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
             if (cache == null) {
                 //  we default to node level cache, which in turn defaults to be unbounded
                 // this means changing the node level settings is simple, just set the bounds there
-                String cacheType = type.getSettings().get("cache", indexSettings.get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
+                String cacheType = type.getSettings().get("cache", indexSettings.getSettings().get(FIELDDATA_CACHE_KEY, FIELDDATA_CACHE_VALUE_NODE));
                 if (FIELDDATA_CACHE_VALUE_NODE.equals(cacheType)) {
-                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index, fieldNames, type);
+                    cache = indicesFieldDataCache.buildIndexFieldDataCache(listener, index(), fieldNames, type);
                 } else if ("none".equals(cacheType)){
                     cache = new IndexFieldDataCache.None();
                 } else {
@@ -245,7 +241,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
             }
         }
 
-        return (IFD) builder.build(index, indexSettings, fieldType, cache, circuitBreakerService, mapperService);
+        return (IFD) builder.build(indexSettings, fieldType, cache, circuitBreakerService, mapperService);
     }
 
     /**

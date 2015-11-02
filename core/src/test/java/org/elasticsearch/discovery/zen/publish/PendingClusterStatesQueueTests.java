@@ -162,6 +162,31 @@ public class PendingClusterStatesQueueTests extends ESTestCase {
         }
     }
 
+    public void testQueueStats() {
+        List<ClusterState> states = randomStates(scaledRandomIntBetween(10, 100), "master");
+        PendingClusterStatesQueue queue = createQueueWithStates(states);
+        assertThat(queue.stats().getTotal(), equalTo(states.size()));
+        assertThat(queue.stats().getPending(), equalTo(states.size()));
+        assertThat(queue.stats().getCommitted(), equalTo(0));
+
+        List<ClusterStateContext> committedContexts = randomCommitStates(queue);
+        assertThat(queue.stats().getTotal(), equalTo(states.size()));
+        assertThat(queue.stats().getPending(), equalTo(states.size() - committedContexts.size()));
+        assertThat(queue.stats().getCommitted(), equalTo(committedContexts.size()));
+
+        ClusterState highestCommitted = null;
+        for (ClusterStateContext context : committedContexts) {
+            if (highestCommitted == null || context.state.supersedes(highestCommitted)) {
+                highestCommitted = context.state;
+            }
+        }
+
+        queue.markAsProcessed(highestCommitted);
+        assertThat(queue.stats().getTotal(), equalTo(states.size() - committedContexts.size()));
+        assertThat(queue.stats().getPending(), equalTo(states.size() - committedContexts.size()));
+        assertThat(queue.stats().getCommitted(), equalTo(0));
+    }
+
     protected List<ClusterStateContext> randomCommitStates(PendingClusterStatesQueue queue) {
         List<ClusterStateContext> committedContexts = new ArrayList<>();
         for (int iter = randomInt(queue.pendingStates.size() - 1); iter >= 0; iter--) {

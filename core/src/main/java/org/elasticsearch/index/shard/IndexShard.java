@@ -20,7 +20,10 @@
 package org.elasticsearch.index.shard;
 
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CheckIndex;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
+import org.apache.lucene.index.SnapshotDeletionPolicy;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -55,10 +58,12 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexServicesProvider;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
@@ -80,12 +85,10 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
-import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.Store.MetadataSnapshot;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.store.StoreStats;
 import org.elasticsearch.index.suggest.stats.ShardSuggestMetric;
@@ -98,7 +101,6 @@ import org.elasticsearch.index.translog.TranslogWriter;
 import org.elasticsearch.index.warmer.ShardIndexWarmerService;
 import org.elasticsearch.index.warmer.WarmerStats;
 import org.elasticsearch.indices.IndicesWarmer;
-import org.elasticsearch.indices.InternalIndicesLifecycle;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
@@ -120,12 +122,11 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 
 
-public class IndexShard extends AbstractIndexShardComponent implements IndexSettingsService.Listener {
+public class IndexShard extends AbstractIndexShardComponent {
 
     private final ThreadPool threadPool;
     private final MapperService mapperService;
     private final IndexCache indexCache;
-    private final InternalIndicesLifecycle indicesLifecycle;
     private final Store store;
     private final MergeSchedulerConfig mergeSchedulerConfig;
     private final ShardIndexingService indexingService;
@@ -149,6 +150,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     private final TranslogConfig translogConfig;
     private final MergePolicyConfig mergePolicyConfig;
     private final IndicesQueryCache indicesQueryCache;
+    private final IndexEventListener indexEventListener;
+    private final IndexSettings idxSettings;
 
     private TimeValue refreshInterval;
 
@@ -194,28 +197,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
      *  IndexingMemoryController}). */
     private final AtomicBoolean active = new AtomicBoolean();
 
-    private volatile long lastWriteNS;
     private final IndexingMemoryController indexingMemoryController;
 
     @Inject
-    public IndexShard(ShardId shardId, @IndexSettings Settings indexSettings, ShardPath path, Store store, IndexServicesProvider provider) {
+    public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexSearcherWrapper indexSearcherWrapper, IndexServicesProvider provider) {
         super(shardId, indexSettings);
+        this.idxSettings = indexSettings;
         this.codecService = provider.getCodecService();
         this.warmer = provider.getWarmer();
         this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         this.similarityService = provider.getSimilarityService();
         Objects.requireNonNull(store, "Store must be provided to the index shard");
         this.engineFactory = provider.getFactory();
-        this.indicesLifecycle = (InternalIndicesLifecycle) provider.getIndicesLifecycle();
         this.store = store;
-        this.mergeSchedulerConfig = new MergeSchedulerConfig(indexSettings);
+        this.indexEventListener = provider.getIndexEventListener();
+        this.mergeSchedulerConfig = new MergeSchedulerConfig(this.indexSettings);
         this.threadPool = provider.getThreadPool();
         this.mapperService = provider.getMapperService();
         this.indexCache = provider.getIndexCache();
         this.indexingService = new ShardIndexingService(shardId, indexSettings);
-        this.getService = new ShardGetService(this, mapperService);
+        this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.termVectorsService =  provider.getTermVectorsService();
-        this.searchService = new ShardSearchStats(indexSettings);
+        this.searchService = new ShardSearchStats(this.indexSettings);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.indicesQueryCache =  provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
@@ -223,33 +226,34 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         this.indexFieldDataService =  provider.getIndexFieldDataService();
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
-        this.refreshInterval = indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
-        this.flushOnClose = indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
+        this.refreshInterval = this.indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
+        this.flushOnClose = this.indexSettings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
         this.path = path;
-        this.mergePolicyConfig = new MergePolicyConfig(logger, indexSettings);
+        this.mergePolicyConfig = new MergePolicyConfig(logger, this.indexSettings);
         /* create engine config */
 
         logger.debug("state: [CREATED]");
 
-        this.checkIndexOnStartup = indexSettings.get("index.shard.check_on_startup", "false");
-        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, indexSettings, Translog.Durabilty.REQUEST),
+        this.checkIndexOnStartup = this.indexSettings.get("index.shard.check_on_startup", "false");
+        this.translogConfig = new TranslogConfig(shardId, shardPath().resolveTranslog(), indexSettings, getFromSettings(logger, this.indexSettings, Translog.Durabilty.REQUEST),
                 provider.getBigArrays(), threadPool);
         final QueryCachingPolicy cachingPolicy;
         // the query cache is a node-level thing, however we want the most popular filters
         // to be computed on a per-shard basis
-        if (indexSettings.getAsBoolean(IndexCacheModule.QUERY_CACHE_EVERYTHING, false)) {
+        if (this.indexSettings.getAsBoolean(IndexModule.QUERY_CACHE_EVERYTHING, false)) {
             cachingPolicy = QueryCachingPolicy.ALWAYS_CACHE;
         } else {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
-        this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
-        this.flushThresholdOperations = indexSettings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, indexSettings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
-        this.flushThresholdSize = indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
-        this.disableFlush = indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
-        this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
-        this.indexingMemoryController = provider.getIndexingMemoryController();
 
-        this.searcherWrapper = provider.getIndexSearcherWrapper();
+        this.indexingMemoryController = provider.getIndexingMemoryController();
+        this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
+        this.flushThresholdOperations = this.indexSettings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, this.indexSettings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
+        this.flushThresholdSize = this.indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
+        this.disableFlush = this.indexSettings.getAsBoolean(INDEX_TRANSLOG_DISABLE_FLUSH, false);
+        this.indexShardOperationCounter = new IndexShardOperationCounter(logger, shardId);
+
+        this.searcherWrapper = indexSearcherWrapper;
         this.percolatorQueriesRegistry = new PercolatorQueriesRegistry(shardId, indexSettings, provider.getQueryParserService(), indexingService, mapperService, indexFieldDataService);
         if (mapperService.hasMapping(PercolatorService.TYPE_NAME)) {
             percolatorQueriesRegistry.enableRealTimePercolator();
@@ -261,6 +265,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public Store store() {
         return this.store;
+    }
+
+    public IndexSettings getIndexSettings() {
+        return idxSettings;
     }
 
     /** returns true if this shard supports indexing (i.e., write) operations. */
@@ -367,12 +375,12 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
                         }
                     }
                     if (movedToStarted) {
-                        indicesLifecycle.afterIndexShardStarted(this);
+                        indexEventListener.afterIndexShardStarted(this);
                     }
                 }
             }
             this.shardRouting = newRouting;
-            indicesLifecycle.shardRoutingChanged(this, currentRouting, newRouting);
+            indexEventListener.shardRoutingChanged(this, currentRouting, newRouting);
         } finally {
             if (persistState) {
                 persistMetadata(newRouting, currentRouting);
@@ -383,7 +391,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
     /**
      * Marks the shard as recovering based on a recovery state, fails with exception is recovering is not allowed to be set.
      */
-    public IndexShardState recovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
+    public IndexShardState markAsRecovering(String reason, RecoveryState recoveryState) throws IndexShardStartedException,
             IndexShardRelocatedException, IndexShardRecoveringException, IndexShardClosedException {
         synchronized (mutex) {
             if (state == IndexShardState.CLOSED) {
@@ -431,7 +439,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         logger.debug("state: [{}]->[{}], reason [{}]", state, newState, reason);
         IndexShardState previousState = state;
         state = newState;
-        this.indicesLifecycle.indexShardStateChanged(this, previousState, reason);
+        this.indexEventListener.indexShardStateChanged(this, previousState, newState, reason);
         return previousState;
     }
 
@@ -459,7 +467,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
      */
     public boolean index(Engine.Index index) {
         ensureWriteAllowed(index);
-        markLastWrite(index);
+        markLastWrite();
         index = indexingService.preIndex(index);
         final boolean created;
         try {
@@ -484,7 +492,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public void delete(Engine.Delete delete) {
         ensureWriteAllowed(delete);
-        markLastWrite(delete);
+        markLastWrite();
         delete = indexingService.preDelete(delete);
         try {
             if (logger.isTraceEnabled()) {
@@ -661,7 +669,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             logger.trace("upgrade with {}", upgrade);
         }
         org.apache.lucene.util.Version previousVersion = minimumCompatibleVersion();
-        // we just want to upgrade the segments, not actually optimize to a single segment
+        // we just want to upgrade the segments, not actually forge merge to a single segment
         getEngine().forceMerge(true,  // we need to flush at the end to make sure the upgrade is durable
                 Integer.MAX_VALUE, // we just want to upgrade the segments, not actually optimize to a single segment
                 false, true, upgrade.upgradeOnlyAncientSegments());
@@ -680,7 +688,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
                 luceneVersion = segment.getVersion();
             }
         }
-        return luceneVersion == null ? Version.indexCreated(indexSettings).luceneVersion : luceneVersion;
+        return luceneVersion == null ? idxSettings.getIndexVersionCreated().luceneVersion : luceneVersion;
     }
 
     /**
@@ -904,14 +912,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         }
     }
 
-    /** Returns timestamp of last indexing operation */
-    public long getLastWriteNS() {
-        return lastWriteNS;
-    }
-
     /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
-    private void markLastWrite(Engine.Operation op) {
-        lastWriteNS = op.startTime();
+    private void markLastWrite() {
         if (active.getAndSet(true) == false) {
             // We are currently inactive, but a new write operation just showed up, so we now notify IMC
             // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
@@ -1006,7 +1008,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             long iwBytesUsed = engine.indexWriterRAMBytesUsed();
 
             String message = LoggerMessageFormat.format("updating index_buffer_size from [{}] to [{}]; IndexWriter now using [{}] bytes",
-                                                        preValue, shardIndexingBufferSize, iwBytesUsed);
+                    preValue, shardIndexingBufferSize, iwBytesUsed);
 
             if (iwBytesUsed > shardIndexingBufferSize.bytes()) {
                 // our allowed buffer was changed to less than we are currently using; we ask IW to refresh
@@ -1031,12 +1033,13 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
      *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
      *  if the shard is inactive. */
     public boolean checkIdle(long inactiveTimeNS) {
-        if (System.nanoTime() - lastWriteNS >= inactiveTimeNS) {
+        Engine engineOrNull = getEngineOrNull();
+        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
                 logger.debug("shard is now inactive");
-                indicesLifecycle.onShardInactive(this);
+                indexEventListener.onShardInactive(this);
             }
         }
 
@@ -1069,17 +1072,17 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         return path;
     }
 
-    public boolean recoverFromStore(ShardRouting shard, DiscoveryNode localNode) {
+    public boolean recoverFromStore(DiscoveryNode localNode) {
         // we are the first primary, recover from the gateway
         // if its post api allocation, the index should exists
-        assert shard.primary() : "recover from store only makes sense if the shard is a primary shard";
-        final boolean shouldExist = shard.allocatedPostIndexCreate();
+        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
+        final boolean shouldExist = shardRouting.allocatedPostIndexCreate();
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         return storeRecovery.recoverFromStore(this, shouldExist, localNode);
     }
 
-    public boolean restoreFromRepository(ShardRouting shard, IndexShardRepository repository, DiscoveryNode locaNode) {
-        assert shard.primary() : "recover from store only makes sense if the shard is a primary shard";
+    public boolean restoreFromRepository(IndexShardRepository repository, DiscoveryNode locaNode) {
+        assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
         return storeRecovery.recoverFromRepository(this, repository, locaNode);
     }
@@ -1103,7 +1106,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         return false;
     }
 
-    @Override
     public void onRefreshSettings(Settings settings) {
         boolean change = false;
         synchronized (mutex) {
@@ -1228,6 +1230,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
 
     public PercolateStats percolateStats() {
         return percolatorQueriesRegistry.stats();
+    }
+
+    public IndexEventListener getIndexEventListener() {
+        return indexEventListener;
     }
 
     class EngineRefresher implements Runnable {
@@ -1456,9 +1462,10 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
                 recoveryState.getTranslog().incrementRecoveredOperations();
             }
         };
+        final Engine.Warmer engineWarmer = (searcher, toLevel) -> warmer.warm(searcher, this, idxSettings, toLevel);
         return new EngineConfig(shardId,
-                threadPool, indexingService, indexSettings, warmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig);
+                threadPool, indexingService, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
+                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig, indexingMemoryController.getInactiveTime());
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {

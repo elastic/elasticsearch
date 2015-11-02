@@ -23,7 +23,7 @@ import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.codecs.lucene53.Lucene53Codec;
+import org.apache.lucene.codecs.lucene54.Lucene54Codec;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Fields;
@@ -272,7 +272,7 @@ public class CompletionPostingsFormatTests extends ESTestCase {
     public Lookup buildAnalyzingLookup(final CompletionFieldMapper mapper, String[] terms, String[] surfaces, long[] weights)
             throws IOException {
         RAMDirectory dir = new RAMDirectory();
-        Codec codec = new Lucene53Codec() {
+        Codec codec = new Lucene54Codec() {
             @Override
             public PostingsFormat getPostingsFormatForField(String field) {
                 final PostingsFormat in = super.getPostingsFormatForField(field);

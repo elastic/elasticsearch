@@ -298,7 +298,6 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertHitCount(result, 1);
     }
 
-    @LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elasticsearch/elasticsearch/issues/9904")
     public void testShapeFilterWithRandomGeoCollection() throws Exception {
         // Create a random geometry collection.
         GeometryCollectionBuilder gcb = RandomShapeGenerator.createGeometryCollection(getRandom());

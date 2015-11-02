@@ -33,12 +33,10 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
@@ -46,7 +44,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.query.support.InnerHitsQueryParserHelper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
@@ -66,7 +63,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private CloseableThreadLocal<QueryShardContext> cache = new CloseableThreadLocal<QueryShardContext>() {
         @Override
         protected QueryShardContext initialValue() {
-            return new QueryShardContext(index, IndexQueryParserService.this);
+            return new QueryShardContext(IndexQueryParserService.this);
         }
     };
 
@@ -99,7 +96,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private final Client client;
 
     @Inject
-    public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings, Settings settings,
+    public IndexQueryParserService(IndexSettings indexSettings,
                                    IndicesQueriesRegistry indicesQueriesRegistry,
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
@@ -107,7 +104,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
                                    @Nullable SimilarityService similarityService, ClusterService clusterService,
                                    IndexNameExpressionResolver indexNameExpressionResolver,
                                    InnerHitsQueryParserHelper innerHitsQueryParserHelper, Client client) {
-        super(index, indexSettings);
+        super(indexSettings);
         this.scriptService = scriptService;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
@@ -118,12 +115,12 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
 
-        this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
-        this.queryStringLenient = indexSettings.getAsBoolean(QUERY_STRING_LENIENT, false);
-        this.queryStringAnalyzeWildcard = settings.getAsBoolean(QUERY_STRING_ANALYZE_WILDCARD, false);
-        this.queryStringAllowLeadingWildcard = settings.getAsBoolean(QUERY_STRING_ALLOW_LEADING_WILDCARD, true);
-        this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
-        this.defaultAllowUnmappedFields = indexSettings.getAsBoolean(ALLOW_UNMAPPED, true);
+        this.defaultField = this.indexSettings.getSettings().get(DEFAULT_FIELD, AllFieldMapper.NAME);
+        this.queryStringLenient = this.indexSettings.getSettings().getAsBoolean(QUERY_STRING_LENIENT, false);
+        this.queryStringAnalyzeWildcard = indexSettings.getSettings().getAsBoolean(QUERY_STRING_ANALYZE_WILDCARD, false);
+        this.queryStringAllowLeadingWildcard = indexSettings.getSettings().getAsBoolean(QUERY_STRING_ALLOW_LEADING_WILDCARD, true);
+        this.parseFieldMatcher = new ParseFieldMatcher(this.indexSettings.getSettings());
+        this.defaultAllowUnmappedFields = this.indexSettings.getSettings().getAsBoolean(ALLOW_UNMAPPED, true);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.innerHitsQueryParserHelper = innerHitsQueryParserHelper;
         this.client = client;
@@ -209,35 +206,26 @@ public class IndexQueryParserService extends AbstractIndexComponent {
      * @return The lowest node version in the cluster when the index was created or <code>null</code> if that was unknown
      */
     public Version getIndexCreatedVersion() {
-        return Version.indexCreated(indexSettings);
+        return indexSettings.getIndexVersionCreated();
     }
 
     /**
      * Selectively parses a query from a top level query or query_binary json field from the specified source.
      */
-    public ParsedQuery parseQuery(BytesReference source) {
+    public ParsedQuery parseTopLevelQuery(BytesReference source) {
         XContentParser parser = null;
         try {
-            parser = XContentHelper.createParser(source);
-            ParsedQuery parsedQuery = null;
-            for (XContentParser.Token token = parser.nextToken(); token != XContentParser.Token.END_OBJECT; token = parser.nextToken()) {
-                if (token == XContentParser.Token.FIELD_NAME) {
-                    String fieldName = parser.currentName();
-                    if ("query".equals(fieldName)) {
-                        parsedQuery = parse(parser);
-                    } else if ("query_binary".equals(fieldName) || "queryBinary".equals(fieldName)) {
-                        byte[] querySource = parser.binaryValue();
-                        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-                        parsedQuery = parse(qSourceParser);
-                    } else {
-                        throw new ParsingException(parser.getTokenLocation(), "request does not support [" + fieldName + "]");
-                    }
-                }
+            parser = XContentFactory.xContent(source).createParser(source);
+            QueryShardContext queryShardContext = cache.get();
+            queryShardContext.reset(parser);
+            queryShardContext.parseFieldMatcher(parseFieldMatcher);
+            try {
+                QueryBuilder<?> queryBuilder = queryShardContext.parseContext().parseTopLevelQueryBuilder();
+                Query query = toQuery(queryBuilder, queryShardContext);
+                return new ParsedQuery(query, queryShardContext.copyNamedQueries());
+            } finally {
+                queryShardContext.reset(null);
             }
-            if (parsedQuery == null) {
-                throw new ParsingException(parser.getTokenLocation(), "Required query is missing");
-            }
-            return parsedQuery;
         } catch (ParsingException | QueryShardException e) {
             throw e;
         } catch (Throwable e) {
@@ -291,7 +279,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     public boolean matchesIndices(String... indices) {
         final String[] concreteIndices = indexNameExpressionResolver.concreteIndices(clusterService.state(), IndicesOptions.lenientExpandOpen(), indices);
         for (String index : concreteIndices) {
-            if (Regex.simpleMatch(index, this.index.name())) {
+            if (Regex.simpleMatch(index, index().name())) {
                 return true;
             }
         }

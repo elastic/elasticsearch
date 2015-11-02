@@ -107,6 +107,9 @@ public class GroovySecurityTests extends ESIntegTestCase {
         // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
         assertFailure("def methodName = 'ex'; Runtime.\"${'get' + 'Runtime'}\"().\"${methodName}ec\"(\"touch /tmp/gotcha2\")");
 
+        // AccessControlException[access denied ("java.lang.RuntimePermission" "modifyThreadGroup")]
+        assertFailure("t = new Thread({ println 3 });");
+
         // test a directory we normally have access to, but the groovy script does not.
         Path dir = createTempDir();
         // TODO: figure out the necessary escaping for windows paths here :)

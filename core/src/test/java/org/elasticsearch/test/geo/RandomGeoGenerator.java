@@ -19,7 +19,7 @@
 
 package org.elasticsearch.test.geo;
 
-import org.apache.lucene.util.XGeoUtils;
+import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.util.Random;
@@ -42,8 +42,8 @@ public class RandomGeoGenerator {
         assert pt != null && pt.length == 2;
 
         // normalize min and max
-        double[] min = {XGeoUtils.normalizeLon(minLon), XGeoUtils.normalizeLat(minLat)};
-        double[] max = {XGeoUtils.normalizeLon(maxLon), XGeoUtils.normalizeLat(maxLat)};
+        double[] min = {GeoUtils.normalizeLon(minLon), GeoUtils.normalizeLat(minLat)};
+        double[] max = {GeoUtils.normalizeLon(maxLon), GeoUtils.normalizeLat(maxLat)};
         final double[] tMin = new double[2];
         final double[] tMax = new double[2];
         tMin[0] = Math.min(min[0], max[0]);

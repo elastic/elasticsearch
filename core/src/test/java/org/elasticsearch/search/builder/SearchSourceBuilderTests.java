@@ -81,7 +81,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
         injector = new ModulesBuilder().add(
                 new SettingsModule(settings),
                 new ThreadPoolModule(new ThreadPool(settings)),
-                new IndicesModule(settings) {
+                new IndicesModule() {
                     @Override
                     public void configure() {
                         // skip services
@@ -183,7 +183,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 fetchSourceContext = new FetchSourceContext(randomAsciiOfLengthBetween(5, 20), randomAsciiOfLengthBetween(5, 20));
                 break;
             case 3:
-                fetchSourceContext = new FetchSourceContext(true, includes, excludes, randomBoolean());
+                fetchSourceContext = new FetchSourceContext(true, includes, excludes);
                 break;
             case 4:
                 fetchSourceContext = new FetchSourceContext(includes);

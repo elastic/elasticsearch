@@ -83,8 +83,6 @@ public class QueryShardContext {
         typesContext.remove();
     }
 
-    private final Index index;
-
     private final Version indexVersionCreated;
 
     private final IndexQueryParserService indexQueryParser;
@@ -103,9 +101,8 @@ public class QueryShardContext {
 
     boolean isFilter;
 
-    public QueryShardContext(Index index, IndexQueryParserService indexQueryParser) {
-        this.index = index;
-        this.indexVersionCreated = Version.indexCreated(indexQueryParser.indexSettings());
+    public QueryShardContext(IndexQueryParserService indexQueryParser) {
+        this.indexVersionCreated = indexQueryParser.getIndexCreatedVersion();
         this.indexQueryParser = indexQueryParser;
         this.parseContext = new QueryParseContext(indexQueryParser.indicesQueriesRegistry());
     }
@@ -132,7 +129,7 @@ public class QueryShardContext {
     }
 
     public Index index() {
-        return this.index;
+        return this.indexQueryParser.index();
     }
 
     public IndexQueryParserService indexQueryParserService() {

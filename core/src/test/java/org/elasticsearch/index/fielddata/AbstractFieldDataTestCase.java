@@ -76,7 +76,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final BuilderContext context = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext context = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
         if (type.getType().equals("string")) {
             fieldType = MapperBuilders.stringField(fieldName).tokenized(false).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("float")) {

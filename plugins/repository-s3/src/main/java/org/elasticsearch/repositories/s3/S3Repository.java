@@ -118,10 +118,14 @@ public class S3Repository extends BlobStoreRepository {
         this.chunkSize = repositorySettings.settings().getAsBytesSize("chunk_size", settings.getAsBytesSize("repositories.s3.chunk_size", new ByteSizeValue(100, ByteSizeUnit.MB)));
         this.compress = repositorySettings.settings().getAsBoolean("compress", settings.getAsBoolean("repositories.s3.compress", false));
 
-        logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}]",
-                bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries);
+        String cannedACL = repositorySettings.settings().get("canned_acl", settings.get("repositories.s3.canned_acl", null));
 
-        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key"), maxRetries), bucket, region, serverSideEncryption, bufferSize, maxRetries);
+        logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}], cannedACL [{}]",
+                bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, cannedACL);
+
+        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key"), maxRetries),
+                bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL);
+
         String basePath = repositorySettings.settings().get("base_path", settings.get("repositories.s3.base_path"));
         if (Strings.hasLength(basePath)) {
             BlobPath path = new BlobPath();

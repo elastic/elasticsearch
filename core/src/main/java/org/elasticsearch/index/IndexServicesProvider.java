@@ -28,10 +28,10 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.termvectors.TermVectorsService;
-import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
@@ -44,7 +44,6 @@ import org.elasticsearch.threadpool.ThreadPool;
  */
 public final class IndexServicesProvider {
 
-    private final IndicesLifecycle indicesLifecycle;
     private final ThreadPool threadPool;
     private final MapperService mapperService;
     private final IndexQueryParserService queryParserService;
@@ -57,12 +56,12 @@ public final class IndexServicesProvider {
     private final SimilarityService similarityService;
     private final EngineFactory factory;
     private final BigArrays bigArrays;
-    private final IndexSearcherWrapper indexSearcherWrapper;
     private final IndexingMemoryController indexingMemoryController;
+    private final IndexEventListener listener;
 
     @Inject
-    public IndexServicesProvider(IndicesLifecycle indicesLifecycle, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, @Nullable IndexSearcherWrapper indexSearcherWrapper, IndexingMemoryController indexingMemoryController) {
-        this.indicesLifecycle = indicesLifecycle;
+    public IndexServicesProvider(IndexEventListener listener, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, IndexingMemoryController indexingMemoryController) {
+        this.listener = listener;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -75,14 +74,12 @@ public final class IndexServicesProvider {
         this.similarityService = similarityService;
         this.factory = factory;
         this.bigArrays = bigArrays;
-        this.indexSearcherWrapper = indexSearcherWrapper;
         this.indexingMemoryController = indexingMemoryController;
     }
 
-    public IndicesLifecycle getIndicesLifecycle() {
-        return indicesLifecycle;
+    public IndexEventListener getIndexEventListener() {
+        return listener;
     }
-
     public ThreadPool getThreadPool() {
         return threadPool;
     }
@@ -127,13 +124,7 @@ public final class IndexServicesProvider {
         return factory;
     }
 
-    public BigArrays getBigArrays() {
-        return bigArrays;
-    }
-
-    public IndexSearcherWrapper getIndexSearcherWrapper() {
-        return indexSearcherWrapper;
-    }
+    public BigArrays getBigArrays() { return bigArrays; }
 
     public IndexingMemoryController getIndexingMemoryController() {
         return indexingMemoryController;

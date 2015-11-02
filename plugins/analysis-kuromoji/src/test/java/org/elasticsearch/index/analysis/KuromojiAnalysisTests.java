@@ -33,11 +33,10 @@ import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.plugin.analysis.kuromoji.AnalysisKuromojiPlugin;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -45,6 +44,7 @@ import java.io.Reader;
 import java.io.StringReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -205,20 +205,13 @@ public class KuromojiAnalysisTests extends ESTestCase {
 
         Index index = new Index("test");
 
+        AnalysisModule analysisModule = new AnalysisModule(new Environment(settings));
+        new AnalysisKuromojiPlugin().onModule(analysisModule);
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
-                new EnvironmentModule(new Environment(settings)))
+                new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
 
-        AnalysisModule analysisModule = new AnalysisModule(settings, parentInjector.getInstance(IndicesAnalysisService.class));
-        new AnalysisKuromojiPlugin().onModule(analysisModule);
-
-        Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, settings),
-                new IndexNameModule(index),
-                analysisModule)
-                .createChildInjector(parentInjector);
-
-        return injector.getInstance(AnalysisService.class);
+        return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings, Collections.emptyList()));
     }
 
     public static void assertSimpleTSOutput(TokenStream stream,

@@ -13,7 +13,7 @@ To create a distribution without running the tests, simply run the
 following:
 
 -----------------------------
-mvn clean package -DskipTests
+gradle assemble
 -----------------------------
 
 == Other test options
@@ -35,7 +35,7 @@ Use local transport (default since 1.3):
 Alternatively, you can set the `ES_TEST_LOCAL` environment variable:
 
 -------------------------------------
-export ES_TEST_LOCAL=true && mvn test
+export ES_TEST_LOCAL=true && gradle test
 -------------------------------------
 
 === Running Elasticsearch from a checkout
@@ -55,20 +55,20 @@ run it using Maven:
 Run a single test case (variants)
 
 ----------------------------------------------------------
-mvn test -Dtests.class=org.elasticsearch.package.ClassName
-mvn test "-Dtests.class=*.ClassName"
+gradle test -Dtests.class=org.elasticsearch.package.ClassName
+gradle test "-Dtests.class=*.ClassName"
 ----------------------------------------------------------
 
 Run all tests in a package and sub-packages
 
 ----------------------------------------------------
-mvn test "-Dtests.class=org.elasticsearch.package.*"
+gradle test "-Dtests.class=org.elasticsearch.package.*"
 ----------------------------------------------------
 
 Run any test methods that contain 'esi' (like: ...r*esi*ze...).
 
 -------------------------------
-mvn test "-Dtests.method=*esi*"
+gradle test "-Dtests.method=*esi*"
 -------------------------------
 
 You can also filter tests by certain annotations ie:
@@ -81,7 +81,7 @@ You can also filter tests by certain annotations ie:
 Those annotation names can be combined into a filter expression like:
 
 ------------------------------------------------
-mvn test -Dtests.filter="@nightly and not @backwards"
+gradle test -Dtests.filter="@nightly and not @backwards"
 ------------------------------------------------
 
 to run all nightly test but not the ones that are backwards tests. `tests.filter` supports
@@ -89,7 +89,7 @@ the boolean operators `and, or, not` and grouping ie:
 
 
 ---------------------------------------------------------------
-mvn test -Dtests.filter="@nightly and not(@badapple or @backwards)"
+gradle test -Dtests.filter="@nightly and not(@badapple or @backwards)"
 ---------------------------------------------------------------
 
 === Seed and repetitions.
@@ -97,7 +97,7 @@ mvn test -Dtests.filter="@nightly and not(@badapple or @backwards)"
 Run with a given seed (seed is a hex-encoded long).
 
 ------------------------------
-mvn test -Dtests.seed=DEADBEEF
+gradle test -Dtests.seed=DEADBEEF
 ------------------------------
 
 === Repeats _all_ tests of ClassName N times.
@@ -106,7 +106,7 @@ Every test repetition will have a different method seed
 (derived from a single random master seed).
 
 --------------------------------------------------
-mvn test -Dtests.iters=N -Dtests.class=*.ClassName
+gradle test -Dtests.iters=N -Dtests.class=*.ClassName
 --------------------------------------------------
 
 === Repeats _all_ tests of ClassName N times.
@@ -115,7 +115,7 @@ Every test repetition will have exactly the same master (0xdead) and
 method-level (0xbeef) seed.
 
 ------------------------------------------------------------------------
-mvn test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.seed=DEAD:BEEF
+gradle test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.seed=DEAD:BEEF
 ------------------------------------------------------------------------
 
 === Repeats a given test N times
@@ -125,14 +125,14 @@ ie: testFoo[0], testFoo[1], etc... so using testmethod or tests.method
 ending in a glob is necessary to ensure iterations are run).
 
 -------------------------------------------------------------------------
-mvn test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.method=mytest*
+gradle test -Dtests.iters=N -Dtests.class=*.ClassName -Dtests.method=mytest*
 -------------------------------------------------------------------------
 
 Repeats N times but skips any tests after the first failure or M initial failures.
 
 -------------------------------------------------------------
-mvn test -Dtests.iters=N -Dtests.failfast=true -Dtestcase=...
-mvn test -Dtests.iters=N -Dtests.maxfailures=M -Dtestcase=...
+gradle test -Dtests.iters=N -Dtests.failfast=true -Dtestcase=...
+gradle test -Dtests.iters=N -Dtests.maxfailures=M -Dtestcase=...
 -------------------------------------------------------------
 
 === Test groups.
@@ -142,9 +142,9 @@ Test groups can be enabled or disabled (true/false).
 Default value provided below in [brackets].
 
 ------------------------------------------------------------------
-mvn test -Dtests.nightly=[false]   - nightly test group (@Nightly)
-mvn test -Dtests.weekly=[false]    - weekly tests (@Weekly)
-mvn test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
+gradle test -Dtests.nightly=[false]   - nightly test group (@Nightly)
+gradle test -Dtests.weekly=[false]    - weekly tests (@Weekly)
+gradle test -Dtests.awaitsfix=[false] - known issue (@AwaitsFix)
 ------------------------------------------------------------------
 
 === Load balancing and caches.
@@ -154,7 +154,7 @@ By default, the tests run sequentially on a single forked JVM.
 To run with more forked JVMs than the default use:
 
 ----------------------------
-mvn test -Dtests.jvms=8 test
+gradle test -Dtests.jvms=8
 ----------------------------
 
 Don't count hypercores for CPU-intense tests and leave some slack
@@ -167,7 +167,7 @@ It is possible to provide a version that allows to adapt the tests behaviour
 to older features or bugs that have been changed or fixed in the meantime.
 
 -----------------------------------------
-mvn test -Dtests.compatibility=1.0.0
+gradle test -Dtests.compatibility=1.0.0
 -----------------------------------------
 
 
@@ -176,45 +176,50 @@ mvn test -Dtests.compatibility=1.0.0
 Run all tests without stopping on errors (inspect log files).
 
 -----------------------------------------
-mvn test -Dtests.haltonfailure=false test
+gradle test -Dtests.haltonfailure=false
 -----------------------------------------
 
 Run more verbose output (slave JVM parameters, etc.).
 
 ----------------------
-mvn test -verbose test
+gradle test -verbose
 ----------------------
 
 Change the default suite timeout to 5 seconds for all
 tests (note the exclamation mark).
 
 ---------------------------------------
-mvn test -Dtests.timeoutSuite=5000! ...
+gradle test -Dtests.timeoutSuite=5000! ...
 ---------------------------------------
 
-Change the logging level of ES (not mvn)
+Change the logging level of ES (not gradle)
 
 --------------------------------
-mvn test -Des.logger.level=DEBUG
+gradle test -Des.logger.level=DEBUG
 --------------------------------
 
 Print all the logging output from the test runs to the commandline
 even if tests are passing.
 
 ------------------------------
-mvn test -Dtests.output=always
+gradle test -Dtests.output=always
 ------------------------------
 
 Configure the heap size.
 
 ------------------------------
-mvn test -Dtests.heap.size=512m
+gradle test -Dtests.heap.size=512m
 ------------------------------
 
 Pass arbitrary jvm arguments.
 
 ------------------------------
-mvn test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
+# specify heap dump path
+gradle test -Dtests.jvm.argline="-XX:HeapDumpPath=/path/to/heapdumps"
+# enable gc logging
+gradle test -Dtests.jvm.argline="-verbose:gc"
+# enable security debugging
+gradle test -Dtests.jvm.argline="-Djava.security.debug=access,failure"
 ------------------------------
 
 == Backwards Compatibility Tests
@@ -225,7 +230,7 @@ To run backwards compatibilty tests untar or unzip a release and run the tests
 with the following command:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Dtests.security.manager=false
+gradle test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.bwc.path=/path/to/elasticsearch -Dtests.security.manager=false
 ---------------------------------------------------------------------------
 
 Note that backwards tests must be run with security manager disabled.
@@ -233,7 +238,7 @@ If the elasticsearch release is placed under `./backwards/elasticsearch-x.y.z` t
 can be omitted:
 
 ---------------------------------------------------------------------------
-mvn test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.security.manager=false
+gradle test -Dtests.filter="@backwards" -Dtests.bwc.version=x.y.z -Dtests.security.manager=false
 ---------------------------------------------------------------------------
 
 To setup the bwc test environment execute the following steps (provided you are
@@ -245,19 +250,25 @@ $ curl -O https://download.elasticsearch.org/elasticsearch/elasticsearch/elastic
 $ tar -xzf elasticsearch-1.2.1.tar.gz
 ---------------------------------------------------------------------------
 
-== Running integration tests
+== Running verification tasks
 
-To run the integration tests:
-
----------------------------------------------------------------------------
-mvn verify
----------------------------------------------------------------------------
-
-Note that this will also run the unit tests first. If you want to just
-run the integration tests only (because you are debugging them):
+To run all verification tasks, including static checks, unit tests, and integration tests:
 
 ---------------------------------------------------------------------------
-mvn verify -Dskip.unit.tests
+gradle check
+---------------------------------------------------------------------------
+
+Note that this will also run the unit tests and precommit tasks first. If you want to just
+run the integration tests (because you are debugging them):
+
+---------------------------------------------------------------------------
+gradle integTest
+---------------------------------------------------------------------------
+
+If you want to just run the precommit checks:
+
+---------------------------------------------------------------------------
+gradle precommit
 ---------------------------------------------------------------------------
 
 == Testing the REST layer
@@ -273,7 +284,7 @@ The REST tests are run automatically when executing the maven test command. To r
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-mvn verify -Dtests.filter="@Rest" -Dskip.unit.tests=true
+gradle integTest -Dtests.filter="@Rest"
 ---------------------------------------------------------------------------
 
 `RestNIT` are the executable test classes that runs all the
@@ -298,20 +309,6 @@ comma separated list of nodes to connect to (e.g. localhost:9300). A transport c
 be created based on that and used for all the before|after test operations, and to extract
 the http addresses of the nodes so that REST requests can be sent to them.
 
-== Skip validate
-
-To disable validation step (forbidden API or `// NOCOMMIT`) use
-
----------------------------------------------------------------------------
-mvn test -Dvalidate.skip=true
----------------------------------------------------------------------------
-
-You can also skip this by using the "dev" profile:
-
----------------------------------------------------------------------------
-mvn test -Pdev
----------------------------------------------------------------------------
-
 == Testing scripts
 
 The simplest way to test scripts and the packaged distributions is to use
@@ -329,7 +326,7 @@ vagrant plugin install vagrant-cachier
 . Validate your installed dependencies:
 
 -------------------------------------
-mvn -Dtests.vagrant -pl qa/vagrant validate
+gradle :qa:vagrant:validate
 -------------------------------------
 
 . Download the VMs. Since Maven or ant or something eats the progress reports

@@ -8,6 +8,9 @@ configuration, for example, the
 network settings allows to set common settings that will be shared among
 all network based modules (unless explicitly overridden in each module).
 
+Be careful with host configuration! Never expose an unprotected instance
+to the public internet.
+
 The `network.bind_host` setting allows to control the host different network
 components will bind on. By default, the bind host will be `_local_`
 (loopback addresses such as `127.0.0.1`, `::1`).
@@ -16,14 +19,13 @@ The `network.publish_host` setting allows to control the host the node will
 publish itself within the cluster so other nodes will be able to connect to it.
 Currently an elasticsearch node may be bound to multiple addresses, but only
 publishes one.  If not specified, this defaults to the "best" address from 
-`network.bind_host`.  By default, IPv4 addresses are preferred to IPv6, and 
-ordinary addresses are preferred to site-local or link-local addresses.
+`network.bind_host`, sorted by IPv4/IPv6 stack preference, then by reachability.
 
 The `network.host` setting is a simple setting to automatically set both
 `network.bind_host` and `network.publish_host` to the same host value.
 
-Both settings allows to be configured with either explicit host address
-or host name. The settings also accept logical setting values explained
+Both settings allows to be configured with either explicit host address(es)
+or host name(s). The settings also accept logical setting value(s) explained
 in the following table:
 
 [cols="<,<",options="header",]
@@ -31,15 +33,21 @@ in the following table:
 |Logical Host Setting Value |Description
 |`_local_` |Will be resolved to loopback addresses
 
-|`_local:ipv4_` |Will be resolved to loopback IPv4 addresses
+|`_local:ipv4_` |Will be resolved to loopback IPv4 addresses (e.g. 127.0.0.1)
 
-|`_local:ipv6_` |Will be resolved to loopback IPv6 addresses
+|`_local:ipv6_` |Will be resolved to loopback IPv6 addresses (e.g. ::1)
 
-|`_non_loopback_` |Addresses of the first non loopback interface
+|`_site_` |Will be resolved to site-local addresses ("private network")
 
-|`_non_loopback:ipv4_` |IPv4 addresses of the first non loopback interface
+|`_site:ipv4_` |Will be resolved to site-local IPv4 addresses (e.g. 192.168.0.1)
 
-|`_non_loopback:ipv6_` |IPv6 addresses of the first non loopback interface
+|`_site:ipv6_` |Will be resolved to site-local IPv6 addresses (e.g. fec0::1)
+
+|`_global_` |Will be resolved to globally-scoped addresses ("publicly reachable")
+
+|`_global:ipv4_` |Will be resolved to globally-scoped IPv4 addresses (e.g. 8.8.8.8)
+
+|`_global:ipv6_` |Will be resolved to globally-scoped IPv6 addresses (e.g. 2001:4860:4860::8888)
 
 |`_[networkInterface]_` |Resolves to the addresses of the provided
 network interface. For example `_en0_`.

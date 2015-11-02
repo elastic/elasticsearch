@@ -179,7 +179,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         SearchContext.setCurrent(searchContext);
         try {
             if (request.source() != null && request.source().length() > 0) {
-                searchContext.parsedQuery(queryParserService.parseQuery(request.source()));
+                searchContext.parsedQuery(queryParserService.parseTopLevelQuery(request.source()));
             }
             searchContext.preProcess();
 

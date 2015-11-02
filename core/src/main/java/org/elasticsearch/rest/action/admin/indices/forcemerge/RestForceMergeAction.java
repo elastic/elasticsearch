@@ -48,13 +48,6 @@ public class RestForceMergeAction extends BaseRestHandler {
 
         controller.registerHandler(GET, "/_forcemerge", this);
         controller.registerHandler(GET, "/{index}/_forcemerge", this);
-
-        // TODO: Remove for 3.0
-        controller.registerHandler(POST, "/_optimize", this);
-        controller.registerHandler(POST, "/{index}/_optimize", this);
-
-        controller.registerHandler(GET, "/_optimize", this);
-        controller.registerHandler(GET, "/{index}/_optimize", this);
     }
 
     @Override

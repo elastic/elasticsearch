@@ -46,8 +46,9 @@ public class CommonGramsTokenFilterFactoryTests extends ESTokenStreamTestCase {
         try {
             AnalysisTestsHelper.createAnalysisServiceFromSettings(settings);
             Assert.fail("[common_words] or [common_words_path] is set");
-        } catch (Exception e) {
-            assertThat(e.getCause(), instanceOf(IllegalArgumentException.class));
+        } catch (IllegalArgumentException e) {
+        } catch (IOException e) {
+            fail("expected IAE");
         }
     }
 

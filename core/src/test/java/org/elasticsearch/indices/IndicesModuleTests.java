@@ -48,13 +48,13 @@ public class IndicesModuleTests extends ModuleTestCase {
     }
 
     public void testRegisterQueryParser() {
-        IndicesModule module = new IndicesModule(Settings.EMPTY);
+        IndicesModule module = new IndicesModule();
         module.registerQueryParser(FakeQueryParser.class);
         assertSetMultiBinding(module, QueryParser.class, FakeQueryParser.class);
     }
 
     public void testRegisterQueryParserDuplicate() {
-        IndicesModule module = new IndicesModule(Settings.EMPTY);
+        IndicesModule module = new IndicesModule();
         try {
             module.registerQueryParser(TermQueryParser.class);
         } catch (IllegalArgumentException e) {
@@ -62,17 +62,8 @@ public class IndicesModuleTests extends ModuleTestCase {
         }
     }
 
-    public void testRegisterHunspellDictionary() throws Exception {
-        IndicesModule module = new IndicesModule(Settings.EMPTY);
-        InputStream aff = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.aff");
-        InputStream dic = getClass().getResourceAsStream("/indices/analyze/conf_dir/hunspell/en_US/en_US.dic");
-        Dictionary dictionary = new Dictionary(aff, dic);
-        module.registerHunspellDictionary("foo", dictionary);
-        assertMapInstanceBinding(module, String.class, Dictionary.class, Collections.singletonMap("foo", dictionary));
-    }
-
     public void testRegisterHunspellDictionaryDuplicate() {
-        IndicesModule module = new IndicesModule(Settings.EMPTY);
+        IndicesModule module = new IndicesModule();
         try {
             module.registerQueryParser(TermQueryParser.class);
         } catch (IllegalArgumentException e) {

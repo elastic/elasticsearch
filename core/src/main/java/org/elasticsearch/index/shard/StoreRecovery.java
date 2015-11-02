@@ -72,13 +72,6 @@ final class StoreRecovery {
             if (indexShard.routingEntry().restoreSource() != null) {
                 throw new IllegalStateException("can't recover - restore source is not null");
             }
-            try {
-                final RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), indexShard.routingEntry().primary(), RecoveryState.Type.STORE, localNode, localNode);
-                indexShard.recovering("from store", recoveryState);
-            } catch (IllegalIndexShardStateException e) {
-                // that's fine, since we might be called concurrently, just ignore this, we are already recovering
-                return false;
-            }
             return executeRecovery(indexShard, () -> {
                 logger.debug("starting recovery from store ...");
                 internalRecoverFromStore(indexShard, indexShouldExists);
@@ -100,13 +93,6 @@ final class StoreRecovery {
             final ShardRouting shardRouting = indexShard.routingEntry();
             if (shardRouting.restoreSource() == null) {
                 throw new IllegalStateException("can't restore - restore source is null");
-            }
-            try {
-                final RecoveryState recoveryState = new RecoveryState(shardId, shardRouting.primary(), RecoveryState.Type.SNAPSHOT, shardRouting.restoreSource(), localNode);
-                indexShard.recovering("from snapshot", recoveryState);
-            } catch (IllegalIndexShardStateException e) {
-                // that's fine, since we might be called concurrently, just ignore this, we are already recovering
-                return false;
             }
             return executeRecovery(indexShard, () -> {
                 logger.debug("restoring from {} ...", shardRouting.restoreSource());

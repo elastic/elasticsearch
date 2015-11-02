@@ -19,11 +19,14 @@
 
 package org.elasticsearch.bootstrap;
 
+import org.elasticsearch.SecureSM;
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.plugins.PluginInfo;
 
 import java.io.*;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.AccessMode;
 import java.nio.file.DirectoryStream;
@@ -32,15 +35,14 @@ import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
 import java.security.NoSuchAlgorithmException;
-import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.security.URIParameter;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.IdentityHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.regex.Pattern;
 
 /** 
  * Initializes SecurityManager with necessary permissions.
@@ -87,6 +89,11 @@ import java.util.regex.Pattern;
  * <pre>
  * JAVA_OPTS="-Djava.security.debug=access,failure" bin/elasticsearch
  * </pre>
+ * <p>
+ * When running tests you have to pass it to the test runner like this:
+ * <pre>
+ * mvn test -Dtests.jvm.argline="-Djava.security.debug=access,failure" ...
+ * </pre>
  * See <a href="https://docs.oracle.com/javase/7/docs/technotes/guides/security/troubleshooting-security.html">
  * Troubleshooting Security</a> for information.
  */
@@ -99,64 +106,15 @@ final class Security {
      * Can only happen once!
      */
     static void configure(Environment environment) throws Exception {
-        // set properties for jar locations
-        setCodebaseProperties();
 
         // enable security policy: union of template and environment-based paths, and possibly plugin permissions
         Policy.setPolicy(new ESPolicy(createPermissions(environment), getPluginPermissions(environment)));
 
         // enable security manager
-        System.setSecurityManager(new SecurityManager() {
-            // we disable this completely, because its granted otherwise:
-            // 'Note: The "exitVM.*" permission is automatically granted to
-            // all code loaded from the application class path, thus enabling
-            // applications to terminate themselves.'
-            @Override
-            public void checkExit(int status) {
-                throw new SecurityException("exit(" + status + ") not allowed by system policy");
-            }
-        });
+        System.setSecurityManager(new SecureSM());
 
         // do some basic tests
         selfTest();
-    }
-
-    // mapping of jars to codebase properties
-    // note that this is only read once, when policy is parsed.
-    private static final Map<Pattern,String> SPECIAL_JARS;
-    static {
-        Map<Pattern,String> m = new IdentityHashMap<>();
-        m.put(Pattern.compile(".*lucene-core-.*\\.jar$"),              "es.security.jar.lucene.core");
-        m.put(Pattern.compile(".*lucene-test-framework-.*\\.jar$"),    "es.security.jar.lucene.testframework");
-        m.put(Pattern.compile(".*randomizedtesting-runner-.*\\.jar$"), "es.security.jar.randomizedtesting.runner");
-        m.put(Pattern.compile(".*junit4-ant-.*\\.jar$"),               "es.security.jar.randomizedtesting.junit4");
-        m.put(Pattern.compile(".*securemock-.*\\.jar$"),               "es.security.jar.elasticsearch.securemock");
-        SPECIAL_JARS = Collections.unmodifiableMap(m);
-    }
-
-    /**
-     * Sets properties (codebase URLs) for policy files.
-     * JAR locations are not fixed so we have to find the locations of
-     * the ones we want.
-     */
-    @SuppressForbidden(reason = "proper use of URL")
-    static void setCodebaseProperties() {
-        for (URL url : JarHell.parseClassPath()) {
-            for (Map.Entry<Pattern,String> e : SPECIAL_JARS.entrySet()) {
-                if (e.getKey().matcher(url.getPath()).matches()) {
-                    String prop = e.getValue();
-                    if (System.getProperty(prop) != null) {
-                        throw new IllegalStateException("property: " + prop + " is unexpectedly set: " + System.getProperty(prop));
-                    }
-                    System.setProperty(prop, url.toString());
-                }
-            }
-        }
-        for (String prop : SPECIAL_JARS.values()) {
-            if (System.getProperty(prop) == null) {
-                System.setProperty(prop, "file:/dev/null"); // no chance to be interpreted as "all"
-            }
-        }
     }
 
     /**
@@ -164,27 +122,30 @@ final class Security {
      * we look for matching plugins and set URLs to fit
      */
     @SuppressForbidden(reason = "proper use of URL")
-    static Map<String,PermissionCollection> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
-        Map<String,PermissionCollection> map = new HashMap<>();
+    static Map<String,Policy> getPluginPermissions(Environment environment) throws IOException, NoSuchAlgorithmException {
+        Map<String,Policy> map = new HashMap<>();
         if (Files.exists(environment.pluginsFile())) {
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(environment.pluginsFile())) {
                 for (Path plugin : stream) {
                     Path policyFile = plugin.resolve(PluginInfo.ES_PLUGIN_POLICY);
                     if (Files.exists(policyFile)) {
-                        // parse the plugin's policy file into a set of permissions
-                        Policy policy = Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toUri()));
-                        PermissionCollection permissions = policy.getPermissions(Security.class.getProtectionDomain());
-                        // this method is supported with the specific implementation we use, but just check for safety.
-                        if (permissions == Policy.UNSUPPORTED_EMPTY_COLLECTION) {
-                            throw new UnsupportedOperationException("JavaPolicy implementation does not support retrieving permissions");
-                        }
-                        // grant the permissions to each jar in the plugin
+                        // first get a list of URLs for the plugins' jars:
+                        // we resolve symlinks so map is keyed on the normalize codebase name
+                        List<URL> codebases = new ArrayList<>();
                         try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(plugin, "*.jar")) {
                             for (Path jar : jarStream) {
-                                if (map.put(jar.toUri().toURL().getFile(), permissions) != null) {
-                                    // just be paranoid ok?
-                                    throw new IllegalStateException("per-plugin permissions already granted for jar file: " + jar);
-                                }
+                                codebases.add(jar.toRealPath().toUri().toURL());
+                            }
+                        }
+                        
+                        // parse the plugin's policy file into a set of permissions
+                        Policy policy = readPolicy(policyFile.toUri().toURL(), codebases.toArray(new URL[codebases.size()]));
+                        
+                        // consult this policy for each of the plugin's jars:
+                        for (URL url : codebases) {
+                            if (map.put(url.getFile(), policy) != null) {
+                                // just be paranoid ok?
+                                throw new IllegalStateException("per-plugin permissions already granted for jar file: " + url);
                             }
                         }
                     }
@@ -192,6 +153,35 @@ final class Security {
             }
         }
         return Collections.unmodifiableMap(map);
+    }
+
+    /**
+     * Reads and returns the specified {@code policyFile}.
+     * <p>
+     * Resources (e.g. jar files and directories) listed in {@code codebases} location
+     * will be provided to the policy file via a system property of the short name:
+     * e.g. <code>${codebase.joda-convert-1.2.jar}</code> would map to full URL.
+     */
+    @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
+    static Policy readPolicy(URL policyFile, URL codebases[]) {
+        try {
+            try {
+                // set codebase properties
+                for (URL url : codebases) {
+                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
+                    System.setProperty("codebase." + shortName, url.toString());
+                }
+                return Policy.getInstance("JavaPolicy", new URIParameter(policyFile.toURI()));
+            } finally {
+                // clear codebase properties
+                for (URL url : codebases) {
+                    String shortName = PathUtils.get(url.toURI()).getFileName().toString();
+                    System.clearProperty("codebase." + shortName);
+                }
+            }
+        } catch (NoSuchAlgorithmException | URISyntaxException e) {
+            throw new IllegalArgumentException("unable to parse policy file `" + policyFile + "`", e);
+        }
     }
 
     /** returns dynamic Permissions to configured paths */

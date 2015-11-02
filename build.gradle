@@ -178,6 +178,11 @@ allprojects {
       }
     }
   }
+  task cleanEclipseSettings(type: Delete) {
+    delete '.settings'
+  }
+  // otherwise .settings is not nuked entirely
+  tasks.cleanEclipse.dependsOn(cleanEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse)
 }

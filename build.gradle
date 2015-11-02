@@ -153,7 +153,7 @@ allprojects {
   apply plugin: 'idea'
 }
 
-if (hasProperty('projectsPrefix') == false) {
+if (projectsPrefix.isEmpty()) {
   idea {
     project {
       languageLevel = sourceCompatibility

@@ -33,9 +33,13 @@ class PluginPropertiesTask extends DefaultTask {
 
     PluginPropertiesExtension extension
     Map<String, String> properties = new HashMap<>()
+    File generatedResourcesDir = new File(project.projectDir, "generated-resources")
 
     PluginPropertiesTask() {
         extension = project.extensions.create('esplugin', PluginPropertiesExtension, project)
+        project.clean {
+            delete generatedResourcesDir
+        }
         project.afterEvaluate {
             if (extension.description == null) {
                 throw new InvalidUserDataException('description is a required setting for esplugin')
@@ -54,7 +58,7 @@ class PluginPropertiesTask extends DefaultTask {
     }
 
     @OutputFile
-    File propertiesFile = new File(project.buildDir, "plugin" + File.separator + "plugin-descriptor.properties")
+    File propertiesFile = new File(generatedResourcesDir, "plugin-descriptor.properties")
 
     void fillProperties() {
         // TODO: need to copy the templated plugin-descriptor with a dependent task, since copy requires a file (not uri)

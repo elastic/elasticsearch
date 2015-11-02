@@ -32,20 +32,22 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.percolator.QueryMetadataService;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.InternalIndicesLifecycle;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 
@@ -128,11 +130,15 @@ public class PercolatorTypeTests extends ESTestCase {
 
     PercolatorQueriesRegistry createRegistry() {
         Index index = new Index("_index");
-        Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
-        AnalysisService analysisService = new AnalysisService(index, indexSettings);
-        MapperService mapperService = new MapperService(index, indexSettings, analysisService, null, null);
+        IndexSettings indexSettings = new IndexSettings(new IndexMetaData.Builder("_index").settings(
+                Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                .build(),
+                Settings.EMPTY, Collections.emptyList()
+        );
+        AnalysisService analysisService = new AnalysisService(indexSettings, Collections.<String, AnalyzerProvider>emptyMap(), Collections.<String, TokenizerFactory>emptyMap(), Collections.<String, CharFilterFactory>emptyMap(), Collections.<String, TokenFilterFactory>emptyMap());
+        MapperService mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()));
         return new PercolatorQueriesRegistry(
                 new ShardId(index, 0),
                 indexSettings,

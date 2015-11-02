@@ -29,15 +29,16 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParser;
 import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.*;
 import org.elasticsearch.search.highlight.HighlightPhase;
@@ -65,17 +66,21 @@ public class PercolateDocumentParserTests extends ESTestCase {
     @Before
     public void init() {
         index = new Index("_index");
-        Settings indexSettings = Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build();
-        AnalysisService analysisService = new AnalysisService(index, indexSettings);
-        mapperService = new MapperService(index, indexSettings, analysisService, null, null);
+        IndexSettings indexSettings = new IndexSettings(new IndexMetaData.Builder("_index").settings(
+                Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
+                        .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
+                        .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT))
+                        .build(),
+                Settings.EMPTY, Collections.emptyList()
+        );
+        AnalysisService analysisService = new AnalysisService(indexSettings, Collections.<String, AnalyzerProvider>emptyMap(), Collections.<String, TokenizerFactory>emptyMap(), Collections.<String, CharFilterFactory>emptyMap(), Collections.<String, TokenFilterFactory>emptyMap());
+        mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()));
 
         Set<QueryParser> parsers = Collections.singleton(new TermQueryParser());
-        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(indexSettings, parsers, new NamedWriteableRegistry());
+        IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(indexSettings.getSettings(), parsers, new NamedWriteableRegistry());
 
         indexQueryParserService = new IndexQueryParserService(
-                index, indexSettings, indexSettings, indicesQueriesRegistry, null, analysisService, mapperService, null, null, null, null, null, null, null, null
+                indexSettings, indicesQueriesRegistry, null, analysisService, mapperService, null, null, null, null, null, null, null, null
         );
 
         HighlightPhase highlightPhase = new HighlightPhase(Settings.EMPTY, new Highlighters());

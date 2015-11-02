@@ -43,11 +43,13 @@ public class TranslogRecoveryPerformer {
     private final ESLogger logger;
     private final Map<String, Mapping> recoveredTypes = new HashMap<>();
     private final ShardId shardId;
+    private final ShardIndexingService indexingService;
 
-    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, ESLogger logger) {
+    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, ESLogger logger, ShardIndexingService indexingService) {
         this.shardId = shardId;
         this.mapperService = mapperService;
         this.logger = logger;
+        this.indexingService = indexingService;
     }
 
     protected DocumentMapperForType docMapper(String type) {

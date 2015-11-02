@@ -212,9 +212,7 @@ final class PercolatorQuery extends Query {
     boolean matchQuery(BytesRef percolatorQueryId) throws IOException {
         Query percolatorQuery = percolatorQueries.get(percolatorQueryId);
         if (percolatorQuery != null) {
-            Lucene.EarlyTerminatingCollector collector = Lucene.createExistsCollector();
-            Lucene.exists(percolatorIndexSearcher, percolatorQuery, collector);
-            return collector.exists();
+            return Lucene.exists(percolatorIndexSearcher, percolatorQuery);
         } else {
             return false;
         }

@@ -93,6 +93,8 @@ dependencies {
     // tests use the locally compiled version of core
     exclude group: 'org.elasticsearch', module: 'elasticsearch'
   }
+
+  testCompile 'org.elasticsearch:securemock:1.1'
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"

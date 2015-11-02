@@ -243,12 +243,12 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private class RealTimePercolatorOperationListener extends IndexingOperationListener {
 
         @Override
-        public Engine.Create preCreate(Engine.Create create) {
+        public Engine.Index preIndex(Engine.Index operation) {
             // validate the query here, before we index
             if (PercolatorService.TYPE_NAME.equals(operation.type())) {
-                Query query = parsePercolatorDocument(create.id(), create.source());
-                if (indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_2_1_0)) {
-                    QueryMetadataService.extractQueryMetadata(query, create.parsedDoc().rootDoc());
+                Query query = parsePercolatorDocument(operation.id(), operation.source());
+                if (indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_3_0_0)) {
+                    QueryMetadataService.extractQueryMetadata(query, operation.parsedDoc().rootDoc());
                 }
             }
             return operation;

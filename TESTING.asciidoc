@@ -44,7 +44,7 @@ In order to run Elasticsearch from source without building a package, you can
 run it using Maven:
 
 -------------------------------------
-./run.sh
+gradle run
 -------------------------------------
 
 === Test case filtering.
@@ -455,5 +455,5 @@ mvn -Dtests.coverage verify jacoco:report
 
 == Debugging from an IDE
 
-If you want to run elasticsearch from your IDE, you should execute ./run.sh
+If you want to run elasticsearch from your IDE, you should execute gradle run
 It opens a remote debugging port that you can connect with your IDE.

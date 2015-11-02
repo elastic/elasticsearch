@@ -244,17 +244,22 @@ class ClusterFormationTasks {
             // elasticsearch.bat is spawned as it has no daemon mode
             return project.tasks.create(name: name, type: DefaultTask, dependsOn: setup) << {
                 // Fall back to Ant exec task as Gradle Exec task does not support spawning yet
-                ant.exec(executable: 'cmd', spawn: true, dir: cwd) {
+                ant.exec(executable: 'cmd', spawn: config.daemonize, dir: cwd) {
                     esEnv.each { key, value -> env(key: key, value: value) }
                     (['/C', 'call', esScript] + esProps).each { arg(value: it) }
                 }
                 esPostStartActions(ant, logger)
             }
         } else {
+            List esExecutable = [esScript]
+            if(config.daemonize) {
+                esExecutable.add("-d")
+            }
+
             return project.tasks.create(name: name, type: Exec, dependsOn: setup) {
                 workingDir cwd
                 executable 'sh'
-                args esScript, '-d' // daemonize!
+                args esExecutable
                 args esProps
                 environment esEnv
                 errorOutput = new ByteArrayOutputStream()

@@ -199,3 +199,5 @@ task buildSrcEclipse(type: GradleBuild) {
 }
 tasks.eclipse.dependsOn(buildSrcEclipse)
 
+task run(dependsOn: ':distribution:run')
+

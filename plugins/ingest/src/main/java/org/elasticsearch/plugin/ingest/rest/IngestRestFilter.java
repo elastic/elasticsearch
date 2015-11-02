@@ -34,7 +34,9 @@ public class IngestRestFilter extends RestFilter {
 
     @Override
     public void process(RestRequest request, RestChannel channel, RestFilterChain filterChain) throws Exception {
-        request.putInContext(INGEST_PARAM_CONTEXT_KEY, request.param(INGEST_PARAM));
+        if (request.hasParam(INGEST_PARAM)) {
+            request.putInContext(INGEST_PARAM_CONTEXT_KEY, request.param(INGEST_PARAM));
+        }
         filterChain.continueProcessing(request, channel);
     }
 }

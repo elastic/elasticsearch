@@ -1,0 +1,1 @@
+JCodings is released under the MIT License.

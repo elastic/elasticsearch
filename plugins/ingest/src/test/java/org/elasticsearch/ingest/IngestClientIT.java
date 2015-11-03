@@ -19,6 +19,8 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequestBuilder;
@@ -30,12 +32,15 @@ import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequestBuilder;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
-
 import java.util.Collection;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.core.Is.is;
+import static org.hamcrest.core.IsNull.notNullValue;
 
 public class IngestClientIT extends ESIntegTestCase {
 
@@ -47,22 +52,21 @@ public class IngestClientIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
+
     }
 
-    public void testBasics() throws Exception {
+    public void test() throws Exception {
         new PutPipelineRequestBuilder(client(), PutPipelineAction.INSTANCE)
                 .setId("_id")
                 .setSource(jsonBuilder().startObject()
                         .field("description", "my_pipeline")
                         .startArray("processors")
-                            .startObject()
-                                .startObject("simple")
-                                    .field("path", "field2")
-                                    .field("expected_value", "abc")
-                                    .field("add_field", "field3")
-                                    .field("add_field_value", "xyz")
-                                .endObject()
-                            .endObject()
+                        .startObject()
+                        .startObject("grok")
+                        .field("field", "field1")
+                        .field("pattern", "%{NUMBER:val:float} %{NUMBER:status:int} <%{WORD:msg}>")
+                        .endObject()
+                        .endObject()
                         .endArray()
                         .endObject().bytes())
                 .get();
@@ -78,7 +82,15 @@ public class IngestClientIT extends ESIntegTestCase {
         });
 
         createIndex("test");
-        client().prepareIndex("test", "type", "1").setSource("field2", "abc")
+        XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties")
+                .startObject("status").field("type", "integer").endObject()
+                .startObject("val").field("type", "float").endObject()
+                .endObject();
+        PutMappingResponse putMappingResponse = client().admin().indices()
+                .preparePutMapping("test").setType("type").setSource(updateMappingBuilder).get();
+        assertAcked(putMappingResponse);
+
+        client().prepareIndex("test", "type", "1").setSource("field1", "123.42 400 <foo>")
                 .putHeader("ingest", "_id")
                 .get();
 
@@ -87,21 +99,25 @@ public class IngestClientIT extends ESIntegTestCase {
             public void run() {
                 Map<String, Object> doc = client().prepareGet("test", "type", "1")
                         .get().getSourceAsMap();
-                assertThat(doc.get("field3"), equalTo("xyz"));
+                assertThat(doc.get("val"), equalTo(123.42));
+                assertThat(doc.get("status"), equalTo(400));
+                assertThat(doc.get("msg"), equalTo("foo"));
             }
         });
 
         client().prepareBulk().add(
-                client().prepareIndex("test", "type", "2").setSource("field2", "abc")
+                client().prepareIndex("test", "type", "2").setSource("field1", "123.42 400 <foo>")
         ).putHeader("ingest", "_id").get();
         assertBusy(new Runnable() {
             @Override
             public void run() {
                 Map<String, Object> doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
-                assertThat(doc.get("field3"), equalTo("xyz"));
+                assertThat(doc.get("val"), equalTo(123.42));
+                assertThat(doc.get("status"), equalTo(400));
+                assertThat(doc.get("msg"), equalTo("foo"));
             }
         });
-        
+
         DeletePipelineResponse response = new DeletePipelineRequestBuilder(client(), DeletePipelineAction.INSTANCE)
                 .setId("_id")
                 .get();

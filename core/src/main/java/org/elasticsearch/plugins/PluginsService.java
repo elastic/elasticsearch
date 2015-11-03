@@ -129,7 +129,7 @@ public class PluginsService extends AbstractComponent {
         for (Tuple<PluginInfo, Plugin> tuple : plugins) {
             PluginInfo info = tuple.v1();
             if (info.isJvm()) {
-                jvmPlugins.put(tuple.v2().name(), tuple.v2());
+                jvmPlugins.put(info.getName(), tuple.v2());
             }
             if (info.isSite()) {
                 sitePlugins.add(info.getName());

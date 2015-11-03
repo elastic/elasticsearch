@@ -43,7 +43,7 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
 public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
     private FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private RegexOptionsBuilder regexOptionsBuilder;
-    private Map<String, List<CategoryQueryContext>> queryContexts;
+    private Map<String, List<ToXContent>> queryContexts;
     private String[] payloadFields;
 
     public CompletionSuggestionBuilder(String name) {
@@ -293,16 +293,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * @param queryContexts a list of {@link CategoryQueryContext}
      */
     public CompletionSuggestionBuilder categoryContexts(String name, CategoryQueryContext... queryContexts) {
-        if (this.queryContexts == null) {
-            this.queryContexts = new HashMap<>(2);
-        }
-        List<CategoryQueryContext> contexts = this.queryContexts.get(name);
-        if (contexts == null) {
-            contexts = new ArrayList<>(2);
-            this.queryContexts.put(name, contexts);
-        }
-        Collections.addAll(contexts, queryContexts);
-        return this;
+        return contexts(name, queryContexts);
     }
 
     /**
@@ -311,7 +302,20 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * @param queryContexts a list of {@link GeoQueryContext}
      */
     public CompletionSuggestionBuilder geoContexts(String name, GeoQueryContext... queryContexts) {
-        return categoryContexts(name, queryContexts);
+        return contexts(name, queryContexts);
+    }
+
+    private CompletionSuggestionBuilder contexts(String name, ToXContent... queryContexts) {
+        if (this.queryContexts == null) {
+            this.queryContexts = new HashMap<>(2);
+        }
+        List<ToXContent> contexts = this.queryContexts.get(name);
+        if (contexts == null) {
+            contexts = new ArrayList<>(2);
+            this.queryContexts.put(name, contexts);
+        }
+        Collections.addAll(contexts, queryContexts);
+        return this;
     }
 
     @Override
@@ -331,9 +335,9 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
         }
         if (queryContexts != null) {
             builder.startObject("contexts");
-            for (Map.Entry<String, List<CategoryQueryContext>> entry : this.queryContexts.entrySet()) {
+            for (Map.Entry<String, List<ToXContent>> entry : this.queryContexts.entrySet()) {
                 builder.startArray(entry.getKey());
-                for (CategoryQueryContext queryContext : entry.getValue()) {
+                for (ToXContent queryContext : entry.getValue()) {
                     queryContext.toXContent(builder, params);
                 }
                 builder.endArray();

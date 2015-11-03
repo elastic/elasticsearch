@@ -27,7 +27,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
@@ -138,15 +137,13 @@ public class ContextMappings implements ToXContent {
     }
 
     /**
-     * Wraps a {@link CompletionQuery} with context queries,
-     * individual context mappings adds query contexts using
-     * {@link ContextMapping#getQueryContexts(List)}s
+     * Wraps a {@link CompletionQuery} with context queries
      *
      * @param query base completion query to wrap
      * @param queryContexts a map of context mapping name and collected query contexts
      * @return a context-enabled query
      */
-    public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<CategoryQueryContext>> queryContexts) {
+    public ContextQuery toContextQuery(CompletionQuery query, Map<String, List<QueryContext>> queryContexts) {
         ContextQuery typedContextQuery = new ContextQuery(query);
         if (queryContexts.isEmpty() == false) {
             CharsRefBuilder scratch = new CharsRefBuilder();
@@ -155,9 +152,9 @@ public class ContextMappings implements ToXContent {
                 scratch.setCharAt(0, (char) typeId);
                 scratch.setLength(1);
                 ContextMapping mapping = contextMappings.get(typeId);
-                List<CategoryQueryContext> queryContext = queryContexts.get(mapping.name());
+                List<QueryContext> queryContext = queryContexts.get(mapping.name());
                 if (queryContext != null) {
-                    for (CategoryQueryContext context : mapping.getQueryContexts(queryContext)) {
+                    for (QueryContext context : queryContext) {
                         scratch.append(context.context);
                         typedContextQuery.addContext(scratch.toCharsRef(), context.boost, !context.isPrefix);
                         scratch.setLength(1);

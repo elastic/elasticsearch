@@ -95,14 +95,7 @@ public abstract class ContextMapping implements ToXContent {
     /**
      * Parses query contexts for this mapper
      */
-    public abstract List<CategoryQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException;
-
-    /**
-     * Adds query contexts to a completion query
-     */
-    protected List<CategoryQueryContext> getQueryContexts(List<CategoryQueryContext> queryContexts) {
-        return queryContexts;
-    }
+    public abstract List<QueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException;
 
     /**
      * Implementations should add specific configurations
@@ -138,6 +131,27 @@ public abstract class ContextMapping implements ToXContent {
             return toXContent(JsonXContent.contentBuilder(), ToXContent.EMPTY_PARAMS).string();
         } catch (IOException e) {
             return super.toString();
+        }
+    }
+
+    public static class QueryContext {
+        public final String context;
+        public final int boost;
+        public final boolean isPrefix;
+
+        public QueryContext(String context, int boost, boolean isPrefix) {
+            this.context = context;
+            this.boost = boost;
+            this.isPrefix = isPrefix;
+        }
+
+        @Override
+        public String toString() {
+            return "QueryContext{" +
+                    "context='" + context + '\'' +
+                    ", boost=" + boost +
+                    ", isPrefix=" + isPrefix +
+                    '}';
         }
     }
 }

@@ -148,70 +148,19 @@ public class CategoryContextMapping extends ContextMapping {
      *  </ul>
      */
     @Override
-    public List<CategoryQueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
-        List<CategoryQueryContext> queryContexts = new ArrayList<>();
+    public List<QueryContext> parseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
+        List<QueryContext> queryContexts = new ArrayList<>();
         Token token = parser.nextToken();
         if (token == Token.START_OBJECT || token == Token.VALUE_STRING) {
-            queryContexts.add(innerParseQueryContext(parser));
+            CategoryQueryContext parse = CategoryQueryContext.parse(parser);
+            queryContexts.add(new QueryContext(parse.context.toString(), parse.boost, parse.isPrefix));
         } else if (token == Token.START_ARRAY) {
             while (parser.nextToken() != Token.END_ARRAY) {
-                queryContexts.add(innerParseQueryContext(parser));
+                CategoryQueryContext parse = CategoryQueryContext.parse(parser);
+                queryContexts.add(new QueryContext(parse.context.toString(), parse.boost, parse.isPrefix));
             }
         }
         return queryContexts;
-    }
-
-    private CategoryQueryContext innerParseQueryContext(XContentParser parser) throws IOException, ElasticsearchParseException {
-        Token token = parser.currentToken();
-        if (token == Token.VALUE_STRING) {
-            return new CategoryQueryContext(parser.text());
-        } else if (token == Token.START_OBJECT) {
-            String currentFieldName = null;
-            String context = null;
-            boolean isPrefix = false;
-            int boost = 1;
-            while ((token = parser.nextToken()) != Token.END_OBJECT) {
-                if (token == Token.FIELD_NAME) {
-                    currentFieldName = parser.currentName();
-                } else if (token == Token.VALUE_STRING) {
-                    // context, exact
-                    if (CONTEXT_VALUE.equals(currentFieldName)) {
-                        context = parser.text();
-                    } else if (CONTEXT_PREFIX.equals(currentFieldName)) {
-                        isPrefix = Boolean.valueOf(parser.text());
-                    } else if (CONTEXT_BOOST.equals(currentFieldName)) {
-                        Number number;
-                        try {
-                            number = Long.parseLong(parser.text());
-                        } catch (NumberFormatException e) {
-                            throw new IllegalArgumentException("boost must be a string representing a numeric value, but was [" + parser.text() + "]");
-                        }
-                        boost = number.intValue();
-                    }
-                } else if (token == Token.VALUE_NUMBER) {
-                    // boost
-                    if (CONTEXT_BOOST.equals(currentFieldName)) {
-                        Number number = parser.numberValue();
-                        if (parser.numberType() == XContentParser.NumberType.INT) {
-                            boost = number.intValue();
-                        } else {
-                            throw new ElasticsearchParseException("boost must be in the interval [0..2147483647], but was [" + number.longValue() + "]");
-                        }
-                    }
-                } else if (token == Token.VALUE_BOOLEAN) {
-                    // exact
-                    if (CONTEXT_PREFIX.equals(currentFieldName)) {
-                        isPrefix = parser.booleanValue();
-                    }
-                }
-            }
-            if (context == null) {
-                throw new ElasticsearchParseException("no context provided");
-            }
-            return new CategoryQueryContext(context, boost, isPrefix);
-        } else {
-            throw new ElasticsearchParseException("contexts field expected string or object but was [" + token.name() + "]");
-        }
     }
 
     @Override

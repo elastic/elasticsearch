@@ -25,7 +25,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
 import java.util.List;
@@ -40,7 +40,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
     private CompletionFieldMapper.CompletionFieldType fieldType;
     private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
-    private Map<String, List<CategoryQueryContext>> queryContexts;
+    private Map<String, List<ContextMapping.QueryContext>> queryContexts;
     private MapperService mapperService;
     private IndexFieldDataService fieldData;
     private Set<String> payloadFields;
@@ -65,7 +65,7 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
         this.fuzzyOptionsBuilder = fuzzyOptionsBuilder;
     }
 
-    void setQueryContexts(Map<String, List<CategoryQueryContext>> queryContexts) {
+    void setQueryContexts(Map<String, List<ContextMapping.QueryContext>> queryContexts) {
         this.queryContexts = queryContexts;
     }
 

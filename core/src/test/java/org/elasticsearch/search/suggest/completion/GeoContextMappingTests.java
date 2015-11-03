@@ -20,6 +20,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -36,6 +37,7 @@ import java.util.*;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.suggest.completion.CategoryContextMappingTests.assertContextSuggestFields;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.isIn;
 
 public class GeoContextMappingTests extends ESSingleNodeTestCase {
 
@@ -195,13 +197,12 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
         XContentBuilder builder = jsonBuilder().value("ezs42e44yx96");
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<CategoryQueryContext> queryContexts = mapping.parseQueryContext(parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
-        assertTrue(iterator.hasNext());
-        GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.context.toString(), equalTo("ezs42e44yx96"));
+        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
+        assertThat(queryContexts.size(), equalTo(1 + 8));
+        ContextMapping.QueryContext queryContext = queryContexts.get(0);
+        assertThat(queryContext.context, equalTo("ezs42e"));
         assertThat(queryContext.boost, equalTo(1));
-        assertThat(queryContext.neighbours.length, equalTo(1));
+        assertThat(queryContext.isPrefix, equalTo(false));
     }
 
     public void testParsingQueryContextGeoPoint() throws Exception {
@@ -211,13 +212,20 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<CategoryQueryContext> queryContexts = mapping.parseQueryContext(parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
-        assertTrue(iterator.hasNext());
-        GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.context.toString(), equalTo("wh0n94"));
+        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
+        assertThat(queryContexts.size(), equalTo(1 + 8));
+        ContextMapping.QueryContext queryContext = queryContexts.get(0);
+        assertThat(queryContext.context, equalTo("wh0n94"));
         assertThat(queryContext.boost, equalTo(1));
-        assertThat(queryContext.neighbours.length, equalTo(1));
+        assertThat(queryContext.isPrefix, equalTo(false));
+
+        Collection<String> locations = new ArrayList<>();
+        GeoHashUtils.addNeighbors("wh0n94", GeoContextMapping.DEFAULT_PRECISION, locations);
+        for (int i = 1; i < queryContexts.size(); i++) {
+            assertThat(queryContexts.get(i).context, isIn(locations));
+            assertThat(queryContexts.get(i).boost, equalTo(1));
+            assertThat(queryContexts.get(i).isPrefix, equalTo(false));
+        }
     }
 
     public void testParsingQueryContextObject() throws Exception {
@@ -231,13 +239,23 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endObject();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<CategoryQueryContext> queryContexts = mapping.parseQueryContext(parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
-        assertTrue(iterator.hasNext());
-        GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.context.toString(), equalTo("wh0n94"));
+        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
+        assertThat(queryContexts.size(), equalTo(1 + 8 + 8 + 8));
+        ContextMapping.QueryContext queryContext = queryContexts.get(0);
+        assertThat(queryContext.context, equalTo("wh0n94"));
         assertThat(queryContext.boost, equalTo(10));
-        assertThat(queryContext.neighbours.length, equalTo(3));
+        assertThat(queryContext.isPrefix, equalTo(false));
+
+        Collection<String> locations = new ArrayList<>();
+        GeoHashUtils.addNeighbors("w", 1, locations);
+        GeoHashUtils.addNeighbors("wh", 2, locations);
+        GeoHashUtils.addNeighbors("wh0", 3, locations);
+        Iterator<String> iter = locations.iterator();
+        for (int i = 1; i < queryContexts.size(); i++) {
+            assertThat(queryContexts.get(i).context, isIn(locations));
+            assertThat(queryContexts.get(i).boost, equalTo(10));
+            assertThat(queryContexts.get(i).isPrefix, equalTo(true));
+        }
     }
 
     public void testParsingQueryContextObjectArray() throws Exception {
@@ -256,23 +274,30 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .field("lon", 92.112583)
                 .endObject()
                 .field("boost", 2)
-                .array("neighbours", 3)
+                .array("neighbours", 5)
                 .endObject()
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<CategoryQueryContext> queryContexts = mapping.parseQueryContext(parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
-        assertTrue(iterator.hasNext());
-        GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.context.toString(), equalTo("wh0n94"));
-        assertThat(queryContext.boost, equalTo(10));
-        assertThat(queryContext.neighbours.length, equalTo(3));
-        assertTrue(iterator.hasNext());
-        queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.context.toString(), equalTo("w5cx04"));
-        assertThat(queryContext.boost, equalTo(2));
-        assertThat(queryContext.neighbours.length, equalTo(1));
+        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
+        assertThat(queryContexts.size(), equalTo(2 + 8 + 8 + 8 + 8));
+        Collection<String> locations = new ArrayList<>();
+        locations.add("wh0n94");
+        GeoHashUtils.addNeighbors("w", 1, locations);
+        GeoHashUtils.addNeighbors("wh", 2, locations);
+        GeoHashUtils.addNeighbors("wh0", 3, locations);
+        for (int i = 1; i < (1 + 8 + 8 + 8); i++) {
+            assertThat(queryContexts.get(i).context, isIn(locations));
+            assertThat(queryContexts.get(i).boost, equalTo(10));
+            assertThat(queryContexts.get(i).isPrefix, equalTo(true));
+        }
+        locations = new ArrayList<>();
+        locations.add("w5cx04");
+        GeoHashUtils.addNeighbors("w5cx0", 5, locations);
+        for (int i = (1 + 8 + 8 + 8); i < queryContexts.size(); i++) {
+            assertThat(queryContexts.get(i).context, isIn(locations));
+            assertThat(queryContexts.get(i).boost, equalTo(2));
+        }
     }
 
     public void testParsingQueryContextMixed() throws Exception {
@@ -292,17 +317,13 @@ public class GeoContextMappingTests extends ESSingleNodeTestCase {
                 .endArray();
         XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.bytes());
         GeoContextMapping mapping = ContextBuilder.geo("geo").build();
-        List<CategoryQueryContext> queryContexts = mapping.parseQueryContext(parser);
-        Iterator<CategoryQueryContext> iterator = queryContexts.iterator();
-        assertTrue(iterator.hasNext());
-        GeoQueryContext queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.context.toString(), equalTo("wh0n94"));
-        assertThat(queryContext.boost, equalTo(10));
-        assertThat(queryContext.neighbours.length, equalTo(3));
-        assertTrue(iterator.hasNext());
-        queryContext = ((GeoQueryContext) iterator.next());
-        assertThat(queryContext.context.toString(), equalTo("w5cx04"));
-        assertThat(queryContext.boost, equalTo(1));
-        assertThat(queryContext.neighbours.length, equalTo(1));
+        List<ContextMapping.QueryContext> queryContexts = mapping.parseQueryContext(parser);
+        assertThat(queryContexts.size(), equalTo(1 + 8 + 8 + 8 + 1 + 8));
+        for (int i = 0; i < (1 + 8 + 8 + 8); i++) {
+            assertThat(queryContexts.get(i).boost, equalTo(10));
+        }
+        for (int i = (1 + 8 + 8 + 8); i < queryContexts.size(); i++) {
+            assertThat(queryContexts.get(i).boost, equalTo(1));
+        }
     }
 }

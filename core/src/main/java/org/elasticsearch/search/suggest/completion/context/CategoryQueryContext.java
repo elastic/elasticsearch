@@ -19,8 +19,9 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.xcontent.*;
 
 import java.io.IOException;
 
@@ -31,13 +32,13 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
 /**
  * Defines the query context for {@link CategoryContextMapping}
  */
-public class CategoryQueryContext implements ToXContent {
+public final class CategoryQueryContext implements ToXContent {
 
-    public final CharSequence context;
+    public CharSequence context;
 
-    public final boolean isPrefix;
+    public boolean isPrefix = false;
 
-    public final int boost;
+    public int boost = 1;
 
     /**
      * Creates a query context with a provided context and a
@@ -63,6 +64,41 @@ public class CategoryQueryContext implements ToXContent {
         this.context = context;
         this.boost = boost;
         this.isPrefix = isPrefix;
+    }
+
+    private CategoryQueryContext() {
+    }
+
+    void setContext(CharSequence context) {
+        this.context = context;
+    }
+
+    void setIsPrefix(boolean isPrefix) {
+        this.isPrefix = isPrefix;
+    }
+
+    void setBoost(int boost) {
+        this.boost = boost;
+    }
+
+    private static ObjectParser<CategoryQueryContext, CategoryContextMapping> CATEGORY_PARSER = new ObjectParser<>("category", null);
+    static {
+        CATEGORY_PARSER.declareString(CategoryQueryContext::setContext, new ParseField("context"));
+        CATEGORY_PARSER.declareInt(CategoryQueryContext::setBoost, new ParseField("boost"));
+        CATEGORY_PARSER.declareBoolean(CategoryQueryContext::setIsPrefix, new ParseField("prefix"));
+    }
+
+    public static CategoryQueryContext parse(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        CategoryQueryContext queryContext = new CategoryQueryContext();
+        if (token == XContentParser.Token.START_OBJECT) {
+            CATEGORY_PARSER.parse(parser, queryContext);
+        } else if (token == XContentParser.Token.VALUE_STRING) {
+            queryContext.setContext(parser.text());
+        } else {
+            throw new ElasticsearchParseException("category context must be an object or string");
+        }
+        return queryContext;
     }
 
     @Override

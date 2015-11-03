@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.index.query.RegexpFlag;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.completion.context.CategoryQueryContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
@@ -178,7 +177,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
             if (type.hasContextMappings() == false && contextParser != null) {
                 throw new IllegalArgumentException("suggester [" + type.names().fullName() + "] doesn't expect any context");
             }
-            Map<String, List<CategoryQueryContext>> queryContexts = Collections.emptyMap();
+            Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.emptyMap();
             if (type.hasContextMappings() && contextParser != null) {
                 ContextMappings contextMappings = type.getContextMappings();
                 contextParser.nextToken();

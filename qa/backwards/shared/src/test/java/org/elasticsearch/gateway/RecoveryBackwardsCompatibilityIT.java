@@ -68,6 +68,7 @@ public class RecoveryBackwardsCompatibilityIT extends ESBackcompatTestCase {
     }
 
     public void testReusePeerRecovery() throws Exception {
+        // This should match RecoveryFromGatewayIT#testReusePeerRecovery
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings())
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)));

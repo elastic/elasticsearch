@@ -25,6 +25,9 @@ import org.gradle.api.tasks.Input
 class ClusterConfiguration {
 
     @Input
+    String distribution = 'zip'
+
+    @Input
     int numNodes = 1
 
     @Input

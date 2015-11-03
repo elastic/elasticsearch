@@ -22,6 +22,7 @@ import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
+import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
@@ -42,7 +43,7 @@ class ClusterFormationTasks {
             // no need to cluster formation if the task won't run!
             return
         }
-        addZipConfiguration(project)
+        configureDistributionDependency(project, config.distribution)
         File clusterDir = new File(project.buildDir, 'cluster' + File.separator + task.name)
         if (config.numNodes == 1) {
             addNodeStartupTasks(project, task, config, clusterDir)
@@ -57,22 +58,33 @@ class ClusterFormationTasks {
     }
 
     static void addNodeStartupTasks(Project project, Task task, ClusterConfiguration config, File baseDir) {
+        File pidFile = pidFile(baseDir)
         String clusterName = "${task.path.replace(':', '_').substring(1)}"
-        File home = new File(baseDir, "elasticsearch-${ElasticsearchProperties.version}")
-        List setupDependsOn = [project.configurations.elasticsearchZip]
-        setupDependsOn.addAll(task.dependsOn)
-        Task setup = project.tasks.create(name: task.name + '#setup', type: Copy, dependsOn: setupDependsOn) {
-            from { project.zipTree(project.configurations.elasticsearchZip.singleFile) }
-            into baseDir
+        File home = homeDir(baseDir, config.distribution)
+        List setupDeps = [] // need to copy the deps, since start will later be added, which would create a circular task dep!
+        setupDeps.addAll(task.dependsOn)
+        Task setup = project.tasks.create(name: "${task.name}#clean", type: Delete, dependsOn: setupDeps) {
+            delete baseDir
         }
+        setup = configureExtractTask(project, "${task.name}#extract", config.distribution, baseDir, setup)
         // chain setup tasks to maintain their order
-        setup = project.tasks.create(name: "${task.name}#clean", type: Delete, dependsOn: setup) {
-            delete new File(home, 'plugins'), new File(home, 'data'), new File(home, 'logs')
-        }
         setup = project.tasks.create(name: "${task.name}#configure", type: DefaultTask, dependsOn: setup) << {
-            File configFile = new File(home, 'config' + File.separator + 'elasticsearch.yml')
+            File configFile = new File(home, 'config/elasticsearch.yml')
             logger.info("Configuring ${configFile}")
-            configFile.setText("cluster.name: ${clusterName}", 'UTF-8')
+            Map esConfig = [
+                'cluster.name': clusterName,
+                'http.port': config.httpPort,
+                'transport.tcp.port': config.transportPort,
+                'pidfile': pidFile,
+                // TODO: make this work for multi node!
+                'discovery.zen.ping.unicast.hosts': "localhost:${config.transportPort}",
+                'path.repo': "${home}/repo",
+                'path.shared_data': "${home}/../",
+                // Define a node attribute so we can test that it exists
+                'node.testattr': 'test',
+                'repositories.url.allowed_urls': 'http://snapshot.test*'
+            ]
+            configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }
         for (Map.Entry<String, String> command : config.setupCommands.entrySet()) {
             Task nextSetup = project.tasks.create(name: "${task.name}#${command.getKey()}", type: Exec, dependsOn: setup) {
@@ -100,15 +112,7 @@ class ClusterFormationTasks {
             setup = nextSetup
         }
 
-        File pidFile = pidFile(baseDir)
-        List esArgs = [
-            "-Des.http.port=${config.httpPort}",
-            "-Des.transport.tcp.port=${config.transportPort}",
-            "-Des.pidfile=${pidFile}",
-            "-Des.path.repo=${home}/repo",
-            "-Des.path.shared_data=${home}/../",
-        ]
-        esArgs.addAll(config.systemProperties.collect {key, value -> "-D${key}=${value}"})
+        List esArgs = config.systemProperties.collect {key, value -> "-D${key}=${value}"}
         Closure esPostStartActions = { ant, logger ->
             ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${task.name}#start") {
                 and {
@@ -157,9 +161,44 @@ class ClusterFormationTasks {
         task.dependsOn(start)
     }
 
+    static Task configureExtractTask(Project project, String name, String distro, File baseDir, Task setup) {
+        List extractDependsOn = [project.configurations.elasticsearchDistro, setup]
+        Task extract
+        switch (distro) {
+            case 'zip':
+                extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
+                    from { project.zipTree(project.configurations.elasticsearchDistro.singleFile) }
+                    into baseDir
+                }
+                break;
+            case 'tar':
+                extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
+                    from { project.tarTree(project.resources.gzip(project.configurations.elasticsearchDistro.singleFile)) }
+                    into baseDir
+                }
+                break;
+            default:
+                throw new InvalidUserDataException("Unknown distribution: ${distro}")
+        }
+        return extract
+    }
+
+    static File homeDir(File baseDir, String distro) {
+        String path
+        switch (distro) {
+            case 'zip':
+            case 'tar':
+                path = "elasticsearch-${ElasticsearchProperties.version}"
+                break;
+            default:
+                throw new InvalidUserDataException("Unknown distribution: ${distro}")
+        }
+        return new File(baseDir, path)
+    }
+
     static void addNodeStopTask(Project project, Task task, File baseDir) {
         LazyPidReader pidFile = new LazyPidReader(pidFile: pidFile(baseDir))
-        Task stop = project.tasks.create(name: task.name + '#stop', type: Exec) {
+        Task stop = project.tasks.create(name: "${task.name}#stop", type: Exec) {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 executable 'Taskkill'
                 args '/PID', pidFile, '/F'
@@ -187,13 +226,13 @@ class ClusterFormationTasks {
         return new File(dir, 'es.pid')
     }
 
-    static void addZipConfiguration(Project project) {
+    static void configureDistributionDependency(Project project, String distro) {
         String elasticsearchVersion = ElasticsearchProperties.version
         project.configurations {
-            elasticsearchZip
+            elasticsearchDistro
         }
         project.dependencies {
-            elasticsearchZip "org.elasticsearch.distribution.zip:elasticsearch:${elasticsearchVersion}@zip"
+            elasticsearchDistro "org.elasticsearch.distribution.${distro}:elasticsearch:${elasticsearchVersion}@${distro}"
         }
     }
 }

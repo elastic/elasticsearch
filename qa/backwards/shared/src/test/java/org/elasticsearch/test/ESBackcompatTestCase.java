@@ -197,7 +197,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
 
             @Override
             public Settings transportClientSettings() {
-                return transportClientSettings();
+                throw new UnsupportedOperationException();
             }
         });
         return new CompositeTestCluster((InternalTestCluster) cluster, between(minExternalNodes(), maxExternalNodes()), externalNode);

@@ -32,6 +32,8 @@ import org.junit.Test;
 
 import java.lang.reflect.Method;
 
+import static org.hamcrest.Matchers.hasSize;
+
 @ESIntegTestCase.SuppressLocalMode // This test creates a network based transport client
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0)
 public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
@@ -45,11 +47,14 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
         Settings settings = Settings.settingsBuilder()
                 .put("client.transport.ignore_cluster_name", true)
                 .put("path.home", PathUtils.get(".").toAbsolutePath())
+                .put("transport.type", "netty")
                 .put("node.name", "transport_client_" + getTestName()).build();
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
             TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().address());
+            assertThat(tc.listedNodes(), hasSize(1));
+            assertThat(tc.connectedNodes(), hasSize(atLeast(1)));
             // Just verify that the NS can be sent and serialized/deserialized between nodes with basic indices
             NodesStatsResponse ns = tc.admin().cluster().prepareNodesStats().setIndices(true).execute().actionGet();
             tc.close();
@@ -65,11 +70,14 @@ public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
         Settings settings = Settings.settingsBuilder()
                 .put("node.name", "transport_client_" + getTestName())
                 .put("path.home", PathUtils.get(".").toAbsolutePath())
+                .put("transport.type", "netty")
                 .put("client.transport.ignore_cluster_name", true).build();
 
         // We explicitly connect to each node with a custom TransportClient
         for (NodeInfo n : nodesInfo.getNodes()) {
             TransportClient tc = TransportClient.builder().settings(settings).build().addTransportAddress(n.getNode().address());
+            assertThat(tc.listedNodes(), hasSize(1));
+            assertThat(tc.connectedNodes(), hasSize(atLeast(1)));
 
             // randomize the combination of flags set
             // Uses reflection to find methods in an attempt to future-proof this test against newly added flags

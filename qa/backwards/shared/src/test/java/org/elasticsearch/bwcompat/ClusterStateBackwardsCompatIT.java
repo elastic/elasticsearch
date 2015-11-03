@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,16 +39,15 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
 
-@ESIntegTestCase.SuppressLocalMode // This test creates a network based transport client
 public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
     public void testClusterState() throws Exception {
         createIndex("test");
 
         // connect to each node with a custom TransportClient, issue a ClusterStateRequest to test serialization
         for (NodeInfo n : clusterNodes()) {
-            try (TransportClient tc = newTransportClient()) {
-                tc.addTransportAddress(n.getNode().address());
+            try (TransportClient tc = newTransportClient(n)) {
                 ClusterStateResponse response = tc.admin().cluster().prepareState().execute().actionGet();
 
                 assertThat(response.getState().status(), equalTo(ClusterState.ClusterStateStatus.UNKNOWN));
@@ -72,7 +70,7 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
                 enableIndexBlock("test-blocks", block.getKey());
 
                 for (NodeInfo n : clusterNodes()) {
-                    try (TransportClient tc = newTransportClient()) {
+                    try (TransportClient tc = newTransportClient(n)) {
                         tc.addTransportAddress(n.getNode().address());
 
                         ClusterStateResponse response = tc.admin().cluster().prepareState().setIndices("test-blocks")
@@ -101,10 +99,15 @@ public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
         return client().admin().cluster().prepareNodesInfo().execute().actionGet();
     }
 
-    private TransportClient newTransportClient() {
+    private TransportClient newTransportClient(NodeInfo n) {
         Settings settings = Settings.settingsBuilder().put("client.transport.ignore_cluster_name", true)
                 .put("path.home", PathUtils.get(".").toAbsolutePath())
+                .put("transport.type", "netty")
                 .put("node.name", "transport_client_" + getTestName()).build();
-        return TransportClient.builder().settings(settings).build();
+        TransportClient tc = TransportClient.builder().settings(settings).build();
+        tc.addTransportAddress(n.getNode().address());
+        assertThat(tc.listedNodes(), hasSize(1));
+        assertThat(tc.connectedNodes(), hasSize(atLeast(1)));
+        return tc;
     }
 }

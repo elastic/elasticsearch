@@ -52,8 +52,10 @@ public class MatchAllQueryParser implements QueryParser<MatchAllQueryBuilder> {
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[match_all] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + MatchAllQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         MatchAllQueryBuilder queryBuilder = new MatchAllQueryBuilder();

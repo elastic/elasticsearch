@@ -117,6 +117,10 @@ Removed support for multiple highlighter names, the only supported ones are: `pl
 
 Removed support for the deprecated top level `filter` in the search api, replaced by `post_filter`.
 
+==== `query_binary` and `filter_binary` removed
+
+Removed support for the undocumented `query_binary` and `filter_binary` sections of a search request.
+
 === Parent/Child changes
 
 The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
@@ -389,4 +393,12 @@ request cache and the field data cache.
 
 This setting would arbitrarily pick the first interface not marked as loopback. Instead, specify by address
 scope (e.g. `_local_,_site_` for all loopback and private network addresses) or by explicit interface names,
-hostnames, or addresses. 
+hostnames, or addresses.
+
+=== Forbid changing of thread pool types
+
+Previously, <<modules-threadpool,thread pool types>> could be dynamically adjusted. The thread pool type effectively
+controls the backing queue for the thread pool and modifying this is an expert setting with minimal practical benefits
+and high risk of being misused. The ability to change the thread pool type for any thread pool has been removed; do note
+that it is still possible to adjust relevant thread pool parameters for each of the thread pools (e.g., depending on
+the thread pool type, `keep_alive`, `queue_size`, etc.).

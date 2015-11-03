@@ -32,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.local.LocalTransport;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -231,4 +232,47 @@ public class Ec2DiscoveryTests extends ESTestCase {
         assertThat(discoveryNodes, hasSize(prodInstances));
     }
 
+    abstract class DummyEc2HostProvider extends AwsEc2UnicastHostsProvider {
+        public int fetchCount = 0;
+        public DummyEc2HostProvider(Settings settings, TransportService transportService, AwsEc2Service service, Version version) {
+            super(settings, transportService, service, version);
+        }
+    }
+
+    public void testGetNodeListEmptyCache() throws Exception {
+        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
+        DummyEc2HostProvider provider = new DummyEc2HostProvider(Settings.EMPTY, transportService, awsEc2Service, Version.CURRENT) {
+            @Override
+            protected List<DiscoveryNode> fetchDynamicNodes() {
+                fetchCount++;
+                return new ArrayList<>();
+            }
+        };
+        for (int i=0; i<3; i++) {
+            provider.buildDynamicNodes();
+        }
+        assertThat(provider.fetchCount, is(3));
+    }
+
+    public void testGetNodeListCached() throws Exception {
+        Settings.Builder builder = Settings.settingsBuilder()
+                .put(DISCOVERY_EC2.NODE_CACHE_TIME, "500ms");
+        AwsEc2Service awsEc2Service = new AwsEc2ServiceMock(Settings.EMPTY, 1, null);
+        DummyEc2HostProvider provider = new DummyEc2HostProvider(builder.build(), transportService, awsEc2Service, Version.CURRENT) {
+            @Override
+            protected List<DiscoveryNode> fetchDynamicNodes() {
+                fetchCount++;
+                return Ec2DiscoveryTests.this.buildDynamicNodes(Settings.EMPTY, 1);
+            }
+        };
+        for (int i=0; i<3; i++) {
+            provider.buildDynamicNodes();
+        }
+        assertThat(provider.fetchCount, is(1));
+        Thread.sleep(1_000L); // wait for cache to expire
+        for (int i=0; i<3; i++) {
+            provider.buildDynamicNodes();
+        }
+        assertThat(provider.fetchCount, is(2));
+    }
 }

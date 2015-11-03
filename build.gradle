@@ -153,7 +153,7 @@ allprojects {
   apply plugin: 'idea'
 }
 
-if (hasProperty('projectsPrefix') == false) {
+if (projectsPrefix.isEmpty()) {
   idea {
     project {
       languageLevel = sourceCompatibility
@@ -178,8 +178,19 @@ allprojects {
       }
     }
   }
+  task cleanEclipseSettings(type: Delete) {
+    delete '.settings'
+  }
+  task copyEclipseSettings(type: Copy) {
+    // TODO: "package this up" for external builds
+    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
+    into '.settings'
+  }
+  // otherwise .settings is not nuked entirely
+  tasks.cleanEclipse.dependsOn(cleanEclipseSettings)
   // otherwise the eclipse merging is *super confusing*
   tasks.eclipse.dependsOn(cleanEclipse)
+  tasks.eclipse.dependsOn(copyEclipseSettings)
 }
 
 

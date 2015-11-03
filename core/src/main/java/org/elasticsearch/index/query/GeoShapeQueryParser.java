@@ -70,8 +70,10 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] point specified twice. [" + currentFieldName + "]");
+                }
                 fieldName = currentFieldName;
-
                 while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
@@ -104,10 +106,12 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
                                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_PATH_FIELD)) {
                                         shapePath = parser.text();
                                     }
+                                } else {
+                                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
                                 }
                             }
                         } else {
-                            throw new ParsingException(parser.getTokenLocation(), "[geo_shape] query does not support [" + currentFieldName + "]");
+                            throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -117,7 +121,7 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[geo_shape] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + GeoShapeQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             }
         }

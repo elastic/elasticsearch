@@ -31,6 +31,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.profile.InternalProfileShardResult;
+import org.elasticsearch.search.profile.InternalProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -214,7 +215,12 @@ public class QuerySearchResult extends QuerySearchResultProvider {
 
         // nocommit TODO need version check here?
         if (in.readBoolean()) {
-            profileShardResults = InternalProfileShardResult.readProfileShardResults(in);
+            int profileSize = in.readVInt();
+            profileShardResults = new ArrayList<>(profileSize);
+            for (int i = 0; i < profileSize; i++) {
+                InternalProfileShardResult result = InternalProfileShardResult.readProfileShardResult(in);
+                profileShardResults.add(result);
+            }
         }
     }
 
@@ -260,7 +266,10 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
-            InternalProfileShardResult.writeProfileShardResults(profileShardResults, out);
+            out.writeVInt(profileShardResults.size());
+            for (InternalProfileShardResult shardResult : profileShardResults) {
+                shardResult.writeTo(out);
+            }
         }
     }
 }

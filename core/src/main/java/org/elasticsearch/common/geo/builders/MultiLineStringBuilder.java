@@ -22,7 +22,6 @@ package org.elasticsearch.common.geo.builders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
@@ -36,12 +35,6 @@ public class MultiLineStringBuilder extends ShapeBuilder {
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
     private final ArrayList<BaseLineStringBuilder<?>> lines = new ArrayList<>();
-
-    public InternalLineStringBuilder linestring() {
-        InternalLineStringBuilder line = new InternalLineStringBuilder(this);
-        this.lines.add(line);
-        return line;
-    }
 
     public MultiLineStringBuilder linestring(BaseLineStringBuilder<?> line) {
         this.lines.add(line);
@@ -98,28 +91,5 @@ public class MultiLineStringBuilder extends ShapeBuilder {
             geometry = FACTORY.createMultiLineString(lineStrings);
         }
         return jtsGeometry(geometry);
-    }
-
-    public static class InternalLineStringBuilder extends BaseLineStringBuilder<InternalLineStringBuilder> {
-
-        private final MultiLineStringBuilder collection;
-        
-        public InternalLineStringBuilder(MultiLineStringBuilder collection) {
-            super();
-            this.collection = collection;
-        }
-        
-        public MultiLineStringBuilder end() {
-            return collection;
-        }
-
-        public Coordinate[] coordinates() {
-            return super.coordinates(false);
-        }
-
-        @Override
-        public GeoShapeType type() {
-            return null;
-        }
     }
 }

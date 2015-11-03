@@ -206,6 +206,28 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
         return new ClusterBlockException(builder.build());
     }
 
+    public String prettyPrint() {
+        if (global.isEmpty() && indices().isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("blocks: \n");
+        if (global.isEmpty() == false) {
+            sb.append("   _global_:\n");
+            for (ClusterBlock block : global) {
+                sb.append("      ").append(block);
+            }
+        }
+        for (Map.Entry<String, ImmutableSet<ClusterBlock>> entry : indicesBlocks.entrySet()) {
+            sb.append("   ").append(entry.getKey()).append(":\n");
+            for (ClusterBlock block : entry.getValue()) {
+                sb.append("      ").append(block);
+            }
+        }
+        sb.append("\n");
+        return sb.toString();
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         writeBlockSet(global, out);

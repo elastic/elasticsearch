@@ -1,41 +1,36 @@
 [[modules-node]]
 == Node
 
-*elasticsearch* allows the configuration of a node to play multiple
-roles. By default, a node's role is a _data node_, a _master node_
-and a _client node_.
+*elasticsearch* nodes have three roles and any node can play 
+one to three of those roles. By default every node performs all 
+three roles; _data node_, _master node_ and _client node_.
 
 *data nodes* store indexed data locally and make it available for
 further manipulation. Storing data locally basically means that
 shards of different indices are allowed to be allocated on that
-node. The default is `node.data: true`, but can also be set to
-`node.data: false` in the configuration file.
+node. The default setting is `node.data: true`, but can also be 
+set to `node.data: false` via the configuration file.
 
-*master nodes* control cluster state, including changes such as node
-addition or removal, index creation and deletion and mapping updates.
-While there may be multiple nodes with this setting enabled, in
-any cluster there can be only one _active master node_ at a time and
-if the current master becomes unavailable then the other master nodes
-can re-elect a new master, ensuring cluster continuity. If you have
-dedicated master nodes then you should not send index or query
-requests to them, this ensures they can maintain the cluster state
-with little to no interruption, ensuring the cluster remains as
-stable as possible. The default is `node.master: true` and
-can also be set to `node.master: false` in the configuration file.
+*master nodes* participate in master elections and, when elected as
+the _active master node_, control cluster state, including changes
+such as node addition or removal, index creation and deletion and 
+mapping updates. If you have dedicated master nodes then you should 
+not send index or query requests to them, this ensures they can 
+maintain the cluster state with little to no interruption, ensuring 
+the cluster remains as stable as possible. The default setting is 
+`node.master: true` and can also be set to `node.master: false` via 
+the configuration file.
 
-*client nodes* create smart load balancers that take part in some of
-the different index and querying processes.  These "non data" nodes
-are still part of the cluster, and they redirect operations exactly
-to the node that holds the relevant data. The other benefit is the
-fact that for scatter / gather based operations (such as search),
-these nodes will take part of the processing since they will start
-the scatter process, and perform the actual gather processing. The
-default is `node.client: true` and can also be set to `node.master: false`
-in the configuration file. A node with `node.client: true` also implies
-that `node.master: false` and `node.data: false` is set, even if not
-specified in the configuration file.
+*client nodes* are smart load balancers that keep a copy of the 
+cluster state and use it to route request exactly where they need 
+to go. They also act the coordinating node for requests sent to 
+them, forwarding the requests to the data nodes and then merging 
+the results when they come back. Remember that by default all 
+nodes act as client nodes so all nodes can be the coordinating 
+node for queries. The default setting is `node.client: true` and can 
+also be set to `node.master: false` via the configuration file.
 
-Lets take an example:
+Let's work with an example:
 We have a cluster with 15 nodes. We decide to have 3 dedicated
 master nodes to control and maintain the cluster, 10 data nodes
 to store the indexed data and 2 client nodes for users to interact

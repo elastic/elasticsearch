@@ -24,5 +24,11 @@ task buildTar(type: Tar, dependsOn: dependencyFiles) {
 }
 
 artifacts {
+  'default' buildTar
   archives buildTar
+}
+
+integTest {
+  dependsOn buildTar
+  clusterConfig.distribution = 'tar'
 }

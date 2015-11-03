@@ -27,3 +27,5 @@ artifacts {
   archives buildZip
 }
 
+integTest.dependsOn buildZip
+

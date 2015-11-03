@@ -41,8 +41,10 @@ allprojects {
 }
 
 subprojects {
+  /*****************************************************************************
+   *                            Rest test config                               *
+   *****************************************************************************/
   apply plugin: 'elasticsearch.rest-test'
-
   integTest {
     includePackaged true
   }

@@ -20,6 +20,9 @@
 task buildRpm(type: Rpm) {
   dependsOn dependencyFiles
 }
+
 artifacts {
   archives buildRpm
 }
+
+integTest.dependsOn buildRpm

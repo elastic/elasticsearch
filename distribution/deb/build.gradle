@@ -20,6 +20,9 @@
 task buildDeb(type: Deb) {
   dependsOn dependencyFiles
 }
+
 artifacts {
   archives buildDeb
 }
+
+integTest.dependsOn buildDeb

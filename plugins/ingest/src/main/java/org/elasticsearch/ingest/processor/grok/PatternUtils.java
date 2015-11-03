@@ -25,7 +25,7 @@ import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
-public final class PatternUtils {
+final class PatternUtils {
     private PatternUtils() {}
 
     public static void loadBankFromStream(Map<String, String> patternBank, InputStream inputStream) throws IOException {

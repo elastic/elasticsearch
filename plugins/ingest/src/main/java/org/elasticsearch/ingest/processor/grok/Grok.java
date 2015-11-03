@@ -19,10 +19,6 @@
 
 package org.elasticsearch.ingest.processor.grok;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.lang.Object;
 import java.lang.String;
 import java.lang.StringIndexOutOfBoundsException;
@@ -36,7 +32,7 @@ import org.jcodings.specific.UTF8Encoding;
 import org.joni.*;
 import org.joni.exception.ValueException;
 
-public class Grok {
+final class Grok {
 
     private static final String NAME_GROUP = "name";
     private static final String SUBNAME_GROUP = "subname";

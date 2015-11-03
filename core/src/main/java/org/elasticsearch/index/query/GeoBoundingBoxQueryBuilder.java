@@ -212,10 +212,20 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         if (exception != null) {
             throw new QueryShardException(context, "couldn't validate latitude/longitude values", exception);
         }
-        // lucene asserts on invalid coordinates
-        // todo: could potentially remove our own lat/lon validation in favor of lucene assertion but error may not be so pretty?
-        GeoUtils.normalizePoint(topLeft);
-        GeoUtils.normalizePoint(bottomRight);
+
+        // Special case: if the difference between the left and right is 360 and the right is greater than the left, we are asking for
+        // the complete longitude range so need to set longitude to the complete longditude range
+        double right = bottomRight.getLon();
+        double left = topLeft.getLon();
+
+        boolean completeLonRange = ((right - left) % 360 == 0 && right > left);
+        GeoUtils.normalizePoint(topLeft, true, !completeLonRange);
+        GeoUtils.normalizePoint(bottomRight, true, !completeLonRange);
+        if (completeLonRange) {
+            topLeft.resetLon(-180);
+            bottomRight.resetLon(180);
+        }
+
         // dateline crossing and full range is already handled in lucene geo queries
         return new GeoPointInBBoxQuery(fieldType.names().fullName(), this.topLeft.lon(), this.bottomRight.lat(), this.bottomRight.lon(), this.topLeft.lat());
     }

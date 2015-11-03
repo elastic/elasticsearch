@@ -221,23 +221,23 @@ public class ContextSuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder source1 = jsonBuilder()
                 .startObject()
-                    .latlon("pin", 52.529172, 13.407333)
-                    .startObject(FIELD)
-                        .array("input", "Hotel Amsterdam", "Amsterdam")
-                        .field("output", "Hotel Amsterdam in Berlin")
-                        .startObject("context").endObject()
-                    .endObject()
+                .latlon("pin", 52.529172, 13.407333)
+                .startObject(FIELD)
+                .array("input", "Hotel Amsterdam", "Amsterdam")
+                .field("output", "Hotel Amsterdam in Berlin")
+                .startObject("context").endObject()
+                .endObject()
                 .endObject();
         client().prepareIndex(INDEX, TYPE, "1").setSource(source1).execute().actionGet();
 
         XContentBuilder source2 = jsonBuilder()
                 .startObject()
-                    .latlon("pin", 52.363389, 4.888695)
-                    .startObject(FIELD)
-                        .array("input", "Hotel Berlin", "Berlin")
-                        .field("output", "Hotel Berlin in Amsterdam")
-                        .startObject("context").endObject()
-                    .endObject()
+                .latlon("pin", 52.363389, 4.888695)
+                .startObject(FIELD)
+                .array("input", "Hotel Berlin", "Berlin")
+                .field("output", "Hotel Berlin in Amsterdam")
+                .startObject("context").endObject()
+                .endObject()
                 .endObject();
         client().prepareIndex(INDEX, TYPE, "2").setSource(source2).execute().actionGet();
 

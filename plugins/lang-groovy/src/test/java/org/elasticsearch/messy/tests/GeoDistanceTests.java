@@ -20,6 +20,7 @@
 package org.elasticsearch.messy.tests;
 
 import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -224,8 +225,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
     public void testDistanceSortingMVFields() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .field("ignore_malformed", true).field("coerce", true)
-                .endObject().endObject().endObject().endObject();
+                .field("ignore_malformed", true).endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test")
                 .addMapping("type1", xContentBuilder));
         ensureGreen();
@@ -425,28 +425,28 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .actionGet();
         Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance1,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.01d));
 
         SearchResponse searchResponse2 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].distance(" + target_lat + "," + target_long + ")")).execute()
                 .actionGet();
         Double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance2,
-                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.0001d));
+                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.01d));
 
         SearchResponse searchResponse3 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].arcDistanceInKm(" + target_lat + "," + target_long + ")"))
                 .execute().actionGet();
         Double resultArcDistance3 = searchResponse3.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance3,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.01d));
 
         SearchResponse searchResponse4 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].distanceInKm(" + target_lat + "," + target_long + ")")).execute()
                 .actionGet();
         Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance4,
-                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
+                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.01d));
 
         SearchResponse searchResponse5 = client()
                 .prepareSearch()
@@ -455,7 +455,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .execute().actionGet();
         Double resultArcDistance5 = searchResponse5.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance5,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.01d));
 
         SearchResponse searchResponse6 = client()
                 .prepareSearch()
@@ -464,21 +464,21 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .execute().actionGet();
         Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance6,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.01d));
 
         SearchResponse searchResponse7 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].arcDistanceInMiles(" + target_lat + "," + target_long + ")"))
                 .execute().actionGet();
         Double resultDistance7 = searchResponse7.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance7,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.01d));
 
         SearchResponse searchResponse8 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].distanceInMiles(" + target_lat + "," + target_long + ")"))
                 .execute().actionGet();
         Double resultDistance8 = searchResponse8.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance8,
-                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
+                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.01d));
     }
 
     public void testDistanceSortingNestedFields() throws Exception {
@@ -704,20 +704,19 @@ public class GeoDistanceTests extends ESIntegTestCase {
         for (int i = 0; i < 10; ++i) {
             final double originLat = randomLat();
             final double originLon = randomLon();
-            final String distance = DistanceUnit.KILOMETERS.toString(randomInt(10000));
+            final double maxRadius = SloppyMath.haversin(originLat, originLon, originLat, (180.0 + originLon) % 360)*1000.0;
+            final String distance = DistanceUnit.METERS.toString(randomInt((int)maxRadius));
             for (GeoDistance geoDistance : Arrays.asList(GeoDistance.ARC, GeoDistance.SLOPPY_ARC)) {
                 logger.info("Now testing GeoDistance={}, distance={}, origin=({}, {})", geoDistance, distance, originLat, originLon);
                 long matches = -1;
-                for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
-                    SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(
-                            QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance))).execute().actionGet();
-                    assertSearchResponse(resp);
-                    logger.info("{} -> {} hits", optimizeBbox, resp.getHits().totalHits());
-                    if (matches < 0) {
-                        matches = resp.getHits().totalHits();
-                    } else {
-                        assertEquals(matches, resp.getHits().totalHits());
-                    }
+                SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(
+                        QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance))).execute().actionGet();
+                assertSearchResponse(resp);
+                logger.info("{} hits", resp.getHits().totalHits());
+                if (matches < 0) {
+                    matches = resp.getHits().totalHits();
+                } else {
+                    assertEquals(matches, resp.getHits().totalHits());
                 }
             }
         }

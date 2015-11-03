@@ -651,10 +651,9 @@ public class GeolocationContextMapping extends ContextMapping {
                         }
                     } else {
                         geohashes = new ArrayList<>(fields.length);
-                        GeoPoint spare = new GeoPoint();
                         for (IndexableField field : fields) {
-                            spare.resetFromString(field.stringValue());
-                            geohashes.add(spare.geohash());
+                            geohashes.add(GeoHashUtils.stringEncodeFromMortonLong(Long.parseLong(field.stringValue()),
+                                    GeoHashUtils.PRECISION));
                         }
                     }
                 } else {

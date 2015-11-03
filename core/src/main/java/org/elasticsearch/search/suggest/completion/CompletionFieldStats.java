@@ -44,7 +44,6 @@ public class CompletionFieldStats {
                     Terms terms = atomicReader.fields().terms(fieldName);
                     if (terms instanceof CompletionTerms) {
                         // TODO: currently we load up the suggester for reporting it's size
-                        // nocommit - this is pretty trappy do we have any way to detect this?
                         long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
                         if (fields != null && fields.length > 0 && Regex.simpleMatch(fields, fieldName)) {
                             completionFields.addTo(fieldName, fstSize);
@@ -53,7 +52,7 @@ public class CompletionFieldStats {
                     }
                 }
             } catch (IOException ignored) {
-                //nocommit - why do we ignore this exception?
+                throw  new RuntimeException(ignored);
             }
         }
         return new CompletionStats(sizeInBytes, completionFields);

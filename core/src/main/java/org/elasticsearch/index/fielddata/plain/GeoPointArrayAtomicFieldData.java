@@ -24,9 +24,10 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.Accountables;
 import org.apache.lucene.util.BitSet;
+import org.apache.lucene.util.GeoUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.GeoPointValues;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -38,37 +39,34 @@ import java.util.Collections;
 import java.util.List;
 
 /**
+ *
  */
-public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicGeoPointFieldData {
-
+public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPointFieldData {
     @Override
     public void close() {
     }
 
-    static class WithOrdinals extends GeoPointDoubleArrayAtomicFieldData {
-
-        private final DoubleArray lon, lat;
+    static class WithOrdinals extends GeoPointArrayAtomicFieldData {
+        private final LongArray indexedPoints;
         private final Ordinals ordinals;
         private final int maxDoc;
 
-        public WithOrdinals(DoubleArray lon, DoubleArray lat, Ordinals ordinals, int maxDoc) {
+        public WithOrdinals(LongArray indexedPoints, Ordinals ordinals, int maxDoc) {
             super();
-            this.lon = lon;
-            this.lat = lat;
+            this.indexedPoints = indexedPoints;
             this.ordinals = ordinals;
             this.maxDoc = maxDoc;
         }
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed();
+            return RamUsageEstimator.NUM_BYTES_INT + indexedPoints.ramBytesUsed();
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
-            resources.add(Accountables.namedAccountable("latitude", lat));
-            resources.add(Accountables.namedAccountable("longitude", lon));
+            resources.add(Accountables.namedAccountable("indexedPoints", indexedPoints));
             return Collections.unmodifiableList(resources);
         }
 
@@ -76,68 +74,59 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
         public MultiGeoPointValues getGeoPointValues() {
             final RandomAccessOrds ords = ordinals.ordinals();
             final SortedDocValues singleOrds = DocValues.unwrapSingleton(ords);
+            final GeoPoint point = new GeoPoint();
             if (singleOrds != null) {
-                final GeoPoint point = new GeoPoint();
                 final GeoPointValues values = new GeoPointValues() {
                     @Override
                     public GeoPoint get(int docID) {
                         final int ord = singleOrds.getOrd(docID);
                         if (ord >= 0) {
-                            point.reset(lat.get(ord), lon.get(ord));
+                            final long hashedPoint = indexedPoints.get(ord);
+                            point.reset(GeoUtils.mortonUnhashLat(hashedPoint), GeoUtils.mortonUnhashLon(hashedPoint));
                         }
                         return point;
                     }
                 };
                 return FieldData.singleton(values, DocValues.docsWithValue(singleOrds, maxDoc));
-            } else {
-                final GeoPoint point = new GeoPoint();
-                return new MultiGeoPointValues() {
-
-                    @Override
-                    public GeoPoint valueAt(int index) {
-                        final long ord = ords.ordAt(index);
-                        point.reset(lat.get(ord), lon.get(ord));
-                        return point;
-                    }
-
-                    @Override
-                    public void setDocument(int docId) {
-                        ords.setDocument(docId);
-                    }
-
-                    @Override
-                    public int count() {
-                        return ords.cardinality();
-                    }
-                };
             }
+            return new MultiGeoPointValues() {
+                @Override
+                public GeoPoint valueAt(int index) {
+                    final long hashedPoint = indexedPoints.get(ords.ordAt(index));
+                    return point.reset(GeoUtils.mortonUnhashLat(hashedPoint), GeoUtils.mortonUnhashLon(hashedPoint));
+                }
+
+                @Override
+                public void setDocument(int docId) {
+                    ords.setDocument(docId);
+                }
+
+                @Override
+                public int count() {
+                    return ords.cardinality();
+                }
+            };
         }
     }
 
-    /**
-     * Assumes unset values are marked in bitset, and docId is used as the index to the value array.
-     */
-    public static class Single extends GeoPointDoubleArrayAtomicFieldData {
-
-        private final DoubleArray lon, lat;
+    public static class Single extends GeoPointArrayAtomicFieldData {
+        private final LongArray indexedPoint;
         private final BitSet set;
 
-        public Single(DoubleArray lon, DoubleArray lat, BitSet set) {
-            this.lon = lon;
-            this.lat = lat;
+        public Single(LongArray indexedPoint, BitSet set) {
+            this.indexedPoint = indexedPoint;
             this.set = set;
         }
 
         @Override
         public long ramBytesUsed() {
-            return RamUsageEstimator.NUM_BYTES_INT/*size*/ + lon.ramBytesUsed() + lat.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
+            return RamUsageEstimator.NUM_BYTES_INT + indexedPoint.ramBytesUsed() + (set == null ? 0 : set.ramBytesUsed());
         }
-        
+
         @Override
         public Collection<Accountable> getChildResources() {
             List<Accountable> resources = new ArrayList<>();
-            resources.add(Accountables.namedAccountable("latitude", lat));
-            resources.add(Accountables.namedAccountable("longitude", lon));
+            resources.add(Accountables.namedAccountable("indexedPoints", indexedPoint));
             if (set != null) {
                 resources.add(Accountables.namedAccountable("missing bitset", set));
             }
@@ -150,12 +139,10 @@ public abstract class GeoPointDoubleArrayAtomicFieldData extends AbstractAtomicG
             final GeoPointValues values = new GeoPointValues() {
                 @Override
                 public GeoPoint get(int docID) {
-                    point.reset(lat.get(docID), lon.get(docID));
-                    return point;
+                    return point.resetFromIndexHash(indexedPoint.get(docID));
                 }
             };
             return FieldData.singleton(values, set);
         }
     }
-
 }

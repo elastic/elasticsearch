@@ -60,8 +60,6 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
         Object vDistance = null;
         DistanceUnit unit = GeoDistanceQueryBuilder.DEFAULT_DISTANCE_UNIT;
         GeoDistance geoDistance = GeoDistanceQueryBuilder.DEFAULT_GEO_DISTANCE;
-        String optimizeBbox = GeoDistanceQueryBuilder.DEFAULT_OPTIMIZE_BBOX;
-        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;
 
@@ -118,13 +116,6 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
-                    optimizeBbox = parser.textOrNull();
-                } else if ("coerce".equals(currentFieldName) || ("normalize".equals(currentFieldName))) {
-                    coerce = parser.booleanValue();
-                    if (coerce == true) {
-                        ignoreMalformed = true;
-                    }
                 } else if ("ignore_malformed".equals(currentFieldName)) {
                     ignoreMalformed = parser.booleanValue();
                 } else if ("validation_method".equals(currentFieldName)) {
@@ -155,9 +146,8 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
         if (validationMethod != null) {
             qb.setValidationMethod(validationMethod);
         } else {
-            qb.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
+            qb.setValidationMethod(GeoValidationMethod.infer(ignoreMalformed));
         }
-        qb.optimizeBbox(optimizeBbox);
         qb.geoDistance(geoDistance);
         qb.boost(boost);
         qb.queryName(queryName);

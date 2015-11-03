@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
+import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -58,7 +59,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
@@ -105,7 +106,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
@@ -158,7 +159,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 

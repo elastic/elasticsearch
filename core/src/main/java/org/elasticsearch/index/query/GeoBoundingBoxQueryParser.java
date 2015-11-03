@@ -80,13 +80,10 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
         String queryName = null;
         String currentFieldName = null;
         XContentParser.Token token;
-        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;
 
         GeoPoint sparse = new GeoPoint();
-
-        String type = "memory";
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -140,15 +137,8 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if ("coerce".equals(currentFieldName) || ("normalize".equals(currentFieldName))) {
-                    coerce = parser.booleanValue();
-                    if (coerce) {
-                        ignoreMalformed = true;
-                    }
                 } else if ("validation_method".equals(currentFieldName)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
-                } else if ("type".equals(currentFieldName)) {
-                    type = parser.text();
                 } else if ("ignore_malformed".equals(currentFieldName)) {
                     ignoreMalformed = parser.booleanValue();
                 } else {
@@ -163,12 +153,11 @@ public class GeoBoundingBoxQueryParser implements QueryParser<GeoBoundingBoxQuer
         builder.setCorners(topLeft, bottomRight);
         builder.queryName(queryName);
         builder.boost(boost);
-        builder.type(GeoExecType.fromString(type));
         if (validationMethod != null) {
-            // ignore deprecated coerce/ignoreMalformed settings if validationMethod is set
+            // ignore 'ignoreMalformed' setting if validationMethod is set
             builder.setValidationMethod(validationMethod);
         } else {
-            builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
+            builder.setValidationMethod(GeoValidationMethod.infer(ignoreMalformed));
         }
         return builder;
     }

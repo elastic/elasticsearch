@@ -121,7 +121,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceQuery("location").distance("3km").point(40.7143528, -74.0059731).optimizeBbox("indexed"))
+                .setQuery(geoDistanceQuery("location").distance("3km").point(40.7143528, -74.0059731))
                 .execute().actionGet();
         assertHitCount(searchResponse, 5);
         assertThat(searchResponse.getHits().hits().length, equalTo(5));
@@ -150,7 +150,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceQuery("location").distance("2km").point(40.7143528, -74.0059731).optimizeBbox("indexed"))
+                .setQuery(geoDistanceQuery("location").distance("2km").point(40.7143528, -74.0059731))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
@@ -167,7 +167,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceQuery("location").distance("1.242mi").point(40.7143528, -74.0059731).optimizeBbox("indexed"))
+                .setQuery(geoDistanceQuery("location").distance("1.242mi").point(40.7143528, -74.0059731))
                 .execute().actionGet();
         assertHitCount(searchResponse, 4);
         assertThat(searchResponse.getHits().hits().length, equalTo(4));
@@ -184,7 +184,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
             assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
         }
         searchResponse = client().prepareSearch() // from NY
-                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).from("1.0km").to("2.0km").optimizeBbox("indexed"))
+                .setQuery(geoDistanceRangeQuery("location", 40.7143528, -74.0059731).from("1.0km").to("2.0km"))
                 .execute().actionGet();
         assertHitCount(searchResponse, 2);
         assertThat(searchResponse.getHits().hits().length, equalTo(2));
@@ -710,7 +710,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 long matches = -1;
                 for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
                     SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(
-                            QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance).optimizeBbox(optimizeBbox))).execute().actionGet();
+                            QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance))).execute().actionGet();
                     assertSearchResponse(resp);
                     logger.info("{} -> {} hits", optimizeBbox, resp.getHits().totalHits());
                     if (matches < 0) {

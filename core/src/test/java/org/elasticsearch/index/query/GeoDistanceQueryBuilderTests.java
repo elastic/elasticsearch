@@ -21,11 +21,13 @@ package org.elasticsearch.index.query;
 
 import com.spatial4j.core.shape.Point;
 
+import org.apache.lucene.search.GeoPointDistanceQuery;
+import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.unit.DistanceUnit;
-import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
@@ -62,10 +64,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
         if (randomBoolean()) {
             qb.setValidationMethod(randomFrom(GeoValidationMethod.values()));
-        }
-
-        if (randomBoolean()) {
-            qb.optimizeBbox(randomFrom("none", "memory", "indexed"));
         }
 
         if (randomBoolean()) {
@@ -136,13 +134,6 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         } catch (IllegalArgumentException ex) {
             // expected
         }
-
-        try {
-            query.optimizeBbox(null);
-            fail("optimizeBbox must not be null");
-        } catch (IllegalArgumentException ex) {
-            // expected
-        }
     }
 
     /**
@@ -158,20 +149,18 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
 
     @Override
     protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        assertThat(query, instanceOf(GeoDistanceRangeQuery.class));
-        GeoDistanceRangeQuery geoQuery = (GeoDistanceRangeQuery) query;
-        assertThat(geoQuery.fieldName(), equalTo(queryBuilder.fieldName()));
+        assertThat(query, instanceOf(GeoPointDistanceQuery.class));
+        GeoPointDistanceQuery geoQuery = (GeoPointDistanceQuery) query;
+        assertThat(geoQuery.getField(), equalTo(queryBuilder.fieldName()));
         if (queryBuilder.point() != null) {
-            assertThat(geoQuery.lat(), equalTo(queryBuilder.point().lat()));
-            assertThat(geoQuery.lon(), equalTo(queryBuilder.point().lon()));
+            assertThat(geoQuery.getCenterLat(), equalTo(queryBuilder.point().lat()));
+            assertThat(geoQuery.getCenterLon(), equalTo(queryBuilder.point().lon()));
         }
-        assertThat(geoQuery.geoDistance(), equalTo(queryBuilder.geoDistance()));
-        assertThat(geoQuery.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
         double distance = queryBuilder.distance();
         if (queryBuilder.geoDistance() != null) {
-                distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
+            distance = queryBuilder.geoDistance().normalize(distance, DistanceUnit.DEFAULT);
+            assertThat(geoQuery.getRadiusMeters(), closeTo(distance, GeoUtils.TOLERANCE));
         }
-        assertThat(geoQuery.maxInclusiveDistance(), closeTo(distance, Math.abs(distance) / 1000));
     }
 
     public void testParsingAndToQuery1() throws IOException {
@@ -263,12 +252,12 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "  }\n" +
                 "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        GeoDistanceRangeQuery filter = (GeoDistanceRangeQuery) parsedQuery;
-        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
-        assertThat(filter.lat(), closeTo(40, 0.00001));
-        assertThat(filter.lon(), closeTo(-70, 0.00001));
-        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.DEFAULT.convert(0.012, DistanceUnit.MILES), 0.00001));
+        GeoPointDistanceQuery filter = (GeoPointDistanceQuery) parsedQuery;
+        assertThat(filter.getField(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.getCenterLat(), closeTo(40, GeoUtils.TOLERANCE));
+        assertThat(filter.getCenterLon(), closeTo(-70, GeoUtils.TOLERANCE));
+//        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
+//        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.DEFAULT.convert(0.012, DistanceUnit.MILES), 0.00001));
     }
 
     public void testParsingAndToQuery8() throws IOException {
@@ -283,12 +272,12 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
                 "    }\n" +
                 "}\n";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        GeoDistanceRangeQuery filter = (GeoDistanceRangeQuery) parsedQuery;
-        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
-        assertThat(filter.lat(), closeTo(40, 0.00001));
-        assertThat(filter.lon(), closeTo(-70, 0.00001));
-        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.KILOMETERS.convert(12, DistanceUnit.MILES), 0.00001));
+        GeoPointDistanceQuery filter = (GeoPointDistanceQuery) parsedQuery;
+        assertThat(filter.getField(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.getCenterLat(), closeTo(40, GeoUtils.TOLERANCE));
+        assertThat(filter.getCenterLon(), closeTo(-70, GeoUtils.TOLERANCE));
+//        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
+//        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.KILOMETERS.convert(12, DistanceUnit.MILES), 0.00001));
     }
 
     public void testParsingAndToQuery9() throws IOException {
@@ -353,11 +342,11 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     private void assertGeoDistanceRangeQuery(String query) throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        GeoDistanceRangeQuery filter = (GeoDistanceRangeQuery) parsedQuery;
-        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
-        assertThat(filter.lat(), closeTo(40, 0.00001));
-        assertThat(filter.lon(), closeTo(-70, 0.00001));
-        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.DEFAULT.convert(12, DistanceUnit.MILES), 0.00001));
+        GeoPointDistanceQuery filter = (GeoPointDistanceQuery) parsedQuery;
+        assertThat(filter.getField(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.getCenterLat(), closeTo(40, GeoUtils.TOLERANCE));
+        assertThat(filter.getCenterLon(), closeTo(-70, GeoUtils.TOLERANCE));
+//        assertThat(filter.minInclusiveDistance(), equalTo(Double.NEGATIVE_INFINITY));
+//        assertThat(filter.maxInclusiveDistance(), closeTo(DistanceUnit.DEFAULT.convert(12, DistanceUnit.MILES), 0.00001));
     }
 }

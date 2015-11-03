@@ -21,9 +21,8 @@ package org.elasticsearch.index.fielddata.plain;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefIterator;
-import org.apache.lucene.util.CharsRefBuilder;
+import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
@@ -33,41 +32,26 @@ import org.elasticsearch.search.MultiValueMode;
 import java.io.IOException;
 
 abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<AtomicGeoPointFieldData> implements IndexGeoPointFieldData {
+    protected abstract static class BaseGeoPointTermsEnum {
+        protected final BytesRefIterator termsEnum;
 
-    protected static class GeoPointEnum {
-
-        private final BytesRefIterator termsEnum;
-        private final GeoPoint next;
-        private final CharsRefBuilder spare;
-
-        protected GeoPointEnum(BytesRefIterator termsEnum) {
+        protected BaseGeoPointTermsEnum(BytesRefIterator termsEnum) {
             this.termsEnum = termsEnum;
-            next = new GeoPoint();
-            spare = new CharsRefBuilder();
+        }
+    }
+
+    protected static class GeoPointTermsEnum extends BaseGeoPointTermsEnum {
+        protected GeoPointTermsEnum(BytesRefIterator termsEnum) {
+            super(termsEnum);
         }
 
-        public GeoPoint next() throws IOException {
+        public Long next() throws IOException {
             final BytesRef term = termsEnum.next();
             if (term == null) {
                 return null;
             }
-            spare.copyUTF8Bytes(term);
-            int commaIndex = -1;
-            for (int i = 0; i < spare.length(); i++) {
-                if (spare.charAt(i) == ',') { // saves a string creation
-                    commaIndex = i;
-                    break;
-                }
-            }
-            if (commaIndex == -1) {
-                assert false;
-                return next.reset(0, 0);
-            }
-            final double lat = Double.parseDouble(new String(spare.chars(), 0, commaIndex));
-            final double lon = Double.parseDouble(new String(spare.chars(), commaIndex + 1, spare.length() - (commaIndex + 1)));
-            return next.reset(lat, lon);
+            return NumericUtils.prefixCodedToLong(term);
         }
-
     }
 
     public AbstractIndexGeoPointFieldData(IndexSettings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
@@ -83,5 +67,4 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
     protected AtomicGeoPointFieldData empty(int maxDoc) {
         return AbstractAtomicGeoPointFieldData.empty(maxDoc);
     }
-
 }

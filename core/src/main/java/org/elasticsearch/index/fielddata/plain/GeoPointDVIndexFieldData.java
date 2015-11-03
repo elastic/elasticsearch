@@ -34,9 +34,9 @@ import org.elasticsearch.search.MultiValueMode;
 
 import java.io.IOException;
 
-public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData implements IndexGeoPointFieldData {
+public class GeoPointDVIndexFieldData extends DocValuesIndexFieldData implements IndexGeoPointFieldData {
 
-    public GeoPointBinaryDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
+    public GeoPointDVIndexFieldData(Index index, Names fieldNames, FieldDataType fieldDataType) {
         super(index, fieldNames, fieldDataType);
     }
 
@@ -48,7 +48,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
     @Override
     public AtomicGeoPointFieldData load(LeafReaderContext context) {
         try {
-            return new GeoPointBinaryDVAtomicFieldData(DocValues.getBinary(context.reader(), fieldNames.indexName()));
+            return new GeoPointDVAtomicFieldData(DocValues.getSortedNumeric(context.reader(), fieldNames.indexName()));
         } catch (IOException e) {
             throw new IllegalStateException("Cannot load doc values", e);
         }
@@ -66,8 +66,7 @@ public class GeoPointBinaryDVIndexFieldData extends DocValuesIndexFieldData impl
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             // Ignore breaker
             final Names fieldNames = fieldType.names();
-            return new GeoPointBinaryDVIndexFieldData(indexSettings.getIndex(), fieldNames, fieldType.fieldDataType());
+            return new GeoPointDVIndexFieldData(indexSettings.getIndex(), fieldNames, fieldType.fieldDataType());
         }
-
     }
 }

@@ -63,7 +63,6 @@ public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder
         List<GeoPoint> shell = null;
 
         Float boost = null;
-        boolean coerce = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         boolean ignoreMalformed = GeoValidationMethod.DEFAULT_LENIENT_PARSING;
         GeoValidationMethod validationMethod = null;
         String queryName = null;
@@ -101,11 +100,6 @@ public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder
                     queryName = parser.text();
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
-                    coerce = parser.booleanValue();
-                    if (coerce == true) {
-                        ignoreMalformed = true;
-                    }
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD)) {
@@ -119,10 +113,10 @@ public class GeoPolygonQueryParser implements QueryParser<GeoPolygonQueryBuilder
         }
         GeoPolygonQueryBuilder builder = new GeoPolygonQueryBuilder(fieldName, shell);
         if (validationMethod != null) {
-            // if GeoValidationMethod was explicitly set ignore deprecated coerce and ignoreMalformed settings
+            // if GeoValidationMethod was explicitly set ignore 'ignoreMalformed' settings
             builder.setValidationMethod(validationMethod);
         } else {
-            builder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
+            builder.setValidationMethod(GeoValidationMethod.infer(ignoreMalformed));
         }
 
         if (queryName != null) {

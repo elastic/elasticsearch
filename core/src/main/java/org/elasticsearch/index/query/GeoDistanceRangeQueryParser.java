@@ -273,15 +273,11 @@ public class GeoDistanceRangeQueryParser implements QueryParser<GeoDistanceRange
             queryBuilder.geoDistance(geoDistance);
         }
 
-        if (optimizeBbox != null) {
-            queryBuilder.optimizeBbox(optimizeBbox);
-        }
-
         if (validationMethod != null) {
             // if validation method is set explicitly ignore deprecated coerce/ignore malformed fields if any
             queryBuilder.setValidationMethod(validationMethod);
         } else {
-            queryBuilder.setValidationMethod(GeoValidationMethod.infer(coerce, ignoreMalformed));
+            queryBuilder.setValidationMethod(GeoValidationMethod.infer(ignoreMalformed));
         }
         return queryBuilder;
     }

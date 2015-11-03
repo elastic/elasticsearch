@@ -107,15 +107,15 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Warming up (ARC) - optimize_bbox");
         long start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.ARC, "memory");
+            run(client, GeoDistance.ARC);
         }
         long totalTime = System.currentTimeMillis() - start;
-        System.err.println("--> Warmup (ARC)  - optimize_bbox (memory) " + (totalTime / NUM_WARM) + "ms");
+        System.err.println("--> Warmup (ARC) " + (totalTime / NUM_WARM) + "ms");
 
-        System.err.println("--> Perf (ARC) - optimize_bbox (memory)");
+        System.err.println("--> Perf (ARC) ");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.ARC, "memory");
+            run(client, GeoDistance.ARC);
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Perf (ARC) - optimize_bbox " + (totalTime / NUM_RUNS) + "ms");
@@ -123,15 +123,15 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Warming up (ARC)  - optimize_bbox (indexed)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.ARC, "indexed");
+            run(client, GeoDistance.ARC);
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Warmup (ARC) - optimize_bbox (indexed) " + (totalTime / NUM_WARM) + "ms");
 
-        System.err.println("--> Perf (ARC) - optimize_bbox (indexed)");
+        System.err.println("--> Perf (ARC)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.ARC, "indexed");
+            run(client, GeoDistance.ARC);
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Perf (ARC) - optimize_bbox (indexed) " + (totalTime / NUM_RUNS) + "ms");
@@ -140,23 +140,23 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Warming up (ARC)  - no optimize_bbox");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.ARC, "none");
+            run(client, GeoDistance.ARC);
         }
         totalTime = System.currentTimeMillis() - start;
-        System.err.println("--> Warmup (ARC) - no optimize_bbox " + (totalTime / NUM_WARM) + "ms");
+        System.err.println("--> Warmup (ARC) " + (totalTime / NUM_WARM) + "ms");
 
-        System.err.println("--> Perf (ARC) - no optimize_bbox");
+        System.err.println("--> Perf (ARC) ");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.ARC, "none");
+            run(client, GeoDistance.ARC);
         }
         totalTime = System.currentTimeMillis() - start;
-        System.err.println("--> Perf (ARC) - no optimize_bbox " + (totalTime / NUM_RUNS) + "ms");
+        System.err.println("--> Perf (ARC) " + (totalTime / NUM_RUNS) + "ms");
 
         System.err.println("--> Warming up (SLOPPY_ARC)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.SLOPPY_ARC, "memory");
+            run(client, GeoDistance.SLOPPY_ARC);
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Warmup (SLOPPY_ARC) " + (totalTime / NUM_WARM) + "ms");
@@ -164,7 +164,7 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Perf (SLOPPY_ARC)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.SLOPPY_ARC, "memory");
+            run(client, GeoDistance.SLOPPY_ARC);
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Perf (SLOPPY_ARC) " + (totalTime / NUM_RUNS) + "ms");
@@ -172,7 +172,7 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Warming up (PLANE)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_WARM; i++) {
-            run(client, GeoDistance.PLANE, "memory");
+            run(client, GeoDistance.PLANE);
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Warmup (PLANE) " + (totalTime / NUM_WARM) + "ms");
@@ -180,7 +180,7 @@ public class GeoDistanceSearchBenchmark {
         System.err.println("--> Perf (PLANE)");
         start = System.currentTimeMillis();
         for (int i = 0; i < NUM_RUNS; i++) {
-            run(client, GeoDistance.PLANE, "memory");
+            run(client, GeoDistance.PLANE);
         }
         totalTime = System.currentTimeMillis() - start;
         System.err.println("--> Perf (PLANE) " + (totalTime / NUM_RUNS) + "ms");
@@ -188,12 +188,11 @@ public class GeoDistanceSearchBenchmark {
         node.close();
     }
 
-    public static void run(Client client, GeoDistance geoDistance, String optimizeBbox) {
+    public static void run(Client client, GeoDistance geoDistance) {
         client.prepareSearch() // from NY
                 .setSize(0)
                 .setQuery(boolQuery().must(matchAllQuery()).filter(geoDistanceQuery("location")
                         .distance("2km")
-                        .optimizeBbox(optimizeBbox)
                         .geoDistance(geoDistance)
                         .point(40.7143528, -74.0059731)))
                 .execute().actionGet();

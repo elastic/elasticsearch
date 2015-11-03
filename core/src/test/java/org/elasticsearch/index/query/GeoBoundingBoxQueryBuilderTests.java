@@ -22,14 +22,9 @@ package org.elasticsearch.index.query;
 import com.spatial4j.core.io.GeohashUtils;
 import com.spatial4j.core.shape.Rectangle;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.NumericRangeQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
@@ -82,7 +77,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             builder.setValidationMethod(randomFrom(GeoValidationMethod.values()));
         }
 
-        builder.type(randomFrom(GeoExecType.values()));
         return builder;
     }
 
@@ -92,26 +86,6 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             fail("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), is("Field name must not be empty."));
-        }
-    }
-
-    public void testValidationNullType() {
-        GeoBoundingBoxQueryBuilder qb = new GeoBoundingBoxQueryBuilder("teststring");
-        try {
-            qb.type((GeoExecType) null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("Type is not allowed to be null."));
-        }
-    }
-
-    public void testValidationNullTypeString() {
-        GeoBoundingBoxQueryBuilder qb = new GeoBoundingBoxQueryBuilder("teststring");
-        try {
-            qb.type((String) null);
-            fail("Expected IllegalArgumentException");
-        } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), is("cannot parse type from null string"));
         }
     }
 
@@ -165,7 +139,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             QueryValidationException except = null;
 
             GeoBoundingBoxQueryBuilder builder = createTestQueryBuilder();
-            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.COERCE), false);
+            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED), false);
             except = builder.checkLatLon(true);
             assertNull("Inner post 2.0 validation w/ coerce should ignore invalid "
                     + tester.getClass().getName()
@@ -173,7 +147,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
                     + tester.invalidCoordinate + " ",
                     except);
 
-            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.COERCE), false);
+            tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED), false);
             except = builder.checkLatLon(false);
             assertNull("Inner pre 2.0 validation w/ coerce should ignore invalid coordinate: "
                     + tester.getClass().getName()
@@ -183,7 +157,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
             tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.STRICT), false);
             except = builder.checkLatLon(true);
-            assertNull("Inner pre 2.0 validation w/o coerce should ignore invalid coordinate for old indexes: "
+            assertNull("STRICT validation should detect invalid coordinates: "
                     + tester.getClass().getName()
                     + " coordinate: "
                     + tester.invalidCoordinate,
@@ -191,7 +165,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
             tester.invalidateCoordinate(builder.setValidationMethod(GeoValidationMethod.STRICT), false);
             except = builder.checkLatLon(false);
-            assertNotNull("Inner post 2.0 validation w/o coerce should detect invalid coordinate: "
+            assertNotNull("STRICT validation should not detect invalid coordinate: "
                     + tester.getClass().getName()
                     + " coordinate: "
                     + tester.invalidCoordinate,
@@ -244,20 +218,9 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
         if (getCurrentTypes().length != 0 && "mapped_geo".equals(qb.fieldName())) {
             // only execute this test if we are running on a valid geo field
             qb.setCorners(200, 200, qb.bottomRight().getLat(), qb.bottomRight().getLon());
-            qb.setValidationMethod(GeoValidationMethod.COERCE);
+            qb.setValidationMethod(GeoValidationMethod.IGNORE_MALFORMED);
             Query query = qb.toQuery(createShardContext());
-            if (query instanceof ConstantScoreQuery) {
-                ConstantScoreQuery result = (ConstantScoreQuery) query;
-                BooleanQuery bboxFilter = (BooleanQuery) result.getQuery();
-                for (BooleanClause clause : bboxFilter.clauses()) {
-                    NumericRangeQuery boundary = (NumericRangeQuery) clause.getQuery();
-                    if (boundary.getMax() != null) {
-                        assertTrue("If defined, non of the maximum range values should be larger than 180", boundary.getMax().intValue() <= 180);
-                    }
-                }
-            } else {
-                assertTrue("memory queries should result in InMemoryGeoBoundingBoxQuery", query instanceof InMemoryGeoBoundingBoxQuery);
-            }
+            assertTrue("queries should result in GeoPointInBBoxQuery", query instanceof GeoPointInBBoxQuery);
         }
     }
 
@@ -267,11 +230,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryBuilder.type() == GeoExecType.INDEXED) {
-            assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
-        } else {
-            assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
-        }
+        assertTrue("Found no geo query.", query instanceof GeoPointInBBoxQuery);
     }
 
     public abstract class PointTester {
@@ -423,11 +382,11 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     private void assertGeoBoundingBoxQuery(String query) throws IOException {
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
-        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
-        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
-        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
-        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
-        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
+        GeoPointInBBoxQuery filter = (GeoPointInBBoxQuery) parsedQuery;
+        assertThat(filter.getField(), equalTo(GEO_POINT_FIELD_NAME));
+        assertThat(filter.getMaxLat(), closeTo(40, 1E-5));
+        assertThat(filter.getMinLon(), closeTo(-70, 1E-5));
+        assertThat(filter.getMinLat(), closeTo(30, 1E-5));
+        assertThat(filter.getMaxLon(), closeTo(-80, 1E-5));
     }
 }

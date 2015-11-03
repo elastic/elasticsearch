@@ -19,8 +19,8 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointInPolygonQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -99,16 +98,15 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-
-        List<GeoPoint> shell = new ArrayList<GeoPoint>();
-        for (GeoPoint geoPoint : this.shell) {
-            shell.add(new GeoPoint(geoPoint));
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType == null) {
+            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+        }
+        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
-        // validation was not available prior to 2.x, so to support bwc
-        // percolation queries we only ignore_malformed on 2.x created indexes
-        if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
+        if (!GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
             for (GeoPoint point : shell) {
                 if (!GeoUtils.isValidLatitude(point.lat())) {
                     throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(),
@@ -121,22 +119,17 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             }
         }
 
-        if (GeoValidationMethod.isCoerce(validationMethod)) {
-            for (GeoPoint point : shell) {
-                GeoUtils.normalizePoint(point, true, true);
-            }
-        }
-
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
-        }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+        double[] lats = new double[shell.size()];
+        double[] lons = new double[shell.size()];
+        GeoPoint p;
+        for (int i=0; i<shell.size(); ++i) {
+            GeoUtils.normalizePoint(p = shell.get(i));
+            lats[i] = p.getLat();
+            lons[i] = p.getLon();
         }
 
         IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-        return new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
+        return new GeoPointInPolygonQuery(indexFieldData.getFieldNames().indexName(), lons, lats);
     }
 
     @Override
@@ -151,7 +144,6 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         builder.endArray();
         builder.endObject();
 
-        builder.field(GeoPolygonQueryParser.COERCE_FIELD.getPreferredName(), GeoValidationMethod.isCoerce(validationMethod));
         builder.field(GeoPolygonQueryParser.IGNORE_MALFORMED_FIELD.getPreferredName(), GeoValidationMethod.isIgnoreMalformed(validationMethod));
 
         printBoostAndQueryName(builder);

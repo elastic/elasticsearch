@@ -19,8 +19,9 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
-import org.elasticsearch.Version;
+import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -32,7 +33,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
-import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -45,7 +45,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final GeoDistance DEFAULT_GEO_DISTANCE = GeoDistance.DEFAULT;
     public static final DistanceUnit DEFAULT_UNIT = DistanceUnit.DEFAULT;
-    public static final String DEFAULT_OPTIMIZE_BBOX = "memory";
 
     private final String fieldName;
 
@@ -59,8 +58,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
     private GeoDistance geoDistance = DEFAULT_GEO_DISTANCE;
 
     private DistanceUnit unit = DEFAULT_UNIT;
-
-    private String optimizeBbox = DEFAULT_OPTIMIZE_BBOX;
 
     private GeoValidationMethod validationMethod = GeoValidationMethod.DEFAULT;
 
@@ -175,26 +172,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         return unit;
     }
 
-    public GeoDistanceRangeQueryBuilder optimizeBbox(String optimizeBbox) {
-        if (optimizeBbox == null) {
-            throw new IllegalArgumentException("optimizeBbox must not be null");
-        }
-        switch (optimizeBbox) {
-            case "none":
-            case "memory":
-            case "indexed":
-                break;
-            default:
-                throw new IllegalArgumentException("optimizeBbox must be one of [none, memory, indexed]");
-        }
-        this.optimizeBbox = optimizeBbox;
-        return this;
-    }
-
-    public String optimizeBbox() {
-        return optimizeBbox;
-    }
-
     /** Set validation method for coordinates. */
     public GeoDistanceRangeQueryBuilder setValidationMethod(GeoValidationMethod method) {
         this.validationMethod = method;
@@ -208,11 +185,15 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType == null) {
+            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+        }
+        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+        }
 
-        final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
-        // validation was not available prior to 2.x, so to support bwc
-        // percolation queries we only ignore_malformed on 2.x created indexes
-        if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
+        if (!GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
             if (!GeoUtils.isValidLatitude(point.lat())) {
                 throw new QueryShardException(context, "illegal latitude value [{}] for [{}]", point.lat(), NAME);
             }
@@ -221,10 +202,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             }
         }
 
-        GeoPoint point = new GeoPoint(this.point);
-        if (GeoValidationMethod.isCoerce(validationMethod)) {
-            GeoUtils.normalizePoint(point, true, true);
-        }
+        GeoUtils.normalizePoint(point);
 
         Double fromValue = null;
         Double toValue = null;
@@ -235,7 +213,10 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 fromValue = DistanceUnit.parse((String) from, unit, DistanceUnit.DEFAULT);
             }
             fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
+        } else {
+            fromValue = new Double(0);
         }
+
         if (to != null) {
             if (to instanceof Number) {
                 toValue = unit.toMeters(((Number) to).doubleValue());
@@ -243,20 +224,16 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 toValue = DistanceUnit.parse((String) to, unit, DistanceUnit.DEFAULT);
             }
             toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
+        } else {
+            // computes the maximum distance at the given latitude
+            // todo move to Lucene GeoDistanceUtils
+            toValue = new Double(SloppyMath.haversin(point.lat(), point.lon(), point.lat(), (180.0 + point.lon()) % 360))*1000.0;
         }
-
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
-        }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
-        }
-        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
         IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-        return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,
-                indexFieldData, optimizeBbox);
+        return new GeoPointDistanceRangeQuery(indexFieldData.getFieldNames().indexName(), point.lon(), point.lat(),
+                (includeLower) ? fromValue : fromValue + org.apache.lucene.util.GeoUtils.TOLERANCE,
+                (includeUpper) ? toValue : toValue - org.apache.lucene.util.GeoUtils.TOLERANCE);
     }
 
     @Override
@@ -269,7 +246,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         builder.field(GeoDistanceRangeQueryParser.INCLUDE_UPPER_FIELD.getPreferredName(), includeUpper);
         builder.field(GeoDistanceRangeQueryParser.UNIT_FIELD.getPreferredName(), unit);
         builder.field(GeoDistanceRangeQueryParser.DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
-        builder.field(GeoDistanceRangeQueryParser.OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
         builder.field(GeoDistanceRangeQueryParser.VALIDATION_METHOD.getPreferredName(), validationMethod);
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -284,7 +260,6 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         queryBuilder.includeUpper = in.readBoolean();
         queryBuilder.unit = DistanceUnit.valueOf(in.readString());
         queryBuilder.geoDistance = GeoDistance.readGeoDistanceFrom(in);
-        queryBuilder.optimizeBbox = in.readString();
         queryBuilder.validationMethod = GeoValidationMethod.readGeoValidationMethodFrom(in);
         return queryBuilder;
     }
@@ -298,8 +273,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         out.writeBoolean(includeLower);
         out.writeBoolean(includeUpper);
         out.writeString(unit.name());
-        geoDistance.writeTo(out);;
-        out.writeString(optimizeBbox);
+        geoDistance.writeTo(out);
         validationMethod.writeTo(out);
     }
 
@@ -312,13 +286,12 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
                 (Objects.equals(includeUpper, other.includeUpper)) &&
                 (Objects.equals(includeLower, other.includeLower)) &&
                 (Objects.equals(geoDistance, other.geoDistance)) &&
-                (Objects.equals(optimizeBbox, other.optimizeBbox)) &&
                 (Objects.equals(validationMethod, other.validationMethod)));
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, point, from, to, includeUpper, includeLower, geoDistance, optimizeBbox, validationMethod);
+        return Objects.hash(fieldName, point, from, to, includeUpper, includeLower, geoDistance, validationMethod);
     }
 
     @Override

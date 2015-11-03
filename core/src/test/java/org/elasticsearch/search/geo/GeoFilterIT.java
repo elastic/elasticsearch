@@ -73,10 +73,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirs
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -450,13 +447,13 @@ public class GeoFilterIT extends ESIntegTestCase {
         GeoPoint point = new GeoPoint();
         for (SearchHit hit : distance.getHits()) {
             String name = hit.getId();
-            point.resetFromString(hit.fields().get("pin").getValue().toString());
+            point.resetFromIndexHash(hit.fields().get("pin").getValue());
             double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
             assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
             assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
             if (key.equals(name)) {
-                assertThat(dist, equalTo(0d));
+                assertThat(dist, closeTo(0d, 0.1d));
             }
         }
     }

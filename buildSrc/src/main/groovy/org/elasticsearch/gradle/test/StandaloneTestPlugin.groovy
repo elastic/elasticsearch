@@ -16,22 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.plugins.JavaBasePlugin
 
-/** Configures the build to have a rest integration test.  */
-class RestTestPlugin implements Plugin<Project> {
+/** Configures the build to have only unit tests.  */
+class StandaloneTestPlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
         project.pluginManager.apply(StandaloneTestBasePlugin)
 
-        RandomizedTestingTask integTest = RestIntegTestTask.configure(project)
-        RestSpecHack.configureDependencies(project)
-        integTest.configure {
+        Map testOptions = [
+            name: 'test',
+            type: RandomizedTestingTask,
+            dependsOn: 'testClasses',
+            group: JavaBasePlugin.VERIFICATION_GROUP,
+            description: 'Runs unit tests that are separate'
+        ]
+        RandomizedTestingTask test = project.tasks.create(testOptions)
+        test.configure(BuildPlugin.commonTestConfig(project))
+        test.configure {
             classpath = project.sourceSets.test.runtimeClasspath
             testClassesDir project.sourceSets.test.output.classesDir
         }

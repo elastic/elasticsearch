@@ -136,21 +136,18 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         return Collections.unmodifiableList(children);
     }
 
-    private Map<String, Long> readTimings(StreamInput in) throws IOException {
-        final int size = in.readVInt();
-        Map<String, Long> map = new HashMap<>(size);
-        for (int i = 0; i < size; ++i) {
-            map.put(in.readString(), in.readLong());
-        }
-        return Collections.unmodifiableMap(map);
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         queryType = in.readString();
         luceneDescription = in.readString();
         nodeTime = in.readLong();
-        timings = readTimings(in);
+
+        int timingsSize = in.readVInt();
+        timings = new HashMap<>(timingsSize);
+        for (int i = 0; i < timingsSize; ++i) {
+            timings.put(in.readString(), in.readLong());
+        }
+
         int size = in.readVInt();
         children = new ArrayList<>(size);
 
@@ -159,20 +156,16 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         }
     }
 
-    private void writeTimings(Map<String, Long> timings, StreamOutput out) throws IOException {
-        out.writeVInt(timings.size());
-        for (Map.Entry<String, Long> entry : timings.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeLong(entry.getValue());
-        }
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(queryType);
         out.writeString(luceneDescription);
         out.writeLong(nodeTime);            // not Vlong because can be negative
-        writeTimings(timings, out);
+        out.writeVInt(timings.size());
+        for (Map.Entry<String, Long> entry : timings.entrySet()) {
+            out.writeString(entry.getKey());
+            out.writeLong(entry.getValue());
+        }
         out.writeVInt(children.size());
         for (InternalProfileResult child : children) {
             child.writeTo(out);

@@ -220,17 +220,19 @@ public abstract class TransportSearchTypeAction extends TransportAction<SearchRe
                         logger.trace("{}: Failed to execute [{}]", t, shard, request);
                     }
                 }
+                final ShardSearchFailure[] shardSearchFailures = buildShardFailures();
                 if (successfulOps.get() == 0) {
                     if (logger.isDebugEnabled()) {
                         logger.debug("All shards failed for phase: [{}]", t, firstPhaseName());
                     }
+
                     // no successful ops, raise an exception
-                    raiseEarlyFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", buildShardFailures()));
+                    raiseEarlyFailure(new SearchPhaseExecutionException(firstPhaseName(), "all shards failed", t, shardSearchFailures));
                 } else {
                     try {
                         innerMoveToSecondPhase();
                     } catch (Throwable e) {
-                        raiseEarlyFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, buildShardFailures()));
+                        raiseEarlyFailure(new ReduceSearchPhaseException(firstPhaseName(), "", e, shardSearchFailures));
                     }
                 }
             } else {

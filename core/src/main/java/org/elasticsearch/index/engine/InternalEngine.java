@@ -50,6 +50,7 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
@@ -102,6 +103,8 @@ public class InternalEngine extends Engine {
 
     private final IndexThrottle throttle;
 
+    private final SequenceNumbersService seqNoService;
+
     public InternalEngine(EngineConfig engineConfig, boolean skipInitialTranslogRecovery) throws EngineException {
         super(engineConfig);
         this.versionMap = new LiveVersionMap();
@@ -115,6 +118,7 @@ public class InternalEngine extends Engine {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
+            seqNoService = new SequenceNumbersService(shardId, engineConfig.getIndexSettings());
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
             this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {
@@ -344,6 +348,10 @@ public class InternalEngine extends Engine {
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("index", t);
             throw new IndexFailedEngineException(shardId, index.type(), index.id(), t);
+        } finally {
+            if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                seqNoService.markSeqNoAsCompleted(index.seqNo());
+            }
         }
         checkVersionMapRefresh();
         return created;
@@ -380,6 +388,9 @@ public class InternalEngine extends Engine {
 
             final boolean created;
             index.updateVersion(updatedVersion);
+            if (index.origin() == Operation.Origin.PRIMARY) {
+                index.updateSeqNo(seqNoService.generateSeqNo());
+            }
 
             if (currentVersion == Versions.NOT_FOUND) {
                 // document does not exists, we can optimize for create
@@ -447,6 +458,10 @@ public class InternalEngine extends Engine {
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("delete", t);
             throw new DeleteFailedEngineException(shardId, delete, t);
+        } finally {
+            if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                seqNoService.markSeqNoAsCompleted(delete.seqNo());
+            }
         }
 
         maybePruneDeletedTombstones();
@@ -490,6 +505,11 @@ public class InternalEngine extends Engine {
                 }
             }
             updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
+
+            if (delete.origin() == Operation.Origin.PRIMARY) {
+                delete.updateSeqNo(seqNoService.generateSeqNo());
+            }
+
             final boolean found;
             if (currentVersion == Versions.NOT_FOUND) {
                 // doc does not exist and no prior deletes

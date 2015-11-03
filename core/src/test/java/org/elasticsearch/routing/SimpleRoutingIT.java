@@ -253,7 +253,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
             assertThat(client().prepareGet(indexOrAlias(), "type1", "1").setRouting("0").execute().actionGet().isExists(), equalTo(true));
         }
     }
-    
+
     public void testRequiredRoutingWithPathMappingBulk() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addAlias(new Alias("alias"))

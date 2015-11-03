@@ -19,10 +19,7 @@
 
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.index.CheckIndex;
-import org.apache.lucene.index.IndexCommit;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -82,6 +79,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.store.Store;
@@ -194,8 +192,10 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexSearcherWrapper searcherWrapper;
     private final TimeValue inactiveTime;
 
-    /** True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
-     *  IndexingMemoryController}). */
+    /**
+     * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
+     * IndexingMemoryController}).
+     */
     private final AtomicBoolean active = new AtomicBoolean();
 
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
@@ -223,7 +223,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.termVectorsService =  provider.getTermVectorsService();
         this.searchService = new ShardSearchStats(settings);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
-        this.indicesQueryCache =  provider.getIndicesQueryCache();
+        this.indicesQueryCache = provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
         this.indexFieldDataService = indexFieldDataService;
@@ -233,6 +233,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
         this.path = path;
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
+
         /* create engine config */
         logger.debug("state: [CREATED]");
 
@@ -445,22 +446,38 @@ public class IndexShard extends AbstractIndexShardComponent {
         return previousState;
     }
 
-    public Engine.Index prepareIndex(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) {
+    public Engine.Index prepareIndexOnPrimary(SourceToParse source, long version, VersionType versionType) {
         try {
-            return prepareIndex(docMapper(source.type()), source, version, versionType, origin);
+            if (shardRouting.primary() == false) {
+                throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
+            }
+            return prepareIndex(docMapper(source.type()), source, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, versionType, Engine.Operation.Origin.PRIMARY);
         } catch (Throwable t) {
             verifyNotClosed(t);
             throw t;
         }
     }
 
-    static Engine.Index prepareIndex(DocumentMapperForType docMapper, SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) {
+    public Engine.Index prepareIndexOnReplica(SourceToParse source, long seqNo, long version, VersionType versionType) {
+        try {
+            if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
+                throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
+            }
+            return prepareIndex(docMapper(source.type()), source, seqNo, version, versionType, Engine.Operation.Origin.REPLICA);
+        } catch (Throwable t) {
+            verifyNotClosed(t);
+            throw t;
+        }
+    }
+
+    static Engine.Index prepareIndex(DocumentMapperForType docMapper, SourceToParse source, long seqNo, long version, VersionType versionType, Engine.Operation.Origin origin) {
         long startTime = System.nanoTime();
         ParsedDocument doc = docMapper.getDocumentMapper().parse(source);
         if (docMapper.getMapping() != null) {
             doc.addDynamicMappingsUpdate(docMapper.getMapping());
         }
-        return new Engine.Index(docMapper.getDocumentMapper().uidMapper().term(doc.uid().stringValue()), doc, version, versionType, origin, startTime);
+        doc.seqNo().setLongValue(seqNo);
+        return new Engine.Index(docMapper.getDocumentMapper().uidMapper().term(doc.uid().stringValue()), doc, seqNo, version, versionType, origin, startTime);
     }
 
     /**
@@ -486,10 +503,27 @@ public class IndexShard extends AbstractIndexShardComponent {
         return created;
     }
 
-    public Engine.Delete prepareDelete(String type, String id, long version, VersionType versionType, Engine.Operation.Origin origin) {
-        long startTime = System.nanoTime();
+    public Engine.Delete prepareDeleteOnPrimary(String type, String id, long version, VersionType versionType) {
+        if (shardRouting.primary() == false) {
+            throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
+        }
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
-        return new Engine.Delete(type, id, documentMapper.uidMapper().term(Uid.createUid(type, id)), version, versionType, origin, startTime, false);
+        final Term uid = documentMapper.uidMapper().term(Uid.createUid(type, id));
+        return prepareDelete(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, versionType, Engine.Operation.Origin.PRIMARY);
+    }
+
+    public Engine.Delete prepareDeleteOnReplica(String type, String id, long seqNo, long version, VersionType versionType) {
+        if (shardRouting.primary()) {
+            throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
+        }
+        final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
+        final Term uid = documentMapper.uidMapper().term(Uid.createUid(type, id));
+        return prepareDelete(type, id, uid, seqNo, version, versionType, Engine.Operation.Origin.REPLICA);
+    }
+
+    static Engine.Delete prepareDelete(String type, String id, Term uid, long seqNo, long version, VersionType versionType, Engine.Operation.Origin origin) {
+        long startTime = System.nanoTime();
+        return new Engine.Delete(type, id, uid, seqNo, version, versionType, origin, startTime, false);
     }
 
     public void delete(Engine.Delete delete) {
@@ -533,11 +567,8 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public DocsStats docStats() {
-        final Engine.Searcher searcher = acquireSearcher("doc_stats");
-        try {
+        try (Engine.Searcher searcher = acquireSearcher("doc_stats")) {
             return new DocsStats(searcher.reader().numDocs(), searcher.reader().numDeletedDocs());
-        } finally {
-            searcher.close();
         }
     }
 
@@ -977,8 +1008,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.shardEventListener.delegates.add(onShardFailure);
     }
 
-    /** Change the indexing and translog buffer sizes.  If {@code IndexWriter} is currently using more than
-     *  the new buffering indexing size then we do a refresh to free up the heap. */
+    /**
+     * Change the indexing and translog buffer sizes.  If {@code IndexWriter} is currently using more than
+     * the new buffering indexing size then we do a refresh to free up the heap.
+     */
     public void updateBufferSize(ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
 
         final EngineConfig config = engineConfig;
@@ -1021,9 +1054,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         engine.getTranslog().updateBuffer(shardTranslogBufferSize);
     }
 
-    /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
-     *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
-     *  if the shard is inactive. */
+    /**
+     * Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
+     * indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
+     * if the shard is inactive.
+     */
     public boolean checkIdle() {
         return checkIdle(inactiveTime.nanos());
     }
@@ -1042,8 +1077,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         return active.get() == false;
     }
 
-    /** Returns {@code true} if this shard is active (has seen indexing ops in the last {@link
-     *  IndexShard#INDEX_SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}. */
+    /**
+     * Returns {@code true} if this shard is active (has seen indexing ops in the last {@link
+     * IndexShard#INDEX_SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}.
+     */
     public boolean getActive() {
         return active.get();
     }
@@ -1077,10 +1114,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         return storeRecovery.recoverFromStore(this, shouldExist, localNode);
     }
 
-    public boolean restoreFromRepository(IndexShardRepository repository, DiscoveryNode locaNode) {
+    public boolean restoreFromRepository(IndexShardRepository repository, DiscoveryNode localNode) {
         assert shardRouting.primary() : "recover from store only makes sense if the shard is a primary shard";
         StoreRecovery storeRecovery = new StoreRecovery(shardId, logger);
-        return storeRecovery.recoverFromRepository(this, repository, locaNode);
+        return storeRecovery.recoverFromRepository(this, repository, localNode);
     }
 
     /**
@@ -1244,35 +1281,32 @@ public class IndexShard extends AbstractIndexShardComponent {
                 reschedule();
                 return;
             }
-            threadPool.executor(ThreadPool.Names.REFRESH).execute(new Runnable() {
-                @Override
-                public void run() {
-                    try {
-                        if (getEngine().refreshNeeded()) {
-                            refresh("schedule");
-                        }
-                    } catch (EngineClosedException e) {
-                        // we are being closed, ignore
-                    } catch (RefreshFailedEngineException e) {
-                        if (e.getCause() instanceof InterruptedException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ClosedByInterruptException) {
-                            // ignore, we are being shutdown
-                        } else if (e.getCause() instanceof ThreadInterruptedException) {
-                            // ignore, we are being shutdown
-                        } else {
-                            if (state != IndexShardState.CLOSED) {
-                                logger.warn("Failed to perform scheduled engine refresh", e);
-                            }
-                        }
-                    } catch (Exception e) {
+            threadPool.executor(ThreadPool.Names.REFRESH).execute(() -> {
+                try {
+                    if (getEngine().refreshNeeded()) {
+                        refresh("schedule");
+                    }
+                } catch (EngineClosedException e) {
+                    // we are being closed, ignore
+                } catch (RefreshFailedEngineException e) {
+                    if (e.getCause() instanceof InterruptedException) {
+                        // ignore, we are being shutdown
+                    } else if (e.getCause() instanceof ClosedByInterruptException) {
+                        // ignore, we are being shutdown
+                    } else if (e.getCause() instanceof ThreadInterruptedException) {
+                        // ignore, we are being shutdown
+                    } else {
                         if (state != IndexShardState.CLOSED) {
                             logger.warn("Failed to perform scheduled engine refresh", e);
                         }
                     }
-
-                    reschedule();
+                } catch (Exception e) {
+                    if (state != IndexShardState.CLOSED) {
+                        logger.warn("Failed to perform scheduled engine refresh", e);
+                    }
                 }
+
+                reschedule();
             });
         }
 
@@ -1369,8 +1403,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         return engine;
     }
 
-    /** NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
-     *  closed. */
+    /**
+     * NOTE: returns null if engine is not yet started (e.g. recovery phase 1, copying over index files, is still running), or if engine is
+     * closed.
+     */
     protected Engine getEngineOrNull() {
         return this.currentEngineReference.get();
     }
@@ -1462,7 +1498,8 @@ public class IndexShard extends AbstractIndexShardComponent {
         final Engine.Warmer engineWarmer = (searcher, toLevel) -> warmer.warm(searcher, this, idxSettings, toLevel);
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig, inactiveTime);
+                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer,
+                indexCache.query(), cachingPolicy, translogConfig, inactiveTime);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {
@@ -1486,7 +1523,14 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public void incrementOperationCounter() {
+    /**
+     * increments the ongoing operations counter. If the given primary term is lower then the one in {@link #shardRouting}
+     * an {@link IllegalIndexShardStateException} is thrown.
+     */
+    public void incrementOperationCounter(long opPrimaryTerm) {
+        if (shardRouting.primaryTerm() > opPrimaryTerm) {
+            throw new IllegalIndexShardStateException(shardId, state, "operation term [{}] is too old (current [{}])", opPrimaryTerm, shardRouting.primaryTerm());
+        }
         indexShardOperationCounter.incRef();
     }
 
@@ -1578,6 +1622,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     /**
      * Simple struct encapsulating a shard failure
+     *
      * @see IndexShard#addShardFailureCallback(Callback)
      */
     public static final class ShardFailure {
@@ -1604,7 +1649,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     };
 
     private QueryShardContext newQueryShardContext() {
-        return new QueryShardContext(idxSettings, provider.getClient(), indexCache.bitsetFilterCache(), indexFieldDataService,  mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
+        return new QueryShardContext(idxSettings, provider.getClient(), indexCache.bitsetFilterCache(), indexFieldDataService, mapperService, similarityService, provider.getScriptService(), provider.getIndicesQueriesRegistry());
     }
 
     /**

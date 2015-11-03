@@ -19,9 +19,12 @@
 
 package org.elasticsearch.action.delete;
 
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
@@ -31,52 +34,17 @@ import java.io.IOException;
  * @see org.elasticsearch.action.delete.DeleteRequest
  * @see org.elasticsearch.client.Client#delete(DeleteRequest)
  */
-public class DeleteResponse extends ActionWriteResponse {
+public class DeleteResponse extends DocWriteResponse {
 
-    private String index;
-    private String id;
-    private String type;
-    private long version;
     private boolean found;
 
     public DeleteResponse() {
 
     }
 
-    public DeleteResponse(String index, String type, String id, long version, boolean found) {
-        this.index = index;
-        this.id = id;
-        this.type = type;
-        this.version = version;
+    public DeleteResponse(ShardId shardId, String type, String id, long seqNo, long version, boolean found) {
+        super(shardId, type, id, seqNo, version);
         this.found = found;
-    }
-
-    /**
-     * The index the document was deleted from.
-     */
-    public String getIndex() {
-        return this.index;
-    }
-
-    /**
-     * The type of the document deleted.
-     */
-    public String getType() {
-        return this.type;
-    }
-
-    /**
-     * The id of the document deleted.
-     */
-    public String getId() {
-        return this.id;
-    }
-
-    /**
-     * The version of the delete operation.
-     */
-    public long getVersion() {
-        return this.version;
     }
 
     /**
@@ -89,20 +57,23 @@ public class DeleteResponse extends ActionWriteResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        index = in.readString();
-        type = in.readString();
-        id = in.readString();
-        version = in.readLong();
         found = in.readBoolean();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeString(index);
-        out.writeString(type);
-        out.writeString(id);
-        out.writeLong(version);
         out.writeBoolean(found);
+    }
+
+    static final class Fields {
+        static final XContentBuilderString FOUND = new XContentBuilderString("found");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(Fields.FOUND, isFound());
+        super.toXContent(builder, params);
+        return builder;
     }
 }

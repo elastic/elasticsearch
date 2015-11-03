@@ -25,8 +25,10 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -134,6 +136,9 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                     IndexResponse indexResponse = result.response();
                     setResponse(item, new BulkItemResponse(item.id(), indexRequest.opType().lowercase(), indexResponse));
                 } catch (Throwable e) {
+                    // nocommit: since we now have RetryOnPrimaryException, retrying doesn't always mean the shard is closed.
+                    // some operations were already perform and have a seqno assigned. we shouldn't just reindex them
+                    // if we have a pending mapping update
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
                         // restore updated versions...
@@ -164,11 +169,13 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
 
                 try {
                     // add the response
-                    final WriteResult<DeleteResponse> writeResult = shardDeleteOperation(request, deleteRequest, indexShard);
+                    final WriteResult<DeleteResponse> writeResult = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);
                     DeleteResponse deleteResponse = writeResult.response();
                     location = locationToSync(location, writeResult.location);
                     setResponse(item, new BulkItemResponse(item.id(), OP_TYPE_DELETE, deleteResponse));
                 } catch (Throwable e) {
+                    // nocommit: since we now have RetryOnPrimaryException, retrying doesn't always mean the shard is closed.
+                    // some operations were already perform and have a seqno assigned. we shouldn't just reindex them
                     // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                     if (retryPrimaryException(e)) {
                         // restore updated versions...
@@ -216,7 +223,8 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                                 BytesReference indexSourceAsBytes = indexRequest.source();
                                 // add the response
                                 IndexResponse indexResponse = result.response();
-                                UpdateResponse updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getIndex(), indexResponse.getType(), indexResponse.getId(), indexResponse.getVersion(), indexResponse.isCreated());
+                                UpdateResponse updateResponse = new UpdateResponse(indexResponse.getShardInfo(), indexResponse.getShardId(),
+                                        indexResponse.getType(), indexResponse.getId(), indexResponse.getSeqNo(), indexResponse.getVersion(), indexResponse.isCreated());
                                 if (updateRequest.fields() != null && updateRequest.fields().length > 0) {
                                     Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(indexSourceAsBytes, true);
                                     updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, shardRequest.request.index(), indexResponse.getVersion(), sourceAndContent.v2(), sourceAndContent.v1(), indexSourceAsBytes));
@@ -228,7 +236,8 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                                 WriteResult<DeleteResponse> writeResult = updateResult.writeResult;
                                 DeleteResponse response = writeResult.response();
                                 DeleteRequest deleteRequest = updateResult.request();
-                                updateResponse = new UpdateResponse(response.getShardInfo(), response.getIndex(), response.getType(), response.getId(), response.getVersion(), false);
+                                updateResponse = new UpdateResponse(response.getShardInfo(), response.getShardId(), response.getType(),
+                                        response.getId(), response.getSeqNo(), response.getVersion(), false);
                                 updateResponse.setGetResult(updateHelper.extractGetResult(updateRequest, shardRequest.request.index(), response.getVersion(), updateResult.result.updatedSourceAsMap(), updateResult.result.updateSourceContentType(), null));
                                 // Replace the update request to the translated delete request to execute on the replica.
                                 item = request.items()[requestIndex] = new BulkItemRequest(request.items()[requestIndex].id(), deleteRequest);
@@ -250,6 +259,8 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                                         new BulkItemResponse.Failure(request.index(), updateRequest.type(), updateRequest.id(), t)));
                             }
                         } else {
+                            // nocommit: since we now have RetryOnPrimaryException, retrying doesn't always mean the shard is closed.
+                            // some operations were already perform and have a seqno assigned. we shouldn't just reindex them
                             // rethrow the failure if we are going to retry on primary and let parent failure to handle it
                             if (retryPrimaryException(t)) {
                                 // restore updated versions...
@@ -304,7 +315,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             assert preVersionTypes[requestIndex] != null;
         }
 
-        processAfter(request.refresh(), indexShard, location);
+        processAfterWrite(request.refresh(), indexShard, location);
         BulkItemResponse[] responses = new BulkItemResponse[request.items().length];
         BulkItemRequest[] items = request.items();
         for (int i = 0; i < items.length; i++) {
@@ -320,7 +331,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
         }
     }
 
-    private WriteResult shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, ClusterState clusterState,
+    private WriteResult<IndexResponse> shardIndexOperation(BulkShardRequest request, IndexRequest indexRequest, ClusterState clusterState,
                                             IndexShard indexShard, boolean processed) throws Throwable {
 
         // validate, if routing is required, that we got routing
@@ -335,20 +346,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             indexRequest.process(clusterState.metaData(), mappingMd, allowIdGeneration, request.index());
         }
 
-        return executeIndexRequestOnPrimary(request, indexRequest, indexShard);
-    }
-
-    private WriteResult<DeleteResponse> shardDeleteOperation(BulkShardRequest request, DeleteRequest deleteRequest, IndexShard indexShard) {
-        Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.PRIMARY);
-        indexShard.delete(delete);
-        // update the request with the version so it will go to the replicas
-        deleteRequest.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
-        deleteRequest.version(delete.version());
-
-        assert deleteRequest.versionType().validateVersionForWrites(deleteRequest.version());
-
-        DeleteResponse deleteResponse = new DeleteResponse(request.index(), deleteRequest.type(), deleteRequest.id(), delete.version(), delete.found());
-        return new WriteResult(deleteResponse, delete.getTranslogLocation());
+        return TransportIndexAction.executeIndexRequestOnPrimary(indexRequest, indexShard, mappingUpdatedAction);
     }
 
     static class UpdateResult {
@@ -424,7 +422,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             case DELETE:
                 DeleteRequest deleteRequest = translate.action();
                 try {
-                    WriteResult result = shardDeleteOperation(bulkShardRequest, deleteRequest, indexShard);
+                    WriteResult result = TransportDeleteAction.executeDeleteRequestOnPrimary(deleteRequest, indexShard);
                     return new UpdateResult(translate, deleteRequest, result);
                 } catch (Throwable t) {
                     t = ExceptionsHelper.unwrapCause(t);
@@ -460,7 +458,8 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                     SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, indexRequest.source()).index(shardId.getIndex()).type(indexRequest.type()).id(indexRequest.id())
                             .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
-                    final Engine.Index operation = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA);
+                    final Engine.Index operation = indexShard.prepareIndexOnReplica(sourceToParse,
+                            indexRequest.seqNo(), indexRequest.version(), indexRequest.versionType());
                     Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
                     if (update != null) {
                         throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
@@ -477,7 +476,8 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             } else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
-                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.REPLICA);
+                    Engine.Delete delete = indexShard.prepareDeleteOnReplica(deleteRequest.type(), deleteRequest.id(),
+                            deleteRequest.seqNo(), deleteRequest.version(), deleteRequest.versionType());
                     indexShard.delete(delete);
                     location = locationToSync(location, delete.getTranslogLocation());
                 } catch (Throwable e) {
@@ -492,7 +492,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             }
         }
 
-        processAfter(request.refresh(), indexShard, location);
+        processAfterWrite(request.refresh(), indexShard, location);
     }
 
     private void applyVersion(BulkItemRequest item, long version, VersionType versionType) {

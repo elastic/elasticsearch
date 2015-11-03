@@ -161,9 +161,10 @@ public class ShadowEngineTests extends ESTestCase {
     private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, ParseContext.Document document, BytesReference source, Mapping mappingsUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
+        Field seqNoField = new NumericDocValuesField("_seq_no", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
+        return new ParsedDocument(uidField, versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingsUpdate);
     }
 
     protected Store createStore(Path p) throws IOException {
@@ -220,7 +221,9 @@ public class ShadowEngineTests extends ESTestCase {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
-        }}, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
+            }
+        }, null, IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5)
+        );
         try {
             config.setCreate(Lucene.indexExists(store.directory()) == false);
         } catch (IOException e) {

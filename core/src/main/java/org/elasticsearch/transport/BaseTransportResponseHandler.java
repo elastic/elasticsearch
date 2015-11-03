@@ -20,7 +20,7 @@
 package org.elasticsearch.transport;
 
 /**
- * A simple based class that always spawns.
+ * A simple base class that always spawns.
  */
 public abstract class BaseTransportResponseHandler<T extends TransportResponse> implements TransportResponseHandler<T> {
 

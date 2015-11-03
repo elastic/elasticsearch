@@ -129,11 +129,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     };
 
 
-
     /**
      * Creates a new Translog instance. This method will create a new transaction log unless the given {@link TranslogConfig} has
      * a non-null {@link org.elasticsearch.index.translog.Translog.TranslogGeneration}. If the generation is null this method
      * us destructive and will delete all files in the translog path given.
+     *
      * @see TranslogConfig#getTranslogPath()
      */
     public Translog(TranslogConfig config) throws IOException {
@@ -141,7 +141,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         this.config = config;
         TranslogGeneration translogGeneration = config.getTranslogGeneration();
 
-        if (translogGeneration == null ||  translogGeneration.translogUUID == null) { // legacy case
+        if (translogGeneration == null || translogGeneration.translogUUID == null) { // legacy case
             translogUUID = Strings.randomBase64UUID();
         } else {
             translogUUID = translogGeneration.translogUUID;
@@ -347,7 +347,6 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
 
-
     TranslogWriter createWriter(long fileGeneration) throws IOException {
         TranslogWriter newFile;
         try {
@@ -508,6 +507,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Ensures that the given location has be synced / written to the underlying storage.
+     *
      * @return Returns <code>true</code> iff this call caused an actual sync operation otherwise <code>false</code>
      */
     public boolean ensureSynced(Location location) throws IOException {
@@ -749,13 +749,21 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
+            if (this == o) {
+                return true;
+            }
+            if (o == null || getClass() != o.getClass()) {
+                return false;
+            }
 
             Location location = (Location) o;
 
-            if (generation != location.generation) return false;
-            if (translogLocation != location.translogLocation) return false;
+            if (generation != location.generation) {
+                return false;
+            }
+            if (translogLocation != location.translogLocation) {
+                return false;
+            }
             return size == location.size;
 
         }
@@ -846,10 +854,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     public static class Index implements Operation {
-        public static final int SERIALIZATION_FORMAT = 6;
+        public static final int SERIALIZATION_FORMAT = 7;
 
         private String id;
         private String type;
+        private long seqNo = -1;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
         private BytesReference source;
@@ -867,6 +876,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.source = index.source();
             this.routing = index.routing();
             this.parent = index.parent();
+            this.seqNo = index.seqNo();
             this.version = index.version();
             this.timestamp = index.timestamp();
             this.ttl = index.ttl();
@@ -877,6 +887,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.type = type;
             this.id = id;
             this.source = new BytesArray(source);
+            this.seqNo = 0;
+            this.version = 0;
         }
 
         @Override
@@ -915,6 +927,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public BytesReference source() {
             return this.source;
+        }
+
+        public long seqNo() {
+            return seqNo;
         }
 
         public long version() {
@@ -959,6 +975,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 if (version >= 6) {
                     this.versionType = VersionType.fromValue(in.readByte());
                 }
+                if (version >= 7) {
+                    this.seqNo = in.readVLong();
+                }
             } catch (Exception e) {
                 throw new ElasticsearchException("failed to read [" + type + "][" + id + "]", e);
             }
@@ -988,6 +1007,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeLong(timestamp);
             out.writeLong(ttl);
             out.writeByte(versionType.getValue());
+            out.writeVLong(seqNo);
         }
 
         @Override
@@ -1002,6 +1022,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             Index index = (Index) o;
 
             if (version != index.version ||
+                    seqNo != index.seqNo ||
                     timestamp != index.timestamp ||
                     ttl != index.ttl ||
                     id.equals(index.id) == false ||
@@ -1021,6 +1042,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         public int hashCode() {
             int result = id.hashCode();
             result = 31 * result + type.hashCode();
+            result = 31 * result + Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();
             result = 31 * result + source.hashCode();
@@ -1041,9 +1063,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     public static class Delete implements Operation {
-        public static final int SERIALIZATION_FORMAT = 2;
+        public static final int SERIALIZATION_FORMAT = 3;
 
         private Term uid;
+        private long seqNo = -1L;
         private long version = Versions.MATCH_ANY;
         private VersionType versionType = VersionType.INTERNAL;
 
@@ -1051,19 +1074,19 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Delete(Engine.Delete delete) {
-            this(delete.uid());
-            this.version = delete.version();
-            this.versionType = delete.versionType();
+            this(delete.uid(), delete.seqNo(), delete.version(), delete.versionType());
         }
 
+        /** utility for testing */
         public Delete(Term uid) {
-            this.uid = uid;
+            this(uid, 0, 0, VersionType.EXTERNAL);
         }
 
-        public Delete(Term uid, long version, VersionType versionType) {
+        public Delete(Term uid, long seqNo, long version, VersionType versionType) {
             this.uid = uid;
             this.version = version;
             this.versionType = versionType;
+            this.seqNo = seqNo;
         }
 
         @Override
@@ -1080,6 +1103,10 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             return this.uid;
         }
 
+        public long seqNo() {
+            return seqNo;
+        }
+
         public long version() {
             return this.version;
         }
@@ -1089,7 +1116,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         @Override
-        public Source getSource(){
+        public Source getSource() {
             throw new IllegalStateException("trying to read doc source from delete operation");
         }
 
@@ -1103,6 +1130,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (version >= 2) {
                 this.versionType = VersionType.fromValue(in.readByte());
             }
+            if (version >= 3) {
+                this.seqNo = in.readVLong();
+            }
             assert versionType.validateVersionForWrites(version);
 
         }
@@ -1114,6 +1144,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.writeString(uid.text());
             out.writeLong(version);
             out.writeByte(versionType.getValue());
+            out.writeVLong(seqNo);
         }
 
         @Override
@@ -1127,7 +1158,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
             Delete delete = (Delete) o;
 
-            return version == delete.version &&
+            return version == delete.version && seqNo == delete.seqNo &&
                     uid.equals(delete.uid) &&
                     versionType == delete.versionType;
         }
@@ -1135,6 +1166,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         @Override
         public int hashCode() {
             int result = uid.hashCode();
+            result = 31 * result + Long.hashCode(seqNo);
             result = 31 * result + Long.hashCode(version);
             result = 31 * result + versionType.hashCode();
             return result;
@@ -1198,7 +1230,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 // to prevent this unfortunately.
                 in.mark(opSize);
 
-                in.skip(opSize-4);
+                in.skip(opSize - 4);
                 verifyChecksum(in);
                 in.reset();
             }
@@ -1250,7 +1282,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         out.writeByte(op.opType().id());
         op.writeTo(out);
         long checksum = out.getChecksum();
-        out.writeInt((int)checksum);
+        out.writeInt((int) checksum);
     }
 
     /**

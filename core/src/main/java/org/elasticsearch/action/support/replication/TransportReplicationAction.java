@@ -22,13 +22,9 @@ package org.elasticsearch.action.support.replication;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
-import org.elasticsearch.action.bulk.BulkShardRequest;
-import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequest.OpType;
-import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
@@ -56,10 +52,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
-import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
@@ -78,7 +71,7 @@ import java.util.function.Supplier;
 
 /**
  */
-public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ActionWriteResponse> extends TransportAction<Request, Response> {
+public abstract class TransportReplicationAction<Request extends ReplicationRequest, ReplicaRequest extends ReplicationRequest, Response extends ReplicationResponse> extends TransportAction<Request, Response> {
 
     public static final String SHARD_FAILURE_TIMEOUT = "action.support.replication.shard.failure_timeout";
 
@@ -195,7 +188,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         return false;
     }
 
-    protected static class WriteResult<T extends ActionWriteResponse> {
+    protected static class WriteResult<T extends ReplicationResponse> {
 
         public final T response;
         public final Translog.Location location;
@@ -206,10 +199,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         @SuppressWarnings("unchecked")
-        public <T extends ActionWriteResponse> T response() {
+        public <T extends ReplicationResponse> T response() {
             // this sets total, pending and failed to 0 and this is ok, because we will embed this into the replica
             // request and not use it
-            response.setShardInfo(new ActionWriteResponse.ShardInfo());
+            response.setShardInfo(new ReplicationResponse.ShardInfo());
             return (T) response;
         }
 
@@ -314,7 +307,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         @Override
         protected void doRun() throws Exception {
-            try (Releasable shardReference = getIndexShardOperationsCounter(request.internalShardId)) {
+            try (Releasable shardReference = getIndexShardOperationsCounter(request.internalShardId, request.primaryTerm)) {
                 shardOperationOnReplica(request.internalShardId, request);
             }
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
@@ -577,9 +570,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
             final ReplicationPhase replicationPhase;
             try {
-                indexShardReference = getIndexShardOperationsCounter(primary.shardId());
+                indexShardReference = getIndexShardOperationsCounter(primary.shardId(), primary.primaryTerm());
                 PrimaryOperationRequest por = new PrimaryOperationRequest(primary.id(), internalRequest.concreteIndex(), internalRequest.request());
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(observer.observedState(), por);
+                primaryResponse.v2().primaryTerm(primary.primaryTerm());
                 logger.trace("operation completed on primary [{}]", primary);
                 replicationPhase = new ReplicationPhase(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener, indexShardReference, shardFailedTimeout);
             } catch (Throwable e) {
@@ -664,10 +658,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     }
 
-    protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
+    protected Releasable getIndexShardOperationsCounter(ShardId shardId, long opPrimaryTerm) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.index().getName());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        return new IndexShardReference(indexShard);
+        return new IndexShardReference(indexShard, opPrimaryTerm);
     }
 
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
@@ -961,20 +955,20 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             if (finished.compareAndSet(false, true)) {
                 Releasables.close(indexShardReference);
                 final ShardId shardId = shardIt.shardId();
-                final ActionWriteResponse.ShardInfo.Failure[] failuresArray;
+                final ReplicationResponse.ShardInfo.Failure[] failuresArray;
                 if (!shardReplicaFailures.isEmpty()) {
                     int slot = 0;
-                    failuresArray = new ActionWriteResponse.ShardInfo.Failure[shardReplicaFailures.size()];
+                    failuresArray = new ReplicationResponse.ShardInfo.Failure[shardReplicaFailures.size()];
                     for (Map.Entry<String, Throwable> entry : shardReplicaFailures.entrySet()) {
                         RestStatus restStatus = ExceptionsHelper.status(entry.getValue());
-                        failuresArray[slot++] = new ActionWriteResponse.ShardInfo.Failure(
+                        failuresArray[slot++] = new ReplicationResponse.ShardInfo.Failure(
                                 shardId.getIndex(), shardId.getId(), entry.getKey(), entry.getValue(), restStatus, false
                         );
                     }
                 } else {
-                    failuresArray = ActionWriteResponse.EMPTY;
+                    failuresArray = ReplicationResponse.EMPTY;
                 }
-                finalResponse.setShardInfo(new ActionWriteResponse.ShardInfo(
+                finalResponse.setShardInfo(new ReplicationResponse.ShardInfo(
                                 totalShards,
                                 success.get(),
                                 failuresArray
@@ -1046,13 +1040,15 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
+
     static class IndexShardReference implements Releasable {
 
         final private IndexShard counter;
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        IndexShardReference(IndexShard counter) {
-            counter.incrementOperationCounter();
+        IndexShardReference(IndexShard counter, long opPrimaryTerm) {
+            // this enforces primary terms, if we're lagging an exception will be thrown.
+            counter.incrementOperationCounter(opPrimaryTerm);
             this.counter = counter;
         }
 
@@ -1064,44 +1060,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    /** Utility method to create either an index or a create operation depending
-     *  on the {@link OpType} of the request. */
-    private final Engine.Index prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
-        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
-                .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
-            return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
-
-    }
-
-    /** Execute the given {@link IndexRequest} on a primary shard, throwing a
-     *  {@link RetryOnPrimaryException} if the operation needs to be re-tried. */
-    protected final WriteResult<IndexResponse> executeIndexRequestOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) throws Throwable {
-        Engine.Index operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
-        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
-        final ShardId shardId = indexShard.shardId();
-        if (update != null) {
-            final String indexName = shardId.getIndex();
-            mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
-            operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
-            update = operation.parsedDoc().dynamicMappingsUpdate();
-            if (update != null) {
-                throw new RetryOnPrimaryException(shardId,
-                        "Dynamics mappings are not available on the node that holds the primary yet");
-            }
-        }
-        final boolean created = indexShard.index(operation);
-
-        // update the version on request so it will happen on the replicas
-        final long version = operation.version();
-        request.version(version);
-        request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
-
-        assert request.versionType().validateVersionForWrites(request.version());
-
-        return new WriteResult(new IndexResponse(shardId.getIndex(), request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
-    }
-
-    protected final void processAfter(boolean refresh, IndexShard indexShard, Translog.Location location) {
+    /** utility method for common tasks that should be done after a write operation */
+    public static void processAfterWrite(boolean refresh, IndexShard indexShard, Translog.Location location) {
         if (refresh) {
             try {
                 indexShard.refresh("refresh_flag_index");

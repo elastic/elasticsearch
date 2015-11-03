@@ -34,6 +34,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -41,6 +43,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
@@ -101,6 +104,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -312,7 +316,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareDelete("test").get();
         assertThat(indexShard.getOperationsCount(), equalTo(0));
         try {
-            indexShard.incrementOperationCounter();
+            indexShard.incrementOperationCounter(indexShard.routingEntry().primaryTerm());
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
@@ -325,11 +329,26 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         IndexShard indexShard = indexService.getShardOrNull(0);
+        final long primaryTerm = indexShard.shardRouting.primaryTerm();
         assertEquals(0, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
+        indexShard.incrementOperationCounter(primaryTerm);
         assertEquals(1, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
+        indexShard.incrementOperationCounter(primaryTerm);
         assertEquals(2, indexShard.getOperationsCount());
+
+        try {
+            indexShard.incrementOperationCounter(primaryTerm - 1);
+            fail("you can not increment the operation counter with an older primary term");
+        } catch (IllegalIndexShardStateException e) {
+            assertThat(e.getMessage(), containsString("operation term"));
+            assertThat(e.getMessage(), containsString("too old"));
+        }
+
+        // but you can increment with a newer one..
+        indexShard.incrementOperationCounter(primaryTerm + 1 + randomInt(20));
+
+
+        indexShard.decrementOperationCounter();
         indexShard.decrementOperationCounter();
         indexShard.decrementOperationCounter();
         assertEquals(0, indexShard.getOperationsCount());
@@ -580,9 +599,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
+        Field seqNoField = new NumericDocValuesField("_seq_no", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(uidField, versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
     public void testPreIndex() throws IOException {
@@ -771,7 +791,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertHitCount(response, 1);
     }
 
-    public void testFailIfIndexNotPresentInRecoverFromStore() throws IOException {
+    public void testFailIfIndexNotPresentInRecoverFromStore() throws Throwable {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -821,7 +841,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.updateRoutingEntry(routing, true);
         SearchResponse response = client().prepareSearch().get();
         assertHitCount(response, 0);
-        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(true).get();
+        // we can't issue this request through a client because of the inconsistencies we created with the cluster state
+        // doing it directly instead
+        IndexRequest request = client().prepareIndex("test", "test", "0").setSource("{}").request();
+        request.process(MetaData.builder().put(test.getMetaData(), false).build(), null, false, "test");
+        TransportIndexAction.executeIndexRequestOnPrimary(request, newShard, null);
+        newShard.refresh("test");
         assertHitCount(client().prepareSearch().get(), 1);
     }
 

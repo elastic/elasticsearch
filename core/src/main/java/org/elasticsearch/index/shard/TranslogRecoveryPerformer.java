@@ -128,7 +128,7 @@ public class TranslogRecoveryPerformer {
                     Translog.Index index = (Translog.Index) operation;
                     Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()), source(index.source()).type(index.type()).id(index.id())
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
-                            index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
+                            index.seqNo(), index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
@@ -141,8 +141,9 @@ public class TranslogRecoveryPerformer {
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
                     }
-                    engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
-                            delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
+                    Engine.Delete engineDelete = IndexShard.prepareDelete(uid.type(), uid.id(), delete.uid(), delete.seqNo(),
+                            delete.version(), delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
+                    engine.delete(engineDelete);
                     break;
                 default:
                     throw new IllegalStateException("No operation defined for [" + operation + "]");

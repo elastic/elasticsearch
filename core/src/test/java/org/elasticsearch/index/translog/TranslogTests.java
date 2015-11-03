@@ -302,7 +302,7 @@ public class TranslogTests extends ESTestCase {
         assertThat(stats.estimatedNumberOfOperations(), equalTo(0l));
         assertThat(stats.getTranslogSizeInBytes(), equalTo(firstOperationPosition));
         assertEquals(6, total.estimatedNumberOfOperations());
-        assertEquals(431, total.getTranslogSizeInBytes());
+        assertEquals(437, total.getTranslogSizeInBytes());
 
         BytesStreamOutput out = new BytesStreamOutput();
         total.writeTo(out);
@@ -310,10 +310,10 @@ public class TranslogTests extends ESTestCase {
         copy.readFrom(StreamInput.wrap(out.bytes()));
 
         assertEquals(6, copy.estimatedNumberOfOperations());
-        assertEquals(431, copy.getTranslogSizeInBytes());
+        assertEquals(437, copy.getTranslogSizeInBytes());
         assertEquals("\"translog\"{\n" +
                 "  \"operations\" : 6,\n" +
-                "  \"size_in_bytes\" : 431\n" +
+                "  \"size_in_bytes\" : 437\n" +
                 "}", copy.toString().trim());
 
         try {
@@ -475,7 +475,7 @@ public class TranslogTests extends ESTestCase {
                                     break;
                                 case DELETE:
                                     op = new Translog.Delete(new Term("_uid", threadId + "_" + opCount),
-                                            1 + randomInt(100000),
+                                            opCount, 1 + randomInt(100000),
                                             randomFrom(VersionType.values()));
                                     break;
                                 default:
@@ -1127,7 +1127,7 @@ public class TranslogTests extends ESTestCase {
         try (Translog translog = new Translog(config)) {
           fail("corrupted");
         } catch (IllegalStateException ex) {
-            assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=2683, numOps=55, translogFileGeneration= 2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration= 0}");
+            assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=2738, numOps=55, translogFileGeneration= 2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration= 0}");
         }
         Checkpoint.write(config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
         try (Translog translog = new Translog(config)) {

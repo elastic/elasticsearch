@@ -73,6 +73,7 @@ public final class EngineConfig {
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
 
+
     /**
      * Index setting for compound file on flush. This setting is realtime updateable.
      */
@@ -123,7 +124,8 @@ public final class EngineConfig {
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.indexingService = indexingService;
-        this.warmer = warmer == null ? (a,b) -> {} : warmer;
+        this.warmer = warmer == null ? (a, b) -> {
+        } : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
@@ -226,9 +228,9 @@ public final class EngineConfig {
      * Returns <code>true</code> iff delete garbage collection in the engine should be enabled. This setting is updateable
      * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value. The default is <code>true</code>
      * <p>
-     *     Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
-     *     time ({@link #getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
-     *     to fail.
+     * Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
+     * time ({@link #getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
+     * to fail.
      * </p>
      */
     public boolean isEnableGcDeletes() {
@@ -238,7 +240,7 @@ public final class EngineConfig {
     /**
      * Returns the {@link Codec} used in the engines {@link org.apache.lucene.index.IndexWriter}
      * <p>
-     *     Note: this settings is only read on startup.
+     * Note: this settings is only read on startup.
      * </p>
      */
     public Codec getCodec() {
@@ -259,7 +261,6 @@ public final class EngineConfig {
      *
      * @see org.elasticsearch.index.indexing.ShardIndexingService#postIndex(Engine.Index)
      * @see org.elasticsearch.index.indexing.ShardIndexingService#preIndex(Engine.Index)
-     *
      */
     public ShardIndexingService getIndexingService() {
         return indexingService;
@@ -323,7 +324,9 @@ public final class EngineConfig {
     /**
      * Returns the engines shard ID
      */
-    public ShardId getShardId() { return shardId; }
+    public ShardId getShardId() {
+        return shardId;
+    }
 
     /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
@@ -404,6 +407,7 @@ public final class EngineConfig {
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
-    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
-
+    public TimeValue getFlushMergesAfter() {
+        return flushMergesAfter;
+    }
 }

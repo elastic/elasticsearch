@@ -20,7 +20,7 @@
 package org.elasticsearch.rest.action.bulk;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
@@ -97,49 +97,35 @@ public class RestBulkAction extends BaseRestHandler {
                 for (BulkItemResponse itemResponse : response) {
                     builder.startObject();
                     builder.startObject(itemResponse.getOpType());
-                    builder.field(Fields._INDEX, itemResponse.getIndex());
-                    builder.field(Fields._TYPE, itemResponse.getType());
-                    builder.field(Fields._ID, itemResponse.getId());
-                    long version = itemResponse.getVersion();
-                    if (version != -1) {
-                        builder.field(Fields._VERSION, itemResponse.getVersion());
-                    }
                     if (itemResponse.isFailed()) {
+                        builder.field(Fields._INDEX, itemResponse.getIndex());
+                        builder.field(Fields._TYPE, itemResponse.getType());
+                        builder.field(Fields._ID, itemResponse.getId());
                         builder.field(Fields.STATUS, itemResponse.getFailure().getStatus().getStatus());
                         builder.startObject(Fields.ERROR);
                         ElasticsearchException.toXContent(builder, request, itemResponse.getFailure().getCause());
                         builder.endObject();
                     } else {
-                        ActionWriteResponse.ShardInfo shardInfo = itemResponse.getResponse().getShardInfo();
-                        shardInfo.toXContent(builder, request);
-                        if (itemResponse.getResponse() instanceof DeleteResponse) {
-                            DeleteResponse deleteResponse = itemResponse.getResponse();
-                            if (deleteResponse.isFound()) {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, RestStatus.NOT_FOUND.getStatus());
+                        final DocWriteResponse docResponse = itemResponse.getResponse();
+                        docResponse.toXContent(builder, request);
+                        RestStatus status = docResponse.getShardInfo().status();
+                        if (docResponse instanceof DeleteResponse) {
+                            DeleteResponse deleteResponse = (DeleteResponse) docResponse;
+                            if (deleteResponse.isFound() == false) {
+                                status = RestStatus.NOT_FOUND;
                             }
-                            builder.field(Fields.FOUND, deleteResponse.isFound());
-                        } else if (itemResponse.getResponse() instanceof IndexResponse) {
-                            IndexResponse indexResponse = itemResponse.getResponse();
+                        } else if (docResponse instanceof IndexResponse) {
+                            IndexResponse indexResponse = (IndexResponse) docResponse;
                             if (indexResponse.isCreated()) {
-                                builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
+                                status = RestStatus.CREATED;
                             }
-                        } else if (itemResponse.getResponse() instanceof UpdateResponse) {
-                            UpdateResponse updateResponse = itemResponse.getResponse();
+                        } else if (docResponse instanceof UpdateResponse) {
+                            UpdateResponse updateResponse = (UpdateResponse) docResponse;
                             if (updateResponse.isCreated()) {
-                                builder.field(Fields.STATUS, RestStatus.CREATED.getStatus());
-                            } else {
-                                builder.field(Fields.STATUS, shardInfo.status().getStatus());
-                            }
-                            if (updateResponse.getGetResult() != null) {
-                                builder.startObject(Fields.GET);
-                                updateResponse.getGetResult().toXContentEmbedded(builder, request);
-                                builder.endObject();
+                                status = RestStatus.CREATED;
                             }
                         }
+                        builder.field(Fields.STATUS, status.getStatus());
                     }
                     builder.endObject();
                     builder.endObject();
@@ -161,9 +147,5 @@ public class RestBulkAction extends BaseRestHandler {
         static final XContentBuilderString STATUS = new XContentBuilderString("status");
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        static final XContentBuilderString GET = new XContentBuilderString("get");
     }
-
 }

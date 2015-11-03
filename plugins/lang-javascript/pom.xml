@@ -24,7 +24,7 @@
         <dependency>
             <groupId>org.mozilla</groupId>
             <artifactId>rhino</artifactId>
-            <version>1.7R4</version>
+            <version>1.7.7</version>
         </dependency>
     </dependencies>
 

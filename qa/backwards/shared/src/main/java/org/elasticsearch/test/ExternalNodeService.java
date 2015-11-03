@@ -199,6 +199,7 @@ public class ExternalNodeService {
                     @Override
                     public void messageReceived(ChannelHandlerContext ctx, MessageEvent e) throws Exception {
                         String line = (String) e.getMessage();
+                        logger.debug("Client sent [{}]", line);
                         Deque<String> commandLine = new LinkedList<>();
                         Collections.addAll(commandLine, line.split(" "));
                         new Handler(e, commandLine).handle();
@@ -306,6 +307,7 @@ public class ExternalNodeService {
                 message("bound to [localhost:" + port + "]");
                 readUntilMatches(stdout, "started", ".+\\] started$", timeValueSeconds(1));
                 runningElasticsearches.put(port, process);
+                message("started");
                 process.getInputStream().close();
             } finally {
                 if (process != null && (port == null || !runningElasticsearches.containsKey(port))) {
@@ -353,7 +355,7 @@ public class ExternalNodeService {
         }
 
         private void message(String message) {
-            logger.debug("Sending {} to client", message);
+            logger.debug("Sending [{}] to client", message);
             e.getChannel().write(ChannelBuffers.copiedBuffer(message + '\n', StandardCharsets.UTF_8));
         }
 
@@ -385,10 +387,12 @@ public class ExternalNodeService {
                     reader.mark(1024 * 1024);
                     String line;
                     while ((line = reader.readLine()) != null) {
-                        logger.debug("Elasticsearch logged {}", line);
                         Matcher m = compiled.matcher(line);
                         if (m.matches()) {
+                            logger.debug("Elasticsearch logged {}", line);
                             return m;
+                        } else {
+                            logger.trace("Elasticsearch logged {}", line);
                         }
                     }
                     return null;

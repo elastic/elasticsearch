@@ -49,7 +49,13 @@ public class UpdateThreadPoolSettingsTests extends ESTestCase {
                     .put("name", "testCorrectThreadPoolTypePermittedInSettings")
                     .put("threadpool." + threadPoolName + ".type", correctThreadPoolType.getType())
                     .build());
-            assertEquals(info(threadPool, threadPoolName).getThreadPoolType(), correctThreadPoolType);
+            ThreadPool.Info info = info(threadPool, threadPoolName);
+            if (ThreadPool.Names.SAME.equals(threadPoolName)) {
+                assertNull(info); // we don't report on the "same" threadpool
+            } else {
+                // otherwise check we have the expected type
+                assertEquals(info.getThreadPoolType(), correctThreadPoolType);
+            }
         } finally {
             terminateThreadPoolIfNeeded(threadPool);
         }

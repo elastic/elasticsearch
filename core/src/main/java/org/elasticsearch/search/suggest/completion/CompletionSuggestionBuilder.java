@@ -127,26 +127,48 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
             return this;
         }
 
+        /**
+         * Returns the maximum number of edits
+         */
         int getEditDistance() {
             return editDistance;
         }
 
+        /**
+         * Returns if transpositions option is set
+         *
+         * if transpositions is set, then swapping one character for another counts as one edit instead of two.
+         */
         boolean isTranspositions() {
             return transpositions;
         }
 
+
+        /**
+         * Returns the length of input prefix after which edits are applied
+         */
         int getFuzzyMinLength() {
             return fuzzyMinLength;
         }
 
+        /**
+         * Returns the minimum length of the input prefix required to apply any edits
+         */
         int getFuzzyPrefixLength() {
             return fuzzyPrefixLength;
         }
 
+        /**
+         * Returns if all measurements (like edit distance, transpositions and lengths) are in unicode code
+         * points (actual letters) instead of bytes.
+         */
         boolean isUnicodeAware() {
             return unicodeAware;
         }
 
+        /**
+         * Returns the maximum automaton states allowed for fuzzy expansion
+         */
         int getMaxDeterminizedStates() {
             return maxDeterminizedStates;
         }

@@ -64,7 +64,6 @@ public abstract class ContextMapping implements ToXContent {
      * @param name name of context mapping
      */
     protected ContextMapping(Type type, String name) {
-        super();
         this.type = type;
         this.name = name;
     }

@@ -54,7 +54,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             final CompletionSuggestionContext suggestionContext, final IndexSearcher searcher, CharsRefBuilder spare) throws IOException {
         final CompletionFieldMapper.CompletionFieldType fieldType = suggestionContext.getFieldType();
         if (fieldType == null) {
-            throw new ElasticsearchException("field [" + suggestionContext.getField() + "] is not a completion field");
+            throw new IllegalArgumentException("field [" + suggestionContext.getField() + "] is not a completion field");
         }
         CompletionSuggestion completionSuggestion = new CompletionSuggestion(name, suggestionContext.getSize());
         spare.copyUTF8Bytes(suggestionContext.getText());
@@ -71,13 +71,12 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
                 contexts = fieldType.getContextMappings().getNamedContexts(suggestDoc.getContexts());
             }
             // collect payloads
-            Map<String, List<Object>> payload = Collections.emptyMap();
+            final Map<String, List<Object>> payload = new HashMap<>(0);
             Set<String> payloadFields = suggestionContext.getPayloadFields();
             if (!payloadFields.isEmpty()) {
                 int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, searcher.getIndexReader().leaves());
                 LeafReaderContext subReaderContext = searcher.getIndexReader().leaves().get(readerIndex);
                 int subDocId = suggestDoc.doc - subReaderContext.docBase;
-                payload = new LinkedHashMap<>(payloadFields.size());
                 for (String field : payloadFields) {
                     MappedFieldType payloadFieldType = suggestionContext.getMapperService().smartNameFieldType(field);
                     if (payloadFieldType != null) {

@@ -21,6 +21,7 @@ package org.elasticsearch.benchmark.search.geo;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.SizeValue;
@@ -46,7 +47,7 @@ public class GeoDistanceSearchBenchmark {
         ClusterHealthResponse clusterHealthResponse = client.admin().cluster().prepareHealth().setWaitForGreenStatus().execute().actionGet();
         if (clusterHealthResponse.isTimedOut()) {
             System.err.println("Failed to wait for green status, bailing");
-            System.exit(1);
+            exit(1);
         }
 
         final long NUM_DOCS = SizeValue.parseSizeValue("1m").singles();
@@ -197,5 +198,10 @@ public class GeoDistanceSearchBenchmark {
                         .geoDistance(geoDistance)
                         .point(40.7143528, -74.0059731)))
                 .execute().actionGet();
+    }
+
+    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
+    private static void exit(int status) {
+        System.exit(status);
     }
 }

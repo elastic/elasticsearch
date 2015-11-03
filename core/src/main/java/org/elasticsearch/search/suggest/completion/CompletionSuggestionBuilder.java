@@ -43,8 +43,8 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
 public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilder<CompletionSuggestionBuilder> {
     private FuzzyOptionsBuilder fuzzyOptionsBuilder;
     private RegexOptionsBuilder regexOptionsBuilder;
-    private Map<String, List<ToXContent>> queryContexts;
-    private String[] payloadFields;
+    private final Map<String, List<ToXContent>> queryContexts = new HashMap<>();
+    private final Set<String> payloadFields = new HashSet<>();
 
     public CompletionSuggestionBuilder(String name) {
         super(name, "completion");
@@ -283,7 +283,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
      * Note: Only doc values enabled fields are supported
      */
     public CompletionSuggestionBuilder payload(String... fields) {
-        this.payloadFields = fields;
+        Collections.addAll(this.payloadFields, fields);
         return this;
     }
 
@@ -306,9 +306,6 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
     }
 
     private CompletionSuggestionBuilder contexts(String name, ToXContent... queryContexts) {
-        if (this.queryContexts == null) {
-            this.queryContexts = new HashMap<>(2);
-        }
         List<ToXContent> contexts = this.queryContexts.get(name);
         if (contexts == null) {
             contexts = new ArrayList<>(2);
@@ -333,7 +330,7 @@ public class CompletionSuggestionBuilder extends SuggestBuilder.SuggestionBuilde
         if (regexOptionsBuilder != null) {
             regexOptionsBuilder.toXContent(builder, params);
         }
-        if (queryContexts != null) {
+        if (queryContexts.isEmpty() == false) {
             builder.startObject("contexts");
             for (Map.Entry<String, List<ToXContent>> entry : this.queryContexts.entrySet()) {
                 builder.startArray(entry.getKey());

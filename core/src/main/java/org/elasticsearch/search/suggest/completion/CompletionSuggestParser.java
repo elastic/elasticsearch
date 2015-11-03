@@ -71,7 +71,7 @@ import static org.elasticsearch.search.suggest.SuggestUtils.parseSuggestContext;
  */
 public class CompletionSuggestParser implements SuggestContextParser {
 
-    private CompletionSuggester completionSuggester;
+    private final CompletionSuggester completionSuggester;
 
     public CompletionSuggestParser(CompletionSuggester completionSuggester) {
         this.completionSuggester = completionSuggester;
@@ -82,12 +82,11 @@ public class CompletionSuggestParser implements SuggestContextParser {
         XContentParser.Token token;
         ParseFieldMatcher parseFieldMatcher = mapperService.getIndexSettings().getParseFieldMatcher();
         String fieldName = null;
-        CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester);
-
+        final CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester, mapperService, fieldDataService);
         XContentParser contextParser = null;
         CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptions = null;
         CompletionSuggestionBuilder.RegexOptionsBuilder regexOptions = null;
-        Set<String> payloadFields = new HashSet<>(1);
+        final Set<String> payloadFields = new HashSet<>(1);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -198,12 +197,10 @@ public class CompletionSuggestParser implements SuggestContextParser {
             suggestion.setFuzzyOptionsBuilder(fuzzyOptions);
             suggestion.setRegexOptionsBuilder(regexOptions);
             suggestion.setQueryContexts(queryContexts);
-            suggestion.setMapperService(mapperService);
-            suggestion.setFieldData(fieldDataService);
             suggestion.setPayloadFields(payloadFields);
             return suggestion;
         } else {
-            throw new ElasticsearchException("Field [" + suggestion.getField() + "] is not a completion suggest field");
+            throw new IllegalArgumentException("Field [" + suggestion.getField() + "] is not a completion suggest field");
         }
     }
 }

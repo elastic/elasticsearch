@@ -46,7 +46,7 @@ import java.util.*;
  * }
  *
  */
-public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
+public final class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestion.Entry> {
 
     public static final int TYPE = 4;
 
@@ -57,22 +57,25 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
         super(name, size);
     }
 
-    private class OptionPriorityQueue extends org.apache.lucene.util.PriorityQueue<Entry.Option> {
+    private static final class OptionPriorityQueue extends org.apache.lucene.util.PriorityQueue<Entry.Option> {
 
-        public OptionPriorityQueue(int maxSize) {
+        private final Comparator<Suggest.Suggestion.Entry.Option> comparator;
+
+        OptionPriorityQueue(int maxSize, Comparator<Suggest.Suggestion.Entry.Option> comparator) {
             super(maxSize);
+            this.comparator = comparator;
         }
 
         @Override
         protected boolean lessThan(Entry.Option a, Entry.Option b) {
-            int cmp = sortComparator().compare(a, b);
+            int cmp = comparator.compare(a, b);
             if (cmp != 0) {
                 return cmp > 0;
             }
             return Lookup.CHARSEQUENCE_COMPARATOR.compare(a.getText().string(), b.getText().string()) > 0;
         }
 
-        public Entry.Option[] get() {
+        Entry.Option[] get() {
             int size = size();
             Entry.Option[] results = new Entry.Option[size];
             for (int i = size - 1; i >= 0; i--) {
@@ -90,7 +93,8 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
             // combine suggestion entries from participating shards on the coordinating node
             // the global top <code>size</code> entries are collected from the shard results
             // using a priority queue
-            OptionPriorityQueue priorityQueue = new OptionPriorityQueue(size);
+            Comparator<Suggest.Suggestion.Entry.Option> optionComparator = sortComparator();
+            OptionPriorityQueue priorityQueue = new OptionPriorityQueue(size, sortComparator());
             for (Suggest.Suggestion<Entry> entries : toReduce) {
                 assert entries.getEntries().size() == 1 : "CompletionSuggestion must have only one entry";
                 for (Entry.Option option : entries.getEntries().get(0)) {
@@ -119,7 +123,7 @@ public class CompletionSuggestion extends Suggest.Suggestion<CompletionSuggestio
         return new Entry();
     }
 
-    public static class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
+    public final static class Entry extends Suggest.Suggestion.Entry<CompletionSuggestion.Entry.Option> {
 
         public Entry(Text text, int offset, int length) {
             super(text, offset, length);

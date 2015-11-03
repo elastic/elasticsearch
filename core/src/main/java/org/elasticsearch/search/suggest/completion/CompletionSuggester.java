@@ -30,7 +30,6 @@ import org.apache.lucene.search.suggest.document.TopSuggestDocs;
 import org.apache.lucene.search.suggest.document.TopSuggestDocsCollector;
 import org.apache.lucene.util.*;
 import org.apache.lucene.util.PriorityQueue;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.index.fielddata.AtomicFieldData;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
@@ -63,29 +62,30 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
         TopSuggestDocsCollector collector = new TopDocumentsCollector(suggestionContext.getSize());
         suggest(searcher, suggestionContext.toQuery(), collector);
         int numResult = 0;
+        List<LeafReaderContext> leaves = searcher.getIndexReader().leaves();
         for (TopSuggestDocs.SuggestScoreDoc suggestScoreDoc : collector.get().scoreLookupDocs()) {
             TopDocumentsCollector.SuggestDoc suggestDoc = (TopDocumentsCollector.SuggestDoc) suggestScoreDoc;
             // collect contexts
             Map<String, Set<CharSequence>> contexts = Collections.emptyMap();
-            if (fieldType.hasContextMappings() && !suggestDoc.getContexts().isEmpty()) {
+            if (fieldType.hasContextMappings() && suggestDoc.getContexts().isEmpty() == false) {
                 contexts = fieldType.getContextMappings().getNamedContexts(suggestDoc.getContexts());
             }
             // collect payloads
             final Map<String, List<Object>> payload = new HashMap<>(0);
             Set<String> payloadFields = suggestionContext.getPayloadFields();
-            if (!payloadFields.isEmpty()) {
-                int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, searcher.getIndexReader().leaves());
-                LeafReaderContext subReaderContext = searcher.getIndexReader().leaves().get(readerIndex);
-                int subDocId = suggestDoc.doc - subReaderContext.docBase;
+            if (payloadFields.isEmpty() == false) {
+                final int readerIndex = ReaderUtil.subIndex(suggestDoc.doc, leaves);
+                final LeafReaderContext subReaderContext = leaves.get(readerIndex);
+                final int subDocId = suggestDoc.doc - subReaderContext.docBase;
                 for (String field : payloadFields) {
                     MappedFieldType payloadFieldType = suggestionContext.getMapperService().smartNameFieldType(field);
                     if (payloadFieldType != null) {
-                        AtomicFieldData data = suggestionContext.getFieldData().getForField(payloadFieldType).load(subReaderContext);
-                        ScriptDocValues scriptValues = data.getScriptValues();
+                        final AtomicFieldData data = suggestionContext.getIndexFieldDataService().getForField(payloadFieldType).load(subReaderContext);
+                        final ScriptDocValues scriptValues = data.getScriptValues();
                         scriptValues.setNextDocId(subDocId);
                         payload.put(field, new ArrayList<>(scriptValues.getValues()));
                     } else {
-                        throw new ElasticsearchException("payload field [" + field + "] does not exist");
+                        throw new IllegalArgumentException("payload field [" + field + "] does not exist");
                     }
                 }
             }
@@ -117,12 +117,12 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     }
 
     // TODO: this should be refactored and moved to lucene
-    private static class TopDocumentsCollector extends TopSuggestDocsCollector {
+    private final static class TopDocumentsCollector extends TopSuggestDocsCollector {
 
         /**
          * Holds a list of suggest meta data for a doc
          */
-        private static class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
+        private final static class SuggestDoc extends TopSuggestDocs.SuggestScoreDoc {
 
             private List<TopSuggestDocs.SuggestScoreDoc> suggestScoreDocs;
 
@@ -168,7 +168,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
             }
         }
 
-        private static class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
+        private final static class SuggestDocPriorityQueue extends PriorityQueue<SuggestDoc> {
 
             public SuggestDocPriorityQueue(int maxSize) {
                 super(maxSize);

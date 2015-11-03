@@ -25,6 +25,9 @@ import org.gradle.api.tasks.Input
 class ClusterConfiguration {
 
     @Input
+    String distribution = 'zip'
+
+    @Input
     int numNodes = 1
 
     @Input
@@ -32,6 +35,9 @@ class ClusterConfiguration {
 
     @Input
     int transportPort = 9500
+
+    @Input
+    String jvmArgs = System.getProperty('tests.jvm.argline', '')
 
     Map<String, String> systemProperties = new HashMap<>()
 

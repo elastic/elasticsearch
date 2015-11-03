@@ -142,6 +142,7 @@ subprojects {
             substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
           }
           substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project("${projectsPrefix}:distribution:zip")
+          substitute module("org.elasticsearch.distribution.tar:elasticsearch:${version}") with project("${projectsPrefix}:distribution:tar")
         }
       }
     }

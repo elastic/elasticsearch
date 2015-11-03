@@ -460,7 +460,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
                     SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, indexRequest.source()).index(shardId.getIndex()).type(indexRequest.type()).id(indexRequest.id())
                             .routing(indexRequest.routing()).parent(indexRequest.parent()).timestamp(indexRequest.timestamp()).ttl(indexRequest.ttl());
 
-                    final Engine.Index operation = indexShard.prepareIndex(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA);
+                    final Engine.Index operation = indexShard.prepareIndexOnReplicas(sourceToParse, indexRequest.version(), indexRequest.versionType(), Engine.Operation.Origin.REPLICA);
                     Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
                     if (update != null) {
                         throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
@@ -477,7 +477,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             } else if (item.request() instanceof DeleteRequest) {
                 DeleteRequest deleteRequest = (DeleteRequest) item.request();
                 try {
-                    Engine.Delete delete = indexShard.prepareDelete(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.REPLICA);
+                    Engine.Delete delete = indexShard.prepareIndexOnReplicas(deleteRequest.type(), deleteRequest.id(), deleteRequest.version(), deleteRequest.versionType(), Engine.Operation.Origin.REPLICA);
                     indexShard.delete(delete);
                     location = locationToSync(location, delete.getTranslogLocation());
                 } catch (Throwable e) {

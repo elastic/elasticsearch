@@ -27,7 +27,6 @@ import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.index.IndexRequest.OpType;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
@@ -577,7 +576,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
             final ReplicationPhase replicationPhase;
             try {
-                indexShardReference = getIndexShardOperationsCounter(primary.shardId());
+                indexShardReference = getIndexShardOperationsCounter(primary.shardId(), primary.primaryTerm());
                 PrimaryOperationRequest por = new PrimaryOperationRequest(primary.id(), internalRequest.concreteIndex(), internalRequest.request());
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(observer.observedState(), por);
                 logger.trace("operation completed on primary [{}]", primary);
@@ -664,10 +663,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
     }
 
-    protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
+    protected Releasable getIndexShardOperationsCounter(ShardId shardId, long opPrimaryTerm) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.index().getName());
         IndexShard indexShard = indexService.getShard(shardId.id());
-        return new IndexShardReference(indexShard);
+        return new IndexShardReference(indexShard, opPrimaryTerm);
     }
 
     private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
@@ -1051,8 +1050,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         final private IndexShard counter;
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
-        IndexShardReference(IndexShard counter) {
-            counter.incrementOperationCounter();
+        IndexShardReference(IndexShard counter, long opPrimaryTerm) {
+            counter.incrementOperationCounter(opPrimaryTerm);
             this.counter = counter;
         }
 
@@ -1064,25 +1063,23 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
     }
 
-    /** Utility method to create either an index or a create operation depending
-     *  on the {@link OpType} of the request. */
-    private final Engine.Index prepareIndexOperationOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) {
+    private final Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard indexShard) {
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
-            return indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
+        return indexShard.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType());
 
     }
 
     /** Execute the given {@link IndexRequest} on a primary shard, throwing a
      *  {@link RetryOnPrimaryException} if the operation needs to be re-tried. */
     protected final WriteResult<IndexResponse> executeIndexRequestOnPrimary(BulkShardRequest shardRequest, IndexRequest request, IndexShard indexShard) throws Throwable {
-        Engine.Index operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
+        Engine.Index operation = prepareIndexOperationOnPrimary(request, indexShard);
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         final ShardId shardId = indexShard.shardId();
         if (update != null) {
             final String indexName = shardId.getIndex();
             mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
-            operation = prepareIndexOperationOnPrimary(shardRequest, request, indexShard);
+            operation = prepareIndexOperationOnPrimary(request, indexShard);
             update = operation.parsedDoc().dynamicMappingsUpdate();
             if (update != null) {
                 throw new RetryOnPrimaryException(shardId,

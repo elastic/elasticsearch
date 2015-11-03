@@ -28,8 +28,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
@@ -47,7 +45,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /** A parser for documents, given mappings from a DocumentMapper */
@@ -184,7 +181,7 @@ class DocumentParser implements Closeable {
             update = mapping.mappingUpdate(rootDynamicUpdate);
         }
 
-        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
+        ParsedDocument doc = new ParsedDocument(context.uid(), context.version(), context.seqNo(), context.id(), context.type(), source.routing(), source.timestamp(), source.ttl(), context.docs(),
             context.source(), update).parent(source.parent());
         // reset the context to free up memory
         context.reset(null, null, null);

@@ -130,7 +130,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).getShard(shardRequest.shardId.id());
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
+        Engine.Delete delete = indexShard.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         indexShard.delete(delete);
         // update the request with the version so it will go to the replicas
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
@@ -146,7 +146,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     @Override
     protected void shardOperationOnReplica(ShardId shardId, DeleteRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
+        Engine.Delete delete = indexShard.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
 
         indexShard.delete(delete);
         processAfter(request.refresh(), indexShard, delete.getTranslogLocation());

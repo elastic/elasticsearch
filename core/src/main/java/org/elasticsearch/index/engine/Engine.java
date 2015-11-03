@@ -577,7 +577,8 @@ public abstract class Engine implements Closeable {
         /**
          * Called when a fatal exception occurred
          */
-        default void onFailedEngine(String reason, @Nullable Throwable t) {}
+        default void onFailedEngine(String reason, @Nullable Throwable t) {
+        }
     }
 
     public static class Searcher implements Releasable {
@@ -602,7 +603,7 @@ public abstract class Engine implements Closeable {
         }
 
         public DirectoryReader getDirectoryReader() {
-            if (reader() instanceof  DirectoryReader) {
+            if (reader() instanceof DirectoryReader) {
                 return (DirectoryReader) reader();
             }
             throw new IllegalStateException("Can't use " + reader().getClass() + " as a directory reader");
@@ -621,14 +622,18 @@ public abstract class Engine implements Closeable {
     public static abstract class Operation {
         private final Term uid;
         private long version;
+        private long seqNo;
         private final VersionType versionType;
         private final Origin origin;
         private Translog.Location location;
         private final long startTime;
         private long endTime;
 
-        public Operation(Term uid, long version, VersionType versionType, Origin origin, long startTime) {
+        public Operation(Term uid, long seqNo, long version, VersionType versionType, Origin origin, long startTime) {
             this.uid = uid;
+            assert origin != Origin.PRIMARY || seqNo == -1l : "seqNo should not be set when origin is PRIMARY";
+            assert origin == Origin.PRIMARY || seqNo > -1l : "seqNo should  be set when origin is not PRIMARY";
+            this.seqNo = seqNo;
             this.version = version;
             this.versionType = versionType;
             this.origin = origin;
@@ -655,6 +660,14 @@ public abstract class Engine implements Closeable {
 
         public void updateVersion(long version) {
             this.version = version;
+        }
+
+        public long seqNo() {
+            return seqNo;
+        }
+
+        public void updateSeqNo(long seqNo) {
+            this.seqNo = seqNo;
         }
 
         public void setTranslogLocation(Translog.Location location) {
@@ -692,8 +705,8 @@ public abstract class Engine implements Closeable {
 
         private final ParsedDocument doc;
 
-        public Index(Term uid, ParsedDocument doc, long version, VersionType versionType, Origin origin, long startTime) {
-            super(uid, version, versionType, origin, startTime);
+        public Index(Term uid, ParsedDocument doc, long seqNo, long version, VersionType versionType, Origin origin, long startTime) {
+            super(uid, version, seqNo, versionType, origin, startTime);
             this.doc = doc;
         }
 
@@ -702,7 +715,7 @@ public abstract class Engine implements Closeable {
         }
 
         public Index(Term uid, ParsedDocument doc, long version) {
-            this(uid, doc, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+            this(uid, doc, doc.seqNo().numericValue().longValue(), version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public ParsedDocument parsedDoc() {
@@ -735,6 +748,12 @@ public abstract class Engine implements Closeable {
             this.doc.version().setLongValue(version);
         }
 
+        @Override
+        public void updateSeqNo(long seqNo) {
+            super.updateVersion(seqNo);
+            this.doc.seqNo().setLongValue(seqNo);
+        }
+
         public String parent() {
             return this.doc.parent();
         }
@@ -753,19 +772,15 @@ public abstract class Engine implements Closeable {
         private final String id;
         private boolean found;
 
-        public Delete(String type, String id, Term uid, long version, VersionType versionType, Origin origin, long startTime, boolean found) {
-            super(uid, version, versionType, origin, startTime);
+        public Delete(String type, String id, Term uid, long seqNo, long version, VersionType versionType, Origin origin, long startTime, boolean found) {
+            super(uid, seqNo, version, versionType, origin, startTime);
             this.type = type;
             this.id = id;
             this.found = found;
         }
 
         public Delete(String type, String id, Term uid) {
-            this(type, id, uid, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), false);
-        }
-
-        public Delete(Delete template, VersionType versionType) {
-            this(template.type(), template.id(), template.uid(), template.version(), versionType, template.origin(), template.startTime(), template.found());
+            this(type, id, uid, -1, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), false);
         }
 
         public String type() {
@@ -1060,6 +1075,7 @@ public abstract class Engine implements Closeable {
      * Returns the timestamp of the last write in nanoseconds.
      * Note: this time might not be absolutely accurate since the {@link Operation#startTime()} is used which might be
      * slightly inaccurate.
+     *
      * @see System#nanoTime()
      * @see Operation#startTime()
      */
@@ -1069,12 +1085,14 @@ public abstract class Engine implements Closeable {
 
     /**
      * Called for each new opened engine searcher to warm new segments
+     *
      * @see EngineConfig#getWarmer()
      */
     public interface Warmer {
         /**
          * Called once a new Searcher is opened.
-         * @param searcher the searcer to warm
+         *
+         * @param searcher         the searcer to warm
          * @param isTopLevelReader <code>true</code> iff the searcher is build from a top-level reader.
          *                         Otherwise the searcher might be build from a leaf reader to warm in isolation
          */

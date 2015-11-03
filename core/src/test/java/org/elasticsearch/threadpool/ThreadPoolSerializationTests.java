@@ -30,15 +30,15 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 import org.junit.Test;
 
+import java.io.IOException;
 import java.util.Map;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -46,10 +46,17 @@ import static org.hamcrest.Matchers.nullValue;
 public class ThreadPoolSerializationTests extends ESTestCase {
 
     BytesStreamOutput output = new BytesStreamOutput();
+    private ThreadPool.ThreadPoolType threadPoolType;
+
+    @Before
+    public void setUp() throws Exception {
+        super.setUp();
+        threadPoolType = randomFrom(ThreadPool.ThreadPoolType.values());
+    }
 
     @Test
     public void testThatQueueSizeSerializationWorks() throws Exception {
-        ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("10k"));
+        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("10k"));
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
@@ -62,7 +69,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     @Test
     public void testThatNegativeQueueSizesCanBeSerialized() throws Exception {
-        ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), null);
+        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), null);
         output.setVersion(Version.CURRENT);
         info.writeTo(output);
 
@@ -75,7 +82,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     @Test
     public void testThatToXContentWritesOutUnboundedCorrectly() throws Exception {
-        ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), null);
+        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), null);
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         info.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -102,7 +109,7 @@ public class ThreadPoolSerializationTests extends ESTestCase {
 
     @Test
     public void testThatToXContentWritesInteger() throws Exception {
-        ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("1k"));
+        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType, 1, 10, TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("1k"));
         XContentBuilder builder = jsonBuilder();
         builder.startObject();
         info.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -117,5 +124,17 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         map = (Map<String, Object>) map.get("foo");
         assertThat(map, hasKey("queue_size"));
         assertThat(map.get("queue_size").toString(), is("1000"));
+    }
+
+    public void testThatThreadPoolTypeIsSerializedCorrectly() throws IOException {
+        ThreadPool.Info info = new ThreadPool.Info("foo", threadPoolType);
+        output.setVersion(Version.CURRENT);
+        info.writeTo(output);
+
+        StreamInput input = StreamInput.wrap(output.bytes());
+        ThreadPool.Info newInfo = new ThreadPool.Info();
+        newInfo.readFrom(input);
+
+        assertThat(newInfo.getThreadPoolType(), is(threadPoolType));
     }
 }

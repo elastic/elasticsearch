@@ -61,6 +61,7 @@ import org.elasticsearch.index.mapper.MappedFieldType.Loading;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.QueryParseContext;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
 import org.elasticsearch.index.shard.IndexEventListener;
@@ -550,6 +551,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
+
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
@@ -559,7 +561,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context);
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
-                    QueryParseContext queryParseContext = new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry());
+                    QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
                     parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext));
@@ -659,7 +661,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source == null) {
             return;
         }
-
+        final IndexShard indexShard = context.indexShard();
+        QueryShardContext queryShardContext = indexShard.getQueryShardContext();
         context.from(source.from());
         context.size(source.size());
         ObjectFloatHashMap<String> indexBoostMap = source.indexBoost();
@@ -670,10 +673,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
             }
         }
         if (source.query() != null) {
-            context.parsedQuery(context.queryParserService().toQuery(source.query()));
+            context.parsedQuery(queryShardContext.toQuery(source.query()));
         }
         if (source.postFilter() != null) {
-            context.parsedPostFilter(context.queryParserService().toQuery(source.postFilter()));
+            context.parsedPostFilter(queryShardContext.toQuery(source.postFilter()));
         }
         if (source.sorts() != null) {
             XContentParser completeSortParser = null;
@@ -1178,8 +1181,8 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     try {
                         long now = System.nanoTime();
                         final IndexService indexService = indicesService.indexServiceSafe(indexShard.shardId().index().name());
-                        QueryParseContext queryParseContext = new QueryParseContext(indexService.queryParserService().indicesQueriesRegistry());
-                        queryParseContext.parseFieldMatcher(indexService.queryParserService().parseFieldMatcher());
+                        QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
+                        queryParseContext.parseFieldMatcher(indexService.getIndexSettings().getParseFieldMatcher());
                         ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexShard.getIndexSettings()
                                 .getNumberOfShards(),
                                 SearchType.QUERY_THEN_FETCH, entry.source().build(queryParseContext), entry.types(), entry.requestCache());

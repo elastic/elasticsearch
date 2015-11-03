@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index;
 
+import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.BigArrays;
@@ -27,14 +28,14 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.termvectors.TermVectorsService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 /**
@@ -46,7 +47,6 @@ public final class IndexServicesProvider {
 
     private final ThreadPool threadPool;
     private final MapperService mapperService;
-    private final IndexQueryParserService queryParserService;
     private final IndexCache indexCache;
     private final IndicesQueryCache indicesQueryCache;
     private final CodecService codecService;
@@ -58,13 +58,15 @@ public final class IndexServicesProvider {
     private final BigArrays bigArrays;
     private final IndexingMemoryController indexingMemoryController;
     private final IndexEventListener listener;
+    private final Client client;
+    private final IndicesQueriesRegistry indicesQueriesRegistry;
+    private final ScriptService scriptService;
 
     @Inject
-    public IndexServicesProvider(IndexEventListener listener, ThreadPool threadPool, MapperService mapperService, IndexQueryParserService queryParserService, IndexCache indexCache, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, IndexingMemoryController indexingMemoryController) {
+    public IndexServicesProvider(IndexEventListener listener, ThreadPool threadPool, MapperService mapperService, IndexCache indexCache, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, IndexingMemoryController indexingMemoryController, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry) {
         this.listener = listener;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
-        this.queryParserService = queryParserService;
         this.indexCache = indexCache;
         this.indicesQueryCache = indicesQueryCache;
         this.codecService = codecService;
@@ -75,6 +77,9 @@ public final class IndexServicesProvider {
         this.factory = factory;
         this.bigArrays = bigArrays;
         this.indexingMemoryController = indexingMemoryController;
+        this.client = client;
+        this.indicesQueriesRegistry = indicesQueriesRegistry;
+        this.scriptService = scriptService;
     }
 
     public IndexEventListener getIndexEventListener() {
@@ -86,10 +91,6 @@ public final class IndexServicesProvider {
 
     public MapperService getMapperService() {
         return mapperService;
-    }
-
-    public IndexQueryParserService getQueryParserService() {
-        return queryParserService;
     }
 
     public IndexCache getIndexCache() {
@@ -125,6 +126,18 @@ public final class IndexServicesProvider {
     }
 
     public BigArrays getBigArrays() { return bigArrays; }
+
+    public Client getClient() {
+        return client;
+    }
+
+    public IndicesQueriesRegistry getIndicesQueriesRegistry() {
+        return indicesQueriesRegistry;
+    }
+
+    public ScriptService getScriptService() {
+        return scriptService;
+    }
 
     public IndexingMemoryController getIndexingMemoryController() {
         return indexingMemoryController;

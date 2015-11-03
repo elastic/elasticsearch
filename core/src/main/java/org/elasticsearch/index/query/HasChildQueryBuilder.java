@@ -217,7 +217,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
         innerQuery.setBoost(boost);
 
-        DocumentMapper childDocMapper = context.mapperService().documentMapper(type);
+        DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
         if (childDocMapper == null) {
             throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
         }
@@ -231,10 +231,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new IllegalStateException("start object expected but was: [" + token + "]");
                 }
-                InnerHitsSubSearchContext innerHits = context.indexQueryParserService().getInnerHitsQueryParserHelper().parse(parser);
+                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
                 if (innerHits != null) {
                     ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
-                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.mapperService(), childDocMapper);
+                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.getMapperService(), childDocMapper);
                     String name = innerHits.getName() != null ? innerHits.getName() : type;
                     context.addInnerHits(name, parentChildInnerHits);
                 }
@@ -242,7 +242,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         String parentType = parentFieldMapper.type();
-        DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
+        DocumentMapper parentDocMapper = context.getMapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
             throw new QueryShardException(context, "[" + NAME + "] Type [" + type + "] points to a non existent parent type ["
                     + parentType + "]");

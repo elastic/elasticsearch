@@ -661,7 +661,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             String fieldName = fieldsEntry.getKey();
             Float weight = fieldsEntry.getValue();
             if (Regex.isSimpleMatchPattern(fieldName)) {
-                for (String resolvedFieldName : context.mapperService().simpleMatchToIndexNames(fieldName)) {
+                for (String resolvedFieldName : context.getMapperService().simpleMatchToIndexNames(fieldName)) {
                     resolvedFields.put(resolvedFieldName, weight);
                 }
             } else {
@@ -672,16 +672,16 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         qpSettings.defaultOperator(defaultOperator.toQueryParserOperator());
 
         if (analyzer == null) {
-            qpSettings.defaultAnalyzer(context.mapperService().searchAnalyzer());
+            qpSettings.defaultAnalyzer(context.getMapperService().searchAnalyzer());
         } else {
-            NamedAnalyzer namedAnalyzer = context.analysisService().analyzer(analyzer);
+            NamedAnalyzer namedAnalyzer = context.getAnalysisService().analyzer(analyzer);
             if (namedAnalyzer == null) {
                 throw new QueryShardException(context, "[query_string] analyzer [" + analyzer + "] not found");
             }
             qpSettings.forceAnalyzer(namedAnalyzer);
         }
         if (quoteAnalyzer != null) {
-            NamedAnalyzer namedAnalyzer = context.analysisService().analyzer(quoteAnalyzer);
+            NamedAnalyzer namedAnalyzer = context.getAnalysisService().analyzer(quoteAnalyzer);
             if (namedAnalyzer == null) {
                 throw new QueryShardException(context, "[query_string] quote_analyzer [" + quoteAnalyzer + "] not found");
             }
@@ -689,7 +689,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         } else if (analyzer != null) {
             qpSettings.forceQuoteAnalyzer(qpSettings.analyzer());
         } else {
-            qpSettings.defaultQuoteAnalyzer(context.mapperService().searchQuoteAnalyzer());
+            qpSettings.defaultQuoteAnalyzer(context.getMapperService().searchQuoteAnalyzer());
         }
 
         qpSettings.quoteFieldSuffix(quoteFieldSuffix);

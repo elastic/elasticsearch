@@ -43,8 +43,8 @@ import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
@@ -162,10 +162,6 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     public MapperService mapperService() {
         return indexServicesProvider.getMapperService();
-    }
-
-    public IndexQueryParserService queryParserService() {
-        return indexServicesProvider.getQueryParserService();
     }
 
     public SimilarityService similarityService() {
@@ -362,6 +358,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         return indexSettings;
     }
 
+    public QueryShardContext getQueryShardContext() {
+        return new QueryShardContext(indexSettings, indexServicesProvider.getClient(), bitsetFilterCache(), indexServicesProvider.getIndexFieldDataService(), mapperService(), similarityService(), indexServicesProvider.getScriptService(), indexServicesProvider.getIndicesQueriesRegistry());
+    }
+
     private class StoreCloseListener implements Store.OnClose {
         private final ShardId shardId;
         private final boolean ownsShard;
@@ -452,11 +452,10 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
      * The list of filtering aliases should be obtained by calling MetaData.filteringAliases.
      * Returns <tt>null</tt> if no filtering is required.</p>
      */
-    public Query aliasFilter(String... aliasNames) {
+    public Query aliasFilter(QueryShardContext context, String... aliasNames) {
         if (aliasNames == null || aliasNames.length == 0) {
             return null;
         }
-        final IndexQueryParserService indexQueryParser = queryParserService();
         final ImmutableOpenMap<String, AliasMetaData> aliases = indexSettings.getIndexMetaData().getAliases();
         if (aliasNames.length == 1) {
             AliasMetaData alias = aliases.get(aliasNames[0]);
@@ -464,7 +463,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 // This shouldn't happen unless alias disappeared after filteringAliases was called.
                 throw new InvalidAliasNameException(index(), aliasNames[0], "Unknown alias name was passed to alias Filter");
             }
-            return parse(alias, indexQueryParser);
+            return parse(alias, context);
         } else {
             // we need to bench here a bit, to see maybe it makes sense to use OrFilter
             BooleanQuery.Builder combined = new BooleanQuery.Builder();
@@ -472,9 +471,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                 AliasMetaData alias = aliases.get(aliasName);
                 if (alias == null) {
                     // This shouldn't happen unless alias disappeared after filteringAliases was called.
-                    throw new InvalidAliasNameException(indexQueryParser.index(), aliasNames[0], "Unknown alias name was passed to alias Filter");
+                    throw new InvalidAliasNameException(indexSettings.getIndex(), aliasNames[0], "Unknown alias name was passed to alias Filter");
                 }
-                Query parsedFilter = parse(alias, indexQueryParser);
+                Query parsedFilter = parse(alias, context);
                 if (parsedFilter != null) {
                     combined.add(parsedFilter, BooleanClause.Occur.SHOULD);
                 } else {
@@ -486,18 +485,18 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    private Query parse(AliasMetaData alias, IndexQueryParserService indexQueryParser) {
+    private Query parse(AliasMetaData alias, QueryShardContext parseContext) {
         if (alias.filter() == null) {
             return null;
         }
         try {
             byte[] filterSource = alias.filter().uncompressed();
             try (XContentParser parser = XContentFactory.xContent(filterSource).createParser(filterSource)) {
-                ParsedQuery parsedFilter = indexQueryParser.parseInnerFilter(parser);
+                ParsedQuery parsedFilter = parseContext.parseInnerFilter(parser);
                 return parsedFilter == null ? null : parsedFilter.query();
             }
         } catch (IOException ex) {
-            throw new AliasFilterParsingException(indexQueryParser.index(), alias.getAlias(), "Invalid alias filter", ex);
+            throw new AliasFilterParsingException(parseContext.index(), alias.getAlias(), "Invalid alias filter", ex);
         }
     }
 

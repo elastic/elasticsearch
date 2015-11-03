@@ -42,7 +42,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
@@ -162,8 +162,8 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
     @Override
     protected ShardValidateQueryResponse shardOperation(ShardValidateQueryRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-        IndexQueryParserService queryParserService = indexService.queryParserService();
         IndexShard indexShard = indexService.getShard(request.shardId().id());
+        final QueryShardContext queryShardContext = indexShard.getQueryShardContext();
 
         boolean valid;
         String explanation = null;
@@ -178,7 +178,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<Valid
         );
         SearchContext.setCurrent(searchContext);
         try {
-            searchContext.parsedQuery(queryParserService.toQuery(request.query()));
+            searchContext.parsedQuery(queryShardContext.toQuery(request.query()));
             searchContext.preProcess();
 
             valid = true;

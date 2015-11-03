@@ -119,7 +119,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
             if (field == null) {
                 if (indexService != null) {
-                    field = indexService.queryParserService().defaultField();
+                    field = indexService.getIndexSettings().getDefaultField();
                 } else {
                     field = AllFieldMapper.NAME;
                 }

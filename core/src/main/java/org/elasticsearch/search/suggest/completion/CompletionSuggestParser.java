@@ -19,6 +19,7 @@
 package org.elasticsearch.search.suggest.completion;
 
 import org.elasticsearch.common.HasContextAndHeaders;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -26,7 +27,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.search.suggest.SuggestContextParser;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
@@ -48,9 +48,9 @@ public class CompletionSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
-            IndexQueryParserService queryParserService, HasContextAndHeaders headersContext) throws IOException {
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, HasContextAndHeaders headersContext) throws IOException {
         XContentParser.Token token;
+        ParseFieldMatcher parseFieldMatcher = mapperService.getIndexSettings().getParseFieldMatcher();
         String fieldName = null;
         CompletionSuggestionContext suggestion = new CompletionSuggestionContext(completionSuggester);
 
@@ -60,7 +60,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 fieldName = parser.currentName();
             } else if (token.isValue()) {
-                if (!parseSuggestContext(parser, mapperService, fieldName, suggestion, queryParserService.parseFieldMatcher()))  {
+                if (!parseSuggestContext(parser, mapperService, fieldName, suggestion, parseFieldMatcher))  {
                     if (token == XContentParser.Token.VALUE_BOOLEAN && "fuzzy".equals(fieldName)) {
                         suggestion.setFuzzy(parser.booleanValue());
                     }
@@ -73,7 +73,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             fuzzyConfigName = parser.currentName();
                         } else if (token.isValue()) {
-                            if (queryParserService.parseFieldMatcher().match(fuzzyConfigName, Fuzziness.FIELD)) {
+                            if (parseFieldMatcher.match(fuzzyConfigName, Fuzziness.FIELD)) {
                                 suggestion.setFuzzyEditDistance(Fuzziness.parse(parser).asDistance());
                             } else if ("transpositions".equals(fuzzyConfigName)) {
                                 suggestion.setFuzzyTranspositions(parser.booleanValue());

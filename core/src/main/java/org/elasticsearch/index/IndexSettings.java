@@ -236,9 +236,13 @@ public final class IndexSettings {
      */
     public ParseFieldMatcher getParseFieldMatcher() { return parseFieldMatcher; }
 
-    public boolean isMatchIndexName(String expression) {
+    /**
+     * Returns <code>true</code> if the given expression matches the index name or one of it's aliases
+     */
+    public boolean matchesIndexName(String expression) {
         return indexNameMatcher.test(expression);
     }
+
     /**
      * Updates the settings and index metadata and notifies all registered settings consumers with the new settings iff at least one setting has changed.
      *

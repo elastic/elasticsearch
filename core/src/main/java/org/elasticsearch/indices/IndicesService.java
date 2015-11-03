@@ -799,7 +799,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
     }
 
-    public QueryParseContext newQueryParserContext() {
-        return new QueryParseContext(indicesQueriesRegistry);
+    /**
+     * Returns this nodes {@link IndicesQueriesRegistry}
+     */
+    public IndicesQueriesRegistry getIndicesQueryRegistry() {
+        return indicesQueriesRegistry;
     }
 }

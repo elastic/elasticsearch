@@ -577,7 +577,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryShardContext} based on the base test index and queryParserService
      */
     protected static QueryShardContext createShardContext() {
-        QueryShardContext queryCreationContext = queryShardContext.clone();
+        QueryShardContext queryCreationContext = new QueryShardContext(queryShardContext);
         queryCreationContext.reset();
         queryCreationContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         return queryCreationContext;

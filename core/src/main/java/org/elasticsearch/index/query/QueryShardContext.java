@@ -123,6 +123,11 @@ public class QueryShardContext {
         this.parseContext = new QueryParseContext(indicesQueriesRegistry);
     }
 
+    public QueryShardContext(QueryShardContext source) {
+        this(source.indexSettings, source.client, source.bitsetFilterCache, source.indexFieldDataService, source.mapperService, source.similarityService, source.scriptService, source.indicesQueriesRegistry);
+    }
+
+
     public QueryShardContext clone() {
         return new QueryShardContext(indexSettings, client, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
     }
@@ -348,7 +353,7 @@ public class QueryShardContext {
 
     public boolean matchesIndices(String... indices) {
         for (String index : indices) {
-            if (indexSettings.isMatchIndexName(index)) {
+            if (indexSettings.matchesIndexName(index)) {
                 return true;
             }
         }

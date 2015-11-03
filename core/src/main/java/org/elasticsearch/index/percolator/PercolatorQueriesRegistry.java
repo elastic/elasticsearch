@@ -179,7 +179,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         if (type != null) {
             previousTypes = QueryShardContext.setTypesWithPrevious(type);
         }
-        QueryShardContext context = queryShardContext.clone();
+        QueryShardContext context = new QueryShardContext(queryShardContext);
         try {
             context.reset(parser);
             // This means that fields in the query need to exist in the mapping prior to registering this query

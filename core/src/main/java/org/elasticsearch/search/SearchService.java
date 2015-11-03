@@ -551,6 +551,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
 
         SearchContext context = new DefaultSearchContext(idGenerator.incrementAndGet(), request, shardTarget, engineSearcher, indexService, indexShard, scriptService, pageCacheRecycler, bigArrays, threadPool.estimatedTimeInMillisCounter(), parseFieldMatcher, defaultSearchTimeout);
         SearchContext.setCurrent(context);
+
         try {
             if (request.scroll() != null) {
                 context.scrollContext(new ScrollContext());
@@ -560,7 +561,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                 ExecutableScript executable = this.scriptService.executable(request.template(), ScriptContext.Standard.SEARCH, context);
                 BytesReference run = (BytesReference) executable.run();
                 try (XContentParser parser = XContentFactory.xContent(run).createParser(run)) {
-                    QueryParseContext queryParseContext = indicesService.newQueryParserContext();
+                    QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
                     queryParseContext.reset(parser);
                     queryParseContext.parseFieldMatcher(parseFieldMatcher);
                     parseSource(context, SearchSourceBuilder.parseSearchSource(parser, queryParseContext));
@@ -1180,7 +1181,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     try {
                         long now = System.nanoTime();
                         final IndexService indexService = indicesService.indexServiceSafe(indexShard.shardId().index().name());
-                        QueryParseContext queryParseContext = indicesService.newQueryParserContext();
+                        QueryParseContext queryParseContext = new QueryParseContext(indicesService.getIndicesQueryRegistry());
                         queryParseContext.parseFieldMatcher(indexService.getIndexSettings().getParseFieldMatcher());
                         ShardSearchRequest request = new ShardSearchLocalRequest(indexShard.shardId(), indexShard.getIndexSettings()
                                 .getNumberOfShards(),

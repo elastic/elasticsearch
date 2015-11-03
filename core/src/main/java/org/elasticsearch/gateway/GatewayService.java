@@ -267,6 +267,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                 @Override
                 public void onFailure(String source, Throwable t) {
                     logger.error("unexpected failure during [{}]", t, source);
+                    GatewayRecoveryListener.this.onFailure("failed to updated cluster state");
                 }
 
                 @Override

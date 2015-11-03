@@ -29,6 +29,8 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.search.suggest.completion.context.GeoContextMapping.*;
@@ -37,10 +39,10 @@ import static org.elasticsearch.search.suggest.completion.context.GeoContextMapp
  * Defines the query context for {@link GeoContextMapping}
  */
 public final class GeoQueryContext implements ToXContent {
-    public CharSequence geoHash;
+    public GeoPoint geoPoint;
     public int boost = 1;
-    public int precision = DEFAULT_PRECISION;
-    public int[] neighbours;
+    public int precision = -1;
+    public List<Integer> neighbours = new ArrayList<>(0);
 
     /**
      * Creates a query context for a given geo point with a boost of 1
@@ -71,7 +73,7 @@ public final class GeoQueryContext implements ToXContent {
      * provided boost
      */
     public GeoQueryContext(CharSequence geoHash, int boost) {
-        this(geoHash, boost, DEFAULT_PRECISION);
+        this(geoHash, boost, -1);
     }
 
     /**
@@ -79,8 +81,8 @@ public final class GeoQueryContext implements ToXContent {
      * a provided boost and enables generating neighbours
      * at specified precisions
      */
-    public GeoQueryContext(GeoPoint geoPoint, int boost, int precision, int... neighbours) {
-        this(geoPoint.geohash(), boost, precision, neighbours);
+    public GeoQueryContext(CharSequence geoHash, int boost, int precision, Integer... neighbours) {
+        this(GeoPoint.fromGeohash(geoHash.toString()), boost, precision, neighbours);
     }
 
     /**
@@ -88,11 +90,11 @@ public final class GeoQueryContext implements ToXContent {
      * a provided boost and enables generating neighbours
      * at specified precisions
      */
-    public GeoQueryContext(CharSequence geoHash, int boost, int precision, int... neighbours) {
-        this.geoHash = geoHash;
+    public GeoQueryContext(GeoPoint geoPoint, int boost, int precision, Integer... neighbours) {
+        this.geoPoint = geoPoint;
         this.boost = boost;
         this.precision = precision;
-        this.neighbours = neighbours;
+        Collections.addAll(this.neighbours, neighbours);
     }
 
     private GeoQueryContext() {
@@ -107,16 +109,11 @@ public final class GeoQueryContext implements ToXContent {
     }
 
     void setNeighbours(List<Integer> neighbours) {
-        int[] neighbourArray = new int[neighbours.size()];
-        for (int i = 0; i < neighbours.size(); i++) {
-            neighbourArray[i] = neighbours.get(i);
-        }
-        this.neighbours = neighbourArray;
+        this.neighbours = neighbours;
     }
 
-    private GeoPoint point;
-    void setPoint(GeoPoint point) {
-        this.point = point;
+    void setGeoPoint(GeoPoint geoPoint) {
+        this.geoPoint = geoPoint;
     }
 
     private double lat = Double.NaN;
@@ -129,28 +126,19 @@ public final class GeoQueryContext implements ToXContent {
         this.lon = lon;
     }
 
-    void setGeoHash(String geoHash) {
-        this.geoHash = geoHash;
-    }
-
     void finish() {
-        if (point == null) {
+        if (geoPoint == null) {
             if (Double.isNaN(lat) == false && Double.isNaN(lon) == false) {
-                point = new GeoPoint(lat, lon);
+                geoPoint = new GeoPoint(lat, lon);
             } else {
                 throw new ElasticsearchParseException("no geohash or geo point provided");
             }
-        }
-        this.geoHash = point.geohash();
-        if (this.neighbours == null) {
-            this.neighbours = new int[]{precision};
         }
     }
 
     private static ObjectParser<GeoQueryContext, GeoContextMapping> GEO_CONTEXT_PARSER = new ObjectParser<>("geo", null);
     static {
-        GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext, geoContextMapping) -> geoQueryContext.setPoint(GeoUtils.parseGeoPoint(parser)), new ParseField("context"), ObjectParser.ValueType.OBJECT);
-        GEO_CONTEXT_PARSER.declareString(GeoQueryContext::setGeoHash, new ParseField("context"));
+        GEO_CONTEXT_PARSER.declareField((parser, geoQueryContext, geoContextMapping) -> geoQueryContext.setGeoPoint(GeoUtils.parseGeoPoint(parser)), new ParseField("context"), ObjectParser.ValueType.OBJECT);
         GEO_CONTEXT_PARSER.declareInt(GeoQueryContext::setBoost, new ParseField("boost"));
         // TODO : add string support for precision for GeoUtils.geoHashLevelsForPrecision()
         GEO_CONTEXT_PARSER.declareInt(GeoQueryContext::setPrecision, new ParseField("precision"));
@@ -166,7 +154,7 @@ public final class GeoQueryContext implements ToXContent {
         if (token == XContentParser.Token.START_OBJECT) {
             GEO_CONTEXT_PARSER.parse(parser, queryContext);
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            queryContext.setPoint(GeoPoint.fromGeohash(parser.text()));
+            queryContext.setGeoPoint(GeoPoint.fromGeohash(parser.text()));
         } else {
             throw new ElasticsearchParseException("geo context must be an object or string");
         }
@@ -178,7 +166,8 @@ public final class GeoQueryContext implements ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.startObject(CONTEXT_VALUE);
-        builder.field("geohash", geoHash);
+        builder.field("lat", geoPoint.getLat());
+        builder.field("lon", geoPoint.getLon());
         builder.endObject();
         builder.field(CONTEXT_BOOST, boost);
         builder.field(CONTEXT_NEIGHBOURS, neighbours);

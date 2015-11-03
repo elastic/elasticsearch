@@ -243,20 +243,29 @@ public class GeoContextMapping extends ContextMapping {
             }
         }
         List<QueryContext> queryContextList = new ArrayList<>();
-        for (GeoQueryContext geoQueryContext : queryContexts) {
-            int minPrecision = Math.min(this.precision, geoQueryContext.precision);
-            int precision = Math.min(minPrecision, geoQueryContext.geoHash.length());
-            String truncatedGeohash = geoQueryContext.geoHash.toString().substring(0, precision);
-            queryContextList.add(new QueryContext(truncatedGeohash, geoQueryContext.boost, truncatedGeohash.length() < this.precision));
-            for (int neighboursPrecision : geoQueryContext.neighbours) {
-                int neighbourPrecision = Math.min(neighboursPrecision, truncatedGeohash.length());
-                String neighbourGeohash = truncatedGeohash.substring(0, neighbourPrecision);
-                Collection<String> locations = new ArrayList<>();
-                GeoHashUtils.addNeighbors(neighbourGeohash, neighbourPrecision, locations);
-                boolean isPrefix = neighbourPrecision < this.precision;
-                for (String location : locations) {
-                    queryContextList.add(new QueryContext(location, geoQueryContext.boost, isPrefix));
+        for (GeoQueryContext queryContext : queryContexts) {
+            int minPrecision = this.precision;
+            if (queryContext.precision != -1) {
+                minPrecision = Math.min(minPrecision, queryContext.precision);
+            }
+            GeoPoint point = queryContext.geoPoint;
+            final Collection<String> locations = new HashSet<>();
+            String geoHash = GeoHashUtils.stringEncode(point.getLon(), point.getLat(), minPrecision);
+            locations.add(geoHash);
+            if (queryContext.neighbours.isEmpty() && geoHash.length() == this.precision) {
+                GeoHashUtils.addNeighbors(geoHash, locations);
+            } else if (queryContext.neighbours.isEmpty() == false) {
+                for (Integer neighbourPrecision : queryContext.neighbours) {
+                    if (neighbourPrecision < geoHash.length()) {
+                        String truncatedGeoHash = geoHash.substring(0, neighbourPrecision);
+                        locations.add(truncatedGeoHash);
+                        GeoHashUtils.addNeighbors(truncatedGeoHash, locations);
+                    }
+
                 }
+            }
+            for (String location : locations) {
+                queryContextList.add(new QueryContext(location, queryContext.boost, location.length() < this.precision));
             }
         }
         return queryContextList;

@@ -235,7 +235,7 @@ class ClusterFormationTasks {
 
     static void configureDistributionDependency(Project project, String distro) {
         String elasticsearchVersion = ElasticsearchProperties.version
-        String packaging = distro == 'tar' ? 'tgz' : distro
+        String packaging = distro == 'tar' ? 'tar.gz' : distro
         project.configurations {
             elasticsearchDistro
         }

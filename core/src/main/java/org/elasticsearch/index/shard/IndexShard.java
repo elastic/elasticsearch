@@ -24,6 +24,7 @@ import org.apache.lucene.index.CheckIndex;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
 import org.apache.lucene.index.SnapshotDeletionPolicy;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.UsageTrackingQueryCachingPolicy;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -81,6 +82,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.percolator.PercolateStats;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.percolator.QueryMetadataService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
@@ -445,10 +447,22 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Engine.Index prepareIndex(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) {
         try {
-            return prepareIndex(docMapper(source.type()), source, version, versionType, origin);
+            Engine.Index operation = prepareIndex(docMapper(source.type()), source, version, versionType, origin);
+            postPrepareIndex(operation);
+            return operation;
         } catch (Throwable t) {
             verifyNotClosed(t);
             throw t;
+        }
+    }
+
+    private void postPrepareIndex(Engine.Index operation) {
+        if (operation.type().equals(PercolatorService.TYPE_NAME)) {
+            Query query = percolatorQueriesRegistry.parsePercolatorDocument(operation.id(), operation.source());
+            boolean onOrAfter3x = indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_3_0_0);
+            if (onOrAfter3x) {
+                QueryMetadataService.extractQueryMetadata(query, operation.parsedDoc().rootDoc());
+            }
         }
     }
 
@@ -1455,11 +1469,16 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     private final EngineConfig newEngineConfig(TranslogConfig translogConfig, QueryCachingPolicy cachingPolicy) {
-        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, logger, indexingService) {
+        final TranslogRecoveryPerformer translogRecoveryPerformer = new TranslogRecoveryPerformer(shardId, mapperService, logger) {
             @Override
             protected void operationProcessed() {
                 assert recoveryState != null;
                 recoveryState.getTranslog().incrementRecoveredOperations();
+            }
+
+            @Override
+            protected void postPrepareIndex(Engine.Index operation) {
+                IndexShard.this.postPrepareIndex(operation);
             }
         };
         final Engine.Warmer engineWarmer = (searcher, toLevel) -> warmer.warm(searcher, this, idxSettings, toLevel);

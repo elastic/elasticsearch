@@ -43,13 +43,11 @@ public class TranslogRecoveryPerformer {
     private final ESLogger logger;
     private final Map<String, Mapping> recoveredTypes = new HashMap<>();
     private final ShardId shardId;
-    private final ShardIndexingService indexingService;
 
-    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, ESLogger logger, ShardIndexingService indexingService) {
+    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, ESLogger logger) {
         this.shardId = shardId;
         this.mapperService = mapperService;
         this.logger = logger;
-        this.indexingService = indexingService;
     }
 
     protected DocumentMapperForType docMapper(String type) {
@@ -133,7 +131,7 @@ public class TranslogRecoveryPerformer {
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
-                    indexingService.preIndex(engineIndex);
+                    postPrepareIndex(engineIndex);
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
                     }
@@ -147,7 +145,6 @@ public class TranslogRecoveryPerformer {
                     }
                     Engine.Delete engineDelete = new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
                             delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false);
-                    indexingService.preDelete(engineDelete);
                     engine.delete(engineDelete);
                     break;
                 default:
@@ -189,4 +186,8 @@ public class TranslogRecoveryPerformer {
     public Map<String, Mapping> getRecoveredTypes() {
         return recoveredTypes;
     }
+
+    protected void postPrepareIndex(Engine.Index operation) {
+    }
+
 }

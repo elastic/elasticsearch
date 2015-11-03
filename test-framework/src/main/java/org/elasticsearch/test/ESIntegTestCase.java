@@ -125,6 +125,10 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
+import org.junit.Rule;
+import org.junit.rules.TestRule;
+import org.junit.runner.Description;
+import org.junit.runners.model.Statement;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -317,6 +321,9 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     private static ESIntegTestCase INSTANCE = null; // see @SuiteScope
     private static Long SUITE_SEED = null;
+
+    @Rule
+    public SuppressModeRule suppressModeRule = new SuppressModeRule();
 
     @BeforeClass
     public static void beforeClass() throws Exception {
@@ -1801,15 +1808,10 @@ public abstract class ESIntegTestCase extends ESTestCase {
             minNumDataNodes = getMinNumDataNodes();
             maxNumDataNodes = getMaxNumDataNodes();
         }
-        SuppressLocalMode noLocal = getAnnotation(this.getClass(), SuppressLocalMode.class);
-        SuppressNetworkMode noNetwork = getAnnotation(this.getClass(), SuppressNetworkMode.class);
+
         String nodeMode = InternalTestCluster.configuredNodeMode();
-        if (noLocal != null && noNetwork != null) {
-            throw new IllegalStateException("Can't suppress both network and local mode");
-        } else if (noLocal != null) {
-            nodeMode = "network";
-        } else if (noNetwork != null) {
-            nodeMode = "local";
+        if (suppressModeRule.nodeMode != null) {
+            nodeMode = suppressModeRule.nodeMode;
         }
 
         boolean enableMockModules = enableMockModules();
@@ -2115,4 +2117,30 @@ public abstract class ESIntegTestCase extends ESTestCase {
     public @interface SuppressNetworkMode {
     }
 
+    private class SuppressModeRule implements TestRule {
+        @Nullable
+        public String nodeMode = null;
+
+        @Override
+        public Statement apply(Statement base, Description description) {
+            SuppressLocalMode noLocal = description.getAnnotation(SuppressLocalMode.class);
+            if (noLocal == null) {
+                noLocal = getAnnotation(ESIntegTestCase.this.getClass(), SuppressLocalMode.class);
+            }
+            SuppressNetworkMode noNetwork = description.getAnnotation(SuppressNetworkMode.class);
+            if (noNetwork == null) {
+                noNetwork = getAnnotation(ESIntegTestCase.this.getClass(), SuppressNetworkMode.class);
+            }
+
+            if (noLocal != null && noNetwork != null) {
+                throw new IllegalStateException("Can't suppress both network and local mode");
+            } else if (noLocal != null) {
+                this.nodeMode = "network";
+            } else if (noNetwork != null) {
+                this.nodeMode = "local";
+            }
+
+            return base;
+        }
+    }
 }

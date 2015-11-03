@@ -26,14 +26,14 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
 import java.lang.reflect.Method;
 
-
-@ESIntegTestCase.ClusterScope(scope= ESIntegTestCase.Scope.SUITE,  numClientNodes = 0)
+@ESIntegTestCase.SuppressLocalMode // This test creates a network based transport client
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0)
 public class NodesStatsBasicBackwardsCompatIT extends ESBackcompatTestCase {
 
     @Test

@@ -75,16 +75,18 @@ public class QueryProfilerIT extends ESIntegTestCase {
                     .execute().actionGet();
 
             assertNotNull("Profile response element should not be null", resp.getProfileResults());
-            for (Map.Entry<String, ProfileShardResult> shard : resp.getProfileResults().entrySet()) {
-                for (ProfileResult result : shard.getValue().getQueryResults()) {
-                    assertNotNull(result.getQueryName());
-                    assertNotNull(result.getLuceneDescription());
+            for (Map.Entry<String, List<ProfileShardResult>> shard : resp.getProfileResults().entrySet()) {
+                for (ProfileShardResult searchProfiles : shard.getValue()) {
+                    for (ProfileResult result : searchProfiles.getQueryResults()) {
+                        assertNotNull(result.getQueryName());
+                        assertNotNull(result.getLuceneDescription());
+                        assertThat(result.getTime(), greaterThan(0L));
+                    }
+
+                    CollectorResult result = searchProfiles.getCollectorResult();
+                    assertThat(result.getName(), not(isEmptyOrNullString()));
                     assertThat(result.getTime(), greaterThan(0L));
                 }
-
-                CollectorResult result = shard.getValue().getCollectorResult();
-                assertThat(result.getName(), not(isEmptyOrNullString()));
-                assertThat(result.getTime(), greaterThan(0L));
             }
 
         }
@@ -195,20 +197,22 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .execute().actionGet();
 
-        Map<String, ProfileShardResult> p = resp.getProfileResults();
+        Map<String, List<ProfileShardResult>> p = resp.getProfileResults();
         assertNotNull(p);
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (ProfileResult result : shardResult.getValue().getQueryResults()) {
-                assertEquals(result.getQueryName(), "TermQuery");
-                assertEquals(result.getLuceneDescription(), "field1:one");
-                assertThat(result.getTime(), greaterThan(0L));
-                assertNotNull(result.getTimeBreakdown());
-            }
+        for (Map.Entry<String, List<ProfileShardResult>> shardResult : resp.getProfileResults().entrySet()) {
+            for (ProfileShardResult searchProfiles : shardResult.getValue()) {
+                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    assertEquals(result.getQueryName(), "TermQuery");
+                    assertEquals(result.getLuceneDescription(), "field1:one");
+                    assertThat(result.getTime(), greaterThan(0L));
+                    assertNotNull(result.getTimeBreakdown());
+                }
 
-            CollectorResult result = shardResult.getValue().getCollectorResult();
-            assertThat(result.getName(), not(isEmptyOrNullString()));
-            assertThat(result.getTime(), greaterThan(0L));
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
         }
     }
 
@@ -239,38 +243,40 @@ public class QueryProfilerIT extends ESIntegTestCase {
                 .setSearchType(SearchType.QUERY_THEN_FETCH)
                 .execute().actionGet();
 
-        Map<String, ProfileShardResult> p = resp.getProfileResults();
+        Map<String, List<ProfileShardResult>> p = resp.getProfileResults();
         assertNotNull(p);
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (ProfileResult result : shardResult.getValue().getQueryResults()) {
-                assertEquals(result.getQueryName(), "BooleanQuery");
-                assertEquals(result.getLuceneDescription(), "+field1:one +field1:two");
+        for (Map.Entry<String, List<ProfileShardResult>> shardResult : resp.getProfileResults().entrySet()) {
+            for (ProfileShardResult searchProfiles : shardResult.getValue()) {
+                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    assertEquals(result.getQueryName(), "BooleanQuery");
+                    assertEquals(result.getLuceneDescription(), "+field1:one +field1:two");
+                    assertThat(result.getTime(), greaterThan(0L));
+                    assertNotNull(result.getTimeBreakdown());
+                    assertEquals(result.getProfiledChildren().size(), 2);
+
+                    // Check the children
+                    List<ProfileResult> children = result.getProfiledChildren();
+                    assertEquals(children.size(), 2);
+
+                    ProfileResult childProfile = children.get(0);
+                    assertEquals(childProfile.getQueryName(), "TermQuery");
+                    assertEquals(childProfile.getLuceneDescription(), "field1:one");
+                    assertThat(childProfile.getTime(), greaterThan(0L));
+                    assertNotNull(childProfile.getTimeBreakdown());
+                    assertEquals(childProfile.getProfiledChildren().size(), 0);
+
+                    childProfile = children.get(1);
+                    assertEquals(childProfile.getQueryName(), "TermQuery");
+                    assertEquals(childProfile.getLuceneDescription(), "field1:two");
+                    assertThat(childProfile.getTime(), greaterThan(0L));
+                    assertNotNull(childProfile.getTimeBreakdown());
+                }
+
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), not(isEmptyOrNullString()));
                 assertThat(result.getTime(), greaterThan(0L));
-                assertNotNull(result.getTimeBreakdown());
-                assertEquals(result.getProfiledChildren().size(), 2);
-
-                // Check the children
-                List<ProfileResult> children = result.getProfiledChildren();
-                assertEquals(children.size(), 2);
-
-                ProfileResult childProfile = children.get(0);
-                assertEquals(childProfile.getQueryName(), "TermQuery");
-                assertEquals(childProfile.getLuceneDescription(), "field1:one");
-                assertThat(childProfile.getTime(), greaterThan(0L));
-                assertNotNull(childProfile.getTimeBreakdown());
-                assertEquals(childProfile.getProfiledChildren().size(), 0);
-
-                childProfile = children.get(1);
-                assertEquals(childProfile.getQueryName(), "TermQuery");
-                assertEquals(childProfile.getLuceneDescription(), "field1:two");
-                assertThat(childProfile.getTime(), greaterThan(0L));
-                assertNotNull(childProfile.getTimeBreakdown());
             }
-
-            CollectorResult result = shardResult.getValue().getCollectorResult();
-            assertThat(result.getName(), not(isEmptyOrNullString()));
-            assertThat(result.getTime(), greaterThan(0L));
         }
 
 
@@ -308,17 +314,19 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (ProfileResult result : shardResult.getValue().getQueryResults()) {
-                assertNotNull(result.getQueryName());
-                assertNotNull(result.getLuceneDescription());
-                assertThat(result.getTime(), greaterThan(0L));
-                assertNotNull(result.getTimeBreakdown());
-            }
+        for (Map.Entry<String, List<ProfileShardResult>> shardResult : resp.getProfileResults().entrySet()) {
+            for (ProfileShardResult searchProfiles : shardResult.getValue()) {
+                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    assertNotNull(result.getQueryName());
+                    assertNotNull(result.getLuceneDescription());
+                    assertThat(result.getTime(), greaterThan(0L));
+                    assertNotNull(result.getTimeBreakdown());
+                }
 
-            CollectorResult result = shardResult.getValue().getCollectorResult();
-            assertThat(result.getName(), not(isEmptyOrNullString()));
-            assertThat(result.getTime(), greaterThan(0L));
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
         }
     }
 
@@ -358,17 +366,19 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (ProfileResult result : shardResult.getValue().getQueryResults()) {
-                assertNotNull(result.getQueryName());
-                assertNotNull(result.getLuceneDescription());
-                assertThat(result.getTime(), greaterThan(0L));
-                assertNotNull(result.getTimeBreakdown());
-            }
+        for (Map.Entry<String, List<ProfileShardResult>> shardResult : resp.getProfileResults().entrySet()) {
+            for (ProfileShardResult searchProfiles : shardResult.getValue()) {
+                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    assertNotNull(result.getQueryName());
+                    assertNotNull(result.getLuceneDescription());
+                    assertThat(result.getTime(), greaterThan(0L));
+                    assertNotNull(result.getTimeBreakdown());
+                }
 
-            CollectorResult result = shardResult.getValue().getCollectorResult();
-            assertThat(result.getName(), not(isEmptyOrNullString()));
-            assertThat(result.getTime(), greaterThan(0L));
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
         }
     }
 
@@ -403,17 +413,19 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (ProfileResult result : shardResult.getValue().getQueryResults()) {
-                assertNotNull(result.getQueryName());
-                assertNotNull(result.getLuceneDescription());
-                assertThat(result.getTime(), greaterThan(0L));
-                assertNotNull(result.getTimeBreakdown());
-            }
+        for (Map.Entry<String, List<ProfileShardResult>> shardResult : resp.getProfileResults().entrySet()) {
+            for (ProfileShardResult searchProfiles : shardResult.getValue()) {
+                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    assertNotNull(result.getQueryName());
+                    assertNotNull(result.getLuceneDescription());
+                    assertThat(result.getTime(), greaterThan(0L));
+                    assertNotNull(result.getTimeBreakdown());
+                }
 
-            CollectorResult result = shardResult.getValue().getCollectorResult();
-            assertThat(result.getName(), not(isEmptyOrNullString()));
-            assertThat(result.getTime(), greaterThan(0L));
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
         }
     }
 
@@ -448,17 +460,19 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (ProfileResult result : shardResult.getValue().getQueryResults()) {
-                assertNotNull(result.getQueryName());
-                assertNotNull(result.getLuceneDescription());
-                assertThat(result.getTime(), greaterThan(0L));
-                assertNotNull(result.getTimeBreakdown());
-            }
+        for (Map.Entry<String, List<ProfileShardResult>> shardResult : resp.getProfileResults().entrySet()) {
+            for (ProfileShardResult searchProfiles : shardResult.getValue()) {
+                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    assertNotNull(result.getQueryName());
+                    assertNotNull(result.getLuceneDescription());
+                    assertThat(result.getTime(), greaterThan(0L));
+                    assertNotNull(result.getTimeBreakdown());
+                }
 
-            CollectorResult result = shardResult.getValue().getCollectorResult();
-            assertThat(result.getName(), not(isEmptyOrNullString()));
-            assertThat(result.getTime(), greaterThan(0L));
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
         }
     }
 
@@ -492,17 +506,19 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (ProfileResult result : shardResult.getValue().getQueryResults()) {
-                assertNotNull(result.getQueryName());
-                assertNotNull(result.getLuceneDescription());
-                assertThat(result.getTime(), greaterThan(0L));
-                assertNotNull(result.getTimeBreakdown());
-            }
+        for (Map.Entry<String, List<ProfileShardResult>> shardResult : resp.getProfileResults().entrySet()) {
+            for (ProfileShardResult searchProfiles : shardResult.getValue()) {
+                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    assertNotNull(result.getQueryName());
+                    assertNotNull(result.getLuceneDescription());
+                    assertThat(result.getTime(), greaterThan(0L));
+                    assertNotNull(result.getTimeBreakdown());
+                }
 
-            CollectorResult result = shardResult.getValue().getCollectorResult();
-            assertThat(result.getName(), not(isEmptyOrNullString()));
-            assertThat(result.getTime(), greaterThan(0L));
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
         }
     }
 
@@ -545,17 +561,19 @@ public class QueryProfilerIT extends ESIntegTestCase {
 
         assertNotNull("Profile response element should not be null", resp.getProfileResults());
 
-        for (Map.Entry<String, ProfileShardResult> shardResult : resp.getProfileResults().entrySet()) {
-            for (ProfileResult result : shardResult.getValue().getQueryResults()) {
-                assertNotNull(result.getQueryName());
-                assertNotNull(result.getLuceneDescription());
-                assertThat(result.getTime(), greaterThan(0L));
-                assertNotNull(result.getTimeBreakdown());
-            }
+        for (Map.Entry<String, List<ProfileShardResult>> shardResult : resp.getProfileResults().entrySet()) {
+            for (ProfileShardResult searchProfiles : shardResult.getValue()) {
+                for (ProfileResult result : searchProfiles.getQueryResults()) {
+                    assertNotNull(result.getQueryName());
+                    assertNotNull(result.getLuceneDescription());
+                    assertThat(result.getTime(), greaterThan(0L));
+                    assertNotNull(result.getTimeBreakdown());
+                }
 
-            CollectorResult result = shardResult.getValue().getCollectorResult();
-            assertThat(result.getName(), not(isEmptyOrNullString()));
-            assertThat(result.getTime(), greaterThan(0L));
+                CollectorResult result = searchProfiles.getCollectorResult();
+                assertThat(result.getName(), not(isEmptyOrNullString()));
+                assertThat(result.getTime(), greaterThan(0L));
+            }
         }
     }
 

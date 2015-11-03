@@ -110,10 +110,6 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.source().startsWith(CLUSTER_UPDATE_TASK_SOURCE)) {
-            // that's us, ignore this event
-            return;
-        }
         if (event.state().nodes().localNodeMaster()) {
             // figure out when the next unassigned allocation need to happen from now. If this is larger or equal
             // then the last time we checked and scheduled, we are guaranteed to have a reroute until then, so no need

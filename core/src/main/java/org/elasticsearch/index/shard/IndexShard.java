@@ -62,7 +62,6 @@ import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexServicesProvider;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
@@ -206,7 +205,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexSearcherWrapper indexSearcherWrapper, IndexServicesProvider provider) {
         super(shardId, indexSettings);
         this.idxSettings = indexSettings;
-        this.codecService = provider.getCodecService();
+        this.codecService = new CodecService(provider.getMapperService(), logger);
         this.warmer = provider.getWarmer();
         this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
         this.similarityService = provider.getSimilarityService();

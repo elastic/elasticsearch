@@ -24,7 +24,6 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
@@ -49,7 +48,6 @@ public final class IndexServicesProvider {
     private final MapperService mapperService;
     private final IndexCache indexCache;
     private final IndicesQueryCache indicesQueryCache;
-    private final CodecService codecService;
     private final TermVectorsService termVectorsService;
     private final IndexFieldDataService indexFieldDataService;
     private final IndicesWarmer warmer;
@@ -63,13 +61,12 @@ public final class IndexServicesProvider {
     private final ScriptService scriptService;
 
     @Inject
-    public IndexServicesProvider(IndexEventListener listener, ThreadPool threadPool, MapperService mapperService, IndexCache indexCache, IndicesQueryCache indicesQueryCache, CodecService codecService, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, IndexingMemoryController indexingMemoryController, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry) {
+    public IndexServicesProvider(IndexEventListener listener, ThreadPool threadPool, MapperService mapperService, IndexCache indexCache, IndicesQueryCache indicesQueryCache, TermVectorsService termVectorsService, IndexFieldDataService indexFieldDataService, @Nullable IndicesWarmer warmer, SimilarityService similarityService, EngineFactory factory, BigArrays bigArrays, IndexingMemoryController indexingMemoryController, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry) {
         this.listener = listener;
         this.threadPool = threadPool;
         this.mapperService = mapperService;
         this.indexCache = indexCache;
         this.indicesQueryCache = indicesQueryCache;
-        this.codecService = codecService;
         this.termVectorsService = termVectorsService;
         this.indexFieldDataService = indexFieldDataService;
         this.warmer = warmer;
@@ -99,10 +96,6 @@ public final class IndexServicesProvider {
 
     public IndicesQueryCache getIndicesQueryCache() {
         return indicesQueryCache;
-    }
-
-    public CodecService getCodecService() {
-        return codecService;
     }
 
     public TermVectorsService getTermVectorsService() {

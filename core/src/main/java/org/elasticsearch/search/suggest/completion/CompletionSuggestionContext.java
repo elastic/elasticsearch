@@ -28,10 +28,7 @@ import org.elasticsearch.search.suggest.SuggestionSearchContext;
 import org.elasticsearch.search.suggest.completion.context.ContextMapping;
 import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  *
@@ -83,6 +80,10 @@ public class CompletionSuggestionContext extends SuggestionSearchContext.Suggest
 
     void setPayloadFields(Set<String> fields) {
         this.payloadFields = fields;
+    }
+
+    void setPayloadFields(List<String> fields) {
+        setPayloadFields(new HashSet<String>(fields));
     }
 
     Set<String> getPayloadFields() {

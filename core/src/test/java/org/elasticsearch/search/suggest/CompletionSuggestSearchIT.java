@@ -215,7 +215,7 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         SuggestResponse suggestResponse = client().suggest(request).get();
         assertThat(suggestResponse.getSuccessfulShards(), equalTo(0));
         for (ShardOperationFailedException exception : suggestResponse.getShardFailures()) {
-            assertThat(exception.reason(), containsString("expected string values in [payload] array"));
+            assertThat(exception.reason(), containsString("ParsingException[[completion] failed to parse field [payload]]; nested: IllegalStateException[expected value but got [START_OBJECT]]"));
         }
     }
 
@@ -276,12 +276,12 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
         assertThat(options.get(1).getScore(), equalTo(1f));
 
         Map<String, List<Object>> firstPayload = options.get(0).getPayload();
-        assertThat(firstPayload.keySet(), contains("title", "count"));
+        assertThat(firstPayload.keySet(), containsInAnyOrder("title", "count"));
         assertThat((String) firstPayload.get("title").get(0), equalTo("title2"));
         assertThat((long) firstPayload.get("count").get(0), equalTo(2l));
 
         Map<String, List<Object>> secondPayload = options.get(1).getPayload();
-        assertThat(secondPayload.keySet(), contains("title", "count"));
+        assertThat(secondPayload.keySet(), containsInAnyOrder("title", "count"));
         assertThat((String) secondPayload.get("title").get(0), equalTo("title1"));
         assertThat((long) secondPayload.get("count").get(0), equalTo(1l));
     }

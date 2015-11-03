@@ -199,7 +199,6 @@ public class ContextCompletionSuggestSearchIT extends ESIntegTestCase {
                 .categoryContexts("cat",
                         new CategoryQueryContext("cat0", 3),
                         new CategoryQueryContext("cat1"));
-
         assertSuggestions("foo", prefix, "suggestion8", "suggestion6", "suggestion4", "suggestion9", "suggestion2");
     }
 

@@ -55,7 +55,25 @@ public class ObjectParserTests extends ESTestCase {
         assertEquals(s.test, "foo");
         assertEquals(s.testNumber, 2);
         assertEquals(s.ints, Arrays.asList(1, 2, 3, 4));
-        assertEquals(objectParser.toString(), "ObjectParser{name='foo', fields=[FieldParser{preferred_name=test, supportedTokens=[VALUE_STRING], type=STRING}, FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}, FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY], type=INT_ARRAY}, FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY], type=INT_ARRAY}, FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}]}");
+        assertEquals(objectParser.toString(), "ObjectParser{name='foo', fields=[FieldParser{preferred_name=test, supportedTokens=[VALUE_STRING], type=STRING}, FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}, FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, FieldParser{preferred_name=test_array, supportedTokens=[START_ARRAY, VALUE_STRING, VALUE_NUMBER], type=INT_ARRAY}, FieldParser{preferred_name=test_number, supportedTokens=[VALUE_STRING, VALUE_NUMBER], type=INT}]}");
+    }
+
+    public void testObjectOrDefault() throws IOException {
+        XContentParser parser = XContentType.JSON.xContent().createParser("{\"object\" : { \"test\": 2}}");
+        ObjectParser<StaticTestStruct, Void> objectParser = new ObjectParser("foo", StaticTestStruct::new);
+        objectParser.declareInt(StaticTestStruct::setTest, new ParseField("test"));
+        objectParser.declareObjectOrDefault(StaticTestStruct::setObject, objectParser, StaticTestStruct::new, new ParseField("object"));
+        StaticTestStruct s = objectParser.parse(parser);
+        assertEquals(s.object.test, 2);
+        parser = XContentType.JSON.xContent().createParser("{\"object\" : false }");
+        s = objectParser.parse(parser);
+        assertNull(s.object);
+
+        parser = XContentType.JSON.xContent().createParser("{\"object\" : true }");
+        s = objectParser.parse(parser);
+        assertNotNull(s.object);
+        assertEquals(s.object.test, 0);
+
     }
 
     public void testExceptions() throws IOException {
@@ -174,15 +192,35 @@ public class ObjectParserTests extends ESTestCase {
         XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent());
         builder.startObject();
         builder.field("int_field", randomBoolean() ? "1" : 1);
-        builder.array("int_array_field", randomBoolean() ? "1" : 1);
+        if (randomBoolean()) {
+            builder.array("int_array_field", randomBoolean() ? "1" : 1);
+        } else {
+            builder.field("int_array_field", randomBoolean() ? "1" : 1);
+        }
         builder.field("double_field", randomBoolean() ? "2.1" : 2.1d);
-        builder.array("double_array_field", randomBoolean() ? "2.1" : 2.1d);
+        if (randomBoolean()) {
+            builder.array("double_array_field", randomBoolean() ? "2.1" : 2.1d);
+        } else {
+            builder.field("double_array_field", randomBoolean() ? "2.1" : 2.1d);
+        }
         builder.field("float_field", randomBoolean() ? "3.1" : 3.1f);
-        builder.array("float_array_field", randomBoolean() ? "3.1" : 3.1);
+        if (randomBoolean()) {
+            builder.array("float_array_field", randomBoolean() ? "3.1" : 3.1);
+        } else {
+            builder.field("float_array_field", randomBoolean() ? "3.1" : 3.1);
+        }
         builder.field("long_field", randomBoolean() ? "4" : 4);
-        builder.array("long_array_field", randomBoolean() ? "4" : 4);
+        if (randomBoolean()) {
+            builder.array("long_array_field", randomBoolean() ? "4" : 4);
+        } else {
+            builder.field("long_array_field", randomBoolean() ? "4" : 4);
+        }
         builder.field("string_field", "5");
-        builder.array("string_array_field", "5");
+        if (randomBoolean()) {
+            builder.array("string_array_field", "5");
+        } else {
+            builder.field("string_array_field", "5");
+        }
         boolean nullValue = randomBoolean();
         builder.field("boolean_field", nullValue);
         builder.field("string_or_null", nullValue ? null : "5");

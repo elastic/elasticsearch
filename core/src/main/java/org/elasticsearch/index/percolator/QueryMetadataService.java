@@ -24,6 +24,7 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.queries.TermsQuery;
 import org.apache.lucene.search.*;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.index.mapper.ParseContext;
 
@@ -35,9 +36,10 @@ import java.util.*;
  */
 public final class QueryMetadataService {
 
-    public static String QUERY_METADATA = "_query_metadata_";
-    public static String QUERY_METADATA_FIELD_PREFIX = QUERY_METADATA + "field_";
-    public static String QUERY_METADATA_FIELD_UNKNOWN = QUERY_METADATA + "unknown";
+    private static final byte COLUMN = 58;  // ':'
+
+    public static String QUERY_METADATA_FIELD = "query_metadata_field";
+    public static String QUERY_METADATA_FIELD_UNKNOWN = "query_metadata_field_unknown";
     public static FieldType QUERY_METADATA_FIELD_TYPE = new FieldType();
 
     static {
@@ -61,7 +63,11 @@ public final class QueryMetadataService {
             return;
         }
         for (Term term : queryTerms) {
-            document.add(new Field(QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QUERY_METADATA_FIELD_TYPE));
+            BytesRefBuilder builder = new BytesRefBuilder();
+            builder.append(new BytesRef(term.field()));
+            builder.append(COLUMN);
+            builder.append(term.bytes());
+            document.add(new Field(QUERY_METADATA_FIELD, builder.toBytesRef(), QUERY_METADATA_FIELD_TYPE));
         }
     }
 
@@ -180,9 +186,14 @@ public final class QueryMetadataService {
                 continue;
             }
 
+            BytesRef fieldBr = new BytesRef(field);
             TermsEnum tenum = terms.iterator();
             for (BytesRef term = tenum.next(); term != null ; term = tenum.next()) {
-                extractedTerms.add(new Term(QUERY_METADATA_FIELD_PREFIX + field, BytesRef.deepCopyOf(term)));
+                BytesRefBuilder builder = new BytesRefBuilder();
+                builder.append(fieldBr);
+                builder.append(COLUMN);
+                builder.append(term);
+                extractedTerms.add(new Term(QUERY_METADATA_FIELD, builder.toBytesRef()));
             }
         }
         return new TermsQuery(extractedTerms);

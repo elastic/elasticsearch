@@ -35,6 +35,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
@@ -46,9 +47,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collections;
-import java.util.List;
 import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -119,11 +118,8 @@ public class PercolatorTypeTests extends ESTestCase {
 
     void addPercolatorQuery(String id, Query query, IndexWriter writer, PercolatorQueriesRegistry registry) throws IOException {
         registry.getPercolateQueries().put(new BytesRef(id), query);
-        Document document = new Document();
-        Set<Term> queryTerms = QueryMetadataService.extractQueryMetadata(query);
-        for (Term term : queryTerms) {
-            document.add(new Field(QueryMetadataService.QUERY_METADATA_FIELD_PREFIX + term.field(), term.bytes(), QueryMetadataService.QUERY_METADATA_FIELD_TYPE));
-        }
+        ParseContext.Document document = new ParseContext.Document();
+        QueryMetadataService.extractQueryMetadata(query, document);
         document.add(new StoredField(UidFieldMapper.NAME, Uid.createUid(PercolatorService.TYPE_NAME, id)));
         writer.addDocument(document);
     }

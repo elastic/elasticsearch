@@ -43,6 +43,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.percolator.QueryMetadataService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -123,7 +124,9 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                     "\"query\" : {\n" +
                         "\"type\" : \"object\",\n" +
                         "\"enabled\" : false\n" +
-                    "}\n" +
+                    "},\n" +
+                    "\"" + QueryMetadataService.QUERY_METADATA_FIELD + "\" : { \"type\" : \"string\", \"index\" : \"not_analyzed\" }," +
+                    "\"" + QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN + "\" : { \"type\" : \"string\", \"index\" : \"not_analyzed\" }" +
                 "}\n" +
             "}\n" +
         "}";

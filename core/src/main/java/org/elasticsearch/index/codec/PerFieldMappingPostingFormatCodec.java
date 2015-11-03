@@ -28,7 +28,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.index.percolator.QueryMetadataService;
 
 /**
  * {@link PerFieldMappingPostingFormatCodec This postings format} is the default
@@ -57,11 +56,7 @@ public class PerFieldMappingPostingFormatCodec extends Lucene54Codec {
     public PostingsFormat getPostingsFormatForField(String field) {
         final MappedFieldType indexName = mapperService.indexName(field);
         if (indexName == null) {
-            // the query terms are an percolator implementation detail and are added as Lucene indexed fields which are hidden
-            // We shouldn't expose these fields in the mapping, because they don't appear in the document source.
-            if (field.startsWith(QueryMetadataService.QUERY_METADATA) == false) {
-                logger.warn("no index mapper found for field: [{}] returning default postings format", field);
-            }
+            logger.warn("no index mapper found for field: [{}] returning default postings format", field);
         } else if (indexName instanceof CompletionFieldMapper.CompletionFieldType) {
             // CompletionFieldMapper needs a special postings format
             final CompletionFieldMapper.CompletionFieldType fieldType = (CompletionFieldMapper.CompletionFieldType) indexName;

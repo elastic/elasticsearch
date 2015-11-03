@@ -173,7 +173,10 @@ The following projects appear to be abandoned:
   R client for Elasticsearch
 
 * https://github.com/ropensci/elastic[elastic]:
-  A general purpose R client for Elasticsearch
+  A low-level R client for Elasticsearch.
+
+* https://github.com/ropensci/elasticdsl[elasticdsl]:
+  A high-level R DSL for Elasticsearch, wrapping the elastic R client.
 
 [[ruby]]
 == Ruby

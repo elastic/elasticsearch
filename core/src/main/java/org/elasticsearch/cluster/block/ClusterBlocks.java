@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.block;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.elasticsearch.cluster.AbstractDiffable;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
@@ -197,6 +196,28 @@ public class ClusterBlocks extends AbstractDiffable<ClusterBlocks> {
                 global(level).stream(),
                 Stream.of(indices).flatMap(blocksForIndexAtLevel));
         return new ClusterBlockException(unmodifiableSet(blocks.collect(toSet())));
+    }
+
+    public String prettyPrint() {
+        if (global.isEmpty() && indices().isEmpty()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        sb.append("blocks: \n");
+        if (global.isEmpty() == false) {
+            sb.append("   _global_:\n");
+            for (ClusterBlock block : global) {
+                sb.append("      ").append(block);
+            }
+        }
+        for (ObjectObjectCursor<String, Set<ClusterBlock>> entry : indices()) {
+            sb.append("   ").append(entry.key).append(":\n");
+            for (ClusterBlock block : entry.value) {
+                sb.append("      ").append(block);
+            }
+        }
+        sb.append("\n");
+        return sb.toString();
     }
 
     @Override

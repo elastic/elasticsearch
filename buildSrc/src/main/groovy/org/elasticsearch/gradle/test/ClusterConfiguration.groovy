@@ -36,6 +36,9 @@ class ClusterConfiguration {
     @Input
     int transportPort = 9500
 
+    @Input
+    String jvmArgs = System.getProperty('tests.jvm.argline', '')
+
     Map<String, String> systemProperties = new HashMap<>()
 
     @Input

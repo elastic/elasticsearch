@@ -61,6 +61,24 @@ class ClusterFormationTasks {
         File pidFile = pidFile(baseDir)
         String clusterName = "${task.path.replace(':', '_').substring(1)}"
         File home = homeDir(baseDir, config.distribution)
+        Map esConfig = [
+            'cluster.name': clusterName,
+            'http.port': config.httpPort,
+            'transport.tcp.port': config.transportPort,
+            'pidfile': pidFile,
+            // TODO: make this work for multi node!
+            'discovery.zen.ping.unicast.hosts': "localhost:${config.transportPort}",
+            'path.repo': "${home}/repo",
+            'path.shared_data': "${home}/../",
+            // Define a node attribute so we can test that it exists
+            'node.testattr': 'test',
+            'repositories.url.allowed_urls': 'http://snapshot.test*'
+        ]
+        Map esEnv = [
+            'JAVA_HOME': System.getProperty('java.home'),
+            'ES_GC_OPTS': config.jvmArgs
+        ]
+
         List setupDeps = [] // need to copy the deps, since start will later be added, which would create a circular task dep!
         setupDeps.addAll(task.dependsOn)
         Task setup = project.tasks.create(name: "${task.name}#clean", type: Delete, dependsOn: setupDeps) {
@@ -71,19 +89,6 @@ class ClusterFormationTasks {
         setup = project.tasks.create(name: "${task.name}#configure", type: DefaultTask, dependsOn: setup) << {
             File configFile = new File(home, 'config/elasticsearch.yml')
             logger.info("Configuring ${configFile}")
-            Map esConfig = [
-                'cluster.name': clusterName,
-                'http.port': config.httpPort,
-                'transport.tcp.port': config.transportPort,
-                'pidfile': pidFile,
-                // TODO: make this work for multi node!
-                'discovery.zen.ping.unicast.hosts': "localhost:${config.transportPort}",
-                'path.repo': "${home}/repo",
-                'path.shared_data': "${home}/../",
-                // Define a node attribute so we can test that it exists
-                'node.testattr': 'test',
-                'repositories.url.allowed_urls': 'http://snapshot.test*'
-            ]
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }
         for (Map.Entry<String, String> command : config.setupCommands.entrySet()) {
@@ -129,12 +134,13 @@ class ClusterFormationTasks {
                 throw new GradleException('Failed to start elasticsearch')
             }
         }
-        Task start;
+        Task start
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             // elasticsearch.bat is spawned as it has no daemon mode
             start = project.tasks.create(name: "${task.name}#start", type: DefaultTask, dependsOn: setup) << {
                 // Fall back to Ant exec task as Gradle Exec task does not support spawning yet
                 ant.exec(executable: 'cmd', spawn: true, dir: home) {
+                    esEnv.each { env(key: key, value: value) }
                     (['/C', 'call', 'bin/elasticsearch'] + esArgs).each { arg(value: it) }
                 }
                 esPostStartActions(ant, logger)
@@ -145,6 +151,7 @@ class ClusterFormationTasks {
                 executable 'sh'
                 args 'bin/elasticsearch', '-d' // daemonize!
                 args esArgs
+                environment esEnv
                 errorOutput = new ByteArrayOutputStream()
                 doLast {
                     if (errorOutput.toString().isEmpty() == false) {

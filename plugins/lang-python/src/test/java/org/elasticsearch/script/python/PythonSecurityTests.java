@@ -23,8 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
 import org.python.core.PyException;
 
 import java.util.HashMap;
@@ -37,17 +35,21 @@ public class PythonSecurityTests extends ESTestCase {
     
     private PythonScriptEngineService se;
 
-    @Before
-    public void setup() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
+        // otherwise will exit your VM and other bad stuff
+        assumeTrue("test requires security manager to be enabled", System.getSecurityManager() != null);
     }
 
-    @After
-    public void close() {
+    @Override
+    public void tearDown() throws Exception {
         // We need to clear some system properties
         System.clearProperty("python.cachedir.skip");
         System.clearProperty("python.console.encoding");
         se.close();
+        super.tearDown();
     }
 
     /** runs a script */

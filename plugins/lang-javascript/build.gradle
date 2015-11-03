@@ -23,7 +23,7 @@ esplugin {
 }
 
 dependencies {
-  compile 'org.mozilla:rhino:1.7R4'
+  compile 'org.mozilla:rhino:1.7.7'
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes,-unchecked"

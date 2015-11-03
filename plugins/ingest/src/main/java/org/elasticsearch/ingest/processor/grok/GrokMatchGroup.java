@@ -24,7 +24,7 @@ import java.lang.Integer;
 import java.lang.Object;
 import java.lang.String;
 
-public class GrokMatchGroup {
+final class GrokMatchGroup {
     private static final String DEFAULT_TYPE = "string";
     private final String patternName;
     private final String fieldName;

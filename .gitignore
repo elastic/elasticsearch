@@ -8,6 +8,7 @@ work/
 logs/
 .DS_Store
 build/
+generated-resources/
 **/.local*
 docs/html/
 docs/build.log

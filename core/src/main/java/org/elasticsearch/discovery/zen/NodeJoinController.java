@@ -86,7 +86,7 @@ public class NodeJoinController extends AbstractComponent {
             @Override
             void onClose() {
                 if (electionContext.compareAndSet(this, null)) {
-                    stopAccumulatingJoins();
+                    stopAccumulatingJoins("election closed");
                 } else {
                     assert false : "failed to remove current election context";
                 }
@@ -156,7 +156,7 @@ public class NodeJoinController extends AbstractComponent {
 
     /**
      * Accumulates any future incoming join request. Pending join requests will be processed in the final steps of becoming a
-     * master or when {@link #stopAccumulatingJoins()} is called.
+     * master or when {@link #stopAccumulatingJoins(String)} is called.
      */
     public void startAccumulatingJoins() {
         logger.trace("starting to accumulate joins");
@@ -166,14 +166,14 @@ public class NodeJoinController extends AbstractComponent {
     }
 
     /** Stopped accumulating joins. All pending joins will be processed. Future joins will be processed immediately */
-    public void stopAccumulatingJoins() {
-        logger.trace("stopping join accumulation");
+    public void stopAccumulatingJoins(String reason) {
+        logger.trace("stopping join accumulation ([{}])", reason);
         assert electionContext.get() == null : "stopAccumulatingJoins() called, but there is an ongoing election context";
         boolean b = accumulateJoins.getAndSet(false);
         assert b : "stopAccumulatingJoins() called but not accumulating";
         synchronized (pendingJoinRequests) {
             if (pendingJoinRequests.size() > 0) {
-                processJoins("stopping to accumulate joins");
+                processJoins("pending joins after accumulation stop [" + reason + "]");
             }
         }
     }
@@ -210,7 +210,7 @@ public class NodeJoinController extends AbstractComponent {
             return;
         }
 
-        int pendingMasterJoins=0;
+        int pendingMasterJoins = 0;
         synchronized (pendingJoinRequests) {
             for (DiscoveryNode node : pendingJoinRequests.keySet()) {
                 if (node.isMasterNode()) {
@@ -219,7 +219,9 @@ public class NodeJoinController extends AbstractComponent {
             }
         }
         if (pendingMasterJoins < context.requiredMasterJoins) {
-            logger.trace("not enough joins for election. Got [{}], required [{}]", pendingMasterJoins, context.requiredMasterJoins);
+            if (context.pendingSetAsMasterTask.get() == false) {
+                logger.trace("not enough joins for election. Got [{}], required [{}]", pendingMasterJoins, context.requiredMasterJoins);
+            }
             return;
         }
         if (context.pendingSetAsMasterTask.getAndSet(true)) {

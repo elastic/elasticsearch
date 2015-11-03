@@ -21,12 +21,13 @@ package org.elasticsearch.search.suggest.completion;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.HasContextAndHeaders;
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
@@ -103,29 +104,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("fuzzy".equals(fieldName)) {
-                    fuzzyOptions = new CompletionSuggestionBuilder.FuzzyOptionsBuilder();
-                    String fuzzyConfigName = null;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            fuzzyConfigName = parser.currentName();
-                        } else if (token.isValue()) {
-                            if (parseFieldMatcher.match(fuzzyConfigName, Fuzziness.FIELD)) {
-                                suggestion.setFuzzyEditDistance(Fuzziness.parse(parser).asDistance());
-                            } else if ("transpositions".equals(fuzzyConfigName)) {
-                                fuzzyOptions.setTranspositions(parser.booleanValue());
-                            } else if ("min_length".equals(fuzzyConfigName) || "minLength".equals(fuzzyConfigName)) {
-                                fuzzyOptions.setFuzzyMinLength(parser.intValue());
-                            } else if ("prefix_length".equals(fuzzyConfigName) || "prefixLength".equals(fuzzyConfigName)) {
-                                fuzzyOptions.setFuzzyPrefixLength(parser.intValue());
-                            } else if ("unicode_aware".equals(fuzzyConfigName) || "unicodeAware".equals(fuzzyConfigName)) {
-                                fuzzyOptions.setUnicodeAware(parser.booleanValue());
-                            } else if ("max_determinized_states".equals(fuzzyConfigName)) {
-                                fuzzyOptions.setMaxDeterminizedStates(parser.intValue());
-                            } else {
-                                throw new IllegalArgumentException("[fuzzy] query does not support [" + fuzzyConfigName + "]");
-                            }
-                        }
-                    }
+                    fuzzyOptions = FUZZY_PARSER.parse(parser);
                 } else if ("contexts".equals(fieldName) || "context".equals(fieldName)) {
                     // Copy the current structure. We will parse, once the mapping is provided
                     XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType());
@@ -133,22 +112,7 @@ public class CompletionSuggestParser implements SuggestContextParser {
                     BytesReference bytes = builder.bytes();
                     contextParser = XContentFactory.xContent(bytes).createParser(bytes);
                 } else if ("regex".equals(fieldName)) {
-                    regexOptions = new CompletionSuggestionBuilder.RegexOptionsBuilder();
-                    String currentFieldName = fieldName;
-                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-                        if (token == XContentParser.Token.FIELD_NAME) {
-                            currentFieldName = parser.currentName();
-                        } else {
-                            if ("flags".equals(currentFieldName)) {
-                                String flags = parser.textOrNull();
-                                regexOptions.setFlags(flags);
-                            } else if ("max_determinized_states".equals(currentFieldName)) {
-                                regexOptions.setMaxDeterminizedStates(parser.intValue());
-                            } else {
-                                throw new IllegalArgumentException("[regexp] query does not support [" + currentFieldName + "]");
-                            }
-                        }
-                    }
+                    regexOptions = REGEXP_PARSER.parse(parser);
                 } else {
                     throw new IllegalArgumentException("suggester [completion] doesn't support field [" + fieldName + "]");
                 }
@@ -202,5 +166,26 @@ public class CompletionSuggestParser implements SuggestContextParser {
         } else {
             throw new IllegalArgumentException("Field [" + suggestion.getField() + "] is not a completion suggest field");
         }
+    }
+
+    private static ObjectParser<CompletionSuggestionBuilder.RegexOptionsBuilder, Void> REGEXP_PARSER = new ObjectParser<>("regexp", CompletionSuggestionBuilder.RegexOptionsBuilder::new);
+    private static ObjectParser<CompletionSuggestionBuilder.FuzzyOptionsBuilder, Void> FUZZY_PARSER = new ObjectParser<>("fuzzy", CompletionSuggestionBuilder.FuzzyOptionsBuilder::new);
+
+    static {
+        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setFuzzyMinLength, new ParseField("min_length"));
+        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setMaxDeterminizedStates, new ParseField("max_determinized_states"));
+        FUZZY_PARSER.declareBoolean(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setUnicodeAware, new ParseField("unicode_aware"));
+        FUZZY_PARSER.declareInt(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setFuzzyPrefixLength, new ParseField("prefix_length"));
+        FUZZY_PARSER.declareBoolean(CompletionSuggestionBuilder.FuzzyOptionsBuilder::setTranspositions, new ParseField("transpositions"));
+        FUZZY_PARSER.declareValue((a, b) -> {
+            try {
+                a.setFuzzyPrefixLength(Fuzziness.parse(b).asDistance());
+            } catch (IOException e) {
+                throw new ElasticsearchException(e);
+            }
+        }, new ParseField("fuzziness"));
+
+        REGEXP_PARSER.declareInt(CompletionSuggestionBuilder.RegexOptionsBuilder::setMaxDeterminizedStates, new ParseField("max_determinized_states"));
+        REGEXP_PARSER.declareStringOrNull(CompletionSuggestionBuilder.RegexOptionsBuilder::setFlags, new ParseField("flags"));
     }
 }

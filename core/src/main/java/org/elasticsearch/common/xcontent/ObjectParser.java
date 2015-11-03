@@ -240,6 +240,10 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         declareField((p, v, c) -> consumer.accept(v, p.intValue()), field, ValueType.INT);
     }
 
+    public void declareValue(BiConsumer<Value, XContentParser> consumer, ParseField field) {
+        declareField((p, v, c) -> consumer.accept(v, p), field, ValueType.VALUE);
+    }
+
     public void declareString(BiConsumer<Value, String> consumer, ParseField field) {
         declareField((p, v, c) -> consumer.accept(v, p.text()), field, ValueType.STRING);
     }
@@ -302,7 +306,8 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         LONG_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
         INT_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
         BOOLEAN_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
-        OBJECT(EnumSet.of(XContentParser.Token.START_OBJECT));
+        OBJECT(EnumSet.of(XContentParser.Token.START_OBJECT)),
+        VALUE(EnumSet.of(XContentParser.Token.VALUE_BOOLEAN, XContentParser.Token.VALUE_NULL ,XContentParser.Token.VALUE_EMBEDDED_OBJECT,XContentParser.Token.VALUE_NUMBER,XContentParser.Token.VALUE_STRING));
 
         private final EnumSet<XContentParser.Token> tokens;
 

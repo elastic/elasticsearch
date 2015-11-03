@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESBackcompatTestCase;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -40,6 +41,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_RE
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.hamcrest.Matchers.equalTo;
 
+@ESIntegTestCase.SuppressLocalMode // This test creates a network based transport client
 public class ClusterStateBackwardsCompatIT extends ESBackcompatTestCase {
     public void testClusterState() throws Exception {
         createIndex("test");

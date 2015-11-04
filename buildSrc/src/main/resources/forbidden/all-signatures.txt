@@ -100,3 +100,8 @@ org.apache.lucene.index.IndexReader#getCombinedCoreAndDeletesKey()
 
 @defaultMessage this method needs special permission
 java.lang.Thread#getAllStackTraces()
+
+@defaultMessage Please do not terminate the application
+java.lang.System#exit(int)
+java.lang.Runtime#exit(int)
+java.lang.Runtime#halt(int)

@@ -21,7 +21,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -42,9 +41,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
@@ -54,6 +51,7 @@ import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
@@ -110,13 +108,6 @@ public class TemplateQueryParserTests extends ESTestCase {
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        try {
-                            bind(AnalysisService.class).toInstance(new AnalysisRegistry(null, new Environment(settings)).build(idxSettings));
-                        } catch (IOException e) {
-                            throw new ElasticsearchException(e);
-                        }
-                        SimilarityService service = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
-                        bind(SimilarityService.class).toInstance(service);
                         bind(Client.class).toInstance(proxy); // not needed here
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ClusterService.class).toProvider(Providers.of((ClusterService) null));
@@ -124,10 +115,12 @@ public class TemplateQueryParserTests extends ESTestCase {
                     }
                 }
         ).createInjector();
-        SimilarityService similarityService = injector.getInstance(SimilarityService.class);
-        IndexFieldDataService indexFieldDataService = injector.getInstance(IndexFieldDataService.class);
+
+        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
         ScriptService scriptService = injector.getInstance(ScriptService.class);
-        MapperService mapperService = injector.getInstance(MapperService.class);
+        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService);
+        IndexFieldDataService indexFieldDataService =new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null), new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {

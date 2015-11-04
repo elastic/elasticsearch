@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,7 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 
-public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
+public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> implements IndexEventListener {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
     public static final String INDEX_BUFFER_SIZE_SETTING = "indices.memory.index_buffer_size";
@@ -425,5 +426,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     public TimeValue getInactiveTime() {
         return inactiveTime;
+    }
+
+    @Override
+    public void onShardActive(IndexShard indexShard) {
+        forceCheck();
     }
 }

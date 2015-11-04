@@ -45,7 +45,6 @@ public final class NodeServicesProvider {
     private final TermVectorsService termVectorsService;
     private final IndicesWarmer warmer;
     private final BigArrays bigArrays;
-    private final IndexingMemoryController indexingMemoryController;
     private final Client client;
     private final IndicesQueriesRegistry indicesQueriesRegistry;
     private final ScriptService scriptService;
@@ -53,13 +52,12 @@ public final class NodeServicesProvider {
     private final CircuitBreakerService circuitBreakerService;
 
     @Inject
-    public NodeServicesProvider(ThreadPool threadPool, IndicesQueryCache indicesQueryCache, TermVectorsService termVectorsService, @Nullable IndicesWarmer warmer, BigArrays bigArrays, IndexingMemoryController indexingMemoryController, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, IndicesFieldDataCache indicesFieldDataCache, CircuitBreakerService circuitBreakerService) {
+    public NodeServicesProvider(ThreadPool threadPool, IndicesQueryCache indicesQueryCache, TermVectorsService termVectorsService, @Nullable IndicesWarmer warmer, BigArrays bigArrays, Client client, ScriptService scriptService, IndicesQueriesRegistry indicesQueriesRegistry, IndicesFieldDataCache indicesFieldDataCache, CircuitBreakerService circuitBreakerService) {
         this.threadPool = threadPool;
         this.indicesQueryCache = indicesQueryCache;
         this.termVectorsService = termVectorsService;
         this.warmer = warmer;
         this.bigArrays = bigArrays;
-        this.indexingMemoryController = indexingMemoryController;
         this.client = client;
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.scriptService = scriptService;
@@ -95,10 +93,6 @@ public final class NodeServicesProvider {
 
     public ScriptService getScriptService() {
         return scriptService;
-    }
-
-    public IndexingMemoryController getIndexingMemoryController() {
-        return indexingMemoryController;
     }
 
     public IndicesFieldDataCache getIndicesFieldDataCache() {

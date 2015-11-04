@@ -36,8 +36,9 @@ public class SMBStorePlugin extends Plugin {
         return "SMB Store Plugin";
     }
 
-    public void onModule(IndexModule storeModule) {
-        storeModule.addIndexStore("smb_mmap_fs", SmbMmapFsIndexStore::new);
-        storeModule.addIndexStore("smb_simple_fs", SmbSimpleFsIndexStore::new);
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.addIndexStore("smb_mmap_fs", SmbMmapFsIndexStore::new);
+        indexModule.addIndexStore("smb_simple_fs", SmbSimpleFsIndexStore::new);
     }
 }

@@ -23,7 +23,6 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
@@ -159,7 +158,6 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
 
 
-    @Inject
     public IndexFieldDataService(IndexSettings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
                                  CircuitBreakerService circuitBreakerService, MapperService mapperService) {
         super(indexSettings);

@@ -68,7 +68,7 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard>{
+public final class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard>{
 
     private final IndexEventListener eventListener;
     private final AnalysisService analysisService;
@@ -538,15 +538,15 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     final EngineFactory getEngineFactory() {
         return engineFactory;
-    }
+    } // pkg private for testing
 
     final IndexSearcherWrapper getSearcherWrapper() {
         return searcherWrapper;
-    }
+    } // pkg private for testing
 
     final IndexStore getIndexStore() {
         return indexStore;
-    }
+    } // pkg private for testing
 
 
 }

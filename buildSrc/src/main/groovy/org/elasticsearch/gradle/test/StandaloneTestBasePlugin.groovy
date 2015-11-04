@@ -16,24 +16,40 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
+
 package org.elasticsearch.gradle.test
 
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
+import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
+import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
+import org.gradle.api.plugins.JavaBasePlugin
 
 /** Configures the build to have a rest integration test.  */
-class RestTestPlugin implements Plugin<Project> {
+class StandaloneTestBasePlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        project.pluginManager.apply(StandaloneTestBasePlugin)
+        project.pluginManager.apply(JavaBasePlugin)
+        project.pluginManager.apply(RandomizedTestingPlugin)
 
-        RandomizedTestingTask integTest = RestIntegTestTask.configure(project)
-        RestSpecHack.configureDependencies(project)
-        integTest.configure {
-            classpath = project.sourceSets.test.runtimeClasspath
-            testClassesDir project.sourceSets.test.output.classesDir
+        // remove some unnecessary tasks for a qa test
+        project.tasks.removeAll { it.name in ['assemble', 'buildDependents'] }
+
+        // only setup tests to build
+        project.sourceSets {
+            test
+        }
+        project.dependencies {
+            testCompile "org.elasticsearch:test-framework:${ElasticsearchProperties.version}"
+        }
+
+        project.eclipse {
+            classpath {
+                sourceSets = [project.sourceSets.test]
+                plusConfigurations = [project.configurations.testRuntime]
+            }
         }
     }
 }

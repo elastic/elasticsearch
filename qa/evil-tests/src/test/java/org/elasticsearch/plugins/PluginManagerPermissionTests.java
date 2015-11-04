@@ -43,7 +43,6 @@ import java.util.zip.ZipOutputStream;
 
 import static java.nio.file.attribute.PosixFilePermission.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
@@ -319,7 +318,7 @@ public class PluginManagerPermissionTests extends ESTestCase {
 
     private URL createPlugin(boolean withBinDir, boolean withConfigDir) throws IOException {
         final Path structure = createTempDir().resolve("fake-plugin");
-        writeProperties(structure, "description", "fake desc",
+        PluginTestUtil.writeProperties(structure, "description", "fake desc",
                 "version", "1.0",
                 "elasticsearch.version", Version.CURRENT.toString(),
                 "jvm", "true",

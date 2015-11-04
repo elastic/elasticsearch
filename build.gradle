@@ -102,6 +102,8 @@ allprojects {
 
 subprojects {
   repositories {
+    // Uncomment the following line to first resolve against the maven local repo. This is useful for eclipse users who want to work on test-framework.
+    // mavenLocal()
     mavenCentral()
     maven {
       name 'sonatype-snapshots'

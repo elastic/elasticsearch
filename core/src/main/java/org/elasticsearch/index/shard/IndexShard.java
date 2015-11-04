@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -61,7 +60,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexServicesProvider;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
@@ -153,7 +152,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndicesQueryCache indicesQueryCache;
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
-    private final IndexServicesProvider provider;
+    private final NodeServicesProvider provider;
 
     private TimeValue refreshInterval;
 
@@ -201,22 +200,24 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     private final IndexingMemoryController indexingMemoryController;
 
-    @Inject
-    public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexSearcherWrapper indexSearcherWrapper, IndexServicesProvider provider) {
+    public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
+                      MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
+                      @Nullable EngineFactory engineFactory,
+                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider) {
         super(shardId, indexSettings);
         this.idxSettings = indexSettings;
-        this.codecService = new CodecService(provider.getMapperService(), logger);
+        this.codecService = new CodecService(mapperService, logger);
         this.warmer = provider.getWarmer();
         this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
-        this.similarityService = provider.getSimilarityService();
+        this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
-        this.engineFactory = provider.getFactory();
+        this.engineFactory = engineFactory == null ? new InternalEngineFactory() : engineFactory;
         this.store = store;
-        this.indexEventListener = provider.getIndexEventListener();
+        this.indexEventListener = indexEventListener;
         this.mergeSchedulerConfig = new MergeSchedulerConfig(this.indexSettings);
         this.threadPool = provider.getThreadPool();
-        this.mapperService = provider.getMapperService();
-        this.indexCache = provider.getIndexCache();
+        this.mapperService = mapperService;
+        this.indexCache = indexCache;
         this.indexingService = new ShardIndexingService(shardId, indexSettings);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.termVectorsService =  provider.getTermVectorsService();
@@ -225,7 +226,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indicesQueryCache =  provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
-        this.indexFieldDataService =  provider.getIndexFieldDataService();
+        this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.refreshInterval = this.indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
@@ -233,7 +234,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.path = path;
         this.mergePolicyConfig = new MergePolicyConfig(logger, this.indexSettings);
         /* create engine config */
-
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = this.indexSettings.get("index.shard.check_on_startup", "false");
@@ -1618,6 +1618,10 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public QueryShardContext getQueryShardContext() {
         return queryShardContextCache.get();
+    }
+
+    EngineFactory getEngineFactory() {
+        return engineFactory;
     }
 
 }

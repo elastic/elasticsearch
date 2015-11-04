@@ -35,9 +35,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.cache.query.QueryCache;
+import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
@@ -65,17 +68,21 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 /**
  *
  */
-public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
+public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard>{
 
     private final IndexEventListener eventListener;
     private final AnalysisService analysisService;
     private final IndexFieldDataService indexFieldData;
     private final BitsetFilterCache bitsetFilterCache;
     private final NodeEnvironment nodeEnv;
-    private final IndicesService indicesServices;
-    private final IndexServicesProvider indexServicesProvider;
+    private final ShardStoreDeleter shardStoreDeleter;
+    private final NodeServicesProvider nodeServicesProvider;
     private final IndexStore indexStore;
     private final IndexSearcherWrapper searcherWrapper;
+    private final IndexCache indexCache;
+    private final MapperService mapperService;
+    private final SimilarityService similarityService;
+    private final EngineFactory engineFactory;
     private volatile Map<Integer, IndexShard> shards = emptyMap();
     private final AtomicBoolean closed = new AtomicBoolean(false);
     private final AtomicBoolean deleted = new AtomicBoolean(false);
@@ -83,27 +90,31 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     @Inject
     public IndexService(IndexSettings indexSettings, NodeEnvironment nodeEnv,
-                        AnalysisService analysisService,
-                        IndexFieldDataService indexFieldData,
-                        BitsetFilterCache bitSetFilterCache,
-                        IndicesService indicesServices,
-                        IndexServicesProvider indexServicesProvider,
+                        SimilarityService similarityService,
+                        ShardStoreDeleter shardStoreDeleter,
+                        AnalysisRegistry registry,
+                        @Nullable EngineFactory engineFactory,
+                        NodeServicesProvider nodeServicesProvider,
+                        QueryCache queryCache,
                         IndexStore indexStore,
                         IndexEventListener eventListener,
-                        IndexModule.IndexSearcherWrapperFactory wrapperFactory) {
+                        IndexModule.IndexSearcherWrapperFactory wrapperFactory) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
-        this.analysisService = analysisService;
-        this.indexFieldData = indexFieldData;
-        this.bitsetFilterCache = bitSetFilterCache;
-        this.indicesServices = indicesServices;
+        this.analysisService = registry.build(indexSettings);
+        this.similarityService = similarityService;
+        this.mapperService = new MapperService(indexSettings, analysisService, similarityService);
+        this.indexFieldData = new IndexFieldDataService(indexSettings, nodeServicesProvider.getIndicesFieldDataCache(), nodeServicesProvider.getCircuitBreakerService(), mapperService);
+        this.shardStoreDeleter = shardStoreDeleter;
         this.eventListener = eventListener;
         this.nodeEnv = nodeEnv;
-        this.indexServicesProvider = indexServicesProvider;
+        this.nodeServicesProvider = nodeServicesProvider;
         this.indexStore = indexStore;
         indexFieldData.setListener(new FieldDataCacheListener(this));
-        bitSetFilterCache.setListener(new BitsetCacheListener(this));
         this.searcherWrapper = wrapperFactory.newWrapper(this);
+        this.bitsetFilterCache = new BitsetFilterCache(indexSettings, nodeServicesProvider.getWarmer(), new BitsetCacheListener(this));
+        this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
+        this.engineFactory = engineFactory;
     }
 
     public int numberOfShards() {
@@ -145,39 +156,37 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     public Set<Integer> shardIds() { return shards.keySet(); }
 
     public IndexCache cache() {
-        return indexServicesProvider.getIndexCache();
+        return indexCache;
     }
 
-    public IndexFieldDataService fieldData() {
-        return indexFieldData;
-    }
-
-    public BitsetFilterCache bitsetFilterCache() {
-        return bitsetFilterCache;
-    }
+    public IndexFieldDataService fieldData() { return indexFieldData; }
 
     public AnalysisService analysisService() {
         return this.analysisService;
     }
 
     public MapperService mapperService() {
-        return indexServicesProvider.getMapperService();
+        return mapperService;
     }
 
     public SimilarityService similarityService() {
-        return indexServicesProvider.getSimilarityService();
+        return similarityService;
     }
 
-    public synchronized void close(final String reason, boolean delete) {
+    public synchronized void close(final String reason, boolean delete) throws IOException {
         if (closed.compareAndSet(false, true)) {
             deleted.compareAndSet(false, delete);
-            final Set<Integer> shardIds = shardIds();
-            for (final int shardId : shardIds) {
-                try {
-                    removeShard(shardId, reason);
-                } catch (Throwable t) {
-                    logger.warn("failed to close shard", t);
+            try {
+                final Set<Integer> shardIds = shardIds();
+                for (final int shardId : shardIds) {
+                    try {
+                        removeShard(shardId, reason);
+                    } catch (Throwable t) {
+                        logger.warn("failed to close shard", t);
+                    }
                 }
+            } finally {
+                IOUtils.close(bitsetFilterCache, indexCache, mapperService, indexFieldData, analysisService);
             }
         }
     }
@@ -262,11 +271,11 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             // if we are on a shared FS we only own the shard (ie. we can safely delete it) if we are the primary.
             final boolean canDeleteShardContent = IndexMetaData.isOnSharedFilesystem(indexSettings) == false ||
                     (primary && IndexMetaData.isOnSharedFilesystem(indexSettings));
-            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> indexServicesProvider.getIndicesQueryCache().onClose(shardId)));
+            store = new Store(shardId, this.indexSettings, indexStore.newDirectoryService(path), lock, new StoreCloseListener(shardId, canDeleteShardContent, () -> nodeServicesProvider.getIndicesQueryCache().onClose(shardId)));
             if (useShadowEngine(primary, indexSettings)) {
-                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, searcherWrapper, indexServicesProvider);
+                indexShard = new ShadowIndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider);
             } else {
-                indexShard = new IndexShard(shardId, this.indexSettings, path, store, searcherWrapper, indexServicesProvider);
+                indexShard = new IndexShard(shardId, this.indexSettings, path, store, indexCache, mapperService, similarityService, indexFieldData, engineFactory, eventListener, searcherWrapper, nodeServicesProvider);
             }
 
             eventListener.indexShardStateChanged(indexShard, null, indexShard.state(), "shard created");
@@ -339,19 +348,19 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
                     try {
                         eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings);
                     } finally {
-                        indicesServices.deleteShardStore("delete index", lock, indexSettings);
+                        shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
                         eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings);
                     }
                 }
             } catch (IOException e) {
-                indicesServices.addPendingDelete(lock.getShardId(), indexSettings);
+                shardStoreDeleter.addPendingDelete(lock.getShardId(), indexSettings);
                 logger.debug("[{}] failed to delete shard content - scheduled a retry", e, lock.getShardId().id());
             }
         }
     }
 
-    public IndexServicesProvider getIndexServices() {
-        return indexServicesProvider;
+    public NodeServicesProvider getIndexServices() {
+        return nodeServicesProvider;
     }
 
     public IndexSettings getIndexSettings() {
@@ -359,7 +368,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     }
 
     public QueryShardContext getQueryShardContext() {
-        return new QueryShardContext(indexSettings, indexServicesProvider.getClient(), bitsetFilterCache(), indexServicesProvider.getIndexFieldDataService(), mapperService(), similarityService(), indexServicesProvider.getScriptService(), indexServicesProvider.getIndicesQueriesRegistry());
+        return new QueryShardContext(indexSettings, nodeServicesProvider.getClient(), indexCache.bitsetFilterCache(), indexFieldData, mapperService(), similarityService(), nodeServicesProvider.getScriptService(), nodeServicesProvider.getIndicesQueriesRegistry());
     }
 
     private class StoreCloseListener implements Store.OnClose {
@@ -521,4 +530,23 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             }
         }
     }
+
+    public interface ShardStoreDeleter {
+        void deleteShardStore(String reason, ShardLock lock, Settings indexSettings) throws IOException;
+        void addPendingDelete(ShardId shardId, Settings indexSettings);
+    }
+
+    final EngineFactory getEngineFactory() {
+        return engineFactory;
+    }
+
+    final IndexSearcherWrapper getSearcherWrapper() {
+        return searcherWrapper;
+    }
+
+    final IndexStore getIndexStore() {
+        return indexStore;
+    }
+
+
 }

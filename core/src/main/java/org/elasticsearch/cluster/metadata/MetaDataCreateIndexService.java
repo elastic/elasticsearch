@@ -55,6 +55,7 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
@@ -95,12 +96,14 @@ public class MetaDataCreateIndexService extends AbstractComponent {
     private final AliasValidator aliasValidator;
     private final IndexTemplateFilter indexTemplateFilter;
     private final Environment env;
+    private final NodeServicesProvider nodeServicesProvider;
+
 
     @Inject
     public MetaDataCreateIndexService(Settings settings, ClusterService clusterService,
                                       IndicesService indicesService, AllocationService allocationService,
                                       Version version, AliasValidator aliasValidator,
-                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env) {
+                                      Set<IndexTemplateFilter> indexTemplateFilters, Environment env, NodeServicesProvider nodeServicesProvider) {
         super(settings);
         this.clusterService = clusterService;
         this.indicesService = indicesService;
@@ -108,6 +111,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         this.version = version;
         this.aliasValidator = aliasValidator;
         this.env = env;
+        this.nodeServicesProvider = nodeServicesProvider;
 
         if (indexTemplateFilters.isEmpty()) {
             this.indexTemplateFilter = DEFAULT_INDEX_TEMPLATE_FILTER;
@@ -295,7 +299,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // Set up everything, now locally create the index to see that things are ok, and apply
                     final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(tmpImd, Collections.EMPTY_LIST);
+                    indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.EMPTY_LIST);
                     indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());

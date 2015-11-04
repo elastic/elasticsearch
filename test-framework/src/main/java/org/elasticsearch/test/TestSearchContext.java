@@ -104,7 +104,7 @@ public class TestSearchContext extends SearchContext {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
         this.indexFieldDataService = indexService.fieldData();
-        this.fixedBitSetFilterCache = indexService.bitsetFilterCache();
+        this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
         this.scriptService = scriptService;

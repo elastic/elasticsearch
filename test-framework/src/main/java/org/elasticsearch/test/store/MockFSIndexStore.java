@@ -52,13 +52,14 @@ public class MockFSIndexStore extends IndexStore {
             return Settings.builder().put(IndexModule.STORE_TYPE, "mock").build();
         }
 
-        public void onModule(IndexModule module) {
-            Settings indexSettings = module.getSettings();
+        @Override
+        public void onIndexModule(IndexModule indexModule) {
+            Settings indexSettings = indexModule.getSettings();
             if ("mock".equals(indexSettings.get(IndexModule.STORE_TYPE))) {
                 if (indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true)) {
-                    module.addIndexEventListener(new Listener());
+                    indexModule.addIndexEventListener(new Listener());
                 }
-                module.addIndexStore("mock", MockFSIndexStore::new);
+                indexModule.addIndexStore("mock", MockFSIndexStore::new);
             }
         }
     }

@@ -450,7 +450,7 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public BitsetFilterCache bitsetFilterCache() {
-        return indexService.bitsetFilterCache();
+        return indexService.cache().bitsetFilterCache();
     }
 
     @Override

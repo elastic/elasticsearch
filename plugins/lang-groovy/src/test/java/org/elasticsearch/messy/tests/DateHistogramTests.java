@@ -1333,6 +1333,8 @@ public class DateHistogramTests extends ESIntegTestCase {
     }
 
     public void testDSTBoundaryIssue9491() throws InterruptedException, ExecutionException {
+        logger.debug("Provider for DateTimeZone [{}] ", DateTimeZone.getProvider().getClass());
+        logger.debug("Available time zone IDs [{}] ", DateTimeZone.getProvider().getAvailableIDs());
         assertAcked(client().admin().indices().prepareCreate("test9491").addMapping("type", "d", "type=date").get());
         indexRandom(true, client().prepareIndex("test9491", "type").setSource("d", "2014-10-08T13:00:00Z"),
                 client().prepareIndex("test9491", "type").setSource("d", "2014-11-08T13:00:00Z"));
@@ -1348,6 +1350,8 @@ public class DateHistogramTests extends ESIntegTestCase {
     }
 
     public void testIssue8209() throws InterruptedException, ExecutionException {
+        logger.debug("Provider for DateTimeZone [{}] ", DateTimeZone.getProvider().getClass());
+        logger.debug("Available time zone IDs [{}] ", DateTimeZone.getProvider().getAvailableIDs());
         assertAcked(client().admin().indices().prepareCreate("test8209").addMapping("type", "d", "type=date").get());
         indexRandom(true,
                 client().prepareIndex("test8209", "type").setSource("d", "2014-01-01T00:00:00Z"),

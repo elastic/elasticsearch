@@ -22,7 +22,7 @@ package org.elasticsearch.search.innerhits;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.ArrayUtil;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;

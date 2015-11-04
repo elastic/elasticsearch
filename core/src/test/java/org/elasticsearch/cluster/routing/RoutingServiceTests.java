@@ -85,7 +85,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test"))).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
@@ -94,7 +94,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         // remove node2 and reroute
         ClusterState prevState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         ClusterState newState = clusterState;
 
         assertThat(routingService.getRegisteredNextDelaySetting(), equalTo(Long.MAX_VALUE));
@@ -114,7 +114,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test"))).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
@@ -134,7 +134,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
 
         ClusterState prevState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // We need to update the routing service's last attempted run to
         // signal that the GatewayAllocator tried to allocated it but
         // it was delayed
@@ -179,7 +179,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
                     .put(newNode("node0", singletonMap("data", Boolean.FALSE.toString()))).localNodeId("node0").masterNodeId("node0")
                     .put(newNode("node1")).put(newNode("node2")).put(newNode("node3")).put(newNode("node4"))).build();
             // allocate shards
-            clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+            clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
             // start primaries
             clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
             // start replicas
@@ -211,7 +211,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
             clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(shortDelayReplica.currentNodeId()).remove(longDelayReplica.currentNodeId())).build();
             // make sure both replicas are marked as delayed (i.e. not reallocated)
             mockGatewayAllocator.setShardsToDelay(Arrays.asList(shortDelayReplica, longDelayReplica));
-            clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+            clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
 
             // check that shortDelayReplica and longDelayReplica have been marked unassigned
             RoutingNodes.UnassignedShards unassigned = clusterState.getRoutingNodes().unassigned();
@@ -270,7 +270,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test"))).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
@@ -279,7 +279,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         // remove node2 and reroute
         ClusterState prevState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // Set it in the future so the delay will be negative
         routingService.setUnassignedShardsAllocatedTimestamp(System.currentTimeMillis() + TimeValue.timeValueMinutes(1).millis());
 

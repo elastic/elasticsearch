@@ -62,7 +62,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         logger.info("start one node, do reroute, only 3 should initialize");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(0));
@@ -123,7 +123,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         logger.info("start one node, do reroute, only 3 should initialize");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(0));
@@ -148,7 +148,7 @@ public class ThrottlingAllocationTests extends ESAllocationTestCase {
 
         logger.info("start another node, replicas should start being allocated");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));

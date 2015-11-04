@@ -65,7 +65,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the primary shard (on node1)");
@@ -77,7 +77,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
 
         logger.info("start another node, replica will start recovering form primary");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));
@@ -85,7 +85,7 @@ public class PrimaryNotRelocatedWhileBeingRecoveredTests extends ESAllocationTes
 
         logger.info("start another node, make sure the primary is not relocated");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(routingTable.shardsWithState(STARTED).size(), equalTo(5));

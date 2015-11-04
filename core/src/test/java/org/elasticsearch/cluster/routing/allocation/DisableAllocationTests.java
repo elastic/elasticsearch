@@ -66,7 +66,7 @@ public class DisableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
 
@@ -95,7 +95,7 @@ public class DisableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
@@ -128,7 +128,7 @@ public class DisableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
         logger.info("--> start the shards (primaries)");

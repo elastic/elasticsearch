@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.health;
+package org.elasticsearch.cluster.health;
 
 
 /**

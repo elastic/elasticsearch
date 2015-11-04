@@ -130,7 +130,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             nodes.put(newNode("node" + i));
         }
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -166,7 +166,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 .put(newNode("node" + numberOfNodes)))
                 .build();
 
-        RoutingTable routingTable = strategy.reroute(clusterState).routingTable();
+        RoutingTable routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -207,7 +207,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         logger.info("rebalancing");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -424,7 +424,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -458,7 +458,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
 
         logger.info("rebalancing");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 

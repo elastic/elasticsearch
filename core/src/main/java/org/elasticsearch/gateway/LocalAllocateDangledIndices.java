@@ -161,7 +161,8 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                     ClusterState updatedState = ClusterState.builder(currentState).metaData(metaData).blocks(blocks).routingTable(routingTableBuilder).build();
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(
+                            ClusterState.builder(updatedState).routingTable(routingTableBuilder).build(), "dangling indices allocated");
 
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }

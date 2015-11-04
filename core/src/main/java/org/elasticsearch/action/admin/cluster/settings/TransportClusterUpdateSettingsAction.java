@@ -162,7 +162,7 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                     @Override
                     public ClusterState execute(final ClusterState currentState) {
                         // now, reroute in case things that require it changed (e.g. number of replicas)
-                        RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
+                        RoutingAllocation.Result routingResult = allocationService.reroute(currentState, "reroute after cluster update settings");
                         if (!routingResult.changed()) {
                             return currentState;
                         }

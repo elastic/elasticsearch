@@ -405,7 +405,9 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     if (request.state() == State.OPEN) {
                         RoutingTable.Builder routingTableBuilder = RoutingTable.builder(updatedState.routingTable())
                                 .addAsNew(updatedState.metaData().index(request.index()));
-                        RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder).build());
+                        RoutingAllocation.Result routingResult = allocationService.reroute(
+                                ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
+                                "index [" + request.index() + "] created");
                         updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
                     removalReason = "cleaning up after validating index on master";

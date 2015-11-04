@@ -20,8 +20,11 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.base.Function;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
@@ -35,6 +38,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
 
 
@@ -80,7 +84,21 @@ public class AllocationService extends AbstractComponent {
         if (withReroute) {
             reroute(allocation);
         }
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
+        RoutingTable routingTable = new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
+        RoutingAllocation.Result result = new RoutingAllocation.Result(true, routingTable);
+
+        String startedShardsAsString = firstListElementsToCommaDelimitedString(startedShards, new Function<ShardRouting, String>() {
+            @Override
+            public String apply(ShardRouting s) {
+                return s.shardId().toString();
+            }
+        });
+        logClusterHealthStateChange(
+                new ClusterStateHealth(clusterState),
+                new ClusterStateHealth(clusterState.metaData(), routingTable),
+                "shards started [" + startedShardsAsString + "] ..."
+        );
+        return result;
     }
 
     public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
@@ -106,7 +124,46 @@ public class AllocationService extends AbstractComponent {
         }
         shardsAllocators.applyFailedShards(allocation);
         reroute(allocation);
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
+        RoutingTable routingTable = new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
+        RoutingAllocation.Result result = new RoutingAllocation.Result(true, routingTable);
+        String failedShardsAsString = firstListElementsToCommaDelimitedString(failedShards, new Function<FailedRerouteAllocation.FailedShard, String>() {
+            @Override
+            public String apply(FailedRerouteAllocation.FailedShard s) {
+                return s.shard.shardId().toString();
+            }
+        });
+        logClusterHealthStateChange(
+                new ClusterStateHealth(clusterState),
+                new ClusterStateHealth(clusterState.getMetaData(), routingTable),
+                "shards failed [" + failedShardsAsString + "] ..."
+        );
+        return result;
+    }
+
+    /**
+     * Internal helper to cap the number of elements in a potentially long list for logging.
+     *
+     * @param elements  The elements to log. May be any non-null list. Must not be null.
+     * @param formatter A function that can convert list elements to a String. Must not be null.
+     * @param <T>       The list element type.
+     * @return A comma-separated string of the first few elements.
+     */
+    private <T> String firstListElementsToCommaDelimitedString(List<T> elements, Function<? super T, String> formatter) {
+        final int maxNumberOfElements = 10;
+        int currentIndex = 0;
+        Iterator<T> it = elements.iterator();
+        StringBuilder msg = new StringBuilder();
+
+        while (it.hasNext() && currentIndex < maxNumberOfElements) {
+            T element = it.next();
+            if (currentIndex > 0) {
+                msg.append(", ");
+            }
+            msg.append(formatter.apply(element));
+
+            currentIndex++;
+        }
+        return msg.toString();
     }
 
     public RoutingAllocation.Result reroute(ClusterState clusterState, AllocationCommands commands) {
@@ -129,7 +186,14 @@ public class AllocationService extends AbstractComponent {
         // the assumption is that commands will move / act on shards (or fail through exceptions)
         // so, there will always be shard "movements", so no need to check on reroute
         reroute(allocation);
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()), explanations);
+        RoutingTable routingTable = new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
+        RoutingAllocation.Result result = new RoutingAllocation.Result(true, routingTable, explanations);
+        logClusterHealthStateChange(
+                new ClusterStateHealth(clusterState),
+                new ClusterStateHealth(clusterState.getMetaData(), routingTable),
+                "reroute commands"
+        );
+        return result;
     }
 
     /**
@@ -137,8 +201,8 @@ public class AllocationService extends AbstractComponent {
      * <p/>
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
-    public RoutingAllocation.Result reroute(ClusterState clusterState) {
-        return reroute(clusterState, false);
+    public RoutingAllocation.Result reroute(ClusterState clusterState, String reason) {
+        return reroute(clusterState, reason, false);
     }
 
     /**
@@ -146,7 +210,7 @@ public class AllocationService extends AbstractComponent {
      * <p/>
      * <p>If the same instance of the routing table is returned, then no change has been made.
      */
-    public RoutingAllocation.Result reroute(ClusterState clusterState, boolean debug) {
+    protected RoutingAllocation.Result reroute(ClusterState clusterState, String reason, boolean debug) {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
@@ -155,7 +219,22 @@ public class AllocationService extends AbstractComponent {
         if (!reroute(allocation)) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
         }
-        return new RoutingAllocation.Result(true, new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData()));
+        RoutingTable routingTable = new RoutingTable.Builder().updateNodes(routingNodes).build().validateRaiseException(clusterState.metaData());
+        RoutingAllocation.Result result = new RoutingAllocation.Result(true, routingTable);
+        logClusterHealthStateChange(
+                new ClusterStateHealth(clusterState),
+                new ClusterStateHealth(clusterState.getMetaData(), routingTable),
+                reason
+        );
+        return result;
+    }
+
+    private void logClusterHealthStateChange(ClusterStateHealth previousStateHealth, ClusterStateHealth newStateHealth, String reason) {
+        ClusterHealthStatus previousHealth = previousStateHealth.getStatus();
+        ClusterHealthStatus currentHealth = newStateHealth.getStatus();
+        if (!previousHealth.equals(currentHealth)) {
+            logger.info("Cluster health status changed from [{}] to [{}] (reason: [{}]).", previousHealth, currentHealth, reason);
+        }
     }
 
     private boolean reroute(RoutingAllocation allocation) {

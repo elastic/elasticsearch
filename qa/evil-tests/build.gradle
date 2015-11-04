@@ -17,7 +17,19 @@
  * under the License.
  */
 
+/*
+ * Evil tests that need to do unrealistic things: test OS security
+ * integration, change default filesystem impl, mess with arbitrary
+ * threads, etc.
+ */
+
 apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+  testCompile 'com.google.jimfs:jimfs:1.0'
+}
+
+// TODO: give each evil test its own fresh JVM for more isolation.
 
 test {
   systemProperty 'tests.security.manager', 'false'

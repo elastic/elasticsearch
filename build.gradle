@@ -102,6 +102,7 @@ allprojects {
 
 subprojects {
   repositories {
+    mavenLocal()
     mavenCentral()
     maven {
       name 'sonatype-snapshots'

@@ -71,9 +71,8 @@ import java.util.zip.ZipOutputStream;
 
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.USAGE;
 import static org.elasticsearch.common.cli.CliToolTestCase.args;
-import static org.elasticsearch.common.io.FileSystemUtilsTests.assertFileContent;
+import static org.elasticsearch.common.io.FileTestUtils.assertFileContent;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.plugins.PluginInfoTests.writeProperties;
 import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
@@ -83,7 +82,7 @@ import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
 // TODO: jimfs is really broken here (throws wrong exception from detection method).
 // if its in your classpath, then do not use plugins!!!!!!
-public class PluginManagerIT extends ESIntegTestCase {
+public class PluginManagerTests extends ESIntegTestCase {
 
     private Environment environment;
     private CaptureOutputTerminal terminal = new CaptureOutputTerminal();
@@ -129,7 +128,7 @@ public class PluginManagerIT extends ESIntegTestCase {
 
     /** creates a plugin .zip and returns the url for testing */
     private String createPlugin(final Path structure, String... properties) throws IOException {
-        writeProperties(structure, properties);
+        PluginTestUtil.writeProperties(structure, properties);
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {
@@ -151,7 +150,7 @@ public class PluginManagerIT extends ESIntegTestCase {
 
     /** creates a plugin .zip and bad checksum file and returns the url for testing */
     private String createPluginWithBadChecksum(final Path structure, String... properties) throws IOException {
-        writeProperties(structure, properties);
+        PluginTestUtil.writeProperties(structure, properties);
         Path zip = createTempDir().resolve(structure.getFileName() + ".zip");
         try (ZipOutputStream stream = new ZipOutputStream(Files.newOutputStream(zip))) {
             Files.walkFileTree(structure, new SimpleFileVisitor<Path>() {

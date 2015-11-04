@@ -6,6 +6,7 @@
 package org.elasticsearch.shield.crypto.tool;
 
 import org.apache.commons.cli.CommandLine;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CheckFileCommand;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
@@ -37,7 +38,12 @@ public class SystemKeyTool extends CliTool {
 
     public static void main(String[] args) throws Exception {
         ExitStatus exitStatus = new SystemKeyTool().execute(args);
-        System.exit(exitStatus.status());
+        exit(exitStatus.status());
+    }
+
+    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
+    private static void exit(int status) {
+        System.exit(status);
     }
 
     private static final CliToolConfig CONFIG = config("syskey", SystemKeyTool.class)

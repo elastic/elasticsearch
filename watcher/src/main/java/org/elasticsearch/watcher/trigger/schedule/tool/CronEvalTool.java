@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.trigger.schedule.tool;
 
 import org.apache.commons.cli.CommandLine;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
@@ -32,7 +33,12 @@ public class CronEvalTool extends CliTool {
 
     public static void main(String[] args) throws Exception {
         ExitStatus exitStatus = new CronEvalTool().execute(args);
-        System.exit(exitStatus.status());
+        exit(exitStatus.status());
+    }
+
+    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
+    private static void exit(int status) {
+        System.exit(status);
     }
 
     public CronEvalTool() {

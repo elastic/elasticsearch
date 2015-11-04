@@ -24,8 +24,10 @@ import com.carrotsearch.hppc.ObjectIntMap;
 import com.carrotsearch.hppc.ObjectObjectHashMap;
 import com.carrotsearch.hppc.ObjectObjectMap;
 import org.apache.lucene.util.GeoHashUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -36,6 +38,7 @@ import org.elasticsearch.search.SearchHitField;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.util.ArrayList;
@@ -73,7 +76,9 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex(UNMAPPED_IDX_NAME);
-        assertAcked(prepareCreate(IDX_NAME)
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        assertAcked(prepareCreate(IDX_NAME).setSettings(settings)
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point,geohash_prefix=true,geohash_precision=12",
                         MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=string,index=not_analyzed"));
 
@@ -133,9 +138,10 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     multiCentroid.lon() + (newMVLon - multiCentroid.lon()) / (i+1));
         }
 
-        assertAcked(prepareCreate(EMPTY_IDX_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(EMPTY_IDX_NAME).setSettings(settings)
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
-        assertAcked(prepareCreate(DATELINE_IDX_NAME)
+        assertAcked(prepareCreate(DATELINE_IDX_NAME).setSettings(settings)
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point", MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=string,index=not_analyzed"));
 
         GeoPoint[] geoValues = new GeoPoint[5];
@@ -153,7 +159,8 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     .field("tag", "tag" + i)
                     .endObject()));
         }
-        assertAcked(prepareCreate(HIGH_CARD_IDX_NAME).setSettings(Settings.builder().put("number_of_shards", 2))
+        assertAcked(prepareCreate(HIGH_CARD_IDX_NAME)
+                .setSettings(Settings.builder().put("number_of_shards", 2).put(IndexMetaData.SETTING_VERSION_CREATED, version))
                 .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point", MULTI_VALUED_FIELD_NAME, "type=geo_point", NUMBER_FIELD_NAME, "type=long", "tag", "type=string,index=not_analyzed"));
 
         for (int i = 0; i < 2000; i++) {
@@ -168,12 +175,13 @@ public abstract class AbstractGeoTestCase extends ESIntegTestCase {
                     .field(NUMBER_FIELD_NAME, i)
                     .field("tag", "tag" + i)
                     .endObject()));
-           updateGeohashBucketsCentroid(singleVal);
+            updateGeohashBucketsCentroid(singleVal);
         }
 
         builders.add(client().prepareIndex(IDX_ZERO_NAME, "type").setSource(
                 jsonBuilder().startObject().array(SINGLE_VALUED_FIELD_NAME, 0.0, 1.0).endObject()));
-        assertAcked(prepareCreate(IDX_ZERO_NAME).addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
+        assertAcked(prepareCreate(IDX_ZERO_NAME).setSettings(settings)
+                .addMapping("type", SINGLE_VALUED_FIELD_NAME, "type=geo_point"));
 
         indexRandom(true, builders);
         ensureSearchable();

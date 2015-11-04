@@ -19,11 +19,15 @@
 
 package org.elasticsearch.search.geo;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -39,47 +43,49 @@ public class GeoPolygonIT extends ESIntegTestCase {
 
     @Override
     protected void setupSuiteScopeCluster() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
                 .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
                 .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
-                .field("name", "New York")
-                .startObject("location").field("lat", 40.714).field("lon", -74.006).endObject()
-                .endObject()), 
-        // to NY: 5.286 km
-        client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
-                .field("name", "Times Square")
-                .startObject("location").field("lat", 40.759).field("lon", -73.984).endObject()
-                .endObject()),
-        // to NY: 0.4621 km
-        client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
-                .field("name", "Tribeca")
-                .startObject("location").field("lat", 40.718).field("lon", -74.008).endObject()
-                .endObject()),
-        // to NY: 1.055 km
-        client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
-                .field("name", "Wall Street")
-                .startObject("location").field("lat", 40.705).field("lon", -74.009).endObject()
-                .endObject()),
-        // to NY: 1.258 km
-        client().prepareIndex("test", "type1", "5").setSource(jsonBuilder().startObject()
-                .field("name", "Soho")
-                .startObject("location").field("lat", 40.725).field("lon", -74).endObject()
-                .endObject()),
-        // to NY: 2.029 km
-        client().prepareIndex("test", "type1", "6").setSource(jsonBuilder().startObject()
-                .field("name", "Greenwich Village")
-                .startObject("location").field("lat", 40.731).field("lon", -73.996).endObject()
-                .endObject()),
-        // to NY: 8.572 km
-        client().prepareIndex("test", "type1", "7").setSource(jsonBuilder().startObject()
-                .field("name", "Brooklyn")
-                .startObject("location").field("lat", 40.65).field("lon", -73.95).endObject()
-                .endObject()));
+                        .field("name", "New York")
+                        .startObject("location").field("lat", 40.714).field("lon", -74.006).endObject()
+                        .endObject()),
+                // to NY: 5.286 km
+                client().prepareIndex("test", "type1", "2").setSource(jsonBuilder().startObject()
+                        .field("name", "Times Square")
+                        .startObject("location").field("lat", 40.759).field("lon", -73.984).endObject()
+                        .endObject()),
+                // to NY: 0.4621 km
+                client().prepareIndex("test", "type1", "3").setSource(jsonBuilder().startObject()
+                        .field("name", "Tribeca")
+                        .startObject("location").field("lat", 40.718).field("lon", -74.008).endObject()
+                        .endObject()),
+                // to NY: 1.055 km
+                client().prepareIndex("test", "type1", "4").setSource(jsonBuilder().startObject()
+                        .field("name", "Wall Street")
+                        .startObject("location").field("lat", 40.705).field("lon", -74.009).endObject()
+                        .endObject()),
+                // to NY: 1.258 km
+                client().prepareIndex("test", "type1", "5").setSource(jsonBuilder().startObject()
+                        .field("name", "Soho")
+                        .startObject("location").field("lat", 40.725).field("lon", -74).endObject()
+                        .endObject()),
+                // to NY: 2.029 km
+                client().prepareIndex("test", "type1", "6").setSource(jsonBuilder().startObject()
+                        .field("name", "Greenwich Village")
+                        .startObject("location").field("lat", 40.731).field("lon", -73.996).endObject()
+                        .endObject()),
+                // to NY: 8.572 km
+                client().prepareIndex("test", "type1", "7").setSource(jsonBuilder().startObject()
+                        .field("name", "Brooklyn")
+                        .startObject("location").field("lat", 40.65).field("lon", -73.95).endObject()
+                        .endObject()));
         ensureSearchable("test");
     }
 

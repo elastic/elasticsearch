@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointInPolygonQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -136,7 +137,7 @@ public class GeoPolygonQueryParser implements QueryParser {
                 throw new QueryParsingException(parseContext, "too few points defined for geo_polygon query");
             }
         }
-
+        final int shellSize = shell.size();
         // validation was not available prior to 2.x, so to support bwc percolation queries we only ignore_malformed on 2.x created indexes
         if (!indexCreatedBeforeV2_0 && !ignoreMalformed) {
             for (GeoPoint point : shell) {
@@ -164,7 +165,21 @@ public class GeoPolygonQueryParser implements QueryParser {
         }
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-        Query query = new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
+        final Query query;
+        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
+        if (parseContext.indexVersionCreated().onOrBefore(Version.V_2_2_0)) {
+            query = new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shellSize]));
+        } else {
+            final double[] lats = new double[shellSize];
+            final double[] lons = new double[shellSize];
+            GeoPoint p;
+            for (int i=0; i<shell.size(); ++i) {
+                p = shell.get(i);
+                lats[i] = p.lat();
+                lons[i] = p.lon();
+            }
+            query = new GeoPointInPolygonQuery(indexFieldData.getFieldNames().indexName(), lons, lats);
+        }
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

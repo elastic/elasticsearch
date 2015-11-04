@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -65,7 +66,7 @@ public class GeoDistanceQueryParser implements QueryParser {
         String currentFieldName = null;
         GeoPoint point = new GeoPoint();
         String fieldName = null;
-        double distance = 0;
+        double distance;
         Object vDistance = null;
         DistanceUnit unit = DistanceUnit.DEFAULT;
         GeoDistance geoDistance = GeoDistance.DEFAULT;
@@ -96,8 +97,7 @@ public class GeoDistanceQueryParser implements QueryParser {
                         } else if (currentName.equals(GeoPointFieldMapper.Names.GEOHASH)) {
                             point.resetFromGeoHash(parser.text());
                         } else {
-                            throw new QueryParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName
-                                    + "]");
+                            throw new QueryParsingException(parseContext, "[geo_distance] query does not support [" + currentFieldName + "]");
                         }
                     }
                 }
@@ -173,7 +173,15 @@ public class GeoDistanceQueryParser implements QueryParser {
 
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
-        Query query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
+        final Query query;
+        // norelease move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
+        if (parseContext.indexVersionCreated().onOrBefore(Version.V_2_2_0)) {
+            query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
+        } else {
+            distance = GeoUtils.maxRadialDistance(point, distance);
+            query = new GeoPointDistanceQuery(indexFieldData.getFieldNames().indexName(), point.lon(), point.lat(), distance);
+        }
+
         if (queryName != null) {
             parseContext.addNamedQuery(queryName, query);
         }

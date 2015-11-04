@@ -29,10 +29,13 @@ import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.util.GeoProjectionUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -42,11 +45,13 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -165,22 +170,6 @@ public class GeoFilterIT extends ESIntegTestCase {
         } catch (InvalidShapeException e) {
         }
 
-// Not specified
-//        try {
-//            // two overlapping polygons within a multipolygon
-//            ShapeBuilder.newMultiPolygon()
-//                .polygon()
-//                    .point(-10, -10)
-//                    .point(-10, 10)
-//                    .point(10, 10)
-//                    .point(10, -10)
-//                .close()
-//                .polygon()
-//                    .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-//                .close().build();
-//            fail("Polygon intersection not detected";
-//        } catch (InvalidShapeException e) {}
-
         // Multipolygon: polygon with hole and polygon within the whole
         ShapeBuilder.newMultiPolygon()
                 .polygon()
@@ -193,24 +182,6 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .point(-4, -4).point(-4, 4).point(4, 4).point(4, -4)
                 .close()
                 .build();
-
-// Not supported
-//        try {
-//            // Multipolygon: polygon with hole and polygon within the hole but overlapping
-//            ShapeBuilder.newMultiPolygon()
-//                .polygon()
-//                    .point(-10, -10).point(-10, 10).point(10, 10).point(10, -10)
-//                    .hole()
-//                        .point(-5, -5).point(-5, 5).point(5, 5).point(5, -5)
-//                    .close()
-//                .close()
-//                .polygon()
-//                    .point(-4, -4).point(-4, 6).point(4, 6).point(4, -4)
-//                .close()
-//                .build();
-//            fail("Polygon intersection not detected";
-//        } catch (InvalidShapeException e) {}
-
     }
 
     @Test
@@ -413,7 +384,9 @@ public class GeoFilterIT extends ESIntegTestCase {
                 .endObject()
                 .string();
 
-        client().admin().indices().prepareCreate("countries").addMapping("country", mapping).execute().actionGet();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        client().admin().indices().prepareCreate("countries").setSettings(settings).addMapping("country", mapping).execute().actionGet();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null).execute().actionGet();
 
         for (BulkItemResponse item : bulk.getItems()) {
@@ -453,19 +426,27 @@ public class GeoFilterIT extends ESIntegTestCase {
         GeoPoint point = new GeoPoint();
         for (SearchHit hit : distance.getHits()) {
             String name = hit.getId();
-            point.resetFromString(hit.fields().get("pin").getValue().toString());
+            // norelease cut over to .before(Version.V_2_2_0) once geopointv2 is fully merged
+            if (version.onOrBefore(Version.CURRENT)) {
+                point.resetFromString(hit.fields().get("pin").getValue().toString());
+            } else {
+                final long hash = hit.fields().get("pin").getValue();
+                point.resetFromIndexHash(hash);
+            }
             double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
             assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
             assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
             if (key.equals(name)) {
-                assertThat(dist, equalTo(0d));
+                assertThat(dist, closeTo(0d, 0.1d));
             }
         }
     }
 
     @Test
     public void testGeohashCellFilter() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         String geohash = randomhash(10);
         logger.info("Testing geohash_cell filter for [{}]", geohash);
 
@@ -477,7 +458,8 @@ public class GeoFilterIT extends ESIntegTestCase {
 
         ensureYellow();
 
-        client().admin().indices().prepareCreate("locations").addMapping("location", "pin", "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
+        client().admin().indices().prepareCreate("locations").setSettings(settings)
+                .addMapping("location", "pin", "type=geo_point,geohash_prefix=true,lat_lon=false").execute().actionGet();
 
         // Index a pin
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource("pin", geohash).execute().actionGet();
@@ -532,14 +514,10 @@ public class GeoFilterIT extends ESIntegTestCase {
                         expectedResults.put(builder, ids.toArray(Strings.EMPTY_ARRAY));
                         continue;
                     }
-
                     assertSearchHits(response, expectedIds);
-
                 } catch (AssertionError error) {
                     throw new AssertionError(error.getMessage() + "\n geohash_cell filter:" + builder, error);
                 }
-
-
             }
         }
 
@@ -584,7 +562,7 @@ public class GeoFilterIT extends ESIntegTestCase {
     }
 
     public static double distance(double lat1, double lon1, double lat2, double lon2) {
-        return GeoUtils.EARTH_SEMI_MAJOR_AXIS * DistanceUtils.distHaversineRAD(
+        return GeoProjectionUtils.SEMIMAJOR_AXIS * DistanceUtils.distHaversineRAD(
                 DistanceUtils.toRadians(lat1),
                 DistanceUtils.toRadians(lon1),
                 DistanceUtils.toRadians(lat2),
@@ -637,4 +615,3 @@ public class GeoFilterIT extends ESIntegTestCase {
         return sb.toString();
     }
 }
-

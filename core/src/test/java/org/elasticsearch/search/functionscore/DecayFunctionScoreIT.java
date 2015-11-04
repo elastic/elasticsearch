@@ -19,13 +19,16 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -34,6 +37,7 @@ import org.elasticsearch.index.query.functionscore.DecayFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.gauss.GaussDecayFunctionBuilder;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.junit.Test;
@@ -432,10 +436,10 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         SearchResponse sr = response.actionGet();
         assertOrderedSearchHits(sr, "2", "1");
     }
-    
+
     @Test
     public void testParseDateMath() throws Exception {
-        
+
         assertAcked(prepareCreate("test").addMapping(
                 "type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test").field("type", "string")
@@ -456,7 +460,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         assertNoFailures(sr);
         assertOrderedSearchHits(sr, "1", "2");
-        
+
         sr = client().search(
                 searchRequest().source(
                         searchSource().query(
@@ -571,12 +575,19 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
     @Test
     public void testManyDocsLin() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("date").field("type", "date").endObject().startObject("num").field("type", "double")
-                        .endObject().startObject("geo").field("type", "geo_point").field("coerce", true).endObject().endObject()
-                        .endObject().endObject()));
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+
+        XContentBuilder mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
+                .endObject().startObject("date").field("type", "date").endObject().startObject("num").field("type", "double")
+                .endObject().startObject("geo").field("type", "geo_point");
+        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
+        if (version.onOrBefore(Version.CURRENT)) {
+            mapping.field("coerce", true);
+        }
+        mapping.endObject().endObject().endObject().endObject();
+
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", mapping));
         ensureYellow();
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();

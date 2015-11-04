@@ -57,7 +57,7 @@ Below are the default paths that elasticsearch will use, if not explicitly chang
 
 | conf | Configuration files `elasticsearch.yml` and `logging.yml`. | /etc/elasticsearch | /etc/elasticsearch
 
-| conf | Environment variables including heap size, file descriptors. | /etc/default/elasticseach | /etc/sysconfig/elasticsearch
+| conf | Environment variables including heap size, file descriptors. | /etc/default/elasticsearch | /etc/sysconfig/elasticsearch
 
 | data | The location of the data files of each index / shard allocated
 on the node. | /var/lib/elasticsearch/data | /var/lib/elasticsearch
@@ -82,8 +82,6 @@ on the node. | /var/lib/elasticsearch/data | /var/lib/elasticsearch
 | bin | Binary scripts including `elasticsearch` to start a node | {extract.path}/bin
 
 | conf | Configuration files `elasticsearch.yml` and `logging.yml` | {extract.path}/config
-
-| conf | Environment variables including heap size, file descriptors | {extract.path}/config
 
 | data | The location of the data files of each index / shard allocated
 on the node | {extract.path}/data

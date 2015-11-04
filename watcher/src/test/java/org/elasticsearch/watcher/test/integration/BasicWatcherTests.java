@@ -57,11 +57,6 @@ import static org.hamcrest.Matchers.*;
  */
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
 
-    @Override
-    protected boolean enableShield() {
-        return false;
-    }
-
     public void testIndexWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");

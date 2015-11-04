@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.InternalSearchHit;
@@ -31,6 +32,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -54,7 +56,8 @@ public class PipelineStoreTests extends ESTestCase {
         threadPool = new ThreadPool("test");
         ClusterService clusterService = mock(ClusterService.class);
         client = mock(PipelineStoreClient.class);
-        store = new PipelineStore(Settings.EMPTY, threadPool, clusterService, client, Collections.singletonMap(SimpleProcessor.TYPE, new SimpleProcessor.Builder.Factory()));
+        Environment environment = mock(Environment.class);
+        store = new PipelineStore(Settings.EMPTY, threadPool, environment, clusterService, client, Collections.singletonMap(SimpleProcessor.TYPE, new SimpleProcessor.Factory()));
         store.start();
     }
 
@@ -65,7 +68,7 @@ public class PipelineStoreTests extends ESTestCase {
     }
 
 
-    public void testUpdatePipeline() {
+    public void testUpdatePipeline() throws Exception {
         List<SearchHit> hits = new ArrayList<>();
         hits.add(new InternalSearchHit(0, "1", new StringText("type"), Collections.emptyMap())
                 .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
@@ -126,7 +129,7 @@ public class PipelineStoreTests extends ESTestCase {
         });
     }
 
-    public void testGetReference() {
+    public void testGetReference() throws Exception {
         // fill the store up for the test:
         List<SearchHit> hits = new ArrayList<>();
         hits.add(new InternalSearchHit(0, "foo", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));

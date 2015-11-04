@@ -36,7 +36,6 @@ import org.elasticsearch.search.aggregations.metrics.stats.Stats;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -79,7 +78,7 @@ public class HistogramTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -128,8 +127,7 @@ public class HistogramTests extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void singleValuedField() throws Exception {
+    public void testSingleValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
                 .execute().actionGet();
@@ -182,8 +180,7 @@ public class HistogramTests extends ESIntegTestCase {
      * Shift buckets by random offset between [2..interval]. From setup we have 1 doc per values from 1..numdocs.
      * Special care needs to be taken for expecations on counts in first and last bucket.
      */
-    @Test
-    public void singleValuedField_withRandomOffset() throws Exception {
+    public void testSingleValuedFieldWithRandomOffset() throws Exception {
         int offset = randomIntBetween(2, interval);
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -218,8 +215,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByKeyAsc() throws Exception {
+    public void testSingleValuedFieldOrderedByKeyAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.KEY_ASC))
                 .execute().actionGet();
@@ -242,8 +238,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByKeyDesc() throws Exception {
+    public void testsingleValuedFieldOrderedByKeyDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.KEY_DESC))
                 .execute().actionGet();
@@ -266,8 +261,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByCountAsc() throws Exception {
+    public void testSingleValuedFieldOrderedByCountAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.COUNT_ASC))
                 .execute().actionGet();
@@ -296,8 +290,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByCountDesc() throws Exception {
+    public void testSingleValuedFieldOrderedByCountDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.COUNT_DESC))
                 .execute().actionGet();
@@ -326,8 +319,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation() throws Exception {
+    public void testSingleValuedFieldWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
@@ -367,8 +359,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation_Inherited() throws Exception {
+    public void testSingleValuedFieldWithSubAggregationInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
                         .subAggregation(sum("sum")))
@@ -402,8 +393,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedBySubAggregationAsc() throws Exception {
+    public void testSingleValuedFieldOrderedBySubAggregationAsc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("sum", true))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
@@ -443,8 +433,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedBySubAggregationDesc() throws Exception {
+    public void testSingleValuedFieldOrderedBySubAggregationDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("sum", false))
                         .subAggregation(sum("sum").field(SINGLE_VALUED_FIELD_NAME)))
@@ -484,8 +473,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByMultiValuedSubAggregationAsc_Inherited() throws Exception {
+    public void testSingleValuedFieldOrderedByMultiValuedSubAggregationAscInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("stats.sum", true))
                         .subAggregation(stats("stats")))
@@ -525,8 +513,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByMultiValuedSubAggregationDesc() throws Exception {
+    public void testSingleValuedFieldOrderedByMultiValuedSubAggregationDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("stats.sum", false))
                         .subAggregation(stats("stats").field(SINGLE_VALUED_FIELD_NAME)))
@@ -566,8 +553,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedBySubAggregationDesc_DeepOrderPath() throws Exception {
+    public void testSingleValuedFieldOrderedBySubAggregationDescDeepOrderPath() throws Exception {
         boolean asc = randomBoolean();
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.aggregation("filter>max", asc))
@@ -605,8 +591,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_WithValueScript() throws Exception {
+    public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).script(new Script("_value + 1")).interval(interval))
                 .execute().actionGet();
@@ -634,8 +619,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void multiValuedField() throws Exception {
+    public void testMultiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).interval(interval))
                 .execute().actionGet();
@@ -657,8 +641,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void multiValuedField_OrderedByKeyDesc() throws Exception {
+    public void testMultiValuedFieldOrderedByKeyDesc() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).interval(interval).order(Histogram.Order.KEY_DESC))
                 .execute().actionGet();
@@ -681,8 +664,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void multiValuedField_WithValueScript() throws Exception {
+    public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(MULTI_VALUED_FIELD_NAME).script(new Script("_value + 1")).interval(interval))
                 .execute().actionGet();
@@ -715,8 +697,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
+    public void testMultiValuedFieldWithValueScriptWithInheritedSubAggregator() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(
                         histogram("histo")
@@ -765,8 +746,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void script_SingleValue() throws Exception {
+    public void testScriptSingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").script(new Script("doc['" + SINGLE_VALUED_FIELD_NAME + "'].value")).interval(interval))
                 .execute().actionGet();
@@ -787,8 +767,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void script_SingleValue_WithSubAggregator_Inherited() throws Exception {
+    public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -822,8 +801,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void script_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").script(new Script("doc['" + MULTI_VALUED_FIELD_NAME + "']")).interval(interval))
                 .execute().actionGet();
@@ -844,8 +822,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void script_MultiValued_WithAggregatorInherited() throws Exception {
+    public void testScriptMultiValuedWithAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -879,8 +856,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
                 .execute().actionGet();
@@ -894,8 +870,7 @@ public class HistogramTests extends ESIntegTestCase {
         assertThat(histo.getBuckets().size(), equalTo(0));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval))
                 .execute().actionGet();
@@ -917,8 +892,7 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0)
@@ -938,8 +912,7 @@ public class HistogramTests extends ESIntegTestCase {
         assertThat(histo.getBuckets().isEmpty(), is(true));
     }
 
-    @Test
-    public void singleValuedField_WithExtendedBounds() throws Exception {
+    public void testSingleValuedFieldWithExtendedBounds() throws Exception {
         int lastDataBucketKey = (numValueBuckets - 1) * interval;
 
         // randomizing the number of buckets on the min bound

@@ -56,3 +56,24 @@ sudo bin/plugin install analysis-icu
 
 Community-provided plugins can be installed as before.
 
+==== Repository naming structure changes
+
+Elasticsearch 2.0 changes the way the repository URLs are referenced. Instead
+of specific repositories for both major and minor versions, the repositories will
+use a major version reference only.
+
+The URL for apt packages now uses the following structure;
+
+[source,sh]
+---------------
+deb http://packages.elastic.co/elasticsearch/2.x/debian stable main
+---------------
+
+And for yum packages it is;
+
+[source,sh]
+---------------
+baseurl=http://packages.elastic.co/elasticsearch/2.x/centos
+---------------
+
+The <<setup-repositories, repositories>> page details this change.

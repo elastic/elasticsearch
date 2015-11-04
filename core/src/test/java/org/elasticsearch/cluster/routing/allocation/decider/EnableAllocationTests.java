@@ -20,14 +20,15 @@
 package org.elasticsearch.cluster.routing.allocation.decider;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Allocation;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.Rebalance;
@@ -36,7 +37,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
 import java.util.EnumSet;
 import java.util.List;
@@ -56,7 +56,6 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
     private final ESLogger logger = Loggers.getLogger(EnableAllocationTests.class);
 
-    @Test
     public void testClusterEnableNone() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
@@ -85,7 +84,6 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
     }
 
-    @Test
     public void testClusterEnableOnlyPrimaries() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.PRIMARIES.name())
@@ -119,7 +117,6 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
     }
 
-    @Test
     public void testIndexEnableNone() {
         AllocationService strategy = createAllocationService(settingsBuilder()
                 .build());
@@ -158,10 +155,6 @@ public class EnableAllocationTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState("disabled", STARTED).size(), equalTo(0));
     }
 
-
-
-
-    @Test
     public void testEnableClusterBalance() {
         final boolean useClusterSetting = randomBoolean();
         final Rebalance allowedOnes = RandomPicks.randomFrom(getRandom(), EnumSet.of(Rebalance.PRIMARIES, Rebalance.REPLICAS, Rebalance.ALL));
@@ -265,7 +258,6 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
     }
 
-    @Test
     public void testEnableClusterBalanceNoReplicas() {
         final boolean useClusterSetting = randomBoolean();
         Settings build = settingsBuilder()

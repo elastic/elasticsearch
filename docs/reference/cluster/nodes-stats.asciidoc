@@ -57,6 +57,9 @@ of `indices`, `os`, `process`, `jvm`, `transport`, `http`,
 `breaker`::
 	Statistics about the field data circuit breaker
 
+`discovery`::
+	Statistics about the discovery
+
 [source,js]
 --------------------------------------------------
 # return indices and os

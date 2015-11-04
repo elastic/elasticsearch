@@ -7,9 +7,9 @@
       "paths": ["/{index}/_close"],
       "parts": {
         "index": {
-          "type" : "string",
+          "type" : "list",
           "required" : true,
-          "description" : "The name of the index"
+          "description" : "A comma separated list of indices to close"
         }
       },
       "params": {

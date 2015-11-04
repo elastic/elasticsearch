@@ -20,7 +20,7 @@ package org.elasticsearch.search.aggregations.bucket.geogrid;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedNumericDocValues;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
@@ -150,9 +150,11 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         private static class CellValues extends SortingNumericDocValues {
             private MultiGeoPointValues geoValues;
+            private int precision;
 
-            protected CellValues(MultiGeoPointValues geoValues) {
+            protected CellValues(MultiGeoPointValues geoValues, int precision) {
                 this.geoValues = geoValues;
+                this.precision = precision;
             }
 
             @Override
@@ -161,7 +163,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
                 resize(geoValues.count());
                 for (int i = 0; i < count(); ++i) {
                     GeoPoint target = geoValues.valueAt(i);
-                    values[i] = XGeoHashUtils.longEncode(target.getLon(), target.getLat(), XGeoHashUtils.PRECISION);
+                    values[i] = GeoHashUtils.longEncode(target.getLon(), target.getLat(), precision);
                 }
                 sort();
             }
@@ -188,7 +190,7 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
             @Override
             public SortedNumericDocValues longValues(LeafReaderContext ctx) {
-                return new CellValues(valuesSource.geoPointValues(ctx));
+                return new CellValues(valuesSource.geoPointValues(ctx), precision);
             }
 
             @Override
@@ -203,5 +205,4 @@ public class GeoHashGridParser implements Aggregator.Parser {
 
         }
     }
-
 }

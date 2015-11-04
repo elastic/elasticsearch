@@ -43,7 +43,6 @@ import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.text.NumberFormat;
@@ -79,7 +78,6 @@ import static org.hamcrest.core.IsNull.nullValue;
  */
 @ESIntegTestCase.SuiteScopeTestCase
 public class StringTermsTests extends AbstractTermsTestCase {
-
     private static final String SINGLE_VALUED_FIELD_NAME = "s_value";
     private static final String MULTI_VALUED_FIELD_NAME = "s_values";
     private static Map<String, Map<String, Object>> expectedMultiSortBuckets;
@@ -88,7 +86,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -193,9 +191,8 @@ public class StringTermsTests extends AbstractTermsTestCase {
         return bucket.getKeyAsString();
     }
 
-    @Test
     // the main purpose of this test is to make sure we're not allocating 2GB of memory per shard
-    public void sizeIsZero() {
+    public void testSizeIsZero() {
         final int minDocCount = randomInt(1);
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -213,8 +210,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(terms.getBuckets().size(), equalTo(minDocCount == 0 ? 105 : 100)); // 105 because of the other type
     }
 
-    @Test
-    public void singleValueField() throws Exception {
+    public void testSingleValueField() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -241,8 +237,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValueField_withGlobalOrdinals() throws Exception {
+    public void testSingleValueFieldWithGlobalOrdinals() throws Exception {
         ExecutionMode[] executionModes = new ExecutionMode[] { null, ExecutionMode.GLOBAL_ORDINALS, ExecutionMode.GLOBAL_ORDINALS_HASH,
                 ExecutionMode.GLOBAL_ORDINALS_LOW_CARDINALITY };
         for (ExecutionMode executionMode : executionModes) {
@@ -269,9 +264,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValueField_WithRegexFiltering() throws Exception {
-
+    public void testSingleValueFieldWithRegexFiltering() throws Exception {
         // include without exclude
         // we should be left with: val000, val001, val002, val003, val004, val005, val006, val007, val008, val009
 
@@ -346,8 +339,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValueField_WithExactTermFiltering() throws Exception {
+    public void testSingleValueFieldWithExactTermFiltering() throws Exception {
         // include without exclude
         String incVals[] = { "val000", "val001", "val002", "val003", "val004", "val005", "val006", "val007", "val008", "val009" };
         SearchResponse response = client()
@@ -428,8 +420,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
 
     }
 
-    @Test
-    public void singleValueField_WithMaxSize() throws Exception {
+    public void testSingleValueFieldWithMaxSize() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("high_card_type")
@@ -453,8 +444,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValueField_OrderedByTermAsc() throws Exception {
+    public void testSingleValueFieldOrderedByTermAsc() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -479,8 +469,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValueField_OrderedByTermDesc() throws Exception {
+    public void testSingleValueFieldOrderedByTermDesc() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -505,8 +494,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation() throws Exception {
+    public void testSingleValuedFieldWithSubAggregation() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -539,8 +527,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation_Inherited() throws Exception {
+    public void testSingleValuedFieldWithSubAggregation_Inherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -567,8 +554,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_WithValueScript() throws Exception {
+    public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -592,8 +578,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void multiValuedField_WithValueScript_NotUnique() throws Exception {
+    public void testMultiValuedFieldWithValueScriptNotUnique() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -615,8 +600,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(bucket.getDocCount(), equalTo(5l));
     }
 
-    @Test
-    public void multiValuedField() throws Exception {
+    public void testMultiValuedField() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -643,8 +627,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void multiValuedScript() throws Exception {
+    public void testMultiValuedScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -671,8 +654,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void multiValuedField_WithValueScript() throws Exception {
+    public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -712,8 +694,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
      * doc_count: 1 - val_count: 2
      */
 
-    @Test
-    public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
+    public void testMultiValuedFieldWithValueScriptWithInheritedSubAggregator() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -747,8 +728,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void script_SingleValue() throws Exception {
+    public void testScriptSingleValue() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -771,8 +751,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void script_SingleValue_ExplicitSingleValue() throws Exception {
+    public void testScriptSingleValueExplicitSingleValue() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -795,8 +774,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void script_SingleValue_WithSubAggregator_Inherited() throws Exception {
+    public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -823,8 +801,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void script_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -851,8 +828,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void script_MultiValued_WithAggregatorInherited() throws Exception {
+    public void testScriptMultiValuedWithAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .setTypes("type")
@@ -886,8 +862,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .setTypes("type")
@@ -903,8 +878,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(terms.getBuckets().size(), equalTo(0));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .setTypes("type")
@@ -927,8 +901,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void stringTermsNestedIntoPerBucketAggregator() throws Exception {
+    public void testStringTermsNestedIntoPerBucketAggregator() throws Exception {
         // no execution hint so that the logic that decides whether or not to use ordinals is executed
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -955,8 +928,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client()
                 .prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
@@ -976,8 +948,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(terms.getBuckets().isEmpty(), is(true));
     }
 
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAsc() throws Exception {
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAsc() throws Exception {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1006,8 +977,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByIllegalAgg() throws Exception {
+    public void testSingleValuedFieldOrderedByIllegalAgg() throws Exception {
         boolean asc = true;
         try {
             client()
@@ -1036,8 +1006,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedBySingleBucketSubAggregationAsc() throws Exception {
+    public void testSingleValuedFieldOrderedBySingleBucketSubAggregationAsc() throws Exception {
         boolean asc = randomBoolean();
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1073,8 +1042,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(filter.getDocCount(), equalTo(asc ? 3l : 2l));
     }
 
-    @Test
-    public void singleValuedField_OrderedBySubAggregationAsc_MultiHierarchyLevels() throws Exception {
+    public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevels() throws Exception {
         boolean asc = randomBoolean();
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1131,8 +1099,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
     }
 
-    @Test
-    public void singleValuedField_OrderedBySubAggregationAsc_MultiHierarchyLevels_specialChars() throws Exception {
+    public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevelsSpecialChars() throws Exception {
         StringBuilder filter2NameBuilder = new StringBuilder("filt.er2");
         filter2NameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
         String filter2Name = filter2NameBuilder.toString();
@@ -1195,8 +1162,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
     }
 
-    @Test
-    public void singleValuedField_OrderedBySubAggregationAsc_MultiHierarchyLevels_specialCharsNoDotNotation() throws Exception {
+    public void testSingleValuedFieldOrderedBySubAggregationAscMultiHierarchyLevelsSpecialCharsNoDotNotation() throws Exception {
         StringBuilder filter2NameBuilder = new StringBuilder("filt.er2");
         filter2NameBuilder.append(randomAsciiOfLengthBetween(3, 10).replace("[", "").replace("]", "").replace(">", ""));
         String filter2Name = filter2NameBuilder.toString();
@@ -1259,8 +1225,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertThat(stats.getMax(), equalTo(asc ? 4.0 : 2.0));
     }
 
-    @Test
-    public void singleValuedField_OrderedByMissingSubAggregation() throws Exception {
+    public void testSingleValuedFieldOrderedByMissingSubAggregation() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
@@ -1278,8 +1243,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
+    public void testSingleValuedFieldOrderedByNonMetricsOrMultiBucketSubAggregation() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
@@ -1299,8 +1263,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByMultiValuedSubAggregation_WithUknownMetric() throws Exception {
+    public void testSingleValuedFieldOrderedByMultiValuedSubAggregationWithUknownMetric() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 SearchResponse response = client()
@@ -1320,8 +1283,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedByMultiValuedSubAggregation_WithoutMetric() throws Exception {
+    public void testSingleValuedFieldOrderedByMultiValuedSubAggregationWithoutMetric() throws Exception {
         for (String index : Arrays.asList("idx", "idx_unmapped")) {
             try {
                 client().prepareSearch(index)
@@ -1341,8 +1303,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationDesc() throws Exception {
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationDesc() throws Exception {
         boolean asc = false;
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1373,8 +1334,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
 
     }
 
-    @Test
-    public void singleValuedField_OrderedByMultiValueSubAggregationAsc() throws Exception {
+    public void testSingleValuedFieldOrderedByMultiValueSubAggregationAsc() throws Exception {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1402,11 +1362,9 @@ public class StringTermsTests extends AbstractTermsTestCase {
             assertThat(stats.getMax(), equalTo((double) i));
             i++;
         }
-
     }
 
-    @Test
-    public void singleValuedField_OrderedByMultiValueSubAggregationDesc() throws Exception {
+    public void testSingleValuedFieldOrderedByMultiValueSubAggregationDesc() throws Exception {
         boolean asc = false;
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1437,8 +1395,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
 
     }
 
-    @Test
-    public void singleValuedField_OrderedByMultiValueExtendedStatsAsc() throws Exception {
+    public void testSingleValuedFieldOrderedByMultiValueExtendedStatsAsc() throws Exception {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1470,8 +1427,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
 
     }
 
-    @Test
-    public void singleValuedField_OrderedByStatsAggAscWithTermsSubAgg() throws Exception {
+    public void testSingleValuedFieldOrderedByStatsAggAscWithTermsSubAgg() throws Exception {
         boolean asc = true;
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -1516,45 +1472,38 @@ public class StringTermsTests extends AbstractTermsTestCase {
 
     }
 
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAscAndTermsDesc() throws Exception {
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndTermsDesc() throws Exception {
         String[] expectedKeys = new String[] { "val1", "val2", "val4", "val3", "val7", "val6", "val5" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true), Terms.Order.term(false));
     }
 
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAscAndTermsAsc() throws Exception {
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAndTermsAsc() throws Exception {
         String[] expectedKeys = new String[] { "val1", "val2", "val3", "val4", "val5", "val6", "val7" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true), Terms.Order.term(true));
     }
 
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationDescAndTermsAsc() throws Exception {
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationDescAndTermsAsc() throws Exception {
         String[] expectedKeys = new String[] { "val5", "val6", "val7", "val3", "val4", "val2", "val1" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", false), Terms.Order.term(true));
     }
 
-    @Test
-    public void singleValuedField_OrderedByCountAscAndSingleValueSubAggregationAsc() throws Exception {
+    public void testSingleValuedFieldOrderedByCountAscAndSingleValueSubAggregationAsc() throws Exception {
         String[] expectedKeys = new String[] { "val6", "val7", "val3", "val4", "val5", "val1", "val2" };
         assertMultiSortResponse(expectedKeys, Terms.Order.count(true), Terms.Order.aggregation("avg_l", true));
     }
 
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAscSingleValueSubAggregationAsc() throws Exception {
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscSingleValueSubAggregationAsc() throws Exception {
         String[] expectedKeys = new String[] { "val6", "val7", "val3", "val5", "val4", "val1", "val2" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("sum_d", true), Terms.Order.aggregation("avg_l", true));
     }
 
-    @Test
-    public void singleValuedField_OrderedByThreeCriteria() throws Exception {
+    public void testSingleValuedFieldOrderedByThreeCriteria() throws Exception {
         String[] expectedKeys = new String[] { "val2", "val1", "val4", "val5", "val3", "val6", "val7" };
         assertMultiSortResponse(expectedKeys, Terms.Order.count(false), Terms.Order.aggregation("sum_d", false),
                 Terms.Order.aggregation("avg_l", false));
     }
 
-    @Test
-    public void singleValuedField_OrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
+    public void testSingleValuedFieldOrderedBySingleValueSubAggregationAscAsCompound() throws Exception {
         String[] expectedKeys = new String[] { "val1", "val2", "val3", "val4", "val5", "val6", "val7" };
         assertMultiSortResponse(expectedKeys, Terms.Order.aggregation("avg_l", true));
     }
@@ -1590,8 +1539,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         }
     }
 
-    @Test
-    public void indexMetaField() throws Exception {
+    public void testIndexMetaField() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "empty_bucket_idx")
                 .setTypes("type")
@@ -1621,8 +1569,7 @@ public class StringTermsTests extends AbstractTermsTestCase {
         assertEquals(5L, terms.getBucketByKey("i").getDocCount());
     }
 
-    @Test
-    public void otherDocCount() {
+    public void testOtherDocCount() {
         testOtherDocCount(SINGLE_VALUED_FIELD_NAME, MULTI_VALUED_FIELD_NAME);
     }
 }

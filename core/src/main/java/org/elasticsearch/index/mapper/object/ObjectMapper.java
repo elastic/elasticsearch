@@ -20,8 +20,7 @@
 package org.elasticsearch.index.mapper.object;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.Filter;
-import org.apache.lucene.search.QueryWrapperFilter;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
@@ -35,7 +34,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.*;
@@ -167,7 +165,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             return (Y) objectMapper;
         }
 
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable Settings settings) {
             return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers);
         }
     }
@@ -324,7 +322,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
     private final String nestedTypePathAsString;
     private final BytesRef nestedTypePathAsBytes;
 
-    private final Filter nestedTypeFilter;
+    private final Query nestedTypeFilter;
 
     private volatile Dynamic dynamic;
 
@@ -348,7 +346,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         }
         this.nestedTypePathAsString = "__" + fullPath;
         this.nestedTypePathAsBytes = new BytesRef(nestedTypePathAsString);
-        this.nestedTypeFilter = new QueryWrapperFilter(new TermQuery(new Term(TypeFieldMapper.NAME, nestedTypePathAsBytes)));
+        this.nestedTypeFilter = new TermQuery(new Term(TypeFieldMapper.NAME, nestedTypePathAsBytes));
     }
 
     @Override
@@ -432,7 +430,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         return this.nested;
     }
 
-    public Filter nestedTypeFilter() {
+    public Query nestedTypeFilter() {
         return this.nestedTypeFilter;
     }
 

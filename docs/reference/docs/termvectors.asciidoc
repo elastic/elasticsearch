@@ -81,16 +81,12 @@ omit :
 [float]
 ==== Distributed frequencies
 
-coming[2.0.0-beta1]
-
 Setting `dfs` to `true` (default is `false`) will return the term statistics
 or the field statistics of the entire index, and not just at the shard. Use it
 with caution as distributed frequencies can have a serious performance impact.
 
 [float]
 ==== Terms Filtering
-
-coming[2.0.0-beta1]
 
 With the parameter `filter`, the terms returned could also be filtered based
 on their tf-idf scores. This could be useful in order find out a good

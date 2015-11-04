@@ -42,7 +42,6 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -63,9 +62,7 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 public class GetActionIT extends ESIntegTestCase {
-
-    @Test
-    public void simpleGetTests() {
+    public void testSimpleGet() {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
                 .addAlias(new Alias("alias")));
@@ -193,8 +190,7 @@ public class GetActionIT extends ESIntegTestCase {
         return randomBoolean() ? "test" : "alias";
     }
 
-    @Test
-    public void simpleMultiGetTests() throws Exception {
+    public void testSimpleMultiGet() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
         ensureGreen();
@@ -246,8 +242,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[0].getResponse().getField("field").getValues().get(0).toString(), equalTo("value1"));
     }
 
-    @Test
-    public void realtimeGetWithCompressBackcompat() throws Exception {
+    public void testRealtimeGetWithCompressBackcompat() throws Exception {
         assertAcked(prepareCreate("test")
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1).put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id))
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("_source").field("compress", true).endObject().endObject().endObject()));
@@ -266,7 +261,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getSourceAsMap().get("field").toString(), equalTo(fieldValue));
     }
 
-    @Test
     public void testGetDocWithMultivaluedFields() throws Exception {
         String mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
@@ -341,7 +335,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getFields().get("field").getValues().get(1).toString(), equalTo("2"));
     }
 
-    @Test
     public void testThatGetFromTranslogShouldWorkWithExcludeBackcompat() throws Exception {
         String index = "test";
         String type = "type1";
@@ -375,7 +368,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(responseBeforeFlush.getSourceAsString(), is(responseAfterFlush.getSourceAsString()));
     }
 
-    @Test
     public void testThatGetFromTranslogShouldWorkWithIncludeBackcompat() throws Exception {
         String index = "test";
         String type = "type1";
@@ -410,7 +402,6 @@ public class GetActionIT extends ESIntegTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    @Test
     public void testThatGetFromTranslogShouldWorkWithIncludeExcludeAndFieldsBackcompat() throws Exception {
         String index = "test";
         String type = "type1";
@@ -466,7 +457,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(responseBeforeFlushWithExtraFilters.getSourceAsString(), is(responseAfterFlushWithExtraFilters.getSourceAsString()));
     }
 
-    @Test
     public void testGetWithVersion() {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
@@ -566,7 +556,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getVersion(), equalTo(2l));
     }
 
-    @Test
     public void testMultiGetWithVersion() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1)));
@@ -600,7 +589,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[type1][1]: version conflict, current [1], provided [2]"));
+        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[type1][1]: version conflict"));
         assertThat(response.getResponses()[2].getFailure().getFailure(), instanceOf(VersionConflictEngineException.class));
 
         //Version from Lucene index
@@ -623,7 +612,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[1].getResponse().getSourceAsMap().get("field").toString(), equalTo("value1"));
         assertThat(response.getResponses()[2].getFailure(), notNullValue());
         assertThat(response.getResponses()[2].getFailure().getId(), equalTo("1"));
-        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[type1][1]: version conflict, current [1], provided [2]"));
+        assertThat(response.getResponses()[2].getFailure().getMessage(), startsWith("[type1][1]: version conflict"));
         assertThat(response.getResponses()[2].getFailure().getFailure(), instanceOf(VersionConflictEngineException.class));
 
 
@@ -648,7 +637,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[type1][2]: version conflict, current [2], provided [1]"));
+        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[type1][2]: version conflict"));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
@@ -674,7 +663,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[1].getFailure(), notNullValue());
         assertThat(response.getResponses()[1].getFailure().getId(), equalTo("2"));
         assertThat(response.getResponses()[1].getIndex(), equalTo("test"));
-        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[type1][2]: version conflict, current [2], provided [1]"));
+        assertThat(response.getResponses()[1].getFailure().getMessage(), startsWith("[type1][2]: version conflict"));
         assertThat(response.getResponses()[2].getId(), equalTo("2"));
         assertThat(response.getResponses()[2].getIndex(), equalTo("test"));
         assertThat(response.getResponses()[2].getFailure(), nullValue());
@@ -682,8 +671,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(response.getResponses()[2].getResponse().getSourceAsMap().get("field").toString(), equalTo("value2"));
     }
 
-    @Test
-    public void testGetFields_metaData() throws Exception {
+    public void testGetFieldsMetaData() throws Exception {
         assertAcked(prepareCreate("test")
                 .addMapping("parent")
                 .addMapping("my-type1", "_timestamp", "enabled=true", "_ttl", "enabled=true", "_parent", "type=parent")
@@ -737,8 +725,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField("_parent").getValue().toString(), equalTo("parent_1"));
     }
 
-    @Test
-    public void testGetFields_nonLeafField() throws Exception {
+    public void testGetFieldsNonLeafField() throws Exception {
         assertAcked(prepareCreate("test").addAlias(new Alias("alias"))
                 .addMapping("my-type1", jsonBuilder().startObject().startObject("my-type1").startObject("properties")
                         .startObject("field1").startObject("properties")
@@ -768,9 +755,8 @@ public class GetActionIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     @TestLogging("index.shard.service:TRACE,cluster.service:TRACE,action.admin.indices.flush:TRACE")
-    public void testGetFields_complexField() throws Exception {
+    public void testGetFieldsComplexField() throws Exception {
         assertAcked(prepareCreate("my-index")
                 .setSettings(Settings.settingsBuilder().put("index.refresh_interval", -1))
                 .addMapping("my-type2", jsonBuilder().startObject().startObject("my-type2").startObject("properties")
@@ -861,8 +847,7 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField(field).getValues().get(1).toString(), equalTo("value2"));
     }
 
-    @Test
-    public void testGet_allField() throws Exception {
+    public void testGetAllField() throws Exception {
         assertAcked(prepareCreate("test")
                 .addAlias(new Alias("alias"))
                 .addMapping("my-type1", jsonBuilder()
@@ -886,7 +871,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertThat(getResponse.getField("_all").getValue().toString(), equalTo("some text" + " "));
     }
 
-    @Test
     public void testUngeneratedFieldsThatAreNeverStored() throws IOException {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
@@ -927,7 +911,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
     }
 
-    @Test
     public void testUngeneratedFieldsThatAreAlwaysStored() throws IOException {
         String createIndexSource = "{\n" +
                 "  \"settings\": {\n" +
@@ -966,7 +949,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
     }
 
-    @Test
     public void testUngeneratedFieldsPartOfSourceUnstoredSourceDisabledBackcompat() throws IOException {
         indexSingleDocumentWithUngeneratedFieldsThatArePartOf_source(false, false);
         String[] fieldsList = {};
@@ -980,7 +962,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
     }
 
-    @Test
     public void testUngeneratedFieldsPartOfSourceEitherStoredOrSourceEnabledBackcompat() throws IOException {
         boolean stored = randomBoolean();
         boolean sourceEnabled = true;
@@ -1025,7 +1006,6 @@ public class GetActionIT extends ESIntegTestCase {
         client().prepareIndex("test", "doc").setId("1").setSource(doc).setRouting("1").get();
     }
 
-    @Test
     public void testUngeneratedFieldsNotPartOfSourceStored() throws IOException {
         String createIndexSource = "{\n" +
             "  \"settings\": {\n" +
@@ -1059,7 +1039,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertGetFieldsAlwaysWorks(indexOrAlias(), "doc", "1", fieldsList, "1");
     }
 
-    @Test
     public void testGeneratedStringFieldsUnstored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(false, randomBoolean());
         String[] fieldsList = {"_all", "_field_names"};
@@ -1073,7 +1052,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
     }
 
-    @Test
     public void testGeneratedStringFieldsStored() throws IOException {
         indexSingleDocumentWithStringFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"_all"};
@@ -1118,8 +1096,6 @@ public class GetActionIT extends ESIntegTestCase {
         index("test", "doc", "1", doc);
     }
 
-
-    @Test
     public void testGeneratedNumberFieldsUnstored() throws IOException {
         indexSingleDocumentWithNumericFieldsGeneratedFromText(false, randomBoolean());
         String[] fieldsList = {"token_count", "text.token_count"};
@@ -1133,7 +1109,6 @@ public class GetActionIT extends ESIntegTestCase {
         assertGetFieldsAlwaysNull(indexOrAlias(), "doc", "1", fieldsList);
     }
 
-    @Test
     public void testGeneratedNumberFieldsStored() throws IOException {
         indexSingleDocumentWithNumericFieldsGeneratedFromText(true, randomBoolean());
         String[] fieldsList = {"token_count", "text.token_count"};

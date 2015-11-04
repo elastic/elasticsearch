@@ -19,12 +19,10 @@
 
 package org.elasticsearch.index.mapper;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
@@ -37,7 +35,6 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.index.mapper.Mapping.SourceTransform;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
@@ -70,6 +67,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
+import static java.util.Collections.emptyMap;
+
 /**
  *
  */
@@ -79,13 +78,11 @@ public class DocumentMapper implements ToXContent {
 
         private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers = new LinkedHashMap<>();
 
-        private List<SourceTransform> sourceTransforms = new ArrayList<>(1);
-
         private final Settings indexSettings;
 
         private final RootObjectMapper rootObjectMapper;
 
-        private ImmutableMap<String, Object> meta = ImmutableMap.of();
+        private Map<String, Object> meta = emptyMap();
 
         private final Mapper.BuilderContext builderContext;
 
@@ -115,7 +112,7 @@ public class DocumentMapper implements ToXContent {
             this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings, mapperService.fullName(FieldNamesFieldMapper.NAME)));
         }
 
-        public Builder meta(ImmutableMap<String, Object> meta) {
+        public Builder meta(Map<String, Object> meta) {
             this.meta = meta;
             return this;
         }
@@ -126,24 +123,9 @@ public class DocumentMapper implements ToXContent {
             return this;
         }
 
-        public Builder transform(ScriptService scriptService, Script script) {
-            sourceTransforms.add(new ScriptTransform(scriptService, script));
-            return this;
-        }
-
-        /**
-         * @deprecated Use {@link #transform(ScriptService, Script)} instead.
-         */
-        @Deprecated
-        public Builder transform(ScriptService scriptService, String script, ScriptType scriptType, String language,
-                Map<String, Object> parameters) {
-            sourceTransforms.add(new ScriptTransform(scriptService, new Script(script, scriptType, language, parameters)));
-            return this;
-        }
-
         public DocumentMapper build(MapperService mapperService, DocumentMapperParser docMapperParser) {
             Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(mapperService, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, sourceTransforms, mapperService.mappingLock);
+            return new DocumentMapper(mapperService, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, mapperService.mappingLock);
         }
     }
 
@@ -169,9 +151,8 @@ public class DocumentMapper implements ToXContent {
 
     public DocumentMapper(MapperService mapperService, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
-                          ImmutableMap<String, Object> meta,
+                          Map<String, Object> meta,
                           Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers,
-                          List<SourceTransform> sourceTransforms,
                           ReentrantReadWriteLock mappingLock) {
         this.mapperService = mapperService;
         this.type = rootObjectMapper.name();
@@ -180,7 +161,6 @@ public class DocumentMapper implements ToXContent {
                 Version.indexCreated(indexSettings),
                 rootObjectMapper,
                 rootMappers.values().toArray(new MetadataFieldMapper[rootMappers.values().size()]),
-                sourceTransforms.toArray(new SourceTransform[sourceTransforms.size()]),
                 meta);
         this.documentParser = new DocumentParser(indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
 
@@ -234,7 +214,7 @@ public class DocumentMapper implements ToXContent {
         return this.typeText;
     }
 
-    public ImmutableMap<String, Object> meta() {
+    public Map<String, Object> meta() {
         return mapping.meta;
     }
 
@@ -329,17 +309,14 @@ public class DocumentMapper implements ToXContent {
                 continue;
             }
 
-            Filter filter = objectMapper.nestedTypeFilter();
+            Query filter = objectMapper.nestedTypeFilter();
             if (filter == null) {
                 continue;
             }
             // We can pass down 'null' as acceptedDocs, because nestedDocId is a doc to be fetched and
             // therefor is guaranteed to be a live doc.
-            DocIdSet nestedTypeSet = filter.getDocIdSet(context, null);
-            if (nestedTypeSet == null) {
-                continue;
-            }
-            DocIdSetIterator iterator = nestedTypeSet.iterator();
+            final Weight nestedWeight = filter.createWeight(sc.searcher(), false);
+            DocIdSetIterator iterator = nestedWeight.scorer(context);
             if (iterator == null) {
                 continue;
             }
@@ -370,15 +347,6 @@ public class DocumentMapper implements ToXContent {
         } else {
             return null;
         }
-    }
-
-    /**
-     * Transform the source when it is expressed as a map.  This is public so it can be transformed the source is loaded.
-     * @param sourceAsMap source to transform.  This may be mutated by the script.
-     * @return transformed version of transformMe.  This may actually be the same object as sourceAsMap
-     */
-    public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
-        return DocumentParser.transformSourceAsMap(mapping, sourceAsMap);
     }
 
     public boolean isParent(String type) {
@@ -432,43 +400,5 @@ public class DocumentMapper implements ToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return mapping.toXContent(builder, params);
-    }
-
-    /**
-     * Script based source transformation.
-     */
-    private static class ScriptTransform implements SourceTransform {
-        private final ScriptService scriptService;
-        /**
-         * The script to transform the source document before indexing.
-         */
-        private final Script script;
-
-        public ScriptTransform(ScriptService scriptService, Script script) {
-            this.scriptService = scriptService;
-            this.script = script;
-        }
-
-        @Override
-        @SuppressWarnings("unchecked")
-        public Map<String, Object> transformSourceAsMap(Map<String, Object> sourceAsMap) {
-            try {
-                // We use the ctx variable and the _source name to be consistent with the update api.
-                ExecutableScript executable = scriptService.executable(script, ScriptContext.Standard.MAPPING, null);
-                Map<String, Object> ctx = new HashMap<>(1);
-                ctx.put("_source", sourceAsMap);
-                executable.setNextVar("ctx", ctx);
-                executable.run();
-                ctx = (Map<String, Object>) executable.unwrap(ctx);
-                return (Map<String, Object>) ctx.get("_source");
-            } catch (Exception e) {
-                throw new IllegalArgumentException("failed to execute script", e);
-            }
-        }
-
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            return script.toXContent(builder, params);
-        }
     }
 }

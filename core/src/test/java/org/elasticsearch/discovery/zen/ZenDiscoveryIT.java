@@ -22,6 +22,7 @@ package org.elasticsearch.discovery.zen;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
@@ -34,7 +35,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.transport.LocalTransportAddress;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.discovery.Discovery;
+import org.elasticsearch.discovery.DiscoveryStats;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.FaultDetection;
 import org.elasticsearch.discovery.zen.membership.MembershipAction;
@@ -48,7 +53,6 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.net.InetAddress;
@@ -71,8 +75,6 @@ import static org.hamcrest.Matchers.sameInstance;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, numClientNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
 public class ZenDiscoveryIT extends ESIntegTestCase {
-
-    @Test
     public void testChangeRejoinOnMasterOptionIsDynamic() throws Exception {
         Settings nodeSettings = Settings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
@@ -88,7 +90,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(false));
     }
 
-    @Test
     public void testNoShardRelocationsOccurWhenElectedMasterNodeFails() throws Exception {
         Settings defaultSettings = Settings.builder()
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1s")
@@ -135,7 +136,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(numRecoveriesAfterNewMaster, equalTo(numRecoveriesBeforeNewMaster));
     }
 
-    @Test
     @TestLogging(value = "action.admin.cluster.health:TRACE")
     public void testNodeFailuresAreProcessedOnce() throws ExecutionException, InterruptedException, IOException {
         Settings defaultSettings = Settings.builder()
@@ -180,7 +180,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(statesFound, Matchers.hasSize(2));
     }
 
-    @Test
     public void testNodeRejectsClusterStateWithWrongMasterNode() throws Exception {
         Settings settings = Settings.builder()
                 .put("discovery.type", "zen")
@@ -229,7 +228,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(ExceptionsHelper.detailedMessage(reference.get()), containsString("cluster state from a different master than the current one, rejecting"));
     }
 
-    @Test
     public void testHandleNodeJoin_incompatibleMinVersion() throws UnknownHostException {
         Settings nodeSettings = Settings.settingsBuilder()
                 .put("discovery.type", "zen") // <-- To override the local setting if set externally
@@ -254,7 +252,6 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(holder.get().getMessage(), equalTo("Can't handle join request from a node with a version [1.6.0] that is lower than the minimum compatible version [" + Version.V_2_0_0_beta1.minimumCompatibilityVersion() + "]"));
     }
 
-    @Test
     public void testJoinElectedMaster_incompatibleMinVersion() {
         ElectMasterService electMasterService = new ElectMasterService(Settings.EMPTY, Version.V_2_0_0_beta1);
 
@@ -264,4 +261,37 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat("Can't join master because version 1.6.0 is lower than the minimum compatable version 2.0.0 can support", electMasterService.electMaster(Collections.singletonList(node)), nullValue());
     }
 
+    public void testDiscoveryStats() throws IOException {
+        String expectedStatsJsonResponse = "{\n" +
+                "  \"discovery\" : {\n" +
+                "    \"cluster_state_queue\" : {\n" +
+                "      \"total\" : 0,\n" +
+                "      \"pending\" : 0,\n" +
+                "      \"committed\" : 0\n" +
+                "    }\n" +
+                "  }\n" +
+                "}";
+
+        Settings nodeSettings = Settings.settingsBuilder()
+                .put("discovery.type", "zen") // <-- To override the local setting if set externally
+                .build();
+        internalCluster().startNode(nodeSettings);
+
+        logger.info("--> request node discovery stats");
+        NodesStatsResponse statsResponse = client().admin().cluster().prepareNodesStats().clear().setDiscovery(true).get();
+        assertThat(statsResponse.getNodes().length, equalTo(1));
+
+        DiscoveryStats stats = statsResponse.getNodes()[0].getDiscoveryStats();
+        assertThat(stats.getQueueStats(), notNullValue());
+        assertThat(stats.getQueueStats().getTotal(), equalTo(0));
+        assertThat(stats.getQueueStats().getCommitted(), equalTo(0));
+        assertThat(stats.getQueueStats().getPending(), equalTo(0));
+
+        XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
+        builder.startObject();
+        stats.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        builder.endObject();
+
+        assertThat(builder.string(), equalTo(expectedStatsJsonResponse));
+    }
 }

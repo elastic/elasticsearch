@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import com.google.common.collect.ImmutableMap;
-import com.google.common.collect.ImmutableMap.Builder;
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.codecs.FieldsConsumer;
 import org.apache.lucene.codecs.FieldsProducer;
@@ -59,6 +57,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Collections.singletonMap;
+
 /**
  * This {@link PostingsFormat} is basically a T-Sink for a default postings
  * format that is used to store postings on disk fitting the lucene APIs and
@@ -75,17 +75,11 @@ public class Completion090PostingsFormat extends PostingsFormat {
     public static final int SUGGEST_VERSION_CURRENT = SUGGEST_CODEC_VERSION;
     public static final String EXTENSION = "cmp";
 
-    private final static ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
+    private static final ESLogger logger = Loggers.getLogger(Completion090PostingsFormat.class);
+    private static final CompletionLookupProvider LOOKUP_PROVIDER = new AnalyzingCompletionLookupProvider(true, false, true, false);
+    private static final Map<String, CompletionLookupProvider> PROVIDERS = singletonMap(LOOKUP_PROVIDER.getName(), LOOKUP_PROVIDER);
     private PostingsFormat delegatePostingsFormat;
-    private final static Map<String, CompletionLookupProvider> providers;
     private CompletionLookupProvider writeProvider;
-
-
-    static {
-        final CompletionLookupProvider provider = new AnalyzingCompletionLookupProvider(true, false, true, false);
-        final Builder<String, CompletionLookupProvider> builder = ImmutableMap.builder();
-        providers = builder.put(provider.getName(), provider).build();
-    }
 
     public Completion090PostingsFormat(PostingsFormat delegatePostingsFormat, CompletionLookupProvider provider) {
         super(CODEC_NAME);
@@ -173,11 +167,11 @@ public class Completion090PostingsFormat extends PostingsFormat {
             try {
                 PostingsFormat delegatePostingsFormat = PostingsFormat.forName(input.readString());
                 String providerName = input.readString();
-                CompletionLookupProvider completionLookupProvider = providers.get(providerName);
+                CompletionLookupProvider completionLookupProvider = PROVIDERS.get(providerName);
                 if (completionLookupProvider == null) {
                     throw new IllegalStateException("no provider with name [" + providerName + "] registered");
                 }
-                // TODO: we could clone the ReadState and make it always forward IOContext.MERGE to prevent unecessary heap usage? 
+                // TODO: we could clone the ReadState and make it always forward IOContext.MERGE to prevent unecessary heap usage?
                 delegateProducer = delegatePostingsFormat.fieldsProducer(state);
                 /*
                  * If we are merging we don't load the FSTs at all such that we

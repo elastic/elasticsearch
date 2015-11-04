@@ -22,7 +22,6 @@ package org.elasticsearch.transport.netty;
 import org.elasticsearch.common.util.concurrent.KeyedLock;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.Map.Entry;
 import java.util.Set;
@@ -30,13 +29,13 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
 public class KeyedLockTests extends ESTestCase {
-
-    @Test
-    public void checkIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
+    public void testIfMapEmptyAfterLotsOfAcquireAndReleases() throws InterruptedException {
         ConcurrentHashMap<String, Integer> counter = new ConcurrentHashMap<>();
         ConcurrentHashMap<String, AtomicInteger> safeCounter = new ConcurrentHashMap<>();
         KeyedLock<String> connectionLock = new KeyedLock<String>(randomBoolean());
@@ -69,19 +68,27 @@ public class KeyedLockTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IllegalStateException.class)
-    public void checkCannotAcquireTwoLocks() throws InterruptedException {
+    public void testCannotAcquireTwoLocks() throws InterruptedException {
         KeyedLock<String> connectionLock = new KeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
         connectionLock.acquire(name);
-        connectionLock.acquire(name);
+        try {
+            connectionLock.acquire(name);
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), containsString("Lock already acquired"));
+        }
     }
 
-    @Test(expected = IllegalStateException.class)
-    public void checkCannotReleaseUnacquiredLock() throws InterruptedException {
+    public void testCannotReleaseUnacquiredLock() throws InterruptedException {
         KeyedLock<String> connectionLock = new KeyedLock<String>();
         String name = randomRealisticUnicodeOfLength(scaledRandomIntBetween(10, 50));
-        connectionLock.release(name);
+        try {
+            connectionLock.release(name);
+            fail("Expected IllegalStateException");
+        } catch (IllegalStateException e) {
+            assertThat(e.getMessage(), is("Lock not acquired"));
+        }
     }
 
     public static class AcquireAndReleaseThread extends Thread {

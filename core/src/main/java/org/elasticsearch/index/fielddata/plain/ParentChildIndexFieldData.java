@@ -30,9 +30,9 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.lease.Releasables;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.fielddata.fieldcomparator.BytesRefFieldComparatorSource;
@@ -41,7 +41,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -58,10 +57,10 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     private final Set<String> parentTypes;
     private final CircuitBreakerService breakerService;
 
-    public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
+    public ParentChildIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames,
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldNames, fieldDataType, cache);
         this.breakerService = breakerService;
         Set<String> parentTypes = new HashSet<>();
         for (DocumentMapper mapper : mapperService.docMappers(false)) {
@@ -126,16 +125,17 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType,
+        public IndexFieldData<?> build(IndexSettings indexSettings,
+                                       MappedFieldType fieldType,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
-            return new ParentChildIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache,
+            return new ParentChildIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache,
                     mapperService, breakerService);
         }
     }
 
     @Override
-    public IndexParentChildFieldData loadGlobal(IndexReader indexReader) {
+    public IndexParentChildFieldData loadGlobal(DirectoryReader indexReader) {
         if (indexReader.leaves().size() <= 1) {
             // ordinals are already global
             return this;
@@ -146,7 +146,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
             if (e instanceof ElasticsearchException) {
                 throw (ElasticsearchException) e;
             } else {
-                throw new ElasticsearchException(e.getMessage(), e);
+                throw new ElasticsearchException(e);
             }
         }
     }
@@ -170,7 +170,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     }
 
     @Override
-    public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+    public IndexParentChildFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         final long startTime = System.nanoTime();
 
         long ramBytesUsed = 0;
@@ -332,11 +332,6 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public void clear(IndexReader reader) {
-            ParentChildIndexFieldData.this.clear(reader);
-        }
-
-        @Override
         public Index index() {
             return ParentChildIndexFieldData.this.index();
         }
@@ -352,7 +347,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public IndexParentChildFieldData loadGlobal(IndexReader indexReader) {
+        public IndexParentChildFieldData loadGlobal(DirectoryReader indexReader) {
             if (indexReader.getCoreCacheKey() == reader.getCoreCacheKey()) {
                 return this;
             }
@@ -360,7 +355,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
         }
 
         @Override
-        public IndexParentChildFieldData localGlobalDirect(IndexReader indexReader) throws Exception {
+        public IndexParentChildFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
             return loadGlobal(indexReader);
         }
 

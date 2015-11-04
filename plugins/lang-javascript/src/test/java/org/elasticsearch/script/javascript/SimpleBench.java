@@ -43,14 +43,14 @@ public class SimpleBench {
         for (int i = 0; i < 1000; i++) {
             vars.put("x", i);
             vars.put("y", i + 1);
-            se.execute(compiledScript, vars);
+            se.executable(compiledScript, vars).run();
         }
 
         final long ITER = 100000;
 
         StopWatch stopWatch = new StopWatch().start();
         for (long i = 0; i < ITER; i++) {
-            se.execute(compiledScript, vars);
+            se.executable(compiledScript, vars).run();
         }
         System.out.println("Execute Took: " + stopWatch.stop().lastTaskTime());
 

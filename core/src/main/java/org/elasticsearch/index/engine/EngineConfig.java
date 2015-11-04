@@ -27,7 +27,6 @@ import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.codec.CodecService;
@@ -38,6 +37,7 @@ import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesWarmer;
+import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.concurrent.TimeUnit;
@@ -57,11 +57,11 @@ public final class EngineConfig {
     private volatile boolean compoundOnFlush = true;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
+    private final TimeValue flushMergesAfter;
     private final String codecName;
     private final ThreadPool threadPool;
     private final ShardIndexingService indexingService;
-    @Nullable
-    private final IndicesWarmer warmer;
+    private final Engine.Warmer warmer;
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
@@ -69,11 +69,10 @@ public final class EngineConfig {
     private final Analyzer analyzer;
     private final Similarity similarity;
     private final CodecService codecService;
-    private final Engine.FailedEngineListener failedEngineListener;
+    private final Engine.EventListener eventListener;
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-    private final IndexSearcherWrappingService wrappingService;
 
     /**
      * Index setting for compound file on flush. This setting is realtime updateable.
@@ -105,8 +104,6 @@ public final class EngineConfig {
 
     public static final TimeValue DEFAULT_REFRESH_INTERVAL = new TimeValue(1, TimeUnit.SECONDS);
     public static final TimeValue DEFAULT_GC_DELETES = TimeValue.timeValueSeconds(60);
-    public static final ByteSizeValue DEFAULT_INDEX_BUFFER_SIZE = new ByteSizeValue(64, ByteSizeUnit.MB);
-    public static final ByteSizeValue INACTIVE_SHARD_INDEXING_BUFFER = ByteSizeValue.parseBytesSizeValue("500kb", "INACTIVE_SHARD_INDEXING_BUFFER");
 
     public static final String DEFAULT_VERSION_MAP_SIZE = "25%";
 
@@ -118,15 +115,15 @@ public final class EngineConfig {
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
     public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
-                        Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
+                        Settings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
-                        Similarity similarity, CodecService codecService, Engine.FailedEngineListener failedEngineListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, IndexSearcherWrappingService wrappingService, TranslogConfig translogConfig) {
+                        Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.indexingService = indexingService;
-        this.warmer = warmer;
+        this.warmer = warmer == null ? (a,b) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
@@ -134,11 +131,11 @@ public final class EngineConfig {
         this.analyzer = analyzer;
         this.similarity = similarity;
         this.codecService = codecService;
-        this.failedEngineListener = failedEngineListener;
-        this.wrappingService = wrappingService;
+        this.eventListener = eventListener;
         this.compoundOnFlush = indexSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, compoundOnFlush);
         codecName = indexSettings.get(EngineConfig.INDEX_CODEC_SETTING, EngineConfig.DEFAULT_CODEC_NAME);
-        indexingBufferSize = DEFAULT_INDEX_BUFFER_SIZE;
+        // We start up inactive and rely on IndexingMemoryController to give us our fair share once we start indexing:
+        indexingBufferSize = IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER;
         gcDeletesInMillis = indexSettings.getAsTime(INDEX_GC_DELETES_SETTING, EngineConfig.DEFAULT_GC_DELETES).millis();
         versionMapSizeSetting = indexSettings.get(INDEX_VERSION_MAP_SIZE, DEFAULT_VERSION_MAP_SIZE);
         updateVersionMapSize();
@@ -147,6 +144,7 @@ public final class EngineConfig {
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
+        this.flushMergesAfter = flushMergesAfter;
     }
 
     /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */
@@ -249,7 +247,7 @@ public final class EngineConfig {
 
     /**
      * Returns a thread-pool mainly used to get estimated time stamps from {@link org.elasticsearch.threadpool.ThreadPool#estimatedTimeInMillis()} and to schedule
-     * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#OPTIMIZE} thread-pool
+     * async force merge calls on the {@link org.elasticsearch.threadpool.ThreadPool.Names#FORCE_MERGE} thread-pool
      */
     public ThreadPool getThreadPool() {
         return threadPool;
@@ -257,10 +255,10 @@ public final class EngineConfig {
 
     /**
      * Returns a {@link org.elasticsearch.index.indexing.ShardIndexingService} used inside the engine to inform about
-     * pre and post index and create operations. The operations are used for statistic purposes etc.
+     * pre and post index. The operations are used for statistic purposes etc.
      *
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#postCreate(org.elasticsearch.index.engine.Engine.Create)
-     * @see org.elasticsearch.index.indexing.ShardIndexingService#preCreate(org.elasticsearch.index.engine.Engine.Create)
+     * @see org.elasticsearch.index.indexing.ShardIndexingService#postIndex(Engine.Index)
+     * @see org.elasticsearch.index.indexing.ShardIndexingService#preIndex(Engine.Index)
      *
      */
     public ShardIndexingService getIndexingService() {
@@ -268,11 +266,9 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns an {@link org.elasticsearch.indices.IndicesWarmer} used to warm new searchers before they are used for searching.
-     * Note: This method might retrun <code>null</code>
+     * Returns an {@link org.elasticsearch.index.engine.Engine.Warmer} used to warm new searchers before they are used for searching.
      */
-    @Nullable
-    public IndicesWarmer getWarmer() {
+    public Engine.Warmer getWarmer() {
         return warmer;
     }
 
@@ -313,8 +309,8 @@ public final class EngineConfig {
     /**
      * Returns a listener that should be called on engine failure
      */
-    public Engine.FailedEngineListener getFailedEngineListener() {
-        return failedEngineListener;
+    public Engine.EventListener getEventListener() {
+        return eventListener;
     }
 
     /**
@@ -380,10 +376,6 @@ public final class EngineConfig {
         return queryCachingPolicy;
     }
 
-    public IndexSearcherWrappingService getWrappingService() {
-        return wrappingService;
-    }
-
     /**
      * Returns the translog config for this engine
      */
@@ -406,4 +398,12 @@ public final class EngineConfig {
     public boolean isCreate() {
         return create;
     }
+
+    /**
+     * Returns a {@link TimeValue} at what time interval after the last write modification to the engine finished merges
+     * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
+     * are written after the engine became inactive from an indexing perspective.
+     */
+    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
+
 }

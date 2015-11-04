@@ -25,6 +25,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.*;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.client.Requests;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Nullable;
@@ -35,6 +36,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
@@ -49,14 +51,14 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 /**
  * Index request to index a typed JSON document into a specific index and make it searchable. Best
  * created using {@link org.elasticsearch.client.Requests#indexRequest(String)}.
- * <p>
+ *
  * The index requires the {@link #index()}, {@link #type(String)}, {@link #id(String)} and
  * {@link #source(byte[])} to be set.
- * <p>
+ *
  * The source (content to index) can be set in its bytes form using ({@link #source(byte[])}),
  * its string form ({@link #source(String)}) or using a {@link org.elasticsearch.common.xcontent.XContentBuilder}
  * ({@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}).
- * <p>
+ *
  * If the {@link #id(String)} is not set, it will be automatically generated.
  *
  * @see IndexResponse
@@ -114,7 +116,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
         public static OpType fromString(String sOpType) {
             String lowersOpType = sOpType.toLowerCase(Locale.ROOT);
-            switch(lowersOpType){
+            switch (lowersOpType) {
                 case "create":
                     return OpType.CREATE;
                 case "index":
@@ -216,6 +218,14 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         if (source == null) {
             validationException = addValidationError("source is missing", validationException);
         }
+
+        if (opType() == OpType.CREATE) {
+            if (versionType != VersionType.INTERNAL || version != Versions.MATCH_DELETED) {
+                validationException = addValidationError("create operations do not support versioning. use index instead", validationException);
+                return validationException;
+            }
+        }
+
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
         }
@@ -370,7 +380,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
 
     /**
      * Sets the document source to index.
-     * <p>
+     *
      * Note, its preferable to either set it using {@link #source(org.elasticsearch.common.xcontent.XContentBuilder)}
      * or using the {@link #source(byte[])}.
      */
@@ -480,6 +490,10 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
      */
     public IndexRequest opType(OpType opType) {
         this.opType = opType;
+        if (opType == OpType.CREATE) {
+            version(Versions.MATCH_DELETED);
+            versionType(VersionType.INTERNAL);
+        }
         return this;
     }
 
@@ -549,15 +563,24 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         return this.versionType;
     }
 
+    private Version getVersion(MetaData metaData, String concreteIndex) {
+        // this can go away in 3.0 but is here now for easy backporting - since in 2.x we need the version on the timestamp stuff
+        final IndexMetaData indexMetaData = metaData.getIndices().get(concreteIndex);
+        if (indexMetaData == null) {
+            throw new IndexNotFoundException(concreteIndex);
+        }
+        return Version.indexCreated(indexMetaData.getSettings());
+    }
+
     public void process(MetaData metaData, @Nullable MappingMetaData mappingMd, boolean allowIdGeneration, String concreteIndex) {
         // resolve the routing if needed
         routing(metaData.resolveIndexRouting(routing, index));
+
         // resolve timestamp if provided externally
         if (timestamp != null) {
-            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
             timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp,
                     mappingMd != null ? mappingMd.timestamp().dateTimeFormatter() : TimestampFieldMapper.Defaults.DATE_TIME_FORMATTER,
-                    version);
+                    getVersion(metaData, concreteIndex));
         }
         // extract values if needed
         if (mappingMd != null) {
@@ -580,8 +603,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
                     if (parseContext.shouldParseTimestamp()) {
                         timestamp = parseContext.timestamp();
                         if (timestamp != null) {
-                            Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
-                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter(), version);
+                            timestamp = MappingMetaData.Timestamp.parseStringTimestamp(timestamp, mappingMd.timestamp().dateTimeFormatter(), getVersion(metaData, concreteIndex));
                         }
                     }
                 } catch (MapperParsingException e) {
@@ -630,8 +652,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
             if (defaultTimestamp.equals(TimestampFieldMapper.Defaults.DEFAULT_TIMESTAMP)) {
                 timestamp = Long.toString(System.currentTimeMillis());
             } else {
-                Version version = Version.indexCreated(metaData.getIndices().get(concreteIndex).settings());
-                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), version);
+                timestamp = MappingMetaData.Timestamp.parseStringTimestamp(defaultTimestamp, mappingMd.timestamp().dateTimeFormatter(), getVersion(metaData, concreteIndex));
             }
         }
     }

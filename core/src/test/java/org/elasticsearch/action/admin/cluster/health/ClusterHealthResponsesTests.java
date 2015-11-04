@@ -21,17 +21,18 @@ package org.elasticsearch.action.admin.cluster.health;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
-import org.elasticsearch.action.admin.cluster.health.ClusterShardHealth;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -40,13 +41,15 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.allOf;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class ClusterHealthResponsesTests extends ESTestCase {
 
@@ -154,14 +157,13 @@ public class ClusterHealthResponsesTests extends ESTestCase {
     }
 
     IndexRoutingTable genIndexRoutingTable(IndexMetaData indexMetaData, ShardCounter counter) {
-        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.index());
-        for (int shard = 0; shard < indexMetaData.numberOfShards(); shard++) {
-            builder.addIndexShard(genShardRoutingTable(indexMetaData.index(), shard, indexMetaData.getNumberOfReplicas(), counter));
+        IndexRoutingTable.Builder builder = IndexRoutingTable.builder(indexMetaData.getIndex());
+        for (int shard = 0; shard < indexMetaData.getNumberOfShards(); shard++) {
+            builder.addIndexShard(genShardRoutingTable(indexMetaData.getIndex(), shard, indexMetaData.getNumberOfReplicas(), counter));
         }
         return builder.build();
     }
 
-    @Test
     public void testClusterIndexHealth() {
         int numberOfShards = randomInt(3) + 1;
         int numberOfReplicas = randomInt(4);
@@ -196,7 +198,6 @@ public class ClusterHealthResponsesTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testClusterHealth() throws IOException {
         ShardCounter counter = new ShardCounter();
         RoutingTable.Builder routingTable = RoutingTable.builder();
@@ -209,7 +210,7 @@ public class ClusterHealthResponsesTests extends ESTestCase {
             metaData.put(indexMetaData, true);
             routingTable.add(indexRoutingTable);
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable.build()).build();
         int pendingTasks = randomIntBetween(0, 200);
         int inFlight = randomIntBetween(0, 200);
         int delayedUnassigned = randomIntBetween(0, 200);
@@ -235,7 +236,6 @@ public class ClusterHealthResponsesTests extends ESTestCase {
         return clusterHealth;
     }
 
-    @Test
     public void testValidations() throws IOException {
         IndexMetaData indexMetaData = IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(2).build();
         ShardCounter counter = new ShardCounter();
@@ -249,7 +249,7 @@ public class ClusterHealthResponsesTests extends ESTestCase {
         MetaData.Builder metaData = MetaData.builder();
         metaData.put(indexMetaData, true);
         routingTable.add(indexRoutingTable);
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable.build()).build();
         ClusterHealthResponse clusterHealth = new ClusterHealthResponse("bla", indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.strictExpand(), (String[]) null), clusterState, 0, 0, 0, TimeValue.timeValueMillis(0));
         clusterHealth = maybeSerialize(clusterHealth);
         // currently we have no cluster level validation failures as index validation issues are reported per index.

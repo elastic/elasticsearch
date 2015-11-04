@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -39,8 +38,6 @@ import static org.hamcrest.Matchers.hasSize;
  */
 @ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class RepositoryBlocksIT extends ESIntegTestCase {
-
-    @Test
     public void testPutRepositoryWithBlocks() {
         logger.info("-->  registering a repository is blocked when the cluster is read only");
         try {
@@ -60,7 +57,6 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
                 .setSettings(Settings.settingsBuilder().put("location",  randomRepoPath())));
     }
 
-    @Test
     public void testVerifyRepositoryWithBlocks() {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
@@ -77,7 +73,6 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDeleteRepositoryWithBlocks() {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")
@@ -96,7 +91,6 @@ public class RepositoryBlocksIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareDeleteRepository("test-repo-blocks"));
     }
 
-    @Test
     public void testGetRepositoryWithBlocks() {
         assertAcked(client().admin().cluster().preparePutRepository("test-repo-blocks")
                 .setType("fs")

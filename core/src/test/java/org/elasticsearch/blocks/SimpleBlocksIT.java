@@ -28,7 +28,6 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.HashMap;
 
@@ -37,9 +36,7 @@ import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST)
 public class SimpleBlocksIT extends ESIntegTestCase {
-    
-    @Test
-    public void verifyIndexAndClusterReadOnly() throws Exception {
+    public void testVerifyIndexAndClusterReadOnly() throws Exception {
         // cluster.read_only = null: write and metadata not blocked
         canCreateIndex("test1");
         canIndexDocument("test1");
@@ -82,7 +79,6 @@ public class SimpleBlocksIT extends ESIntegTestCase {
         canIndexExists("ro");
     }
 
-    @Test
     public void testIndexReadWriteMetaDataBlocks() {
         canCreateIndex("test1");
         canIndexDocument("test1");

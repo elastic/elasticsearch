@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.util.Map;
 
@@ -44,10 +43,8 @@ import static org.hamcrest.Matchers.nullValue;
  *
  */
 public class ThreadPoolSerializationTests extends ESTestCase {
-
     BytesStreamOutput output = new BytesStreamOutput();
 
-    @Test
     public void testThatQueueSizeSerializationWorks() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("10k"));
         output.setVersion(Version.CURRENT);
@@ -60,7 +57,6 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         assertThat(newInfo.getQueueSize().singles(), is(10000l));
     }
 
-    @Test
     public void testThatNegativeQueueSizesCanBeSerialized() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), null);
         output.setVersion(Version.CURRENT);
@@ -73,7 +69,6 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         assertThat(newInfo.getQueueSize(), is(nullValue()));
     }
 
-    @Test
     public void testThatToXContentWritesOutUnboundedCorrectly() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), null);
         XContentBuilder builder = jsonBuilder();
@@ -92,7 +87,6 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         assertThat(map.get("queue_size").toString(), is("-1"));
     }
 
-    @Test
     public void testThatNegativeSettingAllowsToStart() throws InterruptedException {
         Settings settings = settingsBuilder().put("name", "index").put("threadpool.index.queue_size", "-1").build();
         ThreadPool threadPool = new ThreadPool(settings);
@@ -100,7 +94,6 @@ public class ThreadPoolSerializationTests extends ESTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testThatToXContentWritesInteger() throws Exception {
         ThreadPool.Info info = new ThreadPool.Info("foo", "search", 1, 10, TimeValue.timeValueMillis(3000), SizeValue.parseSizeValue("1k"));
         XContentBuilder builder = jsonBuilder();

@@ -221,7 +221,7 @@ public class SearchStats implements Streamable, ToXContent {
         if (searchStats == null) {
             return;
         }
-        totalStats.add(searchStats.totalStats);
+        addTotals(searchStats);
         openContexts += searchStats.openContexts;
         if (includeTypes && searchStats.groupStats != null && !searchStats.groupStats.isEmpty()) {
             if (groupStats == null) {
@@ -236,6 +236,13 @@ public class SearchStats implements Streamable, ToXContent {
                 }
             }
         }
+    }
+
+    public void addTotals(SearchStats searchStats) {
+        if (searchStats == null) {
+            return;
+        }
+        totalStats.add(searchStats.totalStats);
     }
 
     public Stats getTotal() {

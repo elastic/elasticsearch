@@ -28,13 +28,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.is;
 
@@ -55,7 +54,6 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(actionGet.isTimedOut(), is(false));
     }
 
-    @Test
     public void testNodeCounts() {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertCounts(response.getNodesStats().getCounts(), 1, 0, 0, 1, 0);
@@ -84,7 +82,6 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(stats.getReplication(), Matchers.equalTo(replicationFactor));
     }
 
-    @Test
     public void testIndicesShardStats() {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), Matchers.equalTo(ClusterHealthStatus.GREEN));
@@ -129,7 +126,6 @@ public class ClusterStatsIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testValuesSmokeScreen() throws IOException {
         internalCluster().ensureAtMostNumDataNodes(5);
         internalCluster().ensureAtLeastNumDataNodes(1);

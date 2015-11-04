@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.admin.indices.stats;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -38,13 +37,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  */
 public class IndicesStatsResponse extends BroadcastResponse implements ToXContent {
 
     private ShardStats[] shards;
 
-    private ImmutableMap<ShardRouting, CommonStats> shardStatsMap;
+    private Map<ShardRouting, CommonStats> shardStatsMap;
 
     IndicesStatsResponse() {
 
@@ -55,16 +56,15 @@ public class IndicesStatsResponse extends BroadcastResponse implements ToXConten
         this.shards = shards;
     }
 
-    public ImmutableMap<ShardRouting, CommonStats> asMap() {
-        if (shardStatsMap == null) {
-            ImmutableMap.Builder<ShardRouting, CommonStats> mb = ImmutableMap.builder();
+    public Map<ShardRouting, CommonStats> asMap() {
+        if (this.shardStatsMap == null) {
+            Map<ShardRouting, CommonStats> shardStatsMap = new HashMap<>();
             for (ShardStats ss : shards) {
-                mb.put(ss.getShardRouting(), ss.getStats());
+                shardStatsMap.put(ss.getShardRouting(), ss.getStats());
             }
-
-            shardStatsMap = mb.build();
+            this.shardStatsMap = unmodifiableMap(shardStatsMap);
         }
-        return shardStatsMap;
+        return this.shardStatsMap;
     }
 
     public ShardStats[] getShards() {

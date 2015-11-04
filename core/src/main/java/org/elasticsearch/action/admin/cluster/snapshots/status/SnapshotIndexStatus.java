@@ -19,15 +19,17 @@
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
 
-import com.google.common.collect.ImmutableMap;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  * Represents snapshot status of all shards in the index
@@ -45,14 +47,14 @@ public class SnapshotIndexStatus implements Iterable<SnapshotIndexShardStatus>, 
     SnapshotIndexStatus(String index, Collection<SnapshotIndexShardStatus> shards) {
         this.index = index;
 
-        ImmutableMap.Builder<Integer, SnapshotIndexShardStatus> builder = ImmutableMap.builder();
+        Map<Integer, SnapshotIndexShardStatus> indexShards = new HashMap<>();
         stats = new SnapshotStats();
         for (SnapshotIndexShardStatus shard : shards) {
-            builder.put(shard.getShardId(), shard);
+            indexShards.put(shard.getShardId(), shard);
             stats.add(shard.getStats());
         }
         shardsStats = new SnapshotShardsStats(shards);
-        indexShards = builder.build();
+        this.indexShards = unmodifiableMap(indexShards);
     }
 
     /**

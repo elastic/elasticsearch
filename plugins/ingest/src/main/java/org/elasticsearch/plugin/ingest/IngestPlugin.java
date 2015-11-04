@@ -20,8 +20,10 @@
 
 package org.elasticsearch.plugin.ingest;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
@@ -38,6 +40,8 @@ import org.elasticsearch.plugin.ingest.transport.put.PutPipelineTransportAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -56,7 +60,7 @@ public class IngestPlugin extends Plugin {
 
     public IngestPlugin(Settings nodeSettings) {
         this.nodeSettings = nodeSettings;
-        transportClient = "transport".equals(nodeSettings.get(Client.CLIENT_TYPE_SETTING));
+        transportClient = TransportClient.CLIENT_TYPE.equals(nodeSettings.get(Client.CLIENT_TYPE_SETTING));
     }
 
     @Override
@@ -95,7 +99,7 @@ public class IngestPlugin extends Plugin {
     }
 
     public void onModule(ActionModule module) {
-        if (!transportClient) {
+        if (transportClient == false) {
             module.registerFilter(IngestActionFilter.class);
         }
         module.registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
@@ -108,5 +112,4 @@ public class IngestPlugin extends Plugin {
         restModule.addRestAction(RestGetPipelineAction.class);
         restModule.addRestAction(RestDeletePipelineAction.class);
     }
-
 }

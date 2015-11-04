@@ -25,7 +25,6 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -86,7 +85,6 @@ public class CumulativeSumIT extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
     public void testDocCount() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
@@ -116,7 +114,6 @@ public class CumulativeSumIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testMetric() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
@@ -149,7 +146,6 @@ public class CumulativeSumIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testNoBuckets() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")

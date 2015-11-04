@@ -43,6 +43,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
+import org.elasticsearch.discovery.DiscoveryStats;
+import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
@@ -335,6 +337,12 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             });
             throw t;
         }
+    }
+
+    @Override
+    public DiscoveryStats stats() {
+        PendingClusterStateStats queueStats = publishClusterState.pendingStatesQueue().stats();
+        return new DiscoveryStats(queueStats);
     }
 
     /**
@@ -742,9 +750,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     // if its not the same version, only copy over new indices or ones that changed the version
                     MetaData.Builder metaDataBuilder = MetaData.builder(newClusterState.metaData()).removeAllIndices();
                     for (IndexMetaData indexMetaData : newClusterState.metaData()) {
-                        IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.index());
-                        if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.indexUUID()) &&
-                                currentIndexMetaData.version() == indexMetaData.version()) {
+                        IndexMetaData currentIndexMetaData = currentState.metaData().index(indexMetaData.getIndex());
+                        if (currentIndexMetaData != null && currentIndexMetaData.isSameUUID(indexMetaData.getIndexUUID()) &&
+                                currentIndexMetaData.getVersion() == indexMetaData.getVersion()) {
                             // safe to reuse
                             metaDataBuilder.put(currentIndexMetaData, false);
                         } else {

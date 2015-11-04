@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.microsoft.azure.storage.StorageException;
+
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
@@ -44,7 +45,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.store.MockFSDirectoryService;
 import org.junit.After;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.net.URISyntaxException;
 import java.util.Locale;
@@ -63,7 +63,6 @@ import static org.hamcrest.Matchers.greaterThan;
         numDataNodes = 1,
         transportClientRatio = 0.0)
 public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCase {
-
     private String getRepositoryPath() {
         String testName = "it-".concat(Strings.toUnderscoreCase(getTestName()).replaceAll("_", "-"));
         return testName.contains(" ") ? Strings.split(testName, " ")[0] : testName;
@@ -101,7 +100,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             getContainerName().concat("-2"));
     }
 
-    @Test
     public void testSimpleWorkflow() {
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
@@ -123,9 +121,9 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> snapshot");
         CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
@@ -145,9 +143,9 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             client.prepareDelete("test-idx-3", "doc", Integer.toString(i)).get();
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(50L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(50L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(50L));
 
         logger.info("--> close indices");
         client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
@@ -157,9 +155,9 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
 
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-3").get().getCount(), equalTo(50L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-3").setSize(0).get().getHits().totalHits(), equalTo(50L));
 
         // Test restore after index deletion
         logger.info("--> delete indices");
@@ -168,7 +166,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
@@ -177,7 +175,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     /**
      * For issue #51: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/51
      */
-    @Test
     public void testMultipleSnapshots() throws URISyntaxException, StorageException {
         final String indexName = "test-idx-1";
         final String typeName = "doc";
@@ -194,7 +191,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         logger.info("indexing first document");
         index(indexName, typeName, Integer.toString(1), "foo", "bar " + Integer.toString(1));
         refresh();
-        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(1L));
+        assertThat(client.prepareSearch(indexName).setSize(0).get().getHits().totalHits(), equalTo(1L));
 
         logger.info("creating Azure repository with path [{}]", getRepositoryPath());
         PutRepositoryResponse putRepositoryResponse = client.admin().cluster().preparePutRepository(repositoryName)
@@ -215,7 +212,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         logger.info("indexing second document");
         index(indexName, typeName, Integer.toString(2), "foo", "bar " + Integer.toString(2));
         refresh();
-        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(2L));
+        assertThat(client.prepareSearch(indexName).setSize(0).get().getHits().totalHits(), equalTo(2L));
 
         logger.info("creating snapshot [{}]", snapshot2Name);
         CreateSnapshotResponse createSnapshotResponse2 = client.admin().cluster().prepareCreateSnapshot(repositoryName, snapshot2Name).setWaitForCompletion(true).setIndices(indexName).get();
@@ -231,10 +228,9 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot(repositoryName, snapshot1Name).setWaitForCompletion(true).execute().actionGet();
         assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount(indexName).get().getCount(), equalTo(1L));
+        assertThat(client.prepareSearch(indexName).setSize(0).get().getHits().totalHits(), equalTo(1L));
     }
 
-    @Test
     public void testMultipleRepositories() {
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
@@ -262,8 +258,8 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
         }
         refresh();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
 
         logger.info("--> snapshot 1");
         CreateSnapshotResponse createSnapshotResponse1 = client.admin().cluster().prepareCreateSnapshot("test-repo1", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").get();
@@ -285,7 +281,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         RestoreSnapshotResponse restoreSnapshotResponse1 = client.admin().cluster().prepareRestoreSnapshot("test-repo1", "test-snap").setWaitForCompletion(true).setIndices("test-idx-1").execute().actionGet();
         assertThat(restoreSnapshotResponse1.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-1").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-1").setSize(0).get().getHits().totalHits(), equalTo(100L));
         ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
@@ -294,7 +290,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         RestoreSnapshotResponse restoreSnapshotResponse2 = client.admin().cluster().prepareRestoreSnapshot("test-repo2", "test-snap").setWaitForCompletion(true).setIndices("test-idx-2").execute().actionGet();
         assertThat(restoreSnapshotResponse2.getRestoreInfo().totalShards(), greaterThan(0));
         ensureGreen();
-        assertThat(client.prepareCount("test-idx-2").get().getCount(), equalTo(100L));
+        assertThat(client.prepareSearch("test-idx-2").setSize(0).get().getHits().totalHits(), equalTo(100L));
         clusterState = client.admin().cluster().prepareState().get().getState();
         assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
         assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(true));
@@ -303,7 +299,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     /**
      * For issue #26: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/26
      */
-    @Test
     public void testListBlobs_26() throws StorageException, URISyntaxException {
         createIndex("test-idx-1", "test-idx-2", "test-idx-3");
         ensureGreen();
@@ -362,7 +357,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     /**
      * For issue #28: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/28
      */
-    @Test
     public void testGetDeleteNonExistingSnapshot_28() throws StorageException, URISyntaxException {
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository without any path");
@@ -390,7 +384,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     /**
      * For issue #21: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/21
      */
-    @Test
     public void testForbiddenContainerName() throws Exception {
         checkContainerName("", false);
         checkContainerName("es", false);
@@ -415,6 +408,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         // we can not create it yet.
         assertBusy(new Runnable() {
 
+            @Override
             public void run() {
                 try {
                     PutRepositoryResponse putRepositoryResponse = client().admin().cluster().preparePutRepository("test-repo")
@@ -444,7 +438,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     /**
      * Test case for issue #23: https://github.com/elasticsearch/elasticsearch-cloud-azure/issues/23
      */
-    @Test
     public void testNonExistingRepo_23() {
         Client client = client();
         logger.info("-->  creating azure repository with path [{}]", getRepositoryPath());
@@ -468,7 +461,6 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
     /**
      * When a user remove a container you can not immediately create it again.
      */
-    @Test
     public void testRemoveAndCreateContainer() throws Exception {
         final String container = getContainerName().concat("-testremove");
         final AzureStorageService storageService = internalCluster().getInstance(AzureStorageService.class);
@@ -477,6 +469,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         // so we might need some time to be able to create the container
         assertBusy(new Runnable() {
 
+            @Override
             public void run()  {
                 try {
                     storageService.createContainer(container);

@@ -44,7 +44,7 @@ import java.util.List;
  * Installs a limited form of secure computing mode,
  * to filters system calls to block process execution.
  * <p>
- * This is only supported on the Linux and Mac OS X operating systems.
+ * This is only supported on the Linux, Solaris, and Mac OS X operating systems.
  * <p>
  * On Linux it currently supports on the amd64 architecture, on Linux kernels 3.5 or above, and requires
  * {@code CONFIG_SECCOMP} and {@code CONFIG_SECCOMP_FILTER} compiled into the kernel.
@@ -62,6 +62,12 @@ import java.util.List;
  *   <li>{@code execveat}</li>
  * </ul>
  * <p>
+ * On Solaris 10 or higher, the following privileges are dropped with {@code priv_set(3C)}:
+ * <ul>
+ *   <li>{@code PRIV_PROC_FORK}</li>
+ *   <li>{@code PRIV_PROC_EXEC}</li>
+ * </ul>
+ * <p>
  * On Mac OS X Leopard or above, a custom {@code sandbox(7)} ("Seatbelt") profile is installed that
  * denies the following rules:
  * <ul>
@@ -75,6 +81,8 @@ import java.util.List;
  *      http://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt</a>
  * @see <a href="https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf">
  *      https://reverse.put.as/wp-content/uploads/2011/06/The-Apple-Sandbox-BHDC2011-Paper.pdf</a>
+ * @see <a href="https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html">
+ *      https://docs.oracle.com/cd/E23824_01/html/821-1456/prbac-2.html</a>
  */
 // not an example of how to write code!!!
 final class Seccomp {
@@ -96,7 +104,7 @@ final class Seccomp {
     };
 
     // null if unavailable or something goes wrong.
-    static final LinuxLibrary linux_libc;
+    private static final LinuxLibrary linux_libc;
 
     static {
         LinuxLibrary lib = null;
@@ -120,7 +128,7 @@ final class Seccomp {
     static final int PR_SET_NO_NEW_PRIVS       =  38;   // since Linux 3.5
     static final int PR_GET_SECCOMP            =  21;   // since Linux 2.6.23
     static final int PR_SET_SECCOMP            =  22;   // since Linux 2.6.23
-    static final int SECCOMP_MODE_FILTER       =   2;   // since Linux Linux 3.5
+    static final long SECCOMP_MODE_FILTER      =   2;   // since Linux Linux 3.5
     
     /** corresponds to struct sock_filter */
     static final class SockFilter {
@@ -209,9 +217,10 @@ final class Seccomp {
     static final int NR_SYSCALL_FORK     = 57;
     static final int NR_SYSCALL_EXECVE   = 59;
     static final int NR_SYSCALL_EXECVEAT = 322;  // since Linux 3.19
+    static final int NR_SYSCALL_TUXCALL  = 184;  // should return ENOSYS
 
     /** try to install our BPF filters via seccomp() or prctl() to block execution */
-    private static void linuxImpl() {
+    private static int linuxImpl() {
         // first be defensive: we can give nice errors this way, at the very least.
         // also, some of these security features get backported to old versions, checking kernel version here is a big no-no! 
         boolean supported = Constants.LINUX && "amd64".equals(Constants.OS_ARCH);
@@ -224,24 +233,85 @@ final class Seccomp {
             throw new UnsupportedOperationException("seccomp unavailable: could not link methods. requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
         }
 
-        // check for kernel version
-        if (linux_libc.prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) < 0) {
+        // pure paranoia:
+
+        // check that unimplemented syscalls actually return ENOSYS
+        // you never know (e.g. https://code.google.com/p/chromium/issues/detail?id=439795)
+        if (linux_libc.syscall(NR_SYSCALL_TUXCALL) >= 0 || Native.getLastError() != ENOSYS) {
+            throw new UnsupportedOperationException("seccomp unavailable: your kernel is buggy and you should upgrade");
+        }
+
+        // try to check system calls really are who they claim
+        // you never know (e.g. https://chromium.googlesource.com/chromium/src.git/+/master/sandbox/linux/seccomp-bpf/sandbox_bpf.cc#57)
+        final int bogusArg = 0xf7a46a5c;
+
+        // test seccomp(BOGUS)
+        long ret = linux_libc.syscall(SECCOMP_SYSCALL_NR, bogusArg);
+        if (ret != -1) {
+            throw new UnsupportedOperationException("seccomp unavailable: seccomp(BOGUS_OPERATION) returned " + ret);
+        } else {
             int errno = Native.getLastError();
             switch (errno) {
-                case ENOSYS: throw new UnsupportedOperationException("seccomp unavailable: requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
-                default: throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(errno));
+                case ENOSYS: break; // ok
+                case EINVAL: break; // ok
+                default: throw new UnsupportedOperationException("seccomp(BOGUS_OPERATION): " + JNACLibrary.strerror(errno));
             }
+        }
+
+        // test seccomp(VALID, BOGUS)
+        ret = linux_libc.syscall(SECCOMP_SYSCALL_NR, SECCOMP_SET_MODE_FILTER, bogusArg);
+        if (ret != -1) {
+            throw new UnsupportedOperationException("seccomp unavailable: seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG) returned " + ret);
+        } else {
+            int errno = Native.getLastError();
+            switch (errno) {
+                case ENOSYS: break; // ok
+                case EINVAL: break; // ok
+                default: throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER, BOGUS_FLAG): " + JNACLibrary.strerror(errno));
+            }
+        }
+
+        // test prctl(BOGUS)
+        ret = linux_libc.prctl(bogusArg, 0, 0, 0, 0);
+        if (ret != -1) {
+            throw new UnsupportedOperationException("seccomp unavailable: prctl(BOGUS_OPTION) returned " + ret);
+        } else {
+            int errno = Native.getLastError();
+            switch (errno) {
+                case ENOSYS: break; // ok
+                case EINVAL: break; // ok
+                default: throw new UnsupportedOperationException("prctl(BOGUS_OPTION): " + JNACLibrary.strerror(errno));
+            }
+        }
+
+        // now just normal defensive checks
+
+        // check for GET_NO_NEW_PRIVS
+        switch (linux_libc.prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0)) {
+            case 0: break; // not yet set
+            case 1: break; // already set by caller
+            default:
+                int errno = Native.getLastError();
+                if (errno == ENOSYS) {
+                    throw new UnsupportedOperationException("seccomp unavailable: requires kernel 3.5+ with CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER compiled in");
+                } else {
+                    throw new UnsupportedOperationException("prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(errno));
+                }
         }
         // check for SECCOMP
-        if (linux_libc.prctl(PR_GET_SECCOMP, 0, 0, 0, 0) < 0) {
-            int errno = Native.getLastError();
-            switch (errno) {
-                case EINVAL: throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP not compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
-                default: throw new UnsupportedOperationException("prctl(PR_GET_SECCOMP): " + JNACLibrary.strerror(errno));
-            }
+        switch (linux_libc.prctl(PR_GET_SECCOMP, 0, 0, 0, 0)) {
+            case 0: break; // not yet set
+            case 2: break; // already in filter mode by caller
+            default:
+                int errno = Native.getLastError();
+                if (errno == EINVAL) {
+                    throw new UnsupportedOperationException("seccomp unavailable: CONFIG_SECCOMP not compiled into kernel, CONFIG_SECCOMP and CONFIG_SECCOMP_FILTER are needed");
+                } else {
+                    throw new UnsupportedOperationException("prctl(PR_GET_SECCOMP): " + JNACLibrary.strerror(errno));
+                }
         }
         // check for SECCOMP_MODE_FILTER
-        if (linux_libc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, 0, 0, 0) < 0) {
+        if (linux_libc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, 0, 0, 0) != 0) {
             int errno = Native.getLastError();
             switch (errno) {
                 case EFAULT: break; // available
@@ -251,8 +321,13 @@ final class Seccomp {
         }
 
         // ok, now set PR_SET_NO_NEW_PRIVS, needed to be able to set a seccomp filter as ordinary user
-        if (linux_libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) < 0) {
+        if (linux_libc.prctl(PR_SET_NO_NEW_PRIVS, 1, 0, 0, 0) != 0) {
             throw new UnsupportedOperationException("prctl(PR_SET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError()));
+        }
+        
+        // check it worked
+        if (linux_libc.prctl(PR_GET_NO_NEW_PRIVS, 0, 0, 0, 0) != 1) {
+            throw new UnsupportedOperationException("seccomp filter did not really succeed: prctl(PR_GET_NO_NEW_PRIVS): " + JNACLibrary.strerror(Native.getLastError()));
         }
         
         // BPF installed to check arch, then syscall range. See https://www.kernel.org/doc/Documentation/prctl/seccomp_filter.txt for details.
@@ -272,14 +347,16 @@ final class Seccomp {
         prog.write();
         long pointer = Pointer.nativeValue(prog.getPointer());
 
+        int method = 1;
         // install filter, if this works, after this there is no going back!
         // first try it with seccomp(SECCOMP_SET_MODE_FILTER), falling back to prctl()
         if (linux_libc.syscall(SECCOMP_SYSCALL_NR, SECCOMP_SET_MODE_FILTER, SECCOMP_FILTER_FLAG_TSYNC, pointer) != 0) {
+            method = 0;
             int errno1 = Native.getLastError();
             if (logger.isDebugEnabled()) {
                 logger.debug("seccomp(SECCOMP_SET_MODE_FILTER): " + JNACLibrary.strerror(errno1) + ", falling back to prctl(PR_SET_SECCOMP)...");
             }
-            if (linux_libc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) < 0) {
+            if (linux_libc.prctl(PR_SET_SECCOMP, SECCOMP_MODE_FILTER, pointer, 0, 0) != 0) {
                 int errno2 = Native.getLastError();
                 throw new UnsupportedOperationException("seccomp(SECCOMP_SET_MODE_FILTER): " + JNACLibrary.strerror(errno1) + 
                                                         ", prctl(PR_SET_SECCOMP): " + JNACLibrary.strerror(errno2));
@@ -291,7 +368,8 @@ final class Seccomp {
             throw new UnsupportedOperationException("seccomp filter installation did not really succeed. seccomp(PR_GET_SECCOMP): " + JNACLibrary.strerror(Native.getLastError()));
         }
 
-        logger.debug("Linux seccomp filter installation successful");
+        logger.debug("Linux seccomp filter installation successful, threads: [{}]", method == 1 ? "all" : "app" );
+        return method;
     }
 
     // OS X implementation via sandbox(7)
@@ -310,7 +388,7 @@ final class Seccomp {
     }
 
     // null if unavailable, or something goes wrong.
-    static final MacLibrary libc_mac;
+    private static final MacLibrary libc_mac;
 
     static {
         MacLibrary lib = null;
@@ -334,7 +412,7 @@ final class Seccomp {
         // first be defensive: we can give nice errors this way, at the very least.
         boolean supported = Constants.MAC_OS_X;
         if (supported == false) {
-            throw new IllegalStateException("bug: should not be trying to initialize seccomp for an unsupported OS");
+            throw new IllegalStateException("bug: should not be trying to initialize seatbelt for an unsupported OS");
         }
 
         // we couldn't link methods, could be some really ancient OS X (< Leopard) or some bug
@@ -367,17 +445,74 @@ final class Seccomp {
             }
         }
     }
+    
+    // Solaris implementation via priv_set(3C)
+
+    /** Access to non-standard Solaris libc methods */
+    static interface SolarisLibrary extends Library {
+        /** 
+         * see priv_set(3C), a convenience method for setppriv(2).
+         */
+        int priv_set(int op, String which, String... privs);
+    }
+
+    // null if unavailable, or something goes wrong.
+    private static final SolarisLibrary libc_solaris;
+
+    static {
+        SolarisLibrary lib = null;
+        if (Constants.SUN_OS) {
+            try {
+                lib = (SolarisLibrary) Native.loadLibrary("c", SolarisLibrary.class);
+            } catch (UnsatisfiedLinkError e) {
+                logger.warn("unable to link C library. native methods (priv_set) will be disabled.", e);
+            }
+        }
+        libc_solaris = lib;
+    }
+    
+    // constants for priv_set(2)
+    static final int PRIV_OFF = 1;
+    static final String PRIV_ALLSETS = null;
+    // see privileges(5) for complete list of these
+    static final String PRIV_PROC_FORK = "proc_fork";
+    static final String PRIV_PROC_EXEC = "proc_exec";
+
+    static void solarisImpl() {
+        // first be defensive: we can give nice errors this way, at the very least.
+        boolean supported = Constants.SUN_OS;
+        if (supported == false) {
+            throw new IllegalStateException("bug: should not be trying to initialize priv_set for an unsupported OS");
+        }
+
+        // we couldn't link methods, could be some really ancient Solaris or some bug
+        if (libc_solaris == null) {
+            throw new UnsupportedOperationException("priv_set unavailable: could not link methods. requires Solaris 10+");
+        }
+
+        // drop a null-terminated list of privileges 
+        if (libc_solaris.priv_set(PRIV_OFF, PRIV_ALLSETS, PRIV_PROC_FORK, PRIV_PROC_EXEC, null) != 0) {
+            throw new UnsupportedOperationException("priv_set unavailable: priv_set(): " + JNACLibrary.strerror(Native.getLastError()));
+        }
+
+        logger.debug("Solaris priv_set initialization successful");
+    }
 
     /**
      * Attempt to drop the capability to execute for the process.
      * <p>
      * This is best effort and OS and architecture dependent. It may throw any Throwable.
+     * @return 0 if we can do this for application threads, 1 for the entire process
      */
-    static void init(Path tmpFile) throws Throwable {
+    static int init(Path tmpFile) throws Throwable {
         if (Constants.LINUX) {
-            linuxImpl();
+            return linuxImpl();
         } else if (Constants.MAC_OS_X) {
             macImpl(tmpFile);
+            return 1;
+        } else if (Constants.SUN_OS) {
+            solarisImpl();
+            return 1;
         } else {
             throw new UnsupportedOperationException("syscall filtering not supported for OS: '" + Constants.OS_NAME + "'");
         }

@@ -27,7 +27,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -41,7 +40,9 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import static org.hamcrest.CoreMatchers.*;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
+import static org.hamcrest.CoreMatchers.notNullValue;
 
 public class TransportActionFilterChainTests extends ESTestCase {
 
@@ -52,9 +53,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
          counter = new AtomicInteger();
     }
 
-    @Test
     public void testActionFiltersRequest() throws ExecutionException, InterruptedException {
-
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
         while (orders.size() < numFilters) {
@@ -134,9 +133,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testActionFiltersResponse() throws ExecutionException, InterruptedException {
-
         int numFilters = randomInt(10);
         Set<Integer> orders = new HashSet<>(numFilters);
         while (orders.size() < numFilters) {
@@ -216,9 +213,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testTooManyContinueProcessingRequest() throws ExecutionException, InterruptedException {
-
         final int additionalContinueCount = randomInt(10);
 
         RequestTestFilter testFilter = new RequestTestFilter(randomInt(), new RequestCallback() {
@@ -274,9 +269,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testTooManyContinueProcessingResponse() throws ExecutionException, InterruptedException {
-
         final int additionalContinueCount = randomInt(10);
 
         ResponseTestFilter testFilter = new ResponseTestFilter(randomInt(), new ResponseCallback() {

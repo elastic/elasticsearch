@@ -28,93 +28,20 @@ grant codeBase "file:${{java.ext.dirs}}/*" {
   permission java.security.AllPermission;
 };
 
+//// SecurityManager impl:
+//// Must have all permissions to properly perform access checks
+
+grant codeBase "${codebase.securesm-1.0.jar}" {
+  permission java.security.AllPermission;
+};
+
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${es.security.jar.lucene.core}" {
+grant codeBase "${codebase.lucene-core-5.4.0-snapshot-1711508.jar}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-//// Special plugin permissions:
-//// These are dangerous permissions only needed by special plugins that we don't
-//// want to grant in general. Some may be due to problems in third-party library code,
-//// others may just be more obscure integrations.
-
-grant codeBase "${es.security.plugin.repository-s3}" {
-  // needed because of problems in aws-sdk
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.plugin.discovery-ec2}" {
-  // needed because of problems in aws-sdk
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.plugin.cloud-gce}" {
-  // needed because of problems in cloud-gce
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.plugin.lang-expression}" {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
-grant codeBase "${es.security.plugin.lang-groovy}" {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-  // needed by groovy engine
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed by GroovyScriptEngineService to close its classloader (why?)
-  permission java.lang.RuntimePermission "closeClassLoader";
-  // Allow executing groovy scripts with codesource of /groovy/script
-  permission groovy.security.GroovyCodeSourcePermission "/groovy/script";
-};
-
-grant codeBase "${es.security.plugin.lang-javascript}" {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
-grant codeBase "${es.security.plugin.lang-python}" {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-};
-
-//// test framework permissions.
-//// These are mock objects and test management that we allow test framework libs
-//// to provide on our behalf. But tests themselves cannot do this stuff!
-
-grant codeBase "${es.security.jar.elasticsearch.securemock}" {
-  // needed to access ReflectionFactory (see below)
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed to support creation of mocks
-  permission java.lang.RuntimePermission "reflectionFactoryAccess";
-  // needed for spy interception, etc
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.jar.lucene.testframework}" {
-  // needed by RamUsageTester
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-};
-
-grant codeBase "${es.security.jar.randomizedtesting.runner}" {
-  // optionally needed for access to private test methods (e.g. beforeClass)
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-  // needed for top threads handling
-  permission java.lang.RuntimePermission "modifyThreadGroup";
-};
-
-grant codeBase "${es.security.jar.randomizedtesting.junit4}" {
-  // needed for gson serialization
-  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
-
-  // needed for stream redirection
-  permission java.lang.RuntimePermission "setIO";
 };
 
 //// Everything else:
@@ -137,9 +64,10 @@ grant {
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 
-  // needed by ES threadpool termination... clean this up
-  // otherwise can be provided only to test libraries
+  // thread permission for the same thread group and ancestor groups
+  // (this logic is more strict than the JDK, see SecureSM)
   permission java.lang.RuntimePermission "modifyThread";
+  permission java.lang.RuntimePermission "modifyThreadGroup";
 
   // needed by ExceptionSerializationTests and RestTestCase for
   // some hackish things they do. otherwise only needed by groovy 
@@ -152,10 +80,6 @@ grant {
   // needed by HotThreads and potentially more
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "getStackTrace";
-
-  // needed by ESTestCase for leniency of thread exceptions (?!)
-  // otherwise can be provided only to test libraries
-  permission java.lang.RuntimePermission "setDefaultUncaughtExceptionHandler";
 
   // needed by JMX instead of getFileSystemAttributes, seems like a bug...
   permission java.lang.RuntimePermission "getFileStoreAttributes";
@@ -172,10 +96,4 @@ grant {
 
   // needed by JDKESLoggerTests
   permission java.util.logging.LoggingPermission "control";
-
-  // needed to install SSLFactories, advanced SSL configuration, etc.
-  permission java.lang.RuntimePermission "setFactory";
-  
-  // needed to allow installation of bouncycastle crypto provider
-  permission java.security.SecurityPermission "putProviderProperty.BC";
 };

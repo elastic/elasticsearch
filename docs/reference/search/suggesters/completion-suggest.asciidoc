@@ -135,10 +135,10 @@ payloads or weights. This form does still work inside of multi fields.
 }
 --------------------------------------------------
 
-NOTE: The suggest data structure might not reflect deletes on
-documents immediately. You may need to do an <<indices-optimize>> for that.
-You can call optimize with the `only_expunge_deletes=true` to only target
-deletions for merging.
+NOTE: The suggest data structure might not reflect deletes on documents
+immediately. You may need to do an <<indices-forcemerge>> for that. You can call
+force merge with the `only_expunge_deletes=true` to only target deletions for
+merging.
 
 [[querying]]
 ==== Querying

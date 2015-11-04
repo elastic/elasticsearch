@@ -29,14 +29,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,6 +51,7 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
                 //make sure that enough concurrent reroutes can happen at the same time
                 //we have a minimum of 2 nodes, and a maximum of 10 shards, thus 5 should be enough
                 .put(ThrottlingAllocationDecider.CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_RECOVERIES, 5)
+                .put(ConcurrentRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 10)
                 .build();
     }
 
@@ -71,7 +72,6 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
     }
 
-    @Test
     public void testClusterUpdateSettingsAcknowledgement() {
         createIndex("test");
         ensureGreen();
@@ -112,7 +112,6 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testClusterUpdateSettingsNoAcknowledgement() {
         client().admin().indices().prepareCreate("test")
                 .setSettings(settingsBuilder()
@@ -143,7 +142,6 @@ public class AckClusterUpdateSettingsIT extends ESIntegTestCase {
         return client.admin().cluster().prepareState().setLocal(true).get().getState();
     }
 
-    @Test
     public void testOpenIndexNoAcknowledgement() {
         createIndex("test");
         ensureGreen();

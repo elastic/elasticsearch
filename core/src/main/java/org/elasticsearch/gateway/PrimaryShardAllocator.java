@@ -30,15 +30,8 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
 
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * The primary shard allocator allocates primary shard that were not created as
@@ -77,8 +70,9 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             }
 
             IndexMetaData indexMetaData = metaData.index(shard.getIndex());
+            Settings indexSettings = Settings.builder().put(settings).put(indexMetaData.getSettings()).build();
 
-            NodesAndVersions nodesAndVersions = buildNodesAndVersions(shard, recoverOnAnyNode(indexMetaData.settings()), allocation.getIgnoreNodes(shard.shardId()), shardState);
+            NodesAndVersions nodesAndVersions = buildNodesAndVersions(shard, recoverOnAnyNode(indexSettings), allocation.getIgnoreNodes(shard.shardId()), shardState);
             logger.debug("[{}][{}] found {} allocations of {}, highest version: [{}]", shard.index(), shard.id(), nodesAndVersions.allocationsFound, shard, nodesAndVersions.highestVersion);
 
             if (isEnoughAllocationsFound(shard, indexMetaData, nodesAndVersions) == false) {
@@ -135,22 +129,22 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
         // if we restore from a repository one copy is more then enough
         if (shard.restoreSource() == null) {
             try {
-                String initialShards = indexMetaData.settings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
+                String initialShards = indexMetaData.getSettings().get(INDEX_RECOVERY_INITIAL_SHARDS, settings.get(INDEX_RECOVERY_INITIAL_SHARDS, this.initialShards));
                 if ("quorum".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 1) {
-                        requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2) + 1;
+                    if (indexMetaData.getNumberOfReplicas() > 1) {
+                        requiredAllocation = ((1 + indexMetaData.getNumberOfReplicas()) / 2) + 1;
                     }
                 } else if ("quorum-1".equals(initialShards) || "half".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 2) {
-                        requiredAllocation = ((1 + indexMetaData.numberOfReplicas()) / 2);
+                    if (indexMetaData.getNumberOfReplicas() > 2) {
+                        requiredAllocation = ((1 + indexMetaData.getNumberOfReplicas()) / 2);
                     }
                 } else if ("one".equals(initialShards)) {
                     requiredAllocation = 1;
                 } else if ("full".equals(initialShards) || "all".equals(initialShards)) {
-                    requiredAllocation = indexMetaData.numberOfReplicas() + 1;
+                    requiredAllocation = indexMetaData.getNumberOfReplicas() + 1;
                 } else if ("full-1".equals(initialShards) || "all-1".equals(initialShards)) {
-                    if (indexMetaData.numberOfReplicas() > 1) {
-                        requiredAllocation = indexMetaData.numberOfReplicas();
+                    if (indexMetaData.getNumberOfReplicas() > 1) {
+                        requiredAllocation = indexMetaData.getNumberOfReplicas();
                     }
                 } else {
                     requiredAllocation = Integer.parseInt(initialShards);
@@ -263,7 +257,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      * Return {@code true} if the index is configured to allow shards to be
      * recovered on any node
      */
-    private boolean recoverOnAnyNode(@IndexSettings Settings idxSettings) {
+    private boolean recoverOnAnyNode(Settings idxSettings) {
         return IndexMetaData.isOnSharedFilesystem(idxSettings) &&
                 idxSettings.getAsBoolean(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false);
     }

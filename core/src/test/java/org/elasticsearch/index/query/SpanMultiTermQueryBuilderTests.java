@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
-import org.junit.Test;
 
 import java.io.IOException;
 
@@ -30,7 +29,6 @@ import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMultiTermQueryBuilder> {
-
     @Override
     protected SpanMultiTermQueryBuilder doCreateTestQueryBuilder() {
         MultiTermQueryBuilder multiTermQueryBuilder = RandomQueryBuilder.createMultiTermQuery(random());
@@ -46,7 +44,6 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
         assertThat(spanMultiTermQueryWrapper.getWrappedQuery(), equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery)multiTermQuery).getWrappedQuery()));
     }
 
-    @Test
     public void testIllegalArgument() {
         try {
             new SpanMultiTermQueryBuilder(null);
@@ -62,7 +59,6 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
      * This is currently the case for {@link RangeQueryBuilder} when the target field is mapped
      * to a date.
      */
-    @Test
     public void testUnsupportedInnerQueryType() throws IOException {
         QueryShardContext context = createShardContext();
         // test makes only sense if we have at least one type registered with date field mapping

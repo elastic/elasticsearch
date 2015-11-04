@@ -164,6 +164,12 @@ public abstract class ModuleTestCase extends ESTestCase {
                         return;
                     }
                 }
+            } else  if (element instanceof ProviderInstanceBinding) {
+                ProviderInstanceBinding binding = (ProviderInstanceBinding) element;
+                if (to.equals(binding.getKey().getTypeLiteral().getType())) {
+                    assertTrue(tester.test(to.cast(binding.getProviderInstance().get())));
+                    return;
+                }
             }
         }
         StringBuilder s = new StringBuilder();

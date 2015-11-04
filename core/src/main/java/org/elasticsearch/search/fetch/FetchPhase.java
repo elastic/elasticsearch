@@ -19,12 +19,11 @@
 
 package org.elasticsearch.search.fetch;
 
-import com.google.common.collect.ImmutableMap;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.ReaderUtil;
-import org.apache.lucene.search.DocIdSet;
 import org.apache.lucene.search.DocIdSetIterator;
-import org.apache.lucene.search.Filter;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -64,6 +63,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.contentBuilder;
 
 /**
@@ -82,12 +82,12 @@ public class FetchPhase implements SearchPhase {
 
     @Override
     public Map<String, ? extends SearchParseElement> parseElements() {
-        ImmutableMap.Builder<String, SearchParseElement> parseElements = ImmutableMap.builder();
+        Map<String, SearchParseElement> parseElements = new HashMap<>();
         parseElements.put("fields", new FieldsParseElement());
         for (FetchSubPhase fetchSubPhase : fetchSubPhases) {
             parseElements.putAll(fetchSubPhase.parseElements());
         }
-        return parseElements.build();
+        return unmodifiableMap(parseElements);
     }
 
     @Override
@@ -353,7 +353,7 @@ public class FetchPhase implements SearchPhase {
         String originalName = nestedObjectMapper.name();
         InternalSearchHit.InternalNestedIdentity nestedIdentity = null;
         do {
-            Filter parentFilter;
+            Query parentFilter;
             nestedParentObjectMapper = documentMapper.findParentObjectMapper(current);
             if (nestedParentObjectMapper != null) {
                 if (nestedParentObjectMapper.nested().isNested() == false) {
@@ -365,18 +365,13 @@ public class FetchPhase implements SearchPhase {
                 parentFilter = Queries.newNonNestedFilter();
             }
 
-            Filter childFilter = nestedObjectMapper.nestedTypeFilter();
+            Query childFilter = nestedObjectMapper.nestedTypeFilter();
             if (childFilter == null) {
                 current = nestedParentObjectMapper;
                 continue;
             }
-            // We can pass down 'null' as acceptedDocs, because we're fetching matched docId that matched in the query phase.
-            DocIdSet childDocSet = childFilter.getDocIdSet(subReaderContext, null);
-            if (childDocSet == null) {
-                current = nestedParentObjectMapper;
-                continue;
-            }
-            DocIdSetIterator childIter = childDocSet.iterator();
+            final Weight childWeight = context.searcher().createNormalizedWeight(childFilter, false);
+            DocIdSetIterator childIter = childWeight.scorer(subReaderContext);
             if (childIter == null) {
                 current = nestedParentObjectMapper;
                 continue;

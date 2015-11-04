@@ -22,13 +22,10 @@ package org.apache.lucene.util;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import static org.hamcrest.number.IsCloseTo.closeTo;
 
 public class SloppyMathTests extends ESTestCase {
-
-    @Test
     public void testAccuracy() {
         for (double lat1 = -89; lat1 <= 89; lat1+=1) {
             final double lon1 = randomLongitude();
@@ -42,7 +39,6 @@ public class SloppyMathTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testSloppyMath() {
         testSloppyMath(DistanceUnit.METERS, 0.01, 5, 45, 90);
         testSloppyMath(DistanceUnit.KILOMETERS, 0.01, 5, 45, 90);
@@ -53,7 +49,7 @@ public class SloppyMathTests extends ESTestCase {
     private static double maxError(double distance) {
         return distance / 1000.0;
     }
-    
+
     private void testSloppyMath(DistanceUnit unit, double...deltaDeg) {
         final double lat1 = randomLatitude();
         final double lon1 = randomLongitude();
@@ -68,12 +64,12 @@ public class SloppyMathTests extends ESTestCase {
 
                 final double accurate = GeoDistance.ARC.calculate(lat1, lon1, lat2, lon2, unit);
                 final double dist = GeoDistance.SLOPPY_ARC.calculate(lat1, lon1, lat2, lon2, unit);
-    
+
                 assertThat("distance between("+lat1+", "+lon1+") and ("+lat2+", "+lon2+"))", dist, closeTo(accurate, maxError(accurate)));
             }
         }
     }
-        
+
     private static void assertAccurate(double lat1, double lon1, double lat2, double lon2) {
         double accurate = GeoDistance.ARC.calculate(lat1, lon1, lat2, lon2, DistanceUnit.METERS);
         double sloppy = GeoDistance.SLOPPY_ARC.calculate(lat1, lon1, lat2, lon2, DistanceUnit.METERS);

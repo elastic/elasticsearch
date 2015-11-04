@@ -41,7 +41,7 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.query.QueryShardContext;
-import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.index.similarity.SimilarityService;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -300,7 +300,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
         if (fieldType().similarity() != null) {
             builder.field("similarity", fieldType().similarity().name());
         } else if (includeDefaults) {
-            builder.field("similarity", SimilarityLookupService.DEFAULT_SIMILARITY);
+            builder.field("similarity", SimilarityService.DEFAULT_SIMILARITY);
         }
     }
 

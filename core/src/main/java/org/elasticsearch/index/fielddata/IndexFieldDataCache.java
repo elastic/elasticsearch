@@ -19,10 +19,10 @@
 
 package org.elasticsearch.index.fielddata;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.util.Accountable;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -33,7 +33,7 @@ public interface IndexFieldDataCache {
 
     <FD extends AtomicFieldData, IFD extends IndexFieldData<FD>> FD load(LeafReaderContext context, IFD indexFieldData) throws Exception;
 
-    <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final IndexReader indexReader, final IFD indexFieldData) throws Exception;
+    <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(final DirectoryReader indexReader, final IFD indexFieldData) throws Exception;
 
     /**
      * Clears all the field data stored cached in on this index.
@@ -44,8 +44,6 @@ public interface IndexFieldDataCache {
      * Clears all the field data stored cached in on this index for the specified field name.
      */
     void clear(String fieldName);
-
-    void clear(IndexReader reader);
 
     interface Listener {
 
@@ -69,7 +67,7 @@ public interface IndexFieldDataCache {
 
         @Override
         @SuppressWarnings("unchecked")
-        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(IndexReader indexReader, IFD indexFieldData) throws Exception {
+        public <FD extends AtomicFieldData, IFD extends IndexFieldData.Global<FD>> IFD load(DirectoryReader indexReader, IFD indexFieldData) throws Exception {
             return (IFD) indexFieldData.localGlobalDirect(indexReader);
         }
 
@@ -79,10 +77,6 @@ public interface IndexFieldDataCache {
 
         @Override
         public void clear(String fieldName) {
-        }
-
-        @Override
-        public void clear(IndexReader reader) {
         }
     }
 }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.index.TermContext;
 import org.apache.lucene.search.*;
@@ -40,9 +41,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     private AggregatedDfs aggregatedDfs;
 
+    private final Engine.Searcher engineSearcher;
+
     public ContextIndexSearcher(SearchContext searchContext, Engine.Searcher searcher) {
         super(searcher.reader());
         in = searcher.searcher();
+        engineSearcher = searcher;
         setSimilarity(searcher.searcher().getSimilarity(true));
         setQueryCache(searchContext.getQueryCache());
         setQueryCachingPolicy(searchContext.indexShard().getQueryCachingPolicy());
@@ -103,5 +107,9 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             return super.collectionStatistics(field);
         }
         return collectionStatistics;
+    }
+
+    public DirectoryReader getDirectoryReader() {
+        return engineSearcher.getDirectoryReader();
     }
 }

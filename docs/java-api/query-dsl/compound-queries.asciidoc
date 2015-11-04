@@ -41,18 +41,6 @@ documents which also match a `negative` query.
 
 Execute one query for the specified indices, and another for other indices.
 
-<<java-query-dsl-and-query,`and`>>, <<java-query-dsl-or-query,`or`>>, <<java-query-dsl-not-query,`not`>>::
-
-Synonyms for the `bool` query.
-
-<<java-query-dsl-filtered-query,`filtered` query>>::
-
-Combine a query clause in query context with another in filter context. deprecated[2.0.0,Use the `bool` query instead]
-
-<<java-query-dsl-limit-query,`limit` query>>::
-
-Limits the number of documents examined per shard.
-
 
 include::constant-score-query.asciidoc[]
 include::bool-query.asciidoc[]
@@ -60,10 +48,4 @@ include::dis-max-query.asciidoc[]
 include::function-score-query.asciidoc[]
 include::boosting-query.asciidoc[]
 include::indices-query.asciidoc[]
-include::and-query.asciidoc[]
-include::not-query.asciidoc[]
-include::or-query.asciidoc[]
-include::filtered-query.asciidoc[]
-include::limit-query.asciidoc[]
-
 

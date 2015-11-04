@@ -39,6 +39,8 @@ import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
+import java.util.Arrays;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
@@ -162,14 +164,7 @@ public class IngestActionFilterTests extends ESTestCase {
                         .build()
         );
         PipelineStore store = mock(PipelineStore.class);
-        Pipeline.Builder pipelineBuilder = new Pipeline.Builder("_id");
-        SimpleProcessor.Builder processorBuilder = new SimpleProcessor.Builder();
-        processorBuilder.setPath("field1");
-        processorBuilder.setExpectedValue("value1");
-        processorBuilder.setAddField("field2");
-        processorBuilder.setAddFieldValue("value2");
-        pipelineBuilder.addProcessors(processorBuilder);
-        when(store.get("_id")).thenReturn(pipelineBuilder.build());
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(new SimpleProcessor("field1", "value1", "field2", "value2"))));
         executionService = new PipelineExecutionService(store, threadPool);
         filter = new IngestActionFilter(Settings.EMPTY, executionService);
 

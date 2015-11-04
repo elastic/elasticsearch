@@ -18,27 +18,13 @@
  */
 package org.elasticsearch.index.shard;
 
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.join.BitSetProducer;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
-import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.aliases.IndexAliasesService;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.IgnoreOnRecoveryEngineException;
 import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -53,20 +39,13 @@ import static org.elasticsearch.index.mapper.SourceToParse.source;
  */
 public class TranslogRecoveryPerformer {
     private final MapperService mapperService;
-    private final IndexQueryParserService queryParserService;
-    private final IndexAliasesService indexAliasesService;
-    private final IndexCache indexCache;
     private final ESLogger logger;
     private final Map<String, Mapping> recoveredTypes = new HashMap<>();
     private final ShardId shardId;
 
-    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, IndexQueryParserService queryParserService,
-                                        IndexAliasesService indexAliasesService, IndexCache indexCache, ESLogger logger) {
+    protected TranslogRecoveryPerformer(ShardId shardId, MapperService mapperService, ESLogger logger) {
         this.shardId = shardId;
         this.mapperService = mapperService;
-        this.queryParserService = queryParserService;
-        this.indexAliasesService = indexAliasesService;
-        this.indexCache = indexCache;
         this.logger = logger;
     }
 
@@ -145,19 +124,7 @@ public class TranslogRecoveryPerformer {
     public void performRecoveryOperation(Engine engine, Translog.Operation operation, boolean allowMappingUpdates) {
         try {
             switch (operation.opType()) {
-                case CREATE:
-                    Translog.Create create = (Translog.Create) operation;
-                    Engine.Create engineCreate = IndexShard.prepareCreate(docMapper(create.type()),
-                            source(create.source()).index(shardId.getIndex()).type(create.type()).id(create.id())
-                                    .routing(create.routing()).parent(create.parent()).timestamp(create.timestamp()).ttl(create.ttl()),
-                            create.version(), create.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
-                    maybeAddMappingUpdate(engineCreate.type(), engineCreate.parsedDoc().dynamicMappingsUpdate(), engineCreate.id(), allowMappingUpdates);
-                    if (logger.isTraceEnabled()) {
-                        logger.trace("[translog] recover [create] op of [{}][{}]", create.type(), create.id());
-                    }
-                    engine.create(engineCreate);
-                    break;
-                case SAVE:
+                case INDEX:
                     Translog.Index index = (Translog.Index) operation;
                     Engine.Index engineIndex = IndexShard.prepareIndex(docMapper(index.type()), source(index.source()).type(index.type()).id(index.id())
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
@@ -176,11 +143,6 @@ public class TranslogRecoveryPerformer {
                     }
                     engine.delete(new Engine.Delete(uid.type(), uid.id(), delete.uid(), delete.version(),
                             delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY, System.nanoTime(), false));
-                    break;
-                case DELETE_BY_QUERY:
-                    Translog.DeleteByQuery deleteByQuery = (Translog.DeleteByQuery) operation;
-                    engine.delete(prepareDeleteByQuery(queryParserService, mapperService, indexAliasesService, indexCache,
-                            deleteByQuery.source(), deleteByQuery.filteringAliases(), Engine.Operation.Origin.RECOVERY, deleteByQuery.types()));
                     break;
                 default:
                     throw new IllegalStateException("No operation defined for [" + operation + "]");
@@ -206,38 +168,6 @@ public class TranslogRecoveryPerformer {
         operationProcessed();
     }
 
-    private static Engine.DeleteByQuery prepareDeleteByQuery(IndexQueryParserService queryParserService, MapperService mapperService, IndexAliasesService indexAliasesService, IndexCache indexCache, BytesReference source, @Nullable String[] filteringAliases, Engine.Operation.Origin origin, String... types) {
-        long startTime = System.nanoTime();
-        if (types == null) {
-            types = Strings.EMPTY_ARRAY;
-        }
-        Query query;
-        try {
-            query = queryParserService.parseQuery(source).query();
-        } catch (ParsingException ex) {
-            // for BWC we try to parse directly the query since pre 1.0.0.Beta2 we didn't require a top level query field
-            if (queryParserService.getIndexCreatedVersion().onOrBefore(Version.V_1_0_0_Beta2)) {
-                try {
-                    XContentParser parser = XContentHelper.createParser(source);
-                    ParsedQuery parse = queryParserService.parse(parser);
-                    query = parse.query();
-                } catch (Throwable t) {
-                    ex.addSuppressed(t);
-                    throw ex;
-                }
-            } else {
-                throw ex;
-            }
-        }
-        Query searchFilter = mapperService.searchFilter(types);
-        if (searchFilter != null) {
-            query = Queries.filtered(query, searchFilter);
-        }
-
-        Query aliasFilter = indexAliasesService.aliasFilter(filteringAliases);
-        BitSetProducer parentFilter = mapperService.hasNested() ? indexCache.bitsetFilterCache().getBitSetProducer(Queries.newNonNestedFilter()) : null;
-        return new Engine.DeleteByQuery(query, source, filteringAliases, aliasFilter, parentFilter, origin, startTime, types);
-    }
 
     /**
      * Called once for every processed operation by this recovery performer.

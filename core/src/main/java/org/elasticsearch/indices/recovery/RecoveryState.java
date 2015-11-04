@@ -690,8 +690,8 @@ public class RecoveryState implements ToXContent, Streamable {
         @Override
         public int hashCode() {
             int result = name.hashCode();
-            result = 31 * result + (int) (length ^ (length >>> 32));
-            result = 31 * result + (int) (recovered ^ (recovered >>> 32));
+            result = 31 * result + Long.hashCode(length);
+            result = 31 * result + Long.hashCode(recovered);
             result = 31 * result + (reused ? 1 : 0);
             return result;
         }

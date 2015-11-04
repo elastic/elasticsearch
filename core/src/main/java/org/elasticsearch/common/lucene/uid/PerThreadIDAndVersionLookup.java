@@ -20,11 +20,9 @@ package org.elasticsearch.common.lucene.uid;
  */
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.apache.lucene.index.Fields;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.PostingsEnum;
@@ -47,107 +45,86 @@ import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
  *  finds. */
 
 final class PerThreadIDAndVersionLookup {
+    // TODO: do we really need to store all this stuff? some if it might not speed up anything.
+    // we keep it around for now, to reduce the amount of e.g. hash lookups by field and stuff
 
-    private final LeafReaderContext[] readerContexts;
-    private final TermsEnum[] termsEnums;
-    private final PostingsEnum[] docsEnums;
-    // Only used for back compat, to lookup a version from payload:
-    private final PostingsEnum[] posEnums;
-    private final Bits[] liveDocs;
-    private final NumericDocValues[] versions;
-    private final int numSegs;
-    private final boolean hasDeletions;
-    private final boolean[] hasPayloads;
+    /** terms enum for uid field */
+    private final TermsEnum termsEnum;
+    /** _version data */
+    private final NumericDocValues versions;
+    /** Only true when versions are indexed as payloads instead of docvalues */
+    private final boolean hasPayloads;
+    /** Reused for iteration (when the term exists) */
+    private PostingsEnum docsEnum;
+    /** Only used for back compat, to lookup a version from payload */
+    private PostingsEnum posEnum;
 
-    public PerThreadIDAndVersionLookup(IndexReader r) throws IOException {
+    /**
+     * Initialize lookup for the provided segment
+     */
+    public PerThreadIDAndVersionLookup(LeafReader reader) throws IOException {
+        TermsEnum termsEnum = null;
+        NumericDocValues versions = null;
+        boolean hasPayloads = false;
 
-        List<LeafReaderContext> leaves = new ArrayList<>(r.leaves());
-
-        readerContexts = leaves.toArray(new LeafReaderContext[leaves.size()]);
-        termsEnums = new TermsEnum[leaves.size()];
-        docsEnums = new PostingsEnum[leaves.size()];
-        posEnums = new PostingsEnum[leaves.size()];
-        liveDocs = new Bits[leaves.size()];
-        versions = new NumericDocValues[leaves.size()];
-        hasPayloads = new boolean[leaves.size()];
-        int numSegs = 0;
-        boolean hasDeletions = false;
-        // iterate backwards to optimize for the frequently updated documents
-        // which are likely to be in the last segments
-        for(int i=leaves.size()-1;i>=0;i--) {
-            LeafReaderContext readerContext = leaves.get(i);
-            Fields fields = readerContext.reader().fields();
-            if (fields != null) {
-                Terms terms = fields.terms(UidFieldMapper.NAME);
-                if (terms != null) {
-                    readerContexts[numSegs] = readerContext;
-                    hasPayloads[numSegs] = terms.hasPayloads();
-                    termsEnums[numSegs] = terms.iterator();
-                    assert termsEnums[numSegs] != null;
-                    liveDocs[numSegs] = readerContext.reader().getLiveDocs();
-                    hasDeletions |= readerContext.reader().hasDeletions();
-                    versions[numSegs] = readerContext.reader().getNumericDocValues(VersionFieldMapper.NAME);
-                    numSegs++;
-                }
+        Fields fields = reader.fields();
+        if (fields != null) {
+            Terms terms = fields.terms(UidFieldMapper.NAME);
+            if (terms != null) {
+                hasPayloads = terms.hasPayloads();
+                termsEnum = terms.iterator();
+                assert termsEnum != null;
+                versions = reader.getNumericDocValues(VersionFieldMapper.NAME);
             }
         }
-        this.numSegs = numSegs;
-        this.hasDeletions = hasDeletions;
+
+        this.versions = versions;
+        this.termsEnum = termsEnum;
+        this.hasPayloads = hasPayloads;
     }
 
     /** Return null if id is not found. */
-    public DocIdAndVersion lookup(BytesRef id) throws IOException {
-        for(int seg=0;seg<numSegs;seg++) {
-            if (termsEnums[seg].seekExact(id)) {
+    public DocIdAndVersion lookup(BytesRef id, Bits liveDocs, LeafReaderContext context) throws IOException {
+        if (termsEnum.seekExact(id)) {
+            if (versions != null || hasPayloads == false) {
+                // Use NDV to retrieve the version, in which case we only need PostingsEnum:
 
-                NumericDocValues segVersions = versions[seg];
-                if (segVersions != null || hasPayloads[seg] == false) {
-                    // Use NDV to retrieve the version, in which case we only need PostingsEnum:
-
-                    // there may be more than one matching docID, in the case of nested docs, so we want the last one:
-                    PostingsEnum docs = docsEnums[seg] = termsEnums[seg].postings(docsEnums[seg], 0);
-                    final Bits liveDocs = this.liveDocs[seg];
-                    int docID = DocIdSetIterator.NO_MORE_DOCS;
-                    for (int d = docs.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docs.nextDoc()) {
-                        if (liveDocs != null && liveDocs.get(d) == false) {
-                            continue;
-                        }
-                        docID = d;
-                    }
-
-                    if (docID != DocIdSetIterator.NO_MORE_DOCS) {
-                        if (segVersions != null) {
-                            return new DocIdAndVersion(docID, segVersions.get(docID), readerContexts[seg]);
-                        } else {
-                            // _uid found, but no doc values and no payloads
-                            return new DocIdAndVersion(docID, Versions.NOT_SET, readerContexts[seg]);
-                        }
-                    } else {
-                        assert hasDeletions;
-                        continue;
-                    }
-                }
-
-                // ... but used to be stored as payloads; in this case we must use PostingsEnum
-                PostingsEnum dpe = posEnums[seg] = termsEnums[seg].postings(posEnums[seg], PostingsEnum.PAYLOADS);
-                assert dpe != null; // terms has payloads
-                final Bits liveDocs = this.liveDocs[seg];
-                for (int d = dpe.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = dpe.nextDoc()) {
+                // there may be more than one matching docID, in the case of nested docs, so we want the last one:
+                docsEnum = termsEnum.postings(docsEnum, 0);
+                int docID = DocIdSetIterator.NO_MORE_DOCS;
+                for (int d = docsEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = docsEnum.nextDoc()) {
                     if (liveDocs != null && liveDocs.get(d) == false) {
                         continue;
                     }
-                    dpe.nextPosition();
-                    final BytesRef payload = dpe.getPayload();
-                    if (payload != null && payload.length == 8) {
-                        // TODO: does this break the nested docs case?  we are not returning the last matching docID here?
-                        return new DocIdAndVersion(d, Numbers.bytesToLong(payload), readerContexts[seg]);
+                    docID = d;
+                }
+
+                if (docID != DocIdSetIterator.NO_MORE_DOCS) {
+                    if (versions != null) {
+                        return new DocIdAndVersion(docID, versions.get(docID), context);
+                    } else {
+                        // _uid found, but no doc values and no payloads
+                        return new DocIdAndVersion(docID, Versions.NOT_SET, context);
                     }
+                }
+            }
+
+            // ... but used to be stored as payloads; in this case we must use PostingsEnum
+            posEnum = termsEnum.postings(posEnum, PostingsEnum.PAYLOADS);
+            assert posEnum != null; // terms has payloads
+            for (int d = posEnum.nextDoc(); d != DocIdSetIterator.NO_MORE_DOCS; d = posEnum.nextDoc()) {
+                if (liveDocs != null && liveDocs.get(d) == false) {
+                    continue;
+                }
+                posEnum.nextPosition();
+                final BytesRef payload = posEnum.getPayload();
+                if (payload != null && payload.length == 8) {
+                    // TODO: does this break the nested docs case?  we are not returning the last matching docID here?
+                    return new DocIdAndVersion(d, Numbers.bytesToLong(payload), context);
                 }
             }
         }
 
         return null;
     }
-
-    // TODO: add reopen method to carry over re-used enums...?
 }

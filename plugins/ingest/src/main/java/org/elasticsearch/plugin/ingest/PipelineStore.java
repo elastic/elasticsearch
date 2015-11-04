@@ -29,12 +29,14 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.IOException;
 import java.util.*;
 
 public class PipelineStore extends AbstractLifecycleComponent {
@@ -45,18 +47,22 @@ public class PipelineStore extends AbstractLifecycleComponent {
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
     private final TimeValue pipelineUpdateInterval;
-    private final PipelineStoreClient configDocReader;
-    private final Map<String, Processor.Builder.Factory> processorFactoryRegistry;
+    private final PipelineStoreClient client;
+    private final Pipeline.Factory factory = new Pipeline.Factory();
+    private final Map<String, Processor.Factory> processorFactoryRegistry;
 
     private volatile Map<String, PipelineReference> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, ThreadPool threadPool, ClusterService clusterService, PipelineStoreClient configDocReader, Map<String, Processor.Builder.Factory> processors) {
+    public PipelineStore(Settings settings, ThreadPool threadPool, Environment environment, ClusterService clusterService, PipelineStoreClient client, Map<String, Processor.Factory> processors) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
-        this.configDocReader = configDocReader;
+        this.client = client;
+        for (Processor.Factory factory : processors.values()) {
+            factory.setConfigDirectory(environment.configFile());
+        }
         this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
         clusterService.add(new PipelineStoreListener());
     }
@@ -71,6 +77,13 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
+        for (Processor.Factory factory : processorFactoryRegistry.values()) {
+            try {
+                factory.close();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public Pipeline get(String id) {
@@ -101,13 +114,13 @@ public class PipelineStore extends AbstractLifecycleComponent {
         return result;
     }
 
-    void updatePipelines() {
+    void updatePipelines() throws IOException {
         // note: this process isn't fast or smart, but the idea is that there will not be many pipelines,
         // so for that reason the goal is to keep the update logic simple.
 
         int changed = 0;
         Map<String, PipelineReference> newPipelines = new HashMap<>(pipelines);
-        for (SearchHit hit : configDocReader.readAllPipelines()) {
+        for (SearchHit hit : client.readAllPipelines()) {
             String pipelineId = hit.getId();
             BytesReference pipelineSource = hit.getSourceRef();
             PipelineReference previous = newPipelines.get(pipelineId);
@@ -118,14 +131,13 @@ public class PipelineStore extends AbstractLifecycleComponent {
             }
 
             changed++;
-            Pipeline.Builder builder = new Pipeline.Builder(hit.getId());
-            builder.fromMap(hit.sourceAsMap(), processorFactoryRegistry);
-            newPipelines.put(pipelineId, new PipelineReference(builder.build(), hit.getVersion(), pipelineSource));
+            Pipeline pipeline = factory.create(hit.getId(), hit.sourceAsMap(), processorFactoryRegistry);
+            newPipelines.put(pipelineId, new PipelineReference(pipeline, hit.getVersion(), pipelineSource));
         }
 
         int removed = 0;
         for (String existingPipelineId : pipelines.keySet()) {
-            if (!configDocReader.existPipeline(existingPipelineId)) {
+            if (!client.existPipeline(existingPipelineId)) {
                 newPipelines.remove(existingPipelineId);
                 removed++;
             }

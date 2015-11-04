@@ -27,9 +27,9 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
-import static org.elasticsearch.indices.analysis.HunspellService.*;
+import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_IGNORE_CASE;
+import static org.elasticsearch.indices.analysis.HunspellService.HUNSPELL_LAZY_LOAD;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -37,8 +37,6 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 @ClusterScope(scope= Scope.TEST, numDataNodes=0)
 public class HunspellServiceIT extends ESIntegTestCase {
-
-    @Test
     public void testLocaleDirectoryWithNodeLevelConfig() throws Exception {
         Settings settings = Settings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
@@ -52,7 +50,6 @@ public class HunspellServiceIT extends ESIntegTestCase {
         assertIgnoreCase(true, dictionary);
     }
 
-    @Test
     public void testLocaleDirectoryWithLocaleSpecificConfig() throws Exception {
         Settings settings = Settings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/conf_dir"))
@@ -75,7 +72,6 @@ public class HunspellServiceIT extends ESIntegTestCase {
         assertIgnoreCase(true, dictionary);
     }
 
-    @Test
     public void testDicWithNoAff() throws Exception {
         Settings settings = Settings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/no_aff_conf_dir"))
@@ -94,7 +90,6 @@ public class HunspellServiceIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDicWithTwoAffs() throws Exception {
         Settings settings = Settings.settingsBuilder()
                 .put("path.conf", getDataPath("/indices/analyze/two_aff_conf_dir"))

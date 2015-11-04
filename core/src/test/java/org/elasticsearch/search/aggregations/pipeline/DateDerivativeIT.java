@@ -34,17 +34,16 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.DateTimeFormat;
 import org.junit.After;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
+import static org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorBuilders.derivative;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
@@ -105,8 +104,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         internalCluster().wipeIndices("idx2");
     }
 
-    @Test
-    public void singleValuedField() throws Exception {
+    public void testSingleValuedField() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -148,8 +146,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(docCountDeriv.value(), equalTo(1d));
     }
 
-    @Test
-    public void singleValuedField_normalised() throws Exception {
+    public void testSingleValuedFieldNormalised() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -194,8 +191,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(docCountDeriv.normalizedValue(), closeTo(1d / 29d, 0.00001));
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation() throws Exception {
+    public void testSingleValuedFieldWithSubAggregation() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -264,8 +260,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat((double) propertiesCounts[2], equalTo(15.0));
     }
 
-    @Test
-    public void multiValuedField() throws Exception {
+    public void testMultiValuedField() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -320,8 +315,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(docCountDeriv.value(), equalTo(-2.0));
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
@@ -336,8 +330,7 @@ public class DateDerivativeIT extends ESIntegTestCase {
         assertThat(deriv.getBuckets().size(), equalTo(0));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(

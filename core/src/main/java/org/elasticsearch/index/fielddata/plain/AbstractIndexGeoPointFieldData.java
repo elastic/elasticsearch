@@ -24,8 +24,7 @@ import org.apache.lucene.util.BytesRefIterator;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.Nested;
 import org.elasticsearch.index.mapper.MappedFieldType.Names;
@@ -71,8 +70,8 @@ abstract class AbstractIndexGeoPointFieldData extends AbstractIndexFieldData<Ato
 
     }
 
-    public AbstractIndexGeoPointFieldData(Index index, Settings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache);
+    public AbstractIndexGeoPointFieldData(IndexSettings indexSettings, Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+        super(indexSettings, fieldNames, fieldDataType, cache);
     }
 
     @Override

@@ -22,7 +22,6 @@ package org.elasticsearch.index.translog;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.channels.FileChannel;
@@ -36,8 +35,6 @@ import static org.hamcrest.Matchers.equalTo;
  * Tests for reading old and new translog files
  */
 public class TranslogVersionTests extends ESTestCase {
-
-    @Test
     public void testV0LegacyTranslogVersion() throws Exception {
         Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v0.binary");
         assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
@@ -45,7 +42,7 @@ public class TranslogVersionTests extends ESTestCase {
             assertThat("a version0 stream is returned", reader instanceof LegacyTranslogReader, equalTo(true));
             try (final Translog.Snapshot snapshot = reader.newSnapshot()) {
                 final Translog.Operation operation = snapshot.next();
-                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.SAVE, equalTo(true));
+                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.INDEX, equalTo(true));
                 Translog.Index op = (Translog.Index) operation;
                 assertThat(op.id(), equalTo("1"));
                 assertThat(op.type(), equalTo("doc"));
@@ -62,7 +59,6 @@ public class TranslogVersionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testV1ChecksummedTranslogVersion() throws Exception {
         Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1.binary");
         assertThat("test file should exist", Files.exists(translogFile), equalTo(true));
@@ -73,8 +69,8 @@ public class TranslogVersionTests extends ESTestCase {
 
                 Translog.Operation operation = snapshot.next();
 
-                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.CREATE, equalTo(true));
-                Translog.Create op = (Translog.Create) operation;
+                assertThat("operation is the correct type correctly", operation.opType() == Translog.Operation.Type.INDEX, equalTo(true));
+                Translog.Index op = (Translog.Index) operation;
                 assertThat(op.id(), equalTo("Bwiq98KFSb6YjJQGeSpeiw"));
                 assertThat(op.type(), equalTo("doc"));
                 assertThat(op.source().toUtf8(), equalTo("{\"body\": \"foo\"}"));
@@ -95,7 +91,6 @@ public class TranslogVersionTests extends ESTestCase {
         }
     }
 
-    @Test
     public void testCorruptedTranslogs() throws Exception {
         try {
             Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-corrupted-magic.binary");
@@ -135,7 +130,6 @@ public class TranslogVersionTests extends ESTestCase {
 
     }
 
-    @Test
     public void testTruncatedTranslog() throws Exception {
         try {
             Path translogFile = getDataPath("/org/elasticsearch/index/translog/translog-v1-truncated.binary");

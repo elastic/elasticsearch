@@ -57,6 +57,7 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -181,8 +182,8 @@ public class Node implements Releasable {
             if (settings.getAsBoolean(HTTP_ENABLED, true)) {
                 modules.add(new HttpServerModule(settings));
             }
-            modules.add(new IndicesModule(settings));
-            modules.add(new SearchModule(settings));
+            modules.add(new IndicesModule());
+            modules.add(new SearchModule());
             modules.add(new ActionModule(false));
             modules.add(new MonitorModule(settings));
             modules.add(new GatewayModule(settings));
@@ -191,6 +192,7 @@ public class Node implements Releasable {
             modules.add(new ResourceWatcherModule());
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
+            modules.add(new AnalysisModule(environment));
 
 
             pluginsService.processModules(modules);

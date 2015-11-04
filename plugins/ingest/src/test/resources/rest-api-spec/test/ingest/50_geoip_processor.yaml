@@ -1,0 +1,106 @@
+---
+"Test geoip processor with defaults":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "ip_field" : "field1"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        ingest: "my_pipeline"
+        body: {field1: "128.101.101.101"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: "128.101.101.101" }
+  - length: { _source.geoip: 10 }
+  - match: { _source.geoip.city_name: "Minneapolis" }
+  - match: { _source.geoip.country_iso_code: "US" }
+  - match: { _source.geoip.ip: "128.101.101.101" }
+  - match: { _source.geoip.latitude: 44.9759 }
+  - match: { _source.geoip.longitude: -93.2166 }
+  - match: { _source.geoip.location: [-93.2166, 44.9759] }
+  - match: { _source.geoip.timezone: "America/Chicago" }
+  - match: { _source.geoip.country_name: "United States" }
+  - match: { _source.geoip.region_name: "Minnesota" }
+  - match: { _source.geoip.continent_name: "North America" }
+
+---
+"Test geoip processor with different database file":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "ip_field" : "field1",
+                  "database_file" : "GeoLite2-Country.mmdb"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        ingest: "my_pipeline"
+        body: {field1: "128.101.101.101"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.field1: "128.101.101.101" }
+  - length: { _source.geoip: 4 }
+  - match: { _source.geoip.country_iso_code: "US" }
+  - match: { _source.geoip.ip: "128.101.101.101" }
+  - match: { _source.geoip.country_name: "United States" }
+  - match: { _source.geoip.continent_name: "North America" }

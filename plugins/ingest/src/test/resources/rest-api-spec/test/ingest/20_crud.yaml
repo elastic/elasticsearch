@@ -14,7 +14,7 @@
               {
                 "simple" : {
                   "path" : "field1",
-                  "value" : "_value",
+                  "expected_value" : "_value",
                   "add_field" : "field2",
                   "add_field_value" : "_value"
                 }

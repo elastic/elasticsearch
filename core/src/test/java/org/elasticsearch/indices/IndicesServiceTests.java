@@ -137,12 +137,12 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         IndexService test = createIndex("test");
 
         assertTrue(test.hasShard(0));
-        ShardPath path = test.shard(0).shardPath();
-        assertTrue(test.shard(0).routingEntry().started());
+        ShardPath path = test.getShardOrNull(0).shardPath();
+        assertTrue(test.getShardOrNull(0).routingEntry().started());
         ShardPath shardPath = ShardPath.loadShardPath(logger, getNodeEnvironment(), new ShardId(test.index(), 0), test.getIndexSettings());
         assertEquals(shardPath, path);
         try {
-            indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
+            indicesService.processPendingDeletes(test.index(), test.getIndexSettings().getSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             fail("can't get lock");
         } catch (LockObtainFailedException ex) {
 
@@ -151,13 +151,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings().getSettings());
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
+                indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings().getSettings());
             }
-            indicesService.addPendingDelete(test.index(), test.getIndexSettings());
+            indicesService.addPendingDelete(test.index(), test.getIndexSettings().getSettings());
         }
         assertAcked(client().admin().indices().prepareClose("test"));
         assertTrue(path.exists());
@@ -165,17 +165,17 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertEquals(indicesService.numPendingDeletes(test.index()), numPending);
 
         // shard lock released... we can now delete
-        indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
+        indicesService.processPendingDeletes(test.index(), test.getIndexSettings().getSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
         assertEquals(indicesService.numPendingDeletes(test.index()), 0);
         assertFalse(path.exists());
 
         if (randomBoolean()) {
-            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
-            indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
-            indicesService.addPendingDelete(new ShardId("bogus", 1), test.getIndexSettings());
+            indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings().getSettings());
+            indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings().getSettings());
+            indicesService.addPendingDelete(new ShardId("bogus", 1), test.getIndexSettings().getSettings());
             assertEquals(indicesService.numPendingDeletes(test.index()), 2);
             // shard lock released... we can now delete
-            indicesService.processPendingDeletes(test.index(),  test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
+            indicesService.processPendingDeletes(test.index(),  test.getIndexSettings().getSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
             assertEquals(indicesService.numPendingDeletes(test.index()), 0);
         }
         assertAcked(client().admin().indices().prepareOpen("test"));

@@ -20,9 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.Query;
-import org.junit.Test;
 
 import java.io.IOException;
+
+import static org.hamcrest.Matchers.containsString;
 
 public class MissingQueryBuilderTests extends AbstractQueryTestCase<MissingQueryBuilder> {
 
@@ -43,10 +44,10 @@ public class MissingQueryBuilderTests extends AbstractQueryTestCase<MissingQuery
 
     @Override
     protected void doAssertLuceneQuery(MissingQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        //too many mapping dependent cases to test, we don't want to end up duplication the toQuery method
+        // too many mapping dependent cases to test, we don't want to end up
+        // duplication the toQuery method
     }
 
-    @Test
     public void testIllegalArguments() {
         try {
             if (randomBoolean()) {
@@ -74,10 +75,14 @@ public class MissingQueryBuilderTests extends AbstractQueryTestCase<MissingQuery
         }
     }
 
-    @Test(expected = QueryShardException.class)
     public void testBothNullValueAndExistenceFalse() throws IOException {
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
-        MissingQueryBuilder.newFilter(context, "field", false, false);
+        try {
+            MissingQueryBuilder.newFilter(context, "field", false, false);
+            fail("Expected QueryShardException");
+        } catch (QueryShardException e) {
+            assertThat(e.getMessage(), containsString("missing must have either existence, or null_value"));
+        }
     }
 }

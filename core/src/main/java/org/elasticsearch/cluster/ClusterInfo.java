@@ -20,9 +20,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.routing.ShardRouting;
-
-import java.util.Collections;
-import java.util.Map;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 
 /**
  * ClusterInfo is an object representing a map of nodes to {@link DiskUsage}
@@ -31,15 +29,14 @@ import java.util.Map;
  * for the key used in the shardSizes map
  */
 public class ClusterInfo {
-
-    private final Map<String, DiskUsage> leastAvailableSpaceUsage;
-    private final Map<String, DiskUsage> mostAvailableSpaceUsage;
-    final Map<String, Long> shardSizes;
+    private final ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage;
+    private final ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage;
+    final ImmutableOpenMap<String, Long> shardSizes;
     public static final ClusterInfo EMPTY = new ClusterInfo();
-    private final Map<ShardRouting, String> routingToDataPath;
+    private final ImmutableOpenMap<ShardRouting, String> routingToDataPath;
 
     protected ClusterInfo() {
-       this(Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
+       this(ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of(), ImmutableOpenMap.of());
     }
 
     /**
@@ -51,7 +48,9 @@ public class ClusterInfo {
      * @param routingToDataPath the shard routing to datapath mapping
      * @see #shardIdentifierFromRouting
      */
-    public ClusterInfo(final Map<String, DiskUsage> leastAvailableSpaceUsage, final Map<String, DiskUsage> mostAvailableSpaceUsage, final Map<String, Long> shardSizes, Map<ShardRouting, String> routingToDataPath) {
+    public ClusterInfo(ImmutableOpenMap<String, DiskUsage> leastAvailableSpaceUsage,
+            ImmutableOpenMap<String, DiskUsage> mostAvailableSpaceUsage, ImmutableOpenMap<String, Long> shardSizes,
+            ImmutableOpenMap<ShardRouting, String> routingToDataPath) {
         this.leastAvailableSpaceUsage = leastAvailableSpaceUsage;
         this.shardSizes = shardSizes;
         this.mostAvailableSpaceUsage = mostAvailableSpaceUsage;
@@ -61,14 +60,14 @@ public class ClusterInfo {
     /**
      * Returns a node id to disk usage mapping for the path that has the least available space on the node.
      */
-    public Map<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
+    public ImmutableOpenMap<String, DiskUsage> getNodeLeastAvailableDiskUsages() {
         return this.leastAvailableSpaceUsage;
     }
 
     /**
      * Returns a node id to disk usage mapping for the path that has the most available space on the node.
      */
-    public Map<String, DiskUsage> getNodeMostAvailableDiskUsages() {
+    public ImmutableOpenMap<String, DiskUsage> getNodeMostAvailableDiskUsages() {
         return this.mostAvailableSpaceUsage;
     }
 

@@ -24,7 +24,7 @@ import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.DiskUsage;
-import org.elasticsearch.cluster.MockInternalClusterInfoService;
+import org.elasticsearch.cluster.MockInternalClusterInfoService.DevNullClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -43,15 +43,14 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.LocalTransportAddress;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
-import org.junit.Test;
 
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
@@ -71,23 +70,24 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         return new ShardsAllocators(NoopGatewayAllocator.INSTANCE);
     }
 
-    @Test
-    public void diskThresholdTest() {
+    public void testDiskThreshold() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.8).build();
 
-        Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 10)); // 90% used
-        usages.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 35)); // 65% used
-        usages.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 60)); // 40% used
-        usages.put("node4", new DiskUsage("node4", "node4", "/dev/null", 100, 80)); // 20% used
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        usagesBuilder.put("node1", new DiskUsage("node1", "node1", "/dev/null", 100, 10)); // 90% used
+        usagesBuilder.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 35)); // 65% used
+        usagesBuilder.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 60)); // 40% used
+        usagesBuilder.put("node4", new DiskUsage("node4", "node4", "/dev/null", 100, 80)); // 20% used
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
+        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
+        shardSizesBuilder.put("[test][0][r]", 10L);
+        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -264,24 +264,25 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node4").size(), equalTo(1));
     }
 
-    @Test
-    public void diskThresholdWithAbsoluteSizesTest() {
+    public void testDiskThresholdWithAbsoluteSizes() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "30b")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "9b").build();
 
-        Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 10)); // 90% used
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 10)); // 90% used
-        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 60)); // 40% used
-        usages.put("node4", new DiskUsage("node4", "n4", "/dev/null", 100, 80)); // 20% used
-        usages.put("node5", new DiskUsage("node5", "n5", "/dev/null", 100, 85)); // 15% used
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 10)); // 90% used
+        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 10)); // 90% used
+        usagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 60)); // 40% used
+        usagesBuilder.put("node4", new DiskUsage("node4", "n4", "/dev/null", 100, 80)); // 20% used
+        usagesBuilder.put("node5", new DiskUsage("node5", "n5", "/dev/null", 100, 85)); // 15% used
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
+        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
+        shardSizesBuilder.put("[test][0][r]", 10L);
+        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -342,8 +343,10 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         logger.info("--> nodeWithoutPrimary: {}", nodeWithoutPrimary);
 
         // Make node without the primary now habitable to replicas
-        usages.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", "/dev/null", 100, 35)); // 65% used
-        final ClusterInfo clusterInfo2 = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
+        usagesBuilder = ImmutableOpenMap.builder(usages);
+        usagesBuilder.put(nodeWithoutPrimary, new DiskUsage(nodeWithoutPrimary, "", "/dev/null", 100, 35)); // 65% used
+        usages = usagesBuilder.build();
+        final ClusterInfo clusterInfo2 = new DevNullClusterInfo(usages, usages, shardSizes);
         cis = new ClusterInfoService() {
             @Override
             public ClusterInfo getClusterInfo() {
@@ -529,20 +532,21 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node5").size(), equalTo(1));
     }
 
-    @Test
-    public void diskThresholdWithShardSizes() {
+    public void testDiskThresholdWithShardSizes() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "71%").build();
 
-        Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 31)); // 69% used
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 1));  // 99% used
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 31)); // 69% used
+        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 1));  // 99% used
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
+        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
+        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -595,21 +599,22 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(0));
     }
 
-    @Test
-    public void unknownDiskUsageTest() {
+    public void testUnknownDiskUsage() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.85).build();
 
-        Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 50)); // 50% used
-        usages.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 0));  // 100% used
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        usagesBuilder.put("node2", new DiskUsage("node2", "node2", "/dev/null", 100, 50)); // 50% used
+        usagesBuilder.put("node3", new DiskUsage("node3", "node3", "/dev/null", 100, 0));  // 100% used
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 10L); // 10 bytes
-        shardSizes.put("[test][0][r]", 10L); // 10 bytes
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
+        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put("[test][0][p]", 10L); // 10 bytes
+        shardSizesBuilder.put("[test][0][r]", 10L); // 10 bytes
+        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -668,22 +673,20 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(clusterState.getRoutingNodes().node("node1").size(), equalTo(1));
     }
 
-    @Test
-    public void averageUsageUnitTest() {
+    public void testAverageUsage() {
         RoutingNode rn = new RoutingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY);
 
-        Map<String, DiskUsage> usages = new HashMap<>();
+        ImmutableOpenMap.Builder<String, DiskUsage> usages = ImmutableOpenMap.builder();
         usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 50)); // 50% used
         usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 0));  // 100% used
 
-        DiskUsage node1Usage = decider.averageUsage(rn, usages);
+        DiskUsage node1Usage = decider.averageUsage(rn, usages.build());
         assertThat(node1Usage.getTotalBytes(), equalTo(100L));
         assertThat(node1Usage.getFreeBytes(), equalTo(25L));
     }
 
-    @Test
-    public void freeDiskPercentageAfterShardAssignedUnitTest() {
+    public void testFreeDiskPercentageAfterShardAssigned() {
         RoutingNode rn = new RoutingNode("node1", newNode("node1"));
         DiskThresholdDecider decider = new DiskThresholdDecider(Settings.EMPTY);
 
@@ -695,7 +698,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         assertThat(after, equalTo(19.0));
     }
 
-    @Test
     public void testShardRelocationsTakenIntoAccount() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
@@ -703,17 +705,19 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, 0.7)
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, 0.8).build();
 
-        Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 40)); // 60% used
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 40)); // 60% used
-        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 40)); // 60% used
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 40)); // 60% used
+        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 40)); // 60% used
+        usagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 40)); // 60% used
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 14L); // 14 bytes
-        shardSizes.put("[test][0][r]", 14L);
-        shardSizes.put("[test2][0][p]", 1L); // 1 bytes
-        shardSizes.put("[test2][0][r]", 1L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
+        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put("[test][0][p]", 14L); // 14 bytes
+        shardSizesBuilder.put("[test][0][r]", 14L);
+        shardSizesBuilder.put("[test2][0][p]", 1L); // 1 bytes
+        shardSizesBuilder.put("[test2][0][r]", 1L);
+        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         AllocationDeciders deciders = new AllocationDeciders(Settings.EMPTY,
                 new HashSet<>(Arrays.asList(
@@ -800,7 +804,6 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
     }
 
-    @Test
     public void testCanRemainWithShardRelocatingAway() {
         Settings diskSettings = settingsBuilder()
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, true)
@@ -809,14 +812,17 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "70%").build();
 
         // We have an index with 2 primary shards each taking 40 bytes. Each node has 100 bytes available
-        Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 20)); // 80% used
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 100)); // 0% used
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 20)); // 80% used
+        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 100)); // 0% used
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
-        Map<String, Long> shardSizes = new HashMap<>();
-        shardSizes.put("[test][0][p]", 40L);
-        shardSizes.put("[test][1][p]", 40L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
+        ImmutableOpenMap.Builder<String, Long> shardSizesBuilder = ImmutableOpenMap.builder();
+        shardSizesBuilder.put("[test][0][p]", 40L);
+        shardSizesBuilder.put("[test][1][p]", 40L);
+        ImmutableOpenMap<String, Long> shardSizes = shardSizesBuilder.build();
+
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes);
 
         DiskThresholdDecider diskThresholdDecider = new DiskThresholdDecider(diskSettings);
         MetaData metaData = MetaData.builder()
@@ -852,7 +858,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                                         .build()
                         )
         );
-        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder).build();
+        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo);
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
@@ -872,7 +878,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                                         .build()
                         )
         );
-        clusterState = ClusterState.builder(baseClusterState).routingTable(builder).build();
+        clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
@@ -917,16 +923,17 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "60%")
                 .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "70%").build();
 
-        Map<String, DiskUsage> usages = new HashMap<>();
-        usages.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 100)); // 0% used
-        usages.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 20));  // 80% used
-        usages.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 100)); // 0% used
+        ImmutableOpenMap.Builder<String, DiskUsage> usagesBuilder = ImmutableOpenMap.builder();
+        usagesBuilder.put("node1", new DiskUsage("node1", "n1", "/dev/null", 100, 100)); // 0% used
+        usagesBuilder.put("node2", new DiskUsage("node2", "n2", "/dev/null", 100, 20));  // 80% used
+        usagesBuilder.put("node3", new DiskUsage("node3", "n3", "/dev/null", 100, 100)); // 0% used
+        ImmutableOpenMap<String, DiskUsage> usages = usagesBuilder.build();
 
         // We have an index with 1 primary shards each taking 40 bytes. Each node has 100 bytes available
-        Map<String, Long> shardSizes = new HashMap<>();
+        ImmutableOpenMap.Builder<String, Long> shardSizes = ImmutableOpenMap.builder();
         shardSizes.put("[test][0][p]", 40L);
         shardSizes.put("[test][1][p]", 40L);
-        final ClusterInfo clusterInfo = new ClusterInfo(Collections.unmodifiableMap(usages), Collections.unmodifiableMap(usages), Collections.unmodifiableMap(shardSizes), MockInternalClusterInfoService.DEV_NULL_MAP);
+        final ClusterInfo clusterInfo = new DevNullClusterInfo(usages, usages, shardSizes.build());
 
         DiskThresholdDecider diskThresholdDecider = new DiskThresholdDecider(diskSettings);
         MetaData metaData = MetaData.builder()
@@ -970,7 +977,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                                         .build()
                         )
         );
-        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder).build();
+        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
         RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo);
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
 
@@ -1027,7 +1034,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
 
-        clusterState = ClusterState.builder(updateClusterState).routingTable(builder).build();
+        clusterState = ClusterState.builder(updateClusterState).routingTable(builder.build()).build();
         routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo);
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));

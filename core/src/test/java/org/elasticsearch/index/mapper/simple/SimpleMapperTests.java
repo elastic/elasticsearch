@@ -19,31 +19,35 @@
 
 package org.elasticsearch.index.mapper.simple;
 
-import java.nio.charset.StandardCharsets;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.index.mapper.*;
-import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
+import java.nio.charset.StandardCharsets;
+
+import static org.elasticsearch.index.mapper.MapperBuilders.doc;
+import static org.elasticsearch.index.mapper.MapperBuilders.object;
+import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;
+import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
  *
  */
 public class SimpleMapperTests extends ESSingleNodeTestCase {
-
-    @Test
     public void testSimpleMapper() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.settingsService().getSettings();
+        Settings settings = indexService.getIndexSettings().getSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         DocumentMapper docMapper = doc(settings,
                 rootObject("person")
@@ -54,31 +58,22 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
 
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().names().indexName()), equalTo("shay"));
-//        System.out.println("Document: " + doc);
-//        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
         doc = docMapper.parse("test", "person", "1", json).rootDoc();
-//        System.out.println("Document: " + doc);
-//        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
 
-    @Test
     public void testParseToJsonAndParse() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
         DocumentMapper docMapper = parser.parse(mapping);
         String builtMapping = docMapper.mappingSource().string();
-//        System.out.println(builtMapping);
         // reparse it
         DocumentMapper builtDocMapper = parser.parse(builtMapping);
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
         Document doc = builtDocMapper.parse("test", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().fieldType().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().names().indexName()), equalTo("shay"));
-//        System.out.println("Document: " + doc);
-//        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
 
-    @Test
     public void testSimpleParser() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -89,11 +84,8 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().fieldType().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().names().indexName()), equalTo("shay"));
-//        System.out.println("Document: " + doc);
-//        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
 
-    @Test
     public void testSimpleParserNoTypeNoId() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
@@ -101,11 +93,8 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
         assertThat(doc.get(docMapper.uidMapper().fieldType().names().indexName()), equalTo(Uid.createUid("person", "1")));
         assertThat(doc.get(docMapper.mappers().getMapper("name.first").fieldType().names().indexName()), equalTo("shay"));
-//        System.out.println("Document: " + doc);
-//        System.out.println("Json: " + docMapper.sourceMapper().value(doc));
     }
 
-    @Test
     public void testAttributes() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/simple/test-mapping.json");
         DocumentMapperParser parser = createIndex("test").mapperService().documentMapperParser();
@@ -118,10 +107,9 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         assertThat((String) builtDocMapper.meta().get("param1"), equalTo("value1"));
     }
 
-    @Test
     public void testNoDocumentSent() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.settingsService().getSettings();
+        Settings settings = indexService.getIndexSettings().getSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         DocumentMapper docMapper = doc(settings,
                 rootObject("person")

@@ -22,8 +22,8 @@ package org.elasticsearch.common.unit;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.MatcherAssert;
-import org.junit.Test;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 
@@ -31,23 +31,18 @@ import static org.hamcrest.Matchers.is;
  *
  */
 public class ByteSizeValueTests extends ESTestCase {
-
-    @Test
     public void testActualPeta() {
         MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.PB).bytes(), equalTo(4503599627370496l));
     }
 
-    @Test
     public void testActualTera() {
         MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.TB).bytes(), equalTo(4398046511104l));
     }
 
-    @Test
     public void testActual() {
         MatcherAssert.assertThat(new ByteSizeValue(4, ByteSizeUnit.GB).bytes(), equalTo(4294967296l));
     }
 
-    @Test
     public void testSimple() {
         assertThat(ByteSizeUnit.BYTES.toBytes(10), is(new ByteSizeValue(10, ByteSizeUnit.BYTES).bytes()));
         assertThat(ByteSizeUnit.KB.toKB(10), is(new ByteSizeValue(10, ByteSizeUnit.KB).kb()));
@@ -64,7 +59,6 @@ public class ByteSizeValueTests extends ESTestCase {
         assertThat(value1, equalTo(value2));
     }
 
-    @Test
     public void testToString() {
         assertThat("10b", is(new ByteSizeValue(10, ByteSizeUnit.BYTES).toString()));
         assertThat("1.5kb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.BYTES).toString()));
@@ -75,7 +69,6 @@ public class ByteSizeValueTests extends ESTestCase {
         assertThat("1536pb", is(new ByteSizeValue((long) (1024 * 1.5), ByteSizeUnit.PB).toString()));
     }
 
-    @Test
     public void testParsing() {
         assertThat(ByteSizeValue.parseBytesSizeValue("42PB", "testParsing").toString(), is("42pb"));
         assertThat(ByteSizeValue.parseBytesSizeValue("42 PB", "testParsing").toString(), is("42pb"));
@@ -128,28 +121,48 @@ public class ByteSizeValueTests extends ESTestCase {
         assertThat(ByteSizeValue.parseBytesSizeValue("1 b", "testParsing").toString(), is("1b"));
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnMissingUnits() {
-        ByteSizeValue.parseBytesSizeValue("23", "test");
+        try {
+            ByteSizeValue.parseBytesSizeValue("23", "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnUnknownUnits() {
-        ByteSizeValue.parseBytesSizeValue("23jw", "test");
+        try {
+            ByteSizeValue.parseBytesSizeValue("23jw", "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyParsing() {
-        assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb"));
+        try {
+            assertThat(ByteSizeValue.parseBytesSizeValue("", "emptyParsing").toString(), is("23kb"));
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("failed to parse setting [emptyParsing]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testFailOnEmptyNumberParsing() {
-        assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b"));
+        try {
+            assertThat(ByteSizeValue.parseBytesSizeValue("g", "emptyNumberParsing").toString(), is("23b"));
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("failed to parse [g]"));
+        }
     }
 
-    @Test(expected = ElasticsearchParseException.class)
     public void testNoDotsAllowed() {
-        ByteSizeValue.parseBytesSizeValue("42b.", null, "test");
+        try {
+            ByteSizeValue.parseBytesSizeValue("42b.", null, "test");
+            fail("Expected ElasticsearchParseException");
+        } catch (ElasticsearchParseException e) {
+            assertThat(e.getMessage(), containsString("failed to parse setting [test]"));
+        }
     }
 }

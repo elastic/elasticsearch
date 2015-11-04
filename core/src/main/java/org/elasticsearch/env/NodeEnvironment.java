@@ -38,7 +38,6 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.monitor.fs.FsInfo;
@@ -309,7 +308,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param shardId the id of the shard to delete to delete
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardDirectorySafe(ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
+    public void deleteShardDirectorySafe(ShardId shardId, Settings indexSettings) throws IOException {
         // This is to ensure someone doesn't use Settings.EMPTY
         assert indexSettings != Settings.EMPTY;
         final Path[] paths = availableShardPaths(shardId);
@@ -326,7 +325,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      *
      * @throws LockObtainFailedException if any of the locks could not be acquired
      */
-    public static void acquireFSLockForPaths(@IndexSettings Settings indexSettings, Path... shardPaths) throws IOException {
+    public static void acquireFSLockForPaths(Settings indexSettings, Path... shardPaths) throws IOException {
         Lock[] locks = new Lock[shardPaths.length];
         Directory[] dirs = new Directory[shardPaths.length];
         try {
@@ -360,7 +359,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @throws IOException if an IOException occurs
      * @throws ElasticsearchException if the write.lock is not acquirable
      */
-    public void deleteShardDirectoryUnderLock(ShardLock lock, @IndexSettings Settings indexSettings) throws IOException {
+    public void deleteShardDirectoryUnderLock(ShardLock lock, Settings indexSettings) throws IOException {
         assert indexSettings != Settings.EMPTY;
         final ShardId shardId = lock.getShardId();
         assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
@@ -398,7 +397,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param indexSettings settings for the index being deleted
      * @throws IOException if any of the shards data directories can't be locked or deleted
      */
-    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, @IndexSettings Settings indexSettings) throws IOException {
+    public void deleteIndexDirectorySafe(Index index, long lockTimeoutMS, Settings indexSettings) throws IOException {
         // This is to ensure someone doesn't use Settings.EMPTY
         assert indexSettings != Settings.EMPTY;
         final List<ShardLock> locks = lockAllForIndex(index, indexSettings, lockTimeoutMS);
@@ -416,7 +415,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param index the index to delete
      * @param indexSettings settings for the index being deleted
      */
-    public void deleteIndexDirectoryUnderLock(Index index, @IndexSettings Settings indexSettings) throws IOException {
+    public void deleteIndexDirectoryUnderLock(Index index, Settings indexSettings) throws IOException {
         // This is to ensure someone doesn't use Settings.EMPTY
         assert indexSettings != Settings.EMPTY;
         final Path[] indexPaths = indexPaths(index);
@@ -439,7 +438,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @return the {@link ShardLock} instances for this index.
      * @throws IOException if an IOException occurs.
      */
-    public List<ShardLock> lockAllForIndex(Index index, @IndexSettings Settings settings, long lockTimeoutMS) throws IOException {
+    public List<ShardLock> lockAllForIndex(Index index, Settings settings, long lockTimeoutMS) throws IOException {
         final Integer numShards = settings.getAsInt(IndexMetaData.SETTING_NUMBER_OF_SHARDS, null);
         if (numShards == null || numShards <= 0) {
             throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
@@ -785,7 +784,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param indexSettings settings for an index
      * @return true if the index has a custom data path
      */
-    public static boolean hasCustomDataPath(@IndexSettings Settings indexSettings) {
+    public static boolean hasCustomDataPath(Settings indexSettings) {
         return indexSettings.get(IndexMetaData.SETTING_DATA_PATH) != null;
     }
 
@@ -796,7 +795,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      *
      * @param indexSettings settings for the index
      */
-    private Path resolveCustomLocation(@IndexSettings Settings indexSettings) {
+    private Path resolveCustomLocation(Settings indexSettings) {
         assert indexSettings != Settings.EMPTY;
         String customDataDir = indexSettings.get(IndexMetaData.SETTING_DATA_PATH);
         if (customDataDir != null) {
@@ -820,7 +819,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param indexSettings settings for the index
      * @param indexName index to resolve the path for
      */
-    private Path resolveCustomLocation(@IndexSettings Settings indexSettings, final String indexName) {
+    private Path resolveCustomLocation(Settings indexSettings, final String indexName) {
         return resolveCustomLocation(indexSettings).resolve(indexName);
     }
 
@@ -832,7 +831,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * @param indexSettings settings for the index
      * @param shardId shard to resolve the path to
      */
-    public Path resolveCustomLocation(@IndexSettings Settings indexSettings, final ShardId shardId) {
+    public Path resolveCustomLocation(Settings indexSettings, final ShardId shardId) {
         return resolveCustomLocation(indexSettings, shardId.index().name()).resolve(Integer.toString(shardId.id()));
     }
 

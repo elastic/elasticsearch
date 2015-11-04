@@ -24,6 +24,7 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
@@ -36,6 +37,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShadowIndexShard;
+import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
 import org.elasticsearch.plugins.Plugin;
@@ -49,12 +51,11 @@ import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
@@ -63,8 +64,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Tests for indices that use shadow replicas and a shared filesystem
@@ -150,7 +156,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
         for (IndicesService service : internalCluster().getDataNodeInstances(IndicesService.class)) {
             if (service.hasIndex("foo-copy")) {
-                IndexShard shard = service.indexServiceSafe("foo-copy").shard(0);
+                IndexShard shard = service.indexServiceSafe("foo-copy").getShardOrNull(0);
                 if (shard.routingEntry().primary()) {
                     assertFalse(shard instanceof ShadowIndexShard);
                 } else {
@@ -164,7 +170,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testIndexWithFewDocuments() throws Exception {
         final Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
@@ -175,6 +180,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         Settings idxSettings = Settings.builder()
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 2)
+                .put(IndexShard.INDEX_TRANSLOG_DISABLE_FLUSH, true)
                 .put(IndexMetaData.SETTING_DATA_PATH, dataPath.toAbsolutePath().toString())
                 .put(IndexMetaData.SETTING_SHADOW_REPLICAS, true)
                 .put(IndexMetaData.SETTING_SHARED_FILESYSTEM, true)
@@ -187,6 +193,21 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         // replay the translog, this is what this tests
         client().prepareIndex(IDX, "doc", "1").setSource("foo", "bar").get();
         client().prepareIndex(IDX, "doc", "2").setSource("foo", "bar").get();
+
+        IndicesStatsResponse indicesStatsResponse = client().admin().indices().prepareStats(IDX).clear().setTranslog(true).get();
+        assertEquals(2, indicesStatsResponse.getIndex(IDX).getPrimaries().getTranslog().estimatedNumberOfOperations());
+        assertEquals(2, indicesStatsResponse.getIndex(IDX).getTotal().getTranslog().estimatedNumberOfOperations());
+        for (IndicesService service : internalCluster().getInstances(IndicesService.class)) {
+            IndexService indexService = service.indexService(IDX);
+            if (indexService != null) {
+                IndexShard shard = indexService.getShard(0);
+                TranslogStats translogStats = shard.translogStats();
+                assertTrue(translogStats != null || shard instanceof ShadowIndexShard);
+                if (translogStats != null) {
+                    assertEquals(2, translogStats.estimatedNumberOfOperations());
+                }
+            }
+        }
 
         // Check that we can get doc 1 and 2, because we are doing realtime
         // gets and getting from the primary
@@ -227,7 +248,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertAcked(client().admin().indices().prepareDelete(IDX));
     }
 
-    @Test
     public void testReplicaToPrimaryPromotion() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
@@ -286,7 +306,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("foobar"));
     }
 
-    @Test
     public void testPrimaryRelocation() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
@@ -347,7 +366,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertThat(gResp2.getField("foo").getValue().toString(), equalTo("bar"));
     }
 
-    @Test
     public void testPrimaryRelocationWithConcurrentIndexing() throws Throwable {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
@@ -420,7 +438,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, numPhase1Docs + numPhase2Docs);
     }
 
-    @Test
     public void testPrimaryRelocationWhereRecoveryFails() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = Settings.builder()
@@ -516,7 +533,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertHitCount(resp, counter.get());
     }
 
-    @Test
     public void testIndexWithShadowReplicasCleansUp() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
@@ -557,7 +573,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
      * Tests that shadow replicas can be "naturally" rebalanced and relocated
      * around the cluster. By "naturally" I mean without using the reroute API
      */
-    @Test
     public void testShadowReplicaNaturalRelocation() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
@@ -611,7 +626,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         assertPathHasBeenCleared(dataPath);
     }
 
-    @Test
     public void testShadowReplicasUsingFieldData() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);
@@ -680,7 +694,6 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         });
     }
 
-    @Test
     public void testIndexOnSharedFSRecoversToAnyNode() throws Exception {
         Path dataPath = createTempDir();
         Settings nodeSettings = nodeSettings(dataPath);

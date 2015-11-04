@@ -19,9 +19,11 @@
 
 package org.elasticsearch.plugins;
 
+import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -38,7 +40,7 @@ public class PluginsServiceTests extends ESTestCase {
         }
         @Override
         public Settings additionalSettings() {
-            return Settings.builder().put("foo.bar", "1").put(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.MMAPFS.getSettingsKey()).build();
+            return Settings.builder().put("foo.bar", "1").put(IndexModule.STORE_TYPE, IndexModule.Type.MMAPFS.getSettingsKey()).build();
         }
     }
     public static class AdditionalSettingsPlugin2 extends Plugin {
@@ -56,6 +58,28 @@ public class PluginsServiceTests extends ESTestCase {
         }
     }
 
+    public static class FailOnModule extends Plugin {
+        @Override
+        public String name() {
+            return "fail-on-module";
+        }
+        @Override
+        public String description() {
+            return "fails in onModule";
+        }
+
+        public void onModule(BrokenModule brokenModule) {
+            throw new IllegalStateException("boom");
+        }
+    }
+
+    public static class BrokenModule extends AbstractModule {
+
+        @Override
+        protected void configure() {
+        }
+    }
+
     static PluginsService newPluginsService(Settings settings, Class<? extends Plugin>... classpathPlugins) {
         return new PluginsService(settings, new Environment(settings).pluginsFile(), Arrays.asList(classpathPlugins));
     }
@@ -64,12 +88,12 @@ public class PluginsServiceTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put("path.home", createTempDir())
             .put("my.setting", "test")
-            .put(IndexStoreModule.STORE_TYPE, IndexStoreModule.Type.SIMPLEFS.getSettingsKey()).build();
+            .put(IndexModule.STORE_TYPE, IndexModule.Type.SIMPLEFS.getSettingsKey()).build();
         PluginsService service = newPluginsService(settings, AdditionalSettingsPlugin1.class);
         Settings newSettings = service.updatedSettings();
         assertEquals("test", newSettings.get("my.setting")); // previous settings still exist
         assertEquals("1", newSettings.get("foo.bar")); // added setting exists
-        assertEquals(IndexStoreModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexStoreModule.STORE_TYPE)); // does not override pre existing settings
+        assertEquals(IndexModule.Type.SIMPLEFS.getSettingsKey(), newSettings.get(IndexModule.STORE_TYPE)); // does not override pre existing settings
     }
 
     public void testAdditionalSettingsClash() {
@@ -84,6 +108,19 @@ public class PluginsServiceTests extends ESTestCase {
             assertTrue(msg, msg.contains("Cannot have additional setting [foo.bar]"));
             assertTrue(msg, msg.contains("plugin [additional-settings1]"));
             assertTrue(msg, msg.contains("plugin [additional-settings2]"));
+        }
+    }
+
+    public void testOnModuleExceptionsArePropagated() {
+        Settings settings = Settings.builder()
+                .put("path.home", createTempDir()).build();
+        PluginsService service = newPluginsService(settings, FailOnModule.class);
+        try {
+            service.processModule(new BrokenModule());
+            fail("boom");
+        } catch (ElasticsearchException ex) {
+            assertEquals("failed to invoke onModule", ex.getMessage());
+            assertEquals("boom", ex.getCause().getCause().getMessage());
         }
     }
 }

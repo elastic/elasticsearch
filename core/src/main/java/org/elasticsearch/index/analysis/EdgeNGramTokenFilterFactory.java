@@ -25,11 +25,9 @@ import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
 import org.apache.lucene.analysis.ngram.NGramTokenFilter;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.apache.lucene.util.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.IndexSettings;
 
 
 /**
@@ -47,13 +45,12 @@ public class EdgeNGramTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private org.elasticsearch.Version esVersion;
 
-    @Inject
-    public EdgeNGramTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public EdgeNGramTokenFilterFactory(IndexSettings indexSettings, Environment environment, String name, Settings settings) {
+        super(indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenFilter.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenFilter.DEFAULT_MAX_NGRAM_SIZE);
         this.side = parseSide(settings.get("side", "front"));
-        this.esVersion = org.elasticsearch.Version.indexCreated(indexSettings);
+        this.esVersion = org.elasticsearch.Version.indexCreated(indexSettings.getSettings());
     }
     
     static int parseSide(String side) {

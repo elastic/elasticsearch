@@ -28,7 +28,6 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -45,10 +44,8 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
-
     private final Settings idxSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build();
 
-    @Test
     public void testNodeLockSingleEnvironment() throws IOException {
         NodeEnvironment env = newNodeEnvironment(Settings.builder()
                 .put("node.max_local_storage_nodes", 1).build());
@@ -75,7 +72,6 @@ public class NodeEnvironmentTests extends ESTestCase {
 
     }
 
-    @Test
     public void testNodeLockMultipleEnvironment() throws IOException {
         final NodeEnvironment first = newNodeEnvironment();
         String[] dataPaths = first.getSettings().getAsArray("path.data");
@@ -88,7 +84,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         IOUtils.close(first, second);
     }
 
-    @Test
     public void testShardLock() throws IOException {
         final NodeEnvironment env = newNodeEnvironment();
 
@@ -129,7 +124,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
-    @Test
     public void testGetAllIndices() throws Exception {
         final NodeEnvironment env = newNodeEnvironment();
         final int numIndices = randomIntBetween(1, 10);
@@ -147,7 +141,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
-    @Test
     public void testDeleteSafe() throws IOException, InterruptedException {
         final NodeEnvironment env = newNodeEnvironment();
         ShardLock fooLock = env.shardLock(new ShardId("foo", 0));
@@ -235,7 +228,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
-    @Test
     public void testStressShardLock() throws IOException, InterruptedException {
         class Int {
             int value = 0;
@@ -297,7 +289,6 @@ public class NodeEnvironmentTests extends ESTestCase {
         env.close();
     }
 
-    @Test
     public void testCustomDataPaths() throws Exception {
         String[] dataPaths = tmpPaths();
         NodeEnvironment env = newNodeEnvironment(dataPaths, "/tmp", Settings.EMPTY);

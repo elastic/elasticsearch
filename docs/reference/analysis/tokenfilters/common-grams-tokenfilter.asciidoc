@@ -1,7 +1,7 @@
 [[analysis-common-grams-tokenfilter]]
 === Common Grams Token Filter
 
-Token filter that generates bigrams for frequently occuring terms.
+Token filter that generates bigrams for frequently occurring terms.
 Single terms are still indexed. It can be used as an alternative to the
 <<analysis-stop-tokenfilter,Stop
 Token Filter>> when we don't want to completely ignore common terms.

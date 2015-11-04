@@ -22,7 +22,6 @@ import org.apache.lucene.analysis.hunspell.Dictionary;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -76,7 +75,6 @@ public class HunspellService extends AbstractComponent {
     private final Path hunspellDir;
     private final Function<String, Dictionary> loadingFunction;
 
-    @Inject
     public HunspellService(final Settings settings, final Environment env, final Map<String, Dictionary> knownDictionaries) throws IOException {
         super(settings);
         this.knownDictionaries = Collections.unmodifiableMap(knownDictionaries);

@@ -19,27 +19,17 @@
 
 package org.elasticsearch.common.geo;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-
-import java.io.IOException;
-
 import org.apache.lucene.util.BitUtil;
-import org.apache.lucene.util.XGeoHashUtils;
-import org.apache.lucene.util.XGeoUtils;
+import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.util.GeoUtils;
 
 /**
  *
  */
-public final class GeoPoint implements Writeable<GeoPoint> {
+public final class GeoPoint {
 
     private double lat;
     private double lon;
-    private final static double TOLERANCE = XGeoUtils.TOLERANCE;
-    
-    // for serialization purposes
-    private static final GeoPoint PROTOTYPE = new GeoPoint(Double.NaN, Double.NaN);
 
     public GeoPoint() {
     }
@@ -91,14 +81,14 @@ public final class GeoPoint implements Writeable<GeoPoint> {
     }
 
     public GeoPoint resetFromIndexHash(long hash) {
-        lon = XGeoUtils.mortonUnhashLon(hash);
-        lat = XGeoUtils.mortonUnhashLat(hash);
+        lon = GeoUtils.mortonUnhashLon(hash);
+        lat = GeoUtils.mortonUnhashLat(hash);
         return this;
     }
 
     public GeoPoint resetFromGeoHash(String geohash) {
-        final long hash = XGeoHashUtils.mortonEncode(geohash);
-        return this.reset(XGeoUtils.mortonUnhashLat(hash), XGeoUtils.mortonUnhashLon(hash));
+        final long hash = GeoHashUtils.mortonEncode(geohash);
+        return this.reset(GeoUtils.mortonUnhashLat(hash), GeoUtils.mortonUnhashLon(hash));
     }
 
     public GeoPoint resetFromGeoHash(long geohashLong) {
@@ -123,11 +113,11 @@ public final class GeoPoint implements Writeable<GeoPoint> {
     }
 
     public final String geohash() {
-        return XGeoHashUtils.stringEncode(lon, lat);
+        return GeoHashUtils.stringEncode(lon, lat);
     }
 
     public final String getGeohash() {
-        return XGeoHashUtils.stringEncode(lon, lat);
+        return GeoHashUtils.stringEncode(lon, lat);
     }
 
     @Override
@@ -135,14 +125,10 @@ public final class GeoPoint implements Writeable<GeoPoint> {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
 
-        final GeoPoint geoPoint = (GeoPoint) o;
-        final double lonCompare = geoPoint.lon - lon;
-        final double latCompare = geoPoint.lat - lat;
+        GeoPoint geoPoint = (GeoPoint) o;
 
-        if ((lonCompare < -TOLERANCE || lonCompare > TOLERANCE)
-                || (latCompare < -TOLERANCE || latCompare > TOLERANCE)) {
-            return false;
-        }
+        if (Double.compare(geoPoint.lat, lat) != 0) return false;
+        if (Double.compare(geoPoint.lon, lon) != 0) return false;
 
         return true;
     }
@@ -152,9 +138,9 @@ public final class GeoPoint implements Writeable<GeoPoint> {
         int result;
         long temp;
         temp = lat != +0.0d ? Double.doubleToLongBits(lat) : 0L;
-        result = (int) (temp ^ (temp >>> 32));
+        result = Long.hashCode(temp);
         temp = lon != +0.0d ? Double.doubleToLongBits(lon) : 0L;
-        result = 31 * result + (int) (temp ^ (temp >>> 32));
+        result = 31 * result + Long.hashCode(temp);
         return result;
     }
 
@@ -178,22 +164,5 @@ public final class GeoPoint implements Writeable<GeoPoint> {
 
     public static GeoPoint fromIndexLong(long indexLong) {
         return new GeoPoint().resetFromIndexHash(indexLong);
-    }
-
-    @Override
-    public GeoPoint readFrom(StreamInput in) throws IOException {
-        double lat = in.readDouble();
-        double lon = in.readDouble();
-        return new GeoPoint(lat, lon);
-    }
-
-    public static GeoPoint readGeoPointFrom(StreamInput in) throws IOException {
-        return PROTOTYPE.readFrom(in);
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(lat);
-        out.writeDouble(lon);
     }
 }

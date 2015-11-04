@@ -19,16 +19,23 @@
 
 package org.elasticsearch.client.transport.support;
 
-import com.google.common.collect.ImmutableMap;
-import org.elasticsearch.action.*;
+import org.elasticsearch.action.Action;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestBuilder;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.GenericAction;
+import org.elasticsearch.action.TransportActionNodeProxy;
 import org.elasticsearch.client.transport.TransportClientNodesService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashMap;
 import java.util.Map;
+
+import static java.util.Collections.unmodifiableMap;
 
 /**
  *
@@ -36,18 +43,18 @@ import java.util.Map;
 public class TransportProxyClient {
 
     private final TransportClientNodesService nodesService;
-    private final ImmutableMap<Action, TransportActionNodeProxy> proxies;
+    private final Map<Action, TransportActionNodeProxy> proxies;
 
     @Inject
     public TransportProxyClient(Settings settings, TransportService transportService, TransportClientNodesService nodesService, Map<String, GenericAction> actions) {
         this.nodesService = nodesService;
-        MapBuilder<Action, TransportActionNodeProxy> actionsBuilder = new MapBuilder<>();
+        Map<Action, TransportActionNodeProxy> proxies = new HashMap<>();
         for (GenericAction action : actions.values()) {
             if (action instanceof Action) {
-                actionsBuilder.put((Action) action, new TransportActionNodeProxy(settings, action, transportService));
+                proxies.put((Action) action, new TransportActionNodeProxy(settings, action, transportService));
             }
         }
-        this.proxies = actionsBuilder.immutableMap();
+        this.proxies = unmodifiableMap(proxies);
     }
 
     public <Request extends ActionRequest, Response extends ActionResponse, RequestBuilder extends ActionRequestBuilder<Request, Response, RequestBuilder>> void execute(final Action<Request, Response, RequestBuilder> action, final Request request, ActionListener<Response> listener) {

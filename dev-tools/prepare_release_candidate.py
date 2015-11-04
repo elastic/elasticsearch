@@ -42,20 +42,26 @@ POM_FILE = 'pom.xml'
 MAIL_TEMPLATE = """
 Hi all
 
-The new release candidate for %(version)s based on this commit[1]  is now available, including the x-plugins, and RPM/deb repos:
+The new release candidate for %(version)s is now available, including the x-plugins and RPM/deb repos.  This release is based on:
 
-   - ZIP [2]
-   - tar.gz [3]
-   - RPM [4]
-   - deb [5]
+ * Elasticsearch commit: %(hash)s - https://github.com/elastic/elasticsearch/commit/%(hash)s
+ * X-Plugins commit:     FILL_IN_X-PLUGINS_HASH - https://github.com/elastic/x-plugins/commit/FILL_IN_X-PLUGINS_HASH
 
-Plugins can be installed as follows,
+The packages may be downloaded from the following URLs:
+
+ * ZIP    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
+ * tar.gz - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz
+ * RPM    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
+ * deb    - http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
+
+Plugins can be installed as follows:
 
     bin/plugin -Des.plugins.staging=true install cloud-aws
 
 The same goes for the x-plugins:
 
     bin/plugin -Des.plugins.staging=true install license
+    bin/plugin -Des.plugins.staging=true install marvel-agent
     bin/plugin -Des.plugins.staging=true install shield
     bin/plugin -Des.plugins.staging=true install watcher
 
@@ -63,7 +69,7 @@ To install the deb from an APT repo:
 
 APT line sources.list line:
 
-deb http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(major_minor_version)s/debian/ stable main
+deb http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(package_repo_version)s/debian/ stable main
 
 To install the RPM, create a YUM file like:
 
@@ -73,7 +79,7 @@ containing:
 
 [elasticsearch-2.0]
 name=Elasticsearch repository for packages
-baseurl=http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(major_minor_version)s/centos
+baseurl=http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(package_repo_version)s/centos
 gpgcheck=1
 gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1
@@ -82,13 +88,8 @@ To smoke-test the release please run:
 
  python3 -B ./dev-tools/smoke_test_rc.py --version %(version)s --hash %(hash)s --plugins license,shield,watcher
 
-NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime 
+NOTE: this script requires JAVA_HOME to point to a Java 7 Runtime
 
-[1] https://github.com/elastic/elasticsearch/commit/%(hash)s
-[2] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/zip/elasticsearch/%(version)s/elasticsearch-%(version)s.zip
-[3] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/tar/elasticsearch/%(version)s/elasticsearch-%(version)s.tar.gz
-[4] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/rpm/elasticsearch/%(version)s/elasticsearch-%(version)s.rpm
-[5] http://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/elasticsearch/distribution/deb/elasticsearch/%(version)s/elasticsearch-%(version)s.deb
 """
 
 # console colors
@@ -300,7 +301,7 @@ if __name__ == "__main__":
   ensure_checkout_is_clean()
   if not re.match('(\d+\.\d+)\.*',release_version):
     raise RuntimeError('illegal release version format: %s' % (release_version))
-  major_minor_version = re.match('(\d+\.\d+)\.*',release_version).group(1)
+  package_repo_version = '%s.x' % re.match('(\d+)\.*', release_version).group(1)
 
   print('*** Preparing release version: [%s]' % release_version)
 
@@ -348,13 +349,13 @@ if __name__ == "__main__":
   # repository push commands
   s3cmd_sync_to_staging_bucket_cmd = 's3cmd sync -P %s s3://%s/elasticsearch/staging/%s-%s/org/' % (localRepoElasticsearch, bucket, release_version, shortHash)
   s3_bucket_sync_to = '%s/elasticsearch/staging/%s-%s/repos/' % (bucket, release_version, shortHash)
-  s3cmd_sync_official_repo_cmd = 's3cmd sync s3://packages.elasticsearch.org/elasticsearch/%s s3://%s' % (major_minor_version, s3_bucket_sync_to)
+  s3cmd_sync_official_repo_cmd = 's3cmd sync s3://packages.elasticsearch.org/elasticsearch/%s s3://%s' % (package_repo_version, s3_bucket_sync_to)
 
-  debs3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/debian' % (release_version, shortHash, major_minor_version)
+  debs3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/debian' % (release_version, shortHash, package_repo_version)
   debs3_upload_cmd = 'deb-s3 upload --preserve-versions %s/distribution/deb/elasticsearch/%s/elasticsearch-%s.deb -b %s --prefix %s --sign %s --arch amd64' % (localRepoElasticsearch, release_version, release_version, bucket, debs3_prefix, gpg_key)
   debs3_list_cmd = 'deb-s3 list -b %s --prefix %s' % (bucket, debs3_prefix)
   debs3_verify_cmd = 'deb-s3 verify -b %s --prefix %s' % (bucket, debs3_prefix)
-  rpms3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/centos' % (release_version, shortHash, major_minor_version)
+  rpms3_prefix = 'elasticsearch/staging/%s-%s/repos/%s/centos' % (release_version, shortHash, package_repo_version)
   rpms3_upload_cmd = 'rpm-s3 -v -b %s -p %s --sign --visibility public-read -k 0 %s' % (bucket, rpms3_prefix, rpm)
 
   if deploy_s3:
@@ -397,7 +398,7 @@ if __name__ == "__main__":
     print('NOTE: Running s3cmd might require you to create a config file with your credentials, if the s3cmd does not support suppliying them via the command line!')
 
   print('*** Once the release is deployed and published send out the following mail to dev@elastic.co:')
-  string_format_dict = {'version' : release_version, 'hash': shortHash, 'major_minor_version' : major_minor_version, 'bucket': bucket}
+  string_format_dict = {'version' : release_version, 'hash': shortHash, 'package_repo_version' : package_repo_version, 'bucket': bucket}
   print(MAIL_TEMPLATE % string_format_dict)
 
   print('')
@@ -406,7 +407,7 @@ if __name__ == "__main__":
 
   print('')
   print('To publish the release and the repo on S3 execute the following commands:')
-  print('   s3cmd cp --recursive s3://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(major_minor_version)s/ s3://packages.elasticsearch.org/elasticsearch/%(major_minor_version)s'  % string_format_dict)
+  print('   s3cmd cp --recursive s3://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/repos/%(package_repo_version)s/ s3://packages.elasticsearch.org/elasticsearch/%(package_repo_version)s'  % string_format_dict)
   print('   s3cmd cp --recursive s3://%(bucket)s/elasticsearch/staging/%(version)s-%(hash)s/org/ s3://%(bucket)s/elasticsearch/release/org'  % string_format_dict)
   print('Now go ahead and tag the release:')
   print('   git tag -a v%(version)s %(hash)s'  % string_format_dict)

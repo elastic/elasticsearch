@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
@@ -54,9 +53,7 @@ import static org.hamcrest.Matchers.startsWith;
  *
  */
 public class CopyToMapperTests extends ESSingleNodeTestCase {
-
     @SuppressWarnings("unchecked")
-    @Test
     public void testCopyToFieldsParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("copy_test")
@@ -135,8 +132,6 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(LongFieldMapper.class));
     }
 
-    @SuppressWarnings("unchecked")
-    @Test
     public void testCopyToFieldsInnerObjectParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
@@ -172,8 +167,6 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
     }
 
-    @SuppressWarnings("unchecked")
-    @Test
     public void testCopyToFieldsNonExistingInnerObjectParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
@@ -198,9 +191,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         }
     }
 
-    @Test
     public void testCopyToFieldMerge() throws Exception {
-
         String mappingBefore = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")

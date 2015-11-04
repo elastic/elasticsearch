@@ -26,6 +26,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.TermsQueryBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -49,13 +50,13 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
 
     public TermsLookup(String index, String type, String id, String path) {
         if (id == null) {
-            throw new IllegalArgumentException("[terms] query lookup element requires specifying the id.");
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the id.");
         }
         if (type == null) {
-            throw new IllegalArgumentException("[terms] query lookup element requires specifying the type.");
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the type.");
         }
         if (path == null) {
-            throw new IllegalArgumentException("[terms] query lookup element requires specifying the path.");
+            throw new IllegalArgumentException("[" + TermsQueryBuilder.NAME + "] query lookup element requires specifying the path.");
         }
         this.index = index;
         this.type = type;
@@ -122,9 +123,11 @@ public class TermsLookup implements Writeable<TermsLookup>, ToXContent {
                     path = parser.text();
                     break;
                 default:
-                    throw new ParsingException(parser.getTokenLocation(), "[terms] query does not support [" + currentFieldName
+                    throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] query does not support [" + currentFieldName
                             + "] within lookup element");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + TermsQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         return new TermsLookup(index, type, id, path).routing(routing);

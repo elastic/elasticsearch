@@ -34,7 +34,6 @@ import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.SimpleValue;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,7 +69,7 @@ public class BucketScriptTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -103,9 +102,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         return jsonBuilder;
     }
 
-    @Test
-    public void inlineScript() {
-
+    public void testInlineScript() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -149,9 +146,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScript2() {
-
+    public void testInlineScript2() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -195,9 +190,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptSingleVariable() {
-
+    public void testInlineScriptSingleVariable() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -233,9 +226,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptNamedVars() {
-
+    public void testInlineScriptNamedVars() {
         Map<String, String> bucketsPathsMap = new HashMap<>();
         bucketsPathsMap.put("foo", "field2Sum");
         bucketsPathsMap.put("bar", "field3Sum");
@@ -283,9 +274,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptWithParams() {
-
+    public void testInlineScriptWithParams() {
         Map<String, Object> params = new HashMap<>();
         params.put("factor", 3);
         SearchResponse response = client()
@@ -331,9 +320,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void inlineScriptInsertZeros() {
-
+    public void testInlineScriptInsertZeros() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -379,9 +366,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void indexedScript() {
-
+    public void testIndexedScript() {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -425,8 +410,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx_unmapped")
                 .addAggregation(
@@ -449,8 +433,7 @@ public class BucketScriptTests extends ESIntegTestCase {
         assertThat(deriv.getBuckets().size(), equalTo(0));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx", "idx_unmapped")
                 .addAggregation(

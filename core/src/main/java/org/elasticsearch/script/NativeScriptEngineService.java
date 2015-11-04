@@ -19,8 +19,6 @@
 
 package org.elasticsearch.script;
 
-import com.google.common.collect.ImmutableMap;
-
 import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractComponent;
@@ -31,6 +29,8 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.util.Map;
 
+import static java.util.Collections.unmodifiableMap;
+
 /**
  * A native script engine service.
  */
@@ -38,12 +38,12 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
 
     public static final String NAME = "native";
 
-    private final ImmutableMap<String, NativeScriptFactory> scripts;
+    private final Map<String, NativeScriptFactory> scripts;
 
     @Inject
     public NativeScriptEngineService(Settings settings, Map<String, NativeScriptFactory> scripts) {
         super(settings);
-        this.scripts = ImmutableMap.copyOf(scripts);
+        this.scripts = unmodifiableMap(scripts);
     }
 
     @Override
@@ -91,16 +91,6 @@ public class NativeScriptEngineService extends AbstractComponent implements Scri
                 return scriptFactory.needsScores();
             }
         };
-    }
-
-    @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        return executable(compiledScript, vars).run();
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return value;
     }
 
     @Override

@@ -19,11 +19,11 @@
 
 package org.elasticsearch.action.termvectors;
 
-import com.google.common.collect.Iterators;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentFactory;
@@ -74,7 +74,7 @@ public class MultiTermVectorsRequest extends ActionRequest<MultiTermVectorsReque
 
     @Override
     public Iterator<TermVectorsRequest> iterator() {
-        return Iterators.unmodifiableIterator(requests.iterator());
+        return Collections.unmodifiableCollection(requests).iterator();
     }
 
     public boolean isEmpty() {

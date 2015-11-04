@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -34,8 +33,6 @@ import java.util.Map;
  * Parser for query_string query
  */
 public class QueryStringQueryParser implements QueryParser {
-
-    private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("fuzzy_min_sim");
 
     @Override
     public String[] names() {
@@ -99,7 +96,7 @@ public class QueryStringQueryParser implements QueryParser {
                         fieldsAndWeights.put(fField, fBoost);
                     }
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
                 if ("query".equals(currentFieldName)) {
@@ -134,7 +131,7 @@ public class QueryStringQueryParser implements QueryParser {
                     fuzzyRewrite = parser.textOrNull();
                 } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
                     phraseSlop = parser.intValue();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
                     fuzziness = Fuzziness.parse(parser);
                 } else if ("boost".equals(currentFieldName)) {
                     boost = parser.floatValue();
@@ -157,17 +154,19 @@ public class QueryStringQueryParser implements QueryParser {
                     try {
                         timeZone = parser.text();
                     } catch (IllegalArgumentException e) {
-                        throw new ParsingException(parser.getTokenLocation(), "[query_string] time_zone [" + parser.text() + "] is unknown");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] time_zone [" + parser.text() + "] is unknown");
                     }
                 } else if ("_name".equals(currentFieldName)) {
                     queryName = parser.text();
                 } else {
-                    throw new ParsingException(parser.getTokenLocation(), "[query_string] query does not support [" + currentFieldName + "]");
+                    throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
         if (queryString == null) {
-            throw new ParsingException(parser.getTokenLocation(), "query_string must be provided with a [query]");
+            throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] must be provided with a [query]");
         }
 
         QueryStringQueryBuilder queryStringQuery = new QueryStringQueryBuilder(queryString);

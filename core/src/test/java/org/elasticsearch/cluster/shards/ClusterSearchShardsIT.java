@@ -25,13 +25,15 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
-import org.junit.Test;
+import org.elasticsearch.test.ESIntegTestCase.Scope;
 
 import java.util.Arrays;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_METADATA;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
+import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.ESIntegTestCase.Scope;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -39,7 +41,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 @ClusterScope(scope= Scope.SUITE, numDataNodes = 2)
 public class ClusterSearchShardsIT extends ESIntegTestCase {
-    
+
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
         switch(nodeOrdinal) {
@@ -51,7 +53,6 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         return super.nodeSettings(nodeOrdinal);
     }
 
-    @Test
     public void testSingleShardAllocation() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder()
                 .put("index.number_of_shards", "1").put("index.number_of_replicas", 0).put("index.routing.allocation.include.tag", "A")).execute().actionGet();
@@ -74,7 +75,6 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
 
     }
 
-    @Test
     public void testMultipleShardsSingleNodeAllocation() throws Exception {
         client().admin().indices().prepareCreate("test").setSettings(settingsBuilder()
                 .put("index.number_of_shards", "4").put("index.number_of_replicas", 0).put("index.routing.allocation.include.tag", "A")).execute().actionGet();
@@ -94,7 +94,6 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         assertThat(response.getGroups()[0].getShardId(), equalTo(2));
     }
 
-    @Test
     public void testMultipleIndicesAllocation() throws Exception {
         client().admin().indices().prepareCreate("test1").setSettings(settingsBuilder()
                 .put("index.number_of_shards", "4").put("index.number_of_replicas", 1)).execute().actionGet();
@@ -128,7 +127,6 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         assertThat(response.getNodes().length, equalTo(2));
     }
 
-    @Test
     public void testClusterSearchShardsWithBlocks() {
         createIndex("test-blocks");
 

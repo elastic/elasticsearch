@@ -40,7 +40,7 @@ import java.util.Map;
  */
 public abstract class BucketsAggregator extends AggregatorBase {
 
-    protected final BigArrays bigArrays;
+    private final BigArrays bigArrays;
     private IntArray docCounts;
 
     public BucketsAggregator(String name, AggregatorFactories factories, AggregationContext context, Aggregator parent,
@@ -67,7 +67,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
     /**
      * Utility method to collect the given doc in the given bucket (identified by the bucket ordinal)
      */
-    public void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
+    public final void collectBucket(LeafBucketCollector subCollector, int doc, long bucketOrd) throws IOException {
         grow(bucketOrd + 1);
         collectExistingBucket(subCollector, doc, bucketOrd);
     }

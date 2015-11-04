@@ -79,7 +79,6 @@ public class BinaryFieldMapper extends FieldMapper {
         @Override
         public BinaryFieldMapper build(BuilderContext context) {
             setupFieldType(context);
-            ((BinaryFieldType)fieldType).setTryUncompressing(context.indexCreatedVersion().before(Version.V_2_0_0_beta1));
             return new BinaryFieldMapper(name, fieldType, defaultFieldType,
                     context.indexSettings(), multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -103,13 +102,11 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     static final class BinaryFieldType extends MappedFieldType {
-        private boolean tryUncompressing = false;
 
         public BinaryFieldType() {}
 
         protected BinaryFieldType(BinaryFieldType ref) {
             super(ref);
-            this.tryUncompressing = ref.tryUncompressing;
         }
 
         @Override
@@ -117,40 +114,12 @@ public class BinaryFieldMapper extends FieldMapper {
             return new BinaryFieldType(this);
         }
 
-        @Override
-        public boolean equals(Object o) {
-            if (!super.equals(o)) return false;
-            BinaryFieldType that = (BinaryFieldType) o;
-            return Objects.equals(tryUncompressing, that.tryUncompressing);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(super.hashCode(), tryUncompressing);
-        }
 
         @Override
         public String typeName() {
             return CONTENT_TYPE;
         }
 
-        @Override
-        public void checkCompatibility(MappedFieldType fieldType, List<String> conflicts, boolean strict) {
-            super.checkCompatibility(fieldType, conflicts, strict);
-            BinaryFieldType other = (BinaryFieldType)fieldType;
-            if (tryUncompressing() != other.tryUncompressing()) {
-                conflicts.add("mapper [" + names().fullName() + "] has different [try_uncompressing] (IMPOSSIBLE)");
-            }
-        }
-
-        public boolean tryUncompressing() {
-            return tryUncompressing;
-        }
-
-        public void setTryUncompressing(boolean tryUncompressing) {
-            checkIfFrozen();
-            this.tryUncompressing = tryUncompressing;
-        }
 
         @Override
         public BytesReference value(Object value) {
@@ -172,15 +141,7 @@ public class BinaryFieldMapper extends FieldMapper {
                     throw new ElasticsearchParseException("failed to convert bytes", e);
                 }
             }
-            try {
-                if (tryUncompressing) { // backcompat behavior
-                    return CompressorFactory.uncompressIfNeeded(bytes);
-                } else {
-                    return bytes;
-                }
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("failed to decompress source", e);
-            }
+            return bytes;
         }
 
         @Override

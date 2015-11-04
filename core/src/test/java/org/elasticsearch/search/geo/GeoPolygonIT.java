@@ -25,7 +25,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -45,8 +44,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
     protected void setupSuiteScopeCluster() throws Exception {
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
-                .endObject().endObject();
+                .endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -87,8 +85,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         ensureSearchable("test");
     }
 
-    @Test
-    public void simplePolygonTest() throws Exception {
+    public void testSimplePolygon() throws Exception {
         List<GeoPoint> points = new ArrayList<>();
         points.add(new GeoPoint(40.7, -74.0));
         points.add(new GeoPoint(40.7, -74.1));
@@ -105,8 +102,7 @@ public class GeoPolygonIT extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void simpleUnclosedPolygon() throws Exception {
+    public void testSimpleUnclosedPolygon() throws Exception {
         List<GeoPoint> points = new ArrayList<>();
         points.add(new GeoPoint(40.7, -74.0));
         points.add(new GeoPoint(40.7, -74.1));

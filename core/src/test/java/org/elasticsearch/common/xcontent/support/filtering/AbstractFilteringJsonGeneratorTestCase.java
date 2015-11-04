@@ -20,9 +20,12 @@
 package org.elasticsearch.common.xcontent.support.filtering;
 
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.XContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -170,7 +173,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         return sample(newXContentBuilder(filters));
     }
 
-    @Test
     public void testNoFiltering() throws Exception {
         XContentBuilder expected = sample();
 
@@ -179,23 +181,18 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("**"));
     }
 
-    @Test
     public void testNoMatch() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject().endObject();
 
         assertXContentBuilder(expected, sample("xyz"));
     }
 
-    @Test
     public void testSimpleField() throws Exception {
-        XContentBuilder expected = newXContentBuilder().startObject()
-                                                            .field("title", "My awesome book")
-                                                        .endObject();
+        XContentBuilder expected = newXContentBuilder().startObject().field("title", "My awesome book").endObject();
 
         assertXContentBuilder(expected, sample("title"));
     }
 
-    @Test
     public void testSimpleFieldWithWildcard() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                             .field("price", 27.99)
@@ -252,7 +249,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("pr*"));
     }
 
-    @Test
     public void testMultipleFields() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                             .field("title", "My awesome book")
@@ -262,7 +258,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("title", "pages"));
     }
 
-    @Test
     public void testSimpleArray() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                         .startArray("tags")
@@ -274,7 +269,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("tags"));
     }
 
-    @Test
     public void testSimpleArrayOfObjects() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                         .startArray("authors")
@@ -296,7 +290,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("authors.*name"));
     }
 
-    @Test
     public void testSimpleArrayOfObjectsProperty() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                             .startArray("authors")
@@ -313,7 +306,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("authors.l*"));
     }
 
-    @Test
     public void testRecurseField1() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                             .startArray("authors")
@@ -366,7 +358,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("**.name"));
     }
 
-    @Test
     public void testRecurseField2() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                             .startObject("properties")
@@ -411,7 +402,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("properties.**.name"));
     }
 
-    @Test
     public void testRecurseField3() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                         .startObject("properties")
@@ -441,7 +431,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("properties.*.en.**.name"));
     }
 
-    @Test
     public void testRecurseField4() throws Exception {
         XContentBuilder expected = newXContentBuilder().startObject()
                                                             .startObject("properties")
@@ -473,7 +462,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expected, sample("properties.**.distributors.name"));
     }
 
-    @Test
     public void testRawField() throws Exception {
 
         XContentBuilder expectedRawField = newXContentBuilder().startObject().field("foo", 0).startObject("raw").field("content", "hello world!").endObject().endObject();
@@ -498,7 +486,6 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder("r*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
     }
 
-    @Test
     public void testArrays() throws Exception {
         // Test: Array of values (no filtering)
         XContentBuilder expected = newXContentBuilder().startObject().startArray("tags").value("lorem").value("ipsum").value("dolor").endArray().endObject();
@@ -519,6 +506,5 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         // Test: Array of objects (with partial filtering)
         expected = newXContentBuilder().startObject().startArray("tags").startObject().field("firstname", "ipsum").endObject().endArray().endObject();
         assertXContentBuilder(expected, newXContentBuilder("t*.firstname").startObject().startArray("tags").startObject().field("lastname", "lorem").endObject().startObject().field("firstname", "ipsum").endObject().endArray().endObject());
-
     }
 }

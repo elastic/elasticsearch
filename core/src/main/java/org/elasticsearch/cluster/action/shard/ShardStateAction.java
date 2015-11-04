@@ -77,27 +77,29 @@ public class ShardStateAction extends AbstractComponent {
         transportService.registerRequestHandler(SHARD_FAILED_ACTION_NAME, ShardRoutingEntry::new, ThreadPool.Names.SAME, new ShardFailedTransportHandler());
     }
 
-    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure) {
+    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
             logger.warn("can't send shard failed for {}, no master known.", shardRouting);
+            listener.onShardFailedNoMaster();
             return;
         }
-        innerShardFailed(shardRouting, indexUUID, masterNode, message, failure);
+        innerShardFailed(shardRouting, indexUUID, masterNode, message, failure, listener);
     }
 
-    public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final DiscoveryNode masterNode, final String message, @Nullable final Throwable failure) {
+    public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final DiscoveryNode masterNode, final String message, @Nullable final Throwable failure, Listener listener) {
         logger.trace("{} re-sending failed shard for {}, indexUUID [{}], reason [{}]", failure, shardRouting.shardId(), shardRouting, indexUUID, message);
-        innerShardFailed(shardRouting, indexUUID, masterNode, message, failure);
+        innerShardFailed(shardRouting, indexUUID, masterNode, message, failure, listener);
     }
 
-    private void innerShardFailed(final ShardRouting shardRouting, final String indexUUID, final DiscoveryNode masterNode, final String message, final Throwable failure) {
+    private void innerShardFailed(final ShardRouting shardRouting, final String indexUUID, final DiscoveryNode masterNode, final String message, final Throwable failure, Listener listener) {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, message, failure);
         transportService.sendRequest(masterNode,
                 SHARD_FAILED_ACTION_NAME, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
                     @Override
                     public void handleException(TransportException exp) {
                         logger.warn("failed to send failed shard to {}", exp, masterNode);
+                        listener.onShardFailedFailure(masterNode, exp);
                     }
                 });
     }
@@ -283,5 +285,10 @@ public class ShardStateAction extends AbstractComponent {
         public String toString() {
             return "" + shardRouting + ", indexUUID [" + indexUUID + "], message [" + message + "], failure [" + ExceptionsHelper.detailedMessage(failure) + "]";
         }
+    }
+
+    public interface Listener {
+        default void onShardFailedNoMaster() {}
+        default void onShardFailedFailure(final DiscoveryNode master, final TransportException e) {}
     }
 }

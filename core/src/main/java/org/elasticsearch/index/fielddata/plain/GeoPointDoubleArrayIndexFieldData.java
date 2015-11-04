@@ -25,17 +25,14 @@ import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
-import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 /**
@@ -47,15 +44,15 @@ public class GeoPointDoubleArrayIndexFieldData extends AbstractIndexGeoPointFiel
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
-            return new GeoPointDoubleArrayIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, breakerService);
+            return new GeoPointDoubleArrayIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, breakerService);
         }
     }
 
-    public GeoPointDoubleArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
+    public GeoPointDoubleArrayIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names fieldNames,
                                              FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
-        super(index, indexSettings, fieldNames, fieldDataType, cache);
+        super(indexSettings, fieldNames, fieldDataType, cache);
         this.breakerService = breakerService;
     }
 

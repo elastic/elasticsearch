@@ -18,9 +18,10 @@ setup:
             body:
                 script_fields:
                     bar:
-                        lang: javascript
-                        script: "doc['foo'].value + x"
-                        params:
-                            x: "bbb"
+                        script: 
+                            inline: "doc['foo'].value + x"
+                            lang: javascript
+                            params:
+                                x: "bbb"
 
     - match: { hits.hits.0.fields.bar.0: "aaabbb"}

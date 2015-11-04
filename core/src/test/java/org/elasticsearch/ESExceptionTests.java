@@ -37,7 +37,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentLocation;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.query.*;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.SearchShardTarget;
@@ -47,7 +47,6 @@ import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.io.EOFException;
 import java.io.FileNotFoundException;
@@ -59,7 +58,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class ESExceptionTests extends ESTestCase {
     private static final ToXContent.Params PARAMS = ToXContent.EMPTY_PARAMS;
 
-    @Test
     public void testStatus() {
         ElasticsearchException exception = new ElasticsearchException("test");
         assertThat(exception.status(), equalTo(RestStatus.INTERNAL_SERVER_ERROR));

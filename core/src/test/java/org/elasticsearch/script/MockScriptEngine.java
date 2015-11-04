@@ -104,16 +104,6 @@ public class MockScriptEngine implements ScriptEngineService {
     }
 
     @Override
-    public Object execute(CompiledScript compiledScript, Map<String, Object> vars) {
-        return null;
-    }
-
-    @Override
-    public Object unwrap(Object value) {
-        return null;
-    }
-
-    @Override
     public void scriptRemoved(@Nullable CompiledScript script) {
     }
 

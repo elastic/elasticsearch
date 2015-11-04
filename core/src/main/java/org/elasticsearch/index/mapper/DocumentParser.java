@@ -92,9 +92,6 @@ class DocumentParser implements Closeable {
             if (parser == null) {
                 parser = XContentHelper.createParser(source.source());
             }
-            if (mapping.sourceTransforms.length > 0) {
-                parser = transform(mapping, parser);
-            }
             context.reset(parser, new ParseContext.Document(), source);
 
             // will result in START_OBJECT
@@ -122,7 +119,7 @@ class DocumentParser implements Closeable {
                 // entire type is disabled
                 parser.skipChildren();
             } else if (emptyDoc == false) {
-                Mapper update = parseObject(context, mapping.root);
+                Mapper update = parseObject(context, mapping.root, true);
                 if (update != null) {
                     context.addDynamicMappingsUpdate(update);
                 }
@@ -194,7 +191,7 @@ class DocumentParser implements Closeable {
         return doc;
     }
 
-    static ObjectMapper parseObject(ParseContext context, ObjectMapper mapper) throws IOException {
+    static ObjectMapper parseObject(ParseContext context, ObjectMapper mapper, boolean atRoot) throws IOException {
         if (mapper.isEnabled() == false) {
             context.parser().skipChildren();
             return null;
@@ -202,6 +199,10 @@ class DocumentParser implements Closeable {
         XContentParser parser = context.parser();
 
         String currentFieldName = parser.currentName();
+        if (atRoot && MapperService.isMetadataField(currentFieldName) &&
+            Version.indexCreated(context.indexSettings()).onOrAfter(Version.V_2_0_0_beta1)) {
+            throw new MapperParsingException("Field [" + currentFieldName + "] is a metadata field and cannot be added inside a document. Use the index API request parameters.");
+        }
         XContentParser.Token token = parser.currentToken();
         if (token == XContentParser.Token.VALUE_NULL) {
             // the object is null ("obj1" : null), simply bail
@@ -302,7 +303,7 @@ class DocumentParser implements Closeable {
 
     private static Mapper parseObjectOrField(ParseContext context, Mapper mapper) throws IOException {
         if (mapper instanceof ObjectMapper) {
-            return parseObject(context, (ObjectMapper) mapper);
+            return parseObject(context, (ObjectMapper) mapper, false);
         } else {
             FieldMapper fieldMapper = (FieldMapper)mapper;
             Mapper update = fieldMapper.parse(context);
@@ -760,27 +761,8 @@ class DocumentParser implements Closeable {
         return mapper;
     }
 
-    private static XContentParser transform(Mapping mapping, XContentParser parser) throws IOException {
-        Map<String, Object> transformed;
-        try (XContentParser autoCloses = parser) {
-            transformed = transformSourceAsMap(mapping, parser.mapOrdered());
-        }
-        XContentBuilder builder = XContentFactory.contentBuilder(parser.contentType()).value(transformed);
-        return parser.contentType().xContent().createParser(builder.bytes());
-    }
-
     private static ObjectMapper.Dynamic dynamicOrDefault(ObjectMapper.Dynamic dynamic) {
         return dynamic == null ? ObjectMapper.Dynamic.TRUE : dynamic;
-    }
-
-    static Map<String, Object> transformSourceAsMap(Mapping mapping, Map<String, Object> sourceAsMap) {
-        if (mapping.sourceTransforms.length == 0) {
-            return sourceAsMap;
-        }
-        for (Mapping.SourceTransform transform : mapping.sourceTransforms) {
-            sourceAsMap = transform.transformSourceAsMap(sourceAsMap);
-        }
-        return sourceAsMap;
     }
 
     @Override

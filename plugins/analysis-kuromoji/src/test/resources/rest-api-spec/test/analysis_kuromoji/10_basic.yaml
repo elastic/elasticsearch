@@ -42,7 +42,7 @@
           tokenizer:    kuromoji_tokenizer
           filters:      kuromoji_readingform
     - length: { tokens: 1 }
-    - match:  { tokens.0.token: sushi }
+    - match:  { tokens.0.token: スシ }
 ---
 "Stemming filter":
     - do:

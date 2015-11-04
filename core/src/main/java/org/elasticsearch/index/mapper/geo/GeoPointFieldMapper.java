@@ -21,15 +21,15 @@ package org.elasticsearch.index.mapper.geo;
 
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Iterators;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
-import org.apache.lucene.util.XGeoHashUtils;
+import org.apache.lucene.util.GeoHashUtils;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -39,14 +39,7 @@ import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.mapper.ContentPath;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.Mapper;
-import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
-import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper.CustomNumericDocValuesField;
@@ -54,18 +47,10 @@ import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
 
-import static org.elasticsearch.index.mapper.MapperBuilders.doubleField;
-import static org.elasticsearch.index.mapper.MapperBuilders.geoPointField;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
-import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
+import static org.elasticsearch.index.mapper.core.TypeParsers.*;
 
 /**
  * Parsing: We handle:
@@ -97,7 +82,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         public static final boolean ENABLE_LATLON = false;
         public static final boolean ENABLE_GEOHASH = false;
         public static final boolean ENABLE_GEOHASH_PREFIX = false;
-        public static final int GEO_HASH_PRECISION = XGeoHashUtils.PRECISION;
+        public static final int GEO_HASH_PRECISION = GeoHashUtils.PRECISION;
 
         public static final Explicit<Boolean> IGNORE_MALFORMED = new Explicit(false, false);
         public static final Explicit<Boolean> COERCE = new Explicit(false, false);
@@ -720,7 +705,7 @@ public class GeoPointFieldMapper extends FieldMapper implements ArrayValueMapper
         }
         if (fieldType().isGeohashEnabled()) {
             if (geohash == null) {
-                geohash = XGeoHashUtils.stringEncode(point.lon(), point.lat());
+                geohash = GeoHashUtils.stringEncode(point.lon(), point.lat());
             }
             addGeohashField(context, geohash);
         }

@@ -30,18 +30,17 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
-import org.junit.Test;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
-
     private final ESLogger logger = Loggers.getLogger(ClusterRebalanceRoutingTests.class);
 
-    @Test
     public void testAlways() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
@@ -128,7 +127,6 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     }
 
 
-    @Test
     public void testClusterPrimariesActive1() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
@@ -233,7 +231,6 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").get(0).shardId().index().name(), equalTo("test1"));
     }
 
-    @Test
     public void testClusterPrimariesActive2() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE.toString()).build());
@@ -318,7 +315,6 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testClusterAllActive1() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
@@ -442,7 +438,6 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").get(0).shardId().index().name(), anyOf(equalTo("test1"), equalTo("test2")));
     }
 
-    @Test
     public void testClusterAllActive2() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());
@@ -527,7 +522,6 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
     }
 
-    @Test
     public void testClusterAllActive3() {
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.INDICES_ALL_ACTIVE.toString()).build());

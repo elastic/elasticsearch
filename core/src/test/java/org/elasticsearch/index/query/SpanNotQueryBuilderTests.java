@@ -24,16 +24,16 @@ import org.apache.lucene.search.spans.SpanNotQuery;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
-import org.junit.Test;
 
 import java.io.IOException;
 
 import static org.elasticsearch.index.query.QueryBuilders.spanNearQuery;
 import static org.elasticsearch.index.query.QueryBuilders.spanTermQuery;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQueryBuilder> {
-
     @Override
     protected SpanNotQueryBuilder doCreateTestQueryBuilder() {
         SpanTermQueryBuilder[] spanTermQueries = new SpanTermQueryBuilderTests().createSpanTermQueryBuilders(2);
@@ -60,7 +60,6 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
         assertThat(spanNotQuery.getInclude(), equalTo(queryBuilder.includeQuery().toQuery(context)));
     }
 
-    @Test
     public void testIllegalArgument() {
         try {
             new SpanNotQueryBuilder(null, SpanTermQueryBuilder.PROTOTYPE);
@@ -76,7 +75,6 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
         }
     }
 
-    @Test
     public void testDist() {
         SpanNotQueryBuilder builder = new SpanNotQueryBuilder(new SpanTermQueryBuilder("name1", "value1"), new SpanTermQueryBuilder("name2", "value2"));
         assertThat(builder.pre(), equalTo(0));
@@ -89,7 +87,6 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
         assertThat(builder.post(), equalTo(4));
     }
 
-    @Test
     public void testPrePost() {
         SpanNotQueryBuilder builder = new SpanNotQueryBuilder(new SpanTermQueryBuilder("name1", "value1"), new SpanTermQueryBuilder("name2", "value2"));
         assertThat(builder.pre(), equalTo(0));
@@ -105,7 +102,6 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     /**
      * test correct parsing of `dist` parameter, this should create builder with pre/post set to same value
      */
-    @Test
     public void testParseDist() throws IOException {
         XContentBuilder builder = XContentFactory.jsonBuilder();
         builder.startObject();
@@ -128,9 +124,7 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
     /**
      * test exceptions for three types of broken json, missing include / exclude and both dist and pre/post specified
      */
-    @Test
     public void testParserExceptions() throws IOException {
-
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -148,7 +142,6 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 assertThat("ParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [include]"));
             }
         }
-
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();
@@ -167,7 +160,6 @@ public class SpanNotQueryBuilderTests extends AbstractQueryTestCase<SpanNotQuery
                 assertThat("ParsingException should have been caught", e.getDetailedMessage(), containsString("spanNot must have [exclude]"));
             }
         }
-
         {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.startObject();

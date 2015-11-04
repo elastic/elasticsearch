@@ -20,7 +20,6 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -28,15 +27,14 @@ import java.util.Arrays;
 
 import static org.elasticsearch.common.io.Streams.copy;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
 
 /**
  * Unit test for {@link S3OutputStream}.
  */
 public class S3OutputStreamTests extends ESTestCase {
-
     private static final int BUFFER_SIZE = S3BlobStore.MIN_BUFFER_SIZE.bytesAsInt();
 
-    @Test
     public void testWriteLessDataThanBufferSize() throws IOException {
         MockDefaultS3OutputStream out = newS3OutputStream(BUFFER_SIZE);
         byte[] content = randomUnicodeOfLengthBetween(1, 512).getBytes("UTF-8");
@@ -54,7 +52,6 @@ public class S3OutputStreamTests extends ESTestCase {
 
     }
 
-    @Test
     public void testWriteSameDataThanBufferSize() throws IOException {
         int size = randomIntBetween(BUFFER_SIZE, 2 * BUFFER_SIZE);
         MockDefaultS3OutputStream out = newS3OutputStream(size);
@@ -77,7 +74,6 @@ public class S3OutputStreamTests extends ESTestCase {
 
     }
 
-    @Test
     public void testWriteExactlyNTimesMoreDataThanBufferSize() throws IOException {
         int n = randomIntBetween(2, 3);
         int length = n * BUFFER_SIZE;
@@ -102,7 +98,6 @@ public class S3OutputStreamTests extends ESTestCase {
         assertTrue(out.isMultipart());
     }
 
-    @Test
     public void testWriteRandomNumberOfBytes() throws IOException {
         Integer randomBufferSize = randomIntBetween(BUFFER_SIZE, 2 * BUFFER_SIZE);
         MockDefaultS3OutputStream out = newS3OutputStream(randomBufferSize);
@@ -129,11 +124,14 @@ public class S3OutputStreamTests extends ESTestCase {
         }
     }
 
-    @Test(expected = IllegalArgumentException.class)
     public void testWrongBufferSize() throws IOException {
         Integer randomBufferSize = randomIntBetween(1, 4 * 1024 * 1024);
-        MockDefaultS3OutputStream out = newS3OutputStream(randomBufferSize);
-        fail("Buffer size can't be smaller than 5mb");
+        try {
+            newS3OutputStream(randomBufferSize);
+            fail("Buffer size can't be smaller than 5mb");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), is("Buffer size can't be smaller than 5mb"));
+        }
     }
 
     private MockDefaultS3OutputStream newS3OutputStream(int bufferSizeInBytes) {

@@ -76,7 +76,7 @@ might return:
   "_index":     "my_index",
   "_type":      "my_type",
   "_id":        "1",
-  "_timestamp": 10000000, <1>,
+  "_timestamp": 10000000, <1>
   "_source": {
     "foo" : [ "bar" ]
   }

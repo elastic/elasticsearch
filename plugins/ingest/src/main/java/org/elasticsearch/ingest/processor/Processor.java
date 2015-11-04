@@ -22,11 +22,14 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.Data;
 
+import java.io.Closeable;
+import java.io.IOException;
+import java.nio.file.Path;
 import java.util.Map;
 
 /**
- * An processor implementation may modify the data belonging to a document.
- * If and what exactly is modified is upto the implementation.
+ * A processor implementation may modify the data belonging to a document.
+ * Whether changes are made and what exactly is modified is up to the implementation.
  */
 public interface Processor {
 
@@ -36,32 +39,24 @@ public interface Processor {
     void execute(Data data);
 
     /**
-     * A builder to contruct a processor to be used in a pipeline.
+     * A factory that knows how to construct a processor based on a map of maps.
      */
-    interface Builder {
+    interface Factory extends Closeable {
 
         /**
-         * A general way to set processor related settings based on the config map.
+         * Creates a processor based on the specified map of maps config
          */
-        void fromMap(Map<String, Object> config);
+        Processor create(Map<String, Object> config) throws IOException;
 
         /**
-         * Builds the processor based on previous set settings.
          */
-        Processor build();
-
-        /**
-         * A factory that creates a processor builder when processor instances for pipelines are being created.
-         */
-        interface Factory {
-
-            /**
-             * Creates the builder.
-             */
-            Builder create();
-
+        default void setConfigDirectory(Path configDirectory) {
         }
 
+        @Override
+        default void close() throws IOException {
+        }
+        
     }
 
 }

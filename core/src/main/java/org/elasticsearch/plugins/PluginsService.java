@@ -40,6 +40,7 @@ import org.elasticsearch.common.settings.Settings;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -192,8 +193,12 @@ public class PluginsService extends AbstractComponent {
                     if (reference.moduleClass.isAssignableFrom(module.getClass())) {
                         try {
                             reference.onModuleMethod.invoke(plugin.v2(), module);
+                        } catch (IllegalAccessException | InvocationTargetException e) {
+                            logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v2().name());
+                            throw new ElasticsearchException("failed to invoke onModule", e);
                         } catch (Exception e) {
                             logger.warn("plugin {}, failed to invoke custom onModule method", e, plugin.v2().name());
+                            throw e;
                         }
                     }
                 }
@@ -246,22 +251,6 @@ public class PluginsService extends AbstractComponent {
         List<Class<? extends Closeable>> services = new ArrayList<>();
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             services.addAll(plugin.v2().indexServices());
-        }
-        return services;
-    }
-
-    public Collection<Module> shardModules(Settings indexSettings) {
-        List<Module> modules = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().shardModules(indexSettings));
-        }
-        return modules;
-    }
-
-    public Collection<Class<? extends Closeable>> shardServices() {
-        List<Class<? extends Closeable>> services = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            services.addAll(plugin.v2().shardServices());
         }
         return services;
     }

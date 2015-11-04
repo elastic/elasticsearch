@@ -37,7 +37,6 @@ import org.elasticsearch.search.aggregations.metrics.scripted.ScriptedMetric;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -72,7 +71,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -116,7 +115,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
                 "{\"script\":\"newaggregation = []; sum = 0;for (agg in _aggs) { for (a in agg) { sum += a} }; newaggregation.add(sum); return newaggregation\"}")
                 .get();
         assertThat(indexScriptResponse.isCreated(), equalTo(true));
-        
+
         indexRandom(true, builders);
         ensureSearchable();
     }
@@ -130,7 +129,6 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         return settings;
     }
 
-    @Test
     public void testMap() {
         SearchResponse response = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(scriptedMetric("scripted").mapScript(new Script("_agg['count'] = 1"))).execute().actionGet();
@@ -164,8 +162,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(numShardsRun, greaterThan(0));
     }
 
-    @Test
-    public void testMap_withParams() {
+    public void testMapWithParams() {
         Map<String, Object> params = new HashMap<>();
         params.put("_agg", new ArrayList<>());
 
@@ -199,8 +196,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(totalCount, equalTo(numDocs));
     }
 
-    @Test
-    public void testInitMap_withParams() {
+    public void testInitMapWithParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -241,8 +237,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(totalCount, equalTo(numDocs * 3));
     }
 
-    @Test
-    public void testMapCombine_withParams() {
+    public void testMapCombineWithParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -291,8 +286,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(totalCount, equalTo(numDocs));
     }
 
-    @Test
-    public void testInitMapCombine_withParams() {
+    public void testInitMapCombineWithParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -342,8 +336,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(totalCount, equalTo(numDocs * 3));
     }
 
-    @Test
-    public void testInitMapCombineReduce_withParams() {
+    public void testInitMapCombineReduceWithParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -383,9 +376,8 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
     }
 
-    @SuppressWarnings({ "unchecked", "rawtypes" })
-    @Test
-    public void testInitMapCombineReduce_getProperty() throws Exception {
+    @SuppressWarnings("rawtypes")
+    public void testInitMapCombineReduceGetProperty() throws Exception {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -436,8 +428,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
 
     }
 
-    @Test
-    public void testMapCombineReduce_withParams() {
+    public void testMapCombineReduceWithParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -476,8 +467,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(((Number) object).longValue(), equalTo(numDocs));
     }
 
-    @Test
-    public void testInitMapReduce_withParams() {
+    public void testInitMapReduceWithParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -514,8 +504,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
     }
 
-    @Test
-    public void testMapReduce_withParams() {
+    public void testMapReduceWithParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -551,8 +540,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(((Number) object).longValue(), equalTo(numDocs));
     }
 
-    @Test
-    public void testInitMapCombineReduce_withParamsAndReduceParams() {
+    public void testInitMapCombineReduceWithParamsAndReduceParams() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -595,8 +583,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(((Number) object).longValue(), equalTo(numDocs * 12));
     }
 
-    @Test
-    public void testInitMapCombineReduce_withParams_Indexed() {
+    public void testInitMapCombineReduceWithParamsIndexed() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -630,9 +617,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
     }
 
-    @Test
-    public void testInitMapCombineReduce_withParams_File() {
-
+    public void testInitMapCombineReduceWithParamsFile() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -665,8 +650,7 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         assertThat(((Number) object).longValue(), equalTo(numDocs * 3));
     }
 
-    @Test
-    public void testInitMapCombineReduce_withParams_asSubAgg() {
+    public void testInitMapCombineReduceWithParamsAsSubAgg() {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);
         Map<String, Object> params = new HashMap<>();
@@ -723,7 +707,6 @@ public class ScriptedMetricTests extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testEmptyAggregation() throws Exception {
         Map<String, Object> varsMap = new HashMap<>();
         varsMap.put("multiplier", 1);

@@ -21,15 +21,18 @@ package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.Test;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class OsProbeTests extends ESTestCase {
-
     OsProbe probe = OsProbe.getInstance();
 
-    @Test
     public void testOsInfo() {
         OsInfo info = probe.osInfo();
         assertNotNull(info);
@@ -40,7 +43,6 @@ public class OsProbeTests extends ESTestCase {
         assertThat(info.getAvailableProcessors(), equalTo(Runtime.getRuntime().availableProcessors()));
     }
 
-    @Test
     public void testOsStats() {
         OsStats stats = probe.osStats();
         assertNotNull(stats);

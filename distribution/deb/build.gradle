@@ -1,0 +1,4 @@
+
+/*task buildDeb(type: Deb) {
+  dependsOn deps
+}*/

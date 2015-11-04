@@ -32,7 +32,6 @@ import org.elasticsearch.search.aggregations.metrics.avg.Avg;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
-import org.junit.Test;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -67,7 +66,7 @@ public class RangeTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return Collections.singleton(GroovyPlugin.class);
     }
-    
+
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -93,8 +92,7 @@ public class RangeTests extends ESIntegTestCase {
         ensureSearchable();
     }
 
-    @Test
-    public void rangeAsSubAggregation() throws Exception {
+    public void testRangeAsSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(terms("terms").field(MULTI_VALUED_FIELD_NAME).size(100)
                         .collectMode(randomFrom(SubAggCollectionMode.values())).subAggregation(
@@ -157,8 +155,7 @@ public class RangeTests extends ESIntegTestCase {
         }
     }
 
-    @Test
-    public void singleValueField() throws Exception {
+    public void testSingleValueField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
                         .field(SINGLE_VALUED_FIELD_NAME)
@@ -179,8 +176,8 @@ public class RangeTests extends ESIntegTestCase {
         Range.Bucket bucket = buckets.get(0);
         assertThat(bucket, notNullValue());
         assertThat((String) bucket.getKey(), equalTo("*-3.0"));
-        assertThat(((Number) ((Number) bucket.getFrom())).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
-        assertThat(((Number) ((Number) bucket.getTo())).doubleValue(), equalTo(3.0));
+        assertThat(((Number) bucket.getFrom()).doubleValue(), equalTo(Double.NEGATIVE_INFINITY));
+        assertThat(((Number) bucket.getTo()).doubleValue(), equalTo(3.0));
         assertThat(bucket.getFromAsString(), nullValue());
         assertThat(bucket.getToAsString(), equalTo("3.0"));
         assertThat(bucket.getDocCount(), equalTo(2l));
@@ -204,8 +201,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
     }
 
-    @Test
-    public void singleValueField_WithFormat() throws Exception {
+    public void testSingleValueFieldWithFormat() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -249,8 +245,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
     }
 
-    @Test
-    public void singleValueField_WithCustomKey() throws Exception {
+    public void testSingleValueFieldWithCustomKey() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
                         .field(SINGLE_VALUED_FIELD_NAME)
@@ -296,8 +291,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5L));
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation() throws Exception {
+    public void testSingleValuedFieldWithSubAggregation() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
                         .field(SINGLE_VALUED_FIELD_NAME)
@@ -369,8 +363,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat((double) propertiesCounts[2], equalTo((double) total));
     }
 
-    @Test
-    public void singleValuedField_WithSubAggregation_Inherited() throws Exception {
+    public void testSingleValuedFieldWithSubAggregationInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
                         .field(SINGLE_VALUED_FIELD_NAME)
@@ -430,8 +423,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(avg.getValue(), equalTo((double) total / (numDocs - 5))); // (6 + 7 + 8 + 9 + 10) / 5
     }
 
-    @Test
-    public void singleValuedField_WithValueScript() throws Exception {
+    public void testSingleValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -487,8 +479,7 @@ public class RangeTests extends ESIntegTestCase {
     [10, 11]
      */
 
-    @Test
-    public void multiValuedField() throws Exception {
+    public void testMultiValuedField() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
                         .field(MULTI_VALUED_FIELD_NAME)
@@ -547,8 +538,7 @@ public class RangeTests extends ESIntegTestCase {
     [11, 12]
      */
 
-    @Test
-    public void multiValuedField_WithValueScript() throws Exception {
+    public void testMultiValuedFieldWithValueScript() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -609,8 +599,7 @@ public class RangeTests extends ESIntegTestCase {
     r3: 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11, 11, 12
      */
 
-    @Test
-    public void multiValuedField_WithValueScript_WithInheritedSubAggregator() throws Exception {
+    public void testMultiValuedFieldWithValueScriptWithInheritedSubAggregator() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -670,8 +659,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(sum.getValue(), equalTo((double) total));
     }
 
-    @Test
-    public void script_SingleValue() throws Exception {
+    public void testScriptSingleValue() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -715,8 +703,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
     }
 
-    @Test
-    public void script_SingleValue_WithSubAggregator_Inherited() throws Exception {
+    public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -773,8 +760,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(avg.getValue(), equalTo((double) total / (numDocs - 5))); // (6 + 7 + 8 + 9 + 10) / 5
     }
 
-    @Test
-    public void emptyRange() throws Exception {
+    public void testEmptyRange() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
                         .field(MULTI_VALUED_FIELD_NAME)
@@ -810,8 +796,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
-    @Test
-    public void script_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -854,7 +839,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getToAsString(), nullValue());
         assertThat(bucket.getDocCount(), equalTo(numDocs - 4l));
     }
-    
+
     /*
     [1, 2]
     [2, 3]
@@ -866,14 +851,13 @@ public class RangeTests extends ESIntegTestCase {
     [8, 9]
     [9, 10]
     [10, 11]
-    
+
     r1: 1, 2, 2
     r2: 3, 3, 4, 4, 5, 5
     r3: 6, 6, 7, 7, 8, 8, 9, 9, 10, 10, 11
      */
 
-    @Test
-    public void script_MultiValued_WithAggregatorInherited() throws Exception {
+    public void testScriptMultiValuedWithAggregatorInherited() throws Exception {
         SearchResponse response = client()
                 .prepareSearch("idx")
                 .addAggregation(
@@ -933,8 +917,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(sum.getValue(), equalTo((double) total));
     }
 
-    @Test
-    public void unmapped() throws Exception {
+    public void testUnmapped() throws Exception {
         SearchResponse response = client().prepareSearch("idx_unmapped")
                 .addAggregation(range("range")
                         .field(SINGLE_VALUED_FIELD_NAME)
@@ -980,8 +963,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(0l));
     }
 
-    @Test
-    public void partiallyUnmapped() throws Exception {
+    public void testPartiallyUnmapped() throws Exception {
         client().admin().cluster().prepareHealth("idx_unmapped").setWaitForYellowStatus().execute().actionGet();
 
         SearchResponse response = client().prepareSearch("idx", "idx_unmapped")
@@ -1029,8 +1011,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 5l));
     }
 
-    @Test
-    public void overlappingRanges() throws Exception {
+    public void testOverlappingRanges() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(range("range")
                         .field(MULTI_VALUED_FIELD_NAME)
@@ -1086,8 +1067,7 @@ public class RangeTests extends ESIntegTestCase {
         assertThat(bucket.getDocCount(), equalTo(numDocs - 2l));
     }
 
-    @Test
-    public void emptyAggregation() throws Exception {
+    public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(1l).minDocCount(0)

@@ -21,50 +21,55 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 
-import java.net.URI;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
-import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
-import java.security.URIParameter;
-import java.util.PropertyPermission;
+import java.util.Map;
 
 /** custom policy for union of static and dynamic permissions */
 final class ESPolicy extends Policy {
     
     /** template policy file, the one used in tests */
     static final String POLICY_RESOURCE = "security.policy";
-    /** limited policy for groovy scripts */
-    static final String GROOVY_RESOURCE = "groovy.policy";
+    /** limited policy for scripts */
+    static final String UNTRUSTED_RESOURCE = "untrusted.policy";
     
     final Policy template;
-    final Policy groovy;
+    final Policy untrusted;
     final PermissionCollection dynamic;
+    final Map<String,Policy> plugins;
 
-    public ESPolicy(PermissionCollection dynamic) throws Exception {
-        URI policyUri = getClass().getResource(POLICY_RESOURCE).toURI();
-        URI groovyUri = getClass().getResource(GROOVY_RESOURCE).toURI();
-        this.template = Policy.getInstance("JavaPolicy", new URIParameter(policyUri));
-        this.groovy = Policy.getInstance("JavaPolicy", new URIParameter(groovyUri));
+    public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins) {
+        this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), JarHell.parseClassPath());
+        this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), new URL[0]);
         this.dynamic = dynamic;
+        this.plugins = plugins;
     }
 
     @Override @SuppressForbidden(reason = "fast equals check is desired")
     public boolean implies(ProtectionDomain domain, Permission permission) {        
         CodeSource codeSource = domain.getCodeSource();
         // codesource can be null when reducing privileges via doPrivileged()
-        if (codeSource != null) {
-            URL location = codeSource.getLocation();
-            // location can be null... ??? nobody knows
-            // https://bugs.openjdk.java.net/browse/JDK-8129972
-            if (location != null) {
-                // run groovy scripts with no permissions (except logging property)
-                if ("/groovy/script".equals(location.getFile())) {
-                    return groovy.implies(domain, permission);
-                }
+        if (codeSource == null) {
+            return false;
+        }
+
+        URL location = codeSource.getLocation();
+        // location can be null... ??? nobody knows
+        // https://bugs.openjdk.java.net/browse/JDK-8129972
+        if (location != null) {
+            // run scripts with limited permissions
+            if (BootstrapInfo.UNTRUSTED_CODEBASE.equals(location.getFile())) {
+                return untrusted.implies(domain, permission);
+            }
+            // check for an additional plugin permission: plugin policy is
+            // only consulted for its codesources.
+            Policy plugin = plugins.get(location.getFile());
+            if (plugin != null && plugin.implies(domain, permission)) {
+                return true;
             }
         }
 

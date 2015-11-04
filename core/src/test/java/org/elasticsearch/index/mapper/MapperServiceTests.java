@@ -23,21 +23,18 @@ import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Rule;
-import org.junit.Test;
 import org.junit.rules.ExpectedException;
 
 import static org.elasticsearch.test.VersionUtils.getFirstVersion;
 import static org.elasticsearch.test.VersionUtils.getPreviousVersion;
 import static org.elasticsearch.test.VersionUtils.randomVersionBetween;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.hasToString;
 
 public class MapperServiceTests extends ESSingleNodeTestCase {
     @Rule
     public ExpectedException expectedException = ExpectedException.none();
 
-    @Test
     public void testTypeNameStartsWithIllegalDot() {
         expectedException.expect(MapperParsingException.class);
         expectedException.expect(hasToString(containsString("mapping type name [.test-type] must not start with a '.'")));
@@ -53,7 +50,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .actionGet();
     }
 
-    @Test
     public void testThatLongTypeNameIsNotRejectedOnPreElasticsearchVersionTwo() {
         String index = "text-index";
         String field = "field";
@@ -71,7 +67,6 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
         assertNotNull(response);
     }
 
-    @Test
     public void testTypeNameTooLong() {
         String index = "text-index";
         String field = "field";

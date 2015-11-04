@@ -117,6 +117,11 @@ public class DiscoveryModuleTests extends ModuleTestCase {
         }
 
         @Override
+        public DiscoveryStats stats() {
+            return null;
+        }
+
+        @Override
         public Lifecycle.State lifecycleState() {
             return null;
         }

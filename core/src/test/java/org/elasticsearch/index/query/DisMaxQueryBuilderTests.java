@@ -23,16 +23,20 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
-import org.junit.Test;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.closeTo;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
-
     /**
      * @return a {@link DisMaxQueryBuilder} with random inner queries
      */
@@ -84,7 +88,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
     /**
      * test `null`return value for missing inner queries
      */
-    @Test
     public void testNoInnerQueries() throws IOException {
         DisMaxQueryBuilder disMaxBuilder = new DisMaxQueryBuilder();
         assertNull(disMaxBuilder.toQuery(createShardContext()));
@@ -95,7 +98,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
      * Those should be ignored upstream. To test this, we use inner {@link ConstantScoreQueryBuilder}
      * with empty inner filter.
      */
-    @Test
     public void testInnerQueryReturnsNull() throws IOException {
         String queryString = "{ \"" + ConstantScoreQueryBuilder.NAME + "\" : { \"filter\" : { } } }";
         QueryBuilder<?> innerQueryBuilder = parseQuery(queryString);
@@ -103,7 +105,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertNull(disMaxBuilder.toQuery(createShardContext()));
     }
 
-    @Test
     public void testIllegalArguments() {
         DisMaxQueryBuilder disMaxQuery = new DisMaxQueryBuilder();
         try {
@@ -114,7 +115,6 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         }
     }
 
-    @Test
     public void testToQueryInnerPrefixQuery() throws Exception {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String queryAsString = "{\n" +

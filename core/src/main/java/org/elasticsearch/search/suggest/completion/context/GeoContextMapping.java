@@ -245,27 +245,26 @@ public class GeoContextMapping extends ContextMapping {
         List<QueryContext> queryContextList = new ArrayList<>();
         for (GeoQueryContext queryContext : queryContexts) {
             int minPrecision = this.precision;
-            if (queryContext.precision != -1) {
-                minPrecision = Math.min(minPrecision, queryContext.precision);
+            if (queryContext.getPrecision() != -1) {
+                minPrecision = Math.min(minPrecision, queryContext.getPrecision());
             }
-            GeoPoint point = queryContext.geoPoint;
+            GeoPoint point = queryContext.getGeoPoint();
             final Collection<String> locations = new HashSet<>();
             String geoHash = GeoHashUtils.stringEncode(point.getLon(), point.getLat(), minPrecision);
             locations.add(geoHash);
-            if (queryContext.neighbours.isEmpty() && geoHash.length() == this.precision) {
+            if (queryContext.getNeighbours().isEmpty() && geoHash.length() == this.precision) {
                 GeoHashUtils.addNeighbors(geoHash, locations);
-            } else if (queryContext.neighbours.isEmpty() == false) {
-                for (Integer neighbourPrecision : queryContext.neighbours) {
+            } else if (queryContext.getNeighbours().isEmpty() == false) {
+                for (Integer neighbourPrecision : queryContext.getNeighbours()) {
                     if (neighbourPrecision < geoHash.length()) {
                         String truncatedGeoHash = geoHash.substring(0, neighbourPrecision);
                         locations.add(truncatedGeoHash);
                         GeoHashUtils.addNeighbors(truncatedGeoHash, locations);
                     }
-
                 }
             }
             for (String location : locations) {
-                queryContextList.add(new QueryContext(location, queryContext.boost, location.length() < this.precision));
+                queryContextList.add(new QueryContext(location, queryContext.getBoost(), location.length() < this.precision));
             }
         }
         return queryContextList;

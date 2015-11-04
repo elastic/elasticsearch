@@ -33,78 +33,105 @@ import static org.elasticsearch.search.suggest.completion.context.CategoryContex
  * Defines the query context for {@link CategoryContextMapping}
  */
 public final class CategoryQueryContext implements ToXContent {
+    private final CharSequence category;
+    private final boolean isPrefix;
+    private final int boost;
 
-    public CharSequence context;
-
-    public boolean isPrefix = false;
-
-    public int boost = 1;
-
-    /**
-     * Creates a query context with a provided context and a
-     * boost of 1
-     */
-    public CategoryQueryContext(CharSequence context) {
-        this(context, 1);
-    }
-
-    /**
-     * Creates a query context with a provided context and boost
-     */
-    public CategoryQueryContext(CharSequence context, int boost) {
-        this(context, boost, false);
-    }
-
-    /**
-     * Creates a query context with a provided context and boost
-     * Allows specifying whether the context should be treated as
-     * a prefix or not
-     */
-    public CategoryQueryContext(CharSequence context, int boost, boolean isPrefix) {
-        this.context = context;
+    private CategoryQueryContext(CharSequence category, int boost, boolean isPrefix) {
+        this.category = category;
         this.boost = boost;
         this.isPrefix = isPrefix;
     }
 
-    private CategoryQueryContext() {
+    /**
+     * Returns the category of the context
+     */
+    public CharSequence getCategory() {
+        return category;
     }
 
-    void setContext(CharSequence context) {
-        this.context = context;
+    /**
+     * Returns if the context should be treated as a prefix
+     */
+    public boolean isPrefix() {
+        return isPrefix;
     }
 
-    void setIsPrefix(boolean isPrefix) {
-        this.isPrefix = isPrefix;
+    /**
+     * Returns the query-time boost of the context
+     */
+    public int getBoost() {
+        return boost;
     }
 
-    void setBoost(int boost) {
-        this.boost = boost;
+    public static Builder builder() {
+        return new Builder();
     }
 
-    private static ObjectParser<CategoryQueryContext, CategoryContextMapping> CATEGORY_PARSER = new ObjectParser<>("category", null);
+    public static class Builder {
+        private CharSequence category;
+        private boolean isPrefix = false;
+        private int boost = 1;
+
+        public Builder() {
+        }
+
+        /**
+         * Sets the category of the context.
+         * This is a required field
+         */
+        public Builder setCategory(CharSequence context) {
+            this.category = context;
+            return this;
+        }
+
+        /**
+         * Sets if the context should be treated as a prefix or not.
+         * Defaults to false
+         */
+        public Builder setPrefix(boolean prefix) {
+            this.isPrefix = prefix;
+            return this;
+        }
+
+        /**
+         * Sets the query-time boost of the context.
+         * Defaults to 1.
+         */
+        public Builder setBoost(int boost) {
+            this.boost = boost;
+            return this;
+        }
+
+        public CategoryQueryContext build() {
+            return new CategoryQueryContext(category, boost, isPrefix);
+        }
+    }
+
+    private static ObjectParser<Builder, Void> CATEGORY_PARSER = new ObjectParser<>("category", null);
     static {
-        CATEGORY_PARSER.declareString(CategoryQueryContext::setContext, new ParseField("context"));
-        CATEGORY_PARSER.declareInt(CategoryQueryContext::setBoost, new ParseField("boost"));
-        CATEGORY_PARSER.declareBoolean(CategoryQueryContext::setIsPrefix, new ParseField("prefix"));
+        CATEGORY_PARSER.declareString(Builder::setCategory, new ParseField("context"));
+        CATEGORY_PARSER.declareInt(Builder::setBoost, new ParseField("boost"));
+        CATEGORY_PARSER.declareBoolean(Builder::setPrefix, new ParseField("prefix"));
     }
 
     public static CategoryQueryContext parse(XContentParser parser) throws IOException {
         XContentParser.Token token = parser.currentToken();
-        CategoryQueryContext queryContext = new CategoryQueryContext();
+        Builder builder = builder();
         if (token == XContentParser.Token.START_OBJECT) {
-            CATEGORY_PARSER.parse(parser, queryContext);
+            CATEGORY_PARSER.parse(parser, builder);
         } else if (token == XContentParser.Token.VALUE_STRING) {
-            queryContext.setContext(parser.text());
+            builder.setCategory(parser.text());
         } else {
             throw new ElasticsearchParseException("category context must be an object or string");
         }
-        return queryContext;
+        return builder.build();
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(CONTEXT_VALUE, context);
+        builder.field(CONTEXT_VALUE, category);
         builder.field(CONTEXT_BOOST, boost);
         builder.field(CONTEXT_PREFIX, isPrefix);
         builder.endObject();

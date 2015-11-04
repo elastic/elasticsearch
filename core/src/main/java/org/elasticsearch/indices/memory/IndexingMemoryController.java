@@ -398,8 +398,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                     logger.debug("marking shard {} as inactive (inactive_time[{}]) indexing wise",
                             shardId,
                             shard.getInactiveTime());
+                    return Boolean.TRUE;
                 }
-                return Boolean.TRUE;
+                return Boolean.FALSE;
             } catch (EngineClosedException e) {
                 // ignore
                 ignoreReason = "EngineClosedException";

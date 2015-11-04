@@ -257,16 +257,28 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             boundAddresses.add(bindAddress(address));
         }
 
-        InetSocketTransportAddress boundAddress = boundAddresses.get(0);
-        InetSocketAddress publishAddress;
-        if (0 == publishPort) {
-            publishPort = boundAddress.getPort();
-        }
+        final InetAddress publishInetAddress;
         try {
-            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddresses(publishHosts), publishPort);
+            publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts);
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
+
+        if (0 == publishPort) {
+            for (InetSocketTransportAddress boundAddress : boundAddresses) {
+                InetAddress boundInetAddress = boundAddress.address().getAddress();
+                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
+                    publishPort = boundAddress.getPort();
+                    break;
+                }
+            }
+        }
+
+        if (0 == publishPort) {
+            throw new BindHttpException("Publish address [" + publishInetAddress + "] does not match any of the bound addresses [" + boundAddresses + "]");
+        }
+
+        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);;
         this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[boundAddresses.size()]), new InetSocketTransportAddress(publishAddress));
     }
     

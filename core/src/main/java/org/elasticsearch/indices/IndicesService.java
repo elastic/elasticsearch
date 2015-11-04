@@ -74,7 +74,6 @@ import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
@@ -106,9 +105,6 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 
-/**
- *
- */
 public class IndicesService extends AbstractLifecycleComponent<IndicesService> implements Iterable<IndexService> {
 
     public static final String INDICES_SHARDS_CLOSED_TIMEOUT = "indices.shards_closed_timeout";
@@ -316,7 +312,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return indexService;
     }
 
-    public synchronized IndexService createIndex(String sIndexName, @IndexSettings Settings settings, String localNodeId) {
+    public synchronized IndexService createIndex(String sIndexName, Settings settings, String localNodeId) {
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + sIndexName + "], node is closed");
         }
@@ -432,9 +428,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             indexInjector.getInstance(IndexStore.class).close();
 
             logger.debug("[{}] closed... (reason [{}])", index, reason);
-            indicesLifecycle.afterIndexClosed(indexService.index(), indexService.settingsService().getSettings());
+            indicesLifecycle.afterIndexClosed(indexService.index(), indexService.indexSettings());
             if (delete) {
-                final Settings indexSettings = indexService.getIndexSettings();
+                final Settings indexSettings = indexService.indexSettings();
                 indicesLifecycle.afterIndexDeleted(indexService.index(), indexSettings);
                 // now we are done - try to wipe data on disk if possible
                 deleteIndexStore(reason, indexService.index(), indexSettings, false);
@@ -456,7 +452,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
         @Override
         public synchronized void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                                        @IndexSettings Settings indexSettings) {
+                                                        Settings indexSettings) {
             if (indexShard != null) {
                 getStats.addTotals(indexShard.getStats());
                 indexingStats.addTotals(indexShard.indexingStats());
@@ -641,7 +637,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return canDeleteShardContent(shardId, indexSettings);
     }
 
-    private boolean canDeleteShardContent(ShardId shardId, @IndexSettings Settings indexSettings) {
+    private boolean canDeleteShardContent(ShardId shardId, Settings indexSettings) {
         final IndexServiceInjectorPair indexServiceInjectorPair = this.indices.get(shardId.getIndex());
         if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
             if (indexServiceInjectorPair != null && nodeEnv.hasNodeFile()) {
@@ -673,7 +669,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     /**
      * Adds a pending delete for the given index shard.
      */
-    public void addPendingDelete(ShardId shardId, @IndexSettings Settings settings) {
+    public void addPendingDelete(ShardId shardId, Settings settings) {
         if (shardId == null) {
             throw new IllegalArgumentException("shardId must not be null");
         }
@@ -687,7 +683,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     /**
      * Adds a pending delete for the given index.
      */
-    public void addPendingDelete(Index index, @IndexSettings Settings settings) {
+    public void addPendingDelete(Index index, Settings settings) {
         PendingDelete pendingDelete = new PendingDelete(index, settings);
         addPendingDelete(index, pendingDelete);
     }
@@ -754,7 +750,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to process the pending deletes for
      * @param timeout the timeout used for processing pending deletes
      */
-    public void processPendingDeletes(Index index, @IndexSettings Settings indexSettings, TimeValue timeout) throws IOException {
+    public void processPendingDeletes(Index index, Settings indexSettings, TimeValue timeout) throws IOException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());

@@ -25,7 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.util.Map;
 
@@ -46,7 +46,11 @@ public class SimilarityLookupService extends AbstractIndexComponent {
     }
 
     @Inject
-    public SimilarityLookupService(Index index, @IndexSettings Settings indexSettings, Map<String, SimilarityProvider.Factory> similarities) {
+    public SimilarityLookupService(Index index, IndexSettingsService indexSettingsService, Map<String, SimilarityProvider.Factory> similarities) {
+        this(index, indexSettingsService.getSettings(), similarities);
+    }
+
+    private SimilarityLookupService(Index index, Settings indexSettings, Map<String, SimilarityProvider.Factory> similarities) {
         super(index, indexSettings);
 
         MapBuilder<String, SimilarityProvider> providers = MapBuilder.newMapBuilder();

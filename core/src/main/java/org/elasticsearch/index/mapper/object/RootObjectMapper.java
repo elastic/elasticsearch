@@ -33,7 +33,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -46,9 +45,6 @@ import java.util.Set;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseDateTimeFormatter;
 
-/**
- *
- */
 public class RootObjectMapper extends ObjectMapper {
 
     public static class Defaults {
@@ -106,7 +102,7 @@ public class RootObjectMapper extends ObjectMapper {
 
 
         @Override
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable Settings settings) {
             assert !nested.isNested();
             FormatDateTimeFormatter[] dates = null;
             if (dynamicDateTimeFormatters == null) {

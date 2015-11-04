@@ -25,13 +25,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AbstractTokenFilterFactory;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 public class MyFilterTokenFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject
-    public MyFilterTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, String name) {
-        super(index, indexSettings, name, Settings.Builder.EMPTY_SETTINGS);
+    public MyFilterTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, String name) {
+        super(index, indexSettingsService.getSettings(), name, Settings.Builder.EMPTY_SETTINGS);
     }
 
     @Override

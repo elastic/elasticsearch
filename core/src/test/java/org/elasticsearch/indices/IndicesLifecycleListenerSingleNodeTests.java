@@ -21,7 +21,6 @@ package org.elasticsearch.indices;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
@@ -48,7 +47,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         ensureGreen();
         getInstanceFromNode(IndicesLifecycle.class).addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexClosed(Index index, Settings indexSettings) {
                 assertEquals(counter.get(), 5);
                 counter.incrementAndGet();
             }
@@ -60,7 +59,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexDeleted(Index index, Settings indexSettings) {
                 assertEquals(counter.get(), 6);
                 counter.incrementAndGet();
             }

@@ -29,7 +29,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import static org.elasticsearch.index.analysis.NGramTokenizerFactory.parseTokenChars;
 
@@ -51,7 +51,12 @@ public class EdgeNGramTokenizerFactory extends AbstractTokenizerFactory {
 
 
     @Inject
-    public EdgeNGramTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public EdgeNGramTokenizerFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        this(index, indexSettingsService.getSettings(), name, settings);
+    }
+
+    //package private for testing
+    public EdgeNGramTokenizerFactory(Index index, Settings indexSettings, String name, Settings settings) {
         super(index, indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

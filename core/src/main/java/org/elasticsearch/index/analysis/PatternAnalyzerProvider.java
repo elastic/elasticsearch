@@ -29,22 +29,19 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.util.regex.Pattern;
 
-/**
- *
- */
 public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analyzer> {
 
     private final PatternAnalyzer analyzer;
 
     @Inject
-    public PatternAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PatternAnalyzerProvider(Index index, IndexSettingsService indexSettingsService, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
 
-        Version esVersion = Version.indexCreated(indexSettings);
+        Version esVersion = Version.indexCreated(indexSettingsService.getSettings());
         final CharArraySet defaultStopwords;
         if (esVersion.onOrAfter(Version.V_1_0_0_RC1)) {
             defaultStopwords = CharArraySet.EMPTY_SET;

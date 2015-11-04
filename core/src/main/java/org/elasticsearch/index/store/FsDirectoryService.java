@@ -25,18 +25,15 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardPath;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Locale;
 import java.util.Set;
 
-/**
- */
 public class FsDirectoryService extends DirectoryService implements StoreRateLimiting.Listener, StoreRateLimiting.Provider {
 
     protected final IndexStore indexStore;
@@ -45,7 +42,11 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
     private final ShardPath path;
 
     @Inject
-    public FsDirectoryService(@IndexSettings Settings indexSettings, IndexStore indexStore, ShardPath path) {
+    public FsDirectoryService(IndexSettingsService indexSettingsService, IndexStore indexStore, ShardPath path) {
+        this(indexSettingsService.getSettings(), indexStore, path);
+    }
+
+    public FsDirectoryService(Settings indexSettings, IndexStore indexStore, ShardPath path) {
         super(path.getShardId(), indexSettings);
         this.path = path;
         this.indexStore = indexStore;
@@ -61,7 +62,7 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         return indexStore.rateLimiting();
     }
 
-    public static LockFactory buildLockFactory(@IndexSettings Settings indexSettings) {
+    public static LockFactory buildLockFactory(Settings indexSettings) {
         String fsLock = indexSettings.get("index.store.fs.lock", indexSettings.get("index.store.fs.fs_lock", "native"));
         LockFactory lockFactory;
         if (fsLock.equals("native")) {

@@ -22,7 +22,6 @@ package org.elasticsearch.test.store;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.store.DirectoryService;
 import org.elasticsearch.index.store.IndexStore;
@@ -51,9 +50,9 @@ public class MockFSIndexStore extends IndexStore {
     }
 
     @Inject
-    public MockFSIndexStore(Index index, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService,
+    public MockFSIndexStore(Index index, IndexSettingsService indexSettingsService,
                             IndicesStore indicesStore) {
-        super(index, indexSettings, indexSettingsService, indicesStore);
+        super(index, indexSettingsService, indicesStore);
     }
 
     @Override

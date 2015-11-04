@@ -27,7 +27,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -38,12 +37,7 @@ import java.util.concurrent.ThreadLocalRandom;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
-/**
- *
- */
 public class TranslogService extends AbstractIndexShardComponent implements Closeable {
-
-
     public static final String INDEX_TRANSLOG_FLUSH_INTERVAL = "index.translog.interval";
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
@@ -64,8 +58,8 @@ public class TranslogService extends AbstractIndexShardComponent implements Clos
     private final ApplySettings applySettings = new ApplySettings();
 
     @Inject
-    public TranslogService(ShardId shardId, @IndexSettings Settings indexSettings, IndexSettingsService indexSettingsService, ThreadPool threadPool, IndexShard indexShard) {
-        super(shardId, indexSettings);
+    public TranslogService(ShardId shardId, IndexSettingsService indexSettingsService, ThreadPool threadPool, IndexShard indexShard) {
+        super(shardId, indexSettingsService.getSettings());
         this.threadPool = threadPool;
         this.indexSettingsService = indexSettingsService;
         this.indexShard = indexShard;

@@ -234,7 +234,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             final Settings indexSettings;
             final IndexService idxService = indicesService.indexService(index);
             if (idxService != null) {
-                indexSettings = idxService.getIndexSettings();
+                indexSettings = idxService.indexSettings();
                 deleteIndex(index, "index no longer part of the metadata");
             } else {
                 final IndexMetaData metaData = previousState.metaData().index(index);

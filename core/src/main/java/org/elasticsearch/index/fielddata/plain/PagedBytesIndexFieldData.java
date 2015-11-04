@@ -32,10 +32,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 
 import java.io.IOException;
@@ -48,13 +46,13 @@ public class PagedBytesIndexFieldData extends AbstractIndexOrdinalsFieldData {
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexOrdinalsFieldData build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType,
+        public IndexOrdinalsFieldData build(Index index, Settings indexSettings, MappedFieldType fieldType,
                                                                IndexFieldDataCache cache, CircuitBreakerService breakerService, MapperService mapperService) {
             return new PagedBytesIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, breakerService);
         }
     }
 
-    public PagedBytesIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
+    public PagedBytesIndexFieldData(Index index, Settings indexSettings, MappedFieldType.Names fieldNames,
                                     FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache, breakerService);
     }

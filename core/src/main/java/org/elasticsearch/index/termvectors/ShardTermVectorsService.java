@@ -35,14 +35,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -63,8 +62,8 @@ public class ShardTermVectorsService extends AbstractIndexShardComponent {
     private final TransportDfsOnlyAction dfsAction;
 
     @Inject
-    public ShardTermVectorsService(ShardId shardId, @IndexSettings Settings indexSettings, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
-        super(shardId, indexSettings);
+    public ShardTermVectorsService(ShardId shardId, IndexSettingsService indexSettingsService, MappingUpdatedAction mappingUpdatedAction, TransportDfsOnlyAction dfsAction) {
+        super(shardId, indexSettingsService.getSettings());
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.dfsAction = dfsAction;
     }

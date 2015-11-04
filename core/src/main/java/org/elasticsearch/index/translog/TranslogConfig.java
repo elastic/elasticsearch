@@ -24,7 +24,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog.TranslogGeneration;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
@@ -65,7 +64,7 @@ public final class TranslogConfig {
      * @param bigArrays a bigArrays instance used for temporarily allocating write operations
      * @param threadPool a {@link ThreadPool} to schedule async sync durability
      */
-    public TranslogConfig(ShardId shardId, Path translogPath, @IndexSettings Settings indexSettings, Translog.Durabilty durabilty, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
+    public TranslogConfig(ShardId shardId, Path translogPath, Settings indexSettings, Translog.Durabilty durabilty, BigArrays bigArrays, @Nullable ThreadPool threadPool) {
         this.indexSettings = indexSettings;
         this.shardId = shardId;
         this.translogPath = translogPath;

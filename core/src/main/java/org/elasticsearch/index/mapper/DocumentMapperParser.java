@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
@@ -76,7 +75,7 @@ public class DocumentMapperParser {
     private volatile ImmutableMap<String, Mapper.TypeParser> rootTypeParsers;
     private volatile ImmutableMap<String, Mapper.TypeParser> additionalRootMappers;
 
-    public DocumentMapperParser(@IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
+    public DocumentMapperParser(Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
                                 SimilarityLookupService similarityLookupService, ScriptService scriptService) {
         this.indexSettings = indexSettings;
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);

@@ -29,16 +29,13 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Locale;
 import java.util.Map;
 
-/**
- *
- */
 public class NGramTokenizerFactory extends AbstractTokenizerFactory {
 
     private final int minGram;
@@ -89,7 +86,12 @@ public class NGramTokenizerFactory extends AbstractTokenizerFactory {
     }
 
     @Inject
-    public NGramTokenizerFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
+    public NGramTokenizerFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        this(index, indexSettingsService.getSettings(), name, settings);
+    }
+
+    //package private for testing
+    NGramTokenizerFactory(Index index, Settings indexSettings, String name, Settings settings) {
         super(index, indexSettings, name, settings);
         this.minGram = settings.getAsInt("min_gram", NGramTokenizer.DEFAULT_MIN_NGRAM_SIZE);
         this.maxGram = settings.getAsInt("max_gram", NGramTokenizer.DEFAULT_MAX_NGRAM_SIZE);

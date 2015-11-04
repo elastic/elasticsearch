@@ -23,18 +23,14 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
-/**
- *
- */
 public abstract class AbstractTokenFilterFactory extends AbstractIndexComponent implements TokenFilterFactory {
 
     private final String name;
 
     protected final Version version;
 
-    public AbstractTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, String name, Settings settings) {
+    public AbstractTokenFilterFactory(Index index, Settings indexSettings, String name, Settings settings) {
         super(index, indexSettings);
         this.name = name;
         this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);

@@ -27,30 +27,26 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.IOException;
 
-/**
- *
- */
 public class IndexAliasesService extends AbstractIndexComponent {
 
     private final IndexQueryParserService indexQueryParser;
     private volatile ImmutableOpenMap<String, AliasMetaData> aliases = ImmutableOpenMap.of();
 
     @Inject
-    public IndexAliasesService(Index index, @IndexSettings Settings indexSettings, IndexQueryParserService indexQueryParser) {
-        super(index, indexSettings);
+    public IndexAliasesService(Index index, IndexSettingsService indexSettingsService, IndexQueryParserService indexQueryParser) {
+        super(index, indexSettingsService.getSettings());
         this.indexQueryParser = indexQueryParser;
     }
 

@@ -34,7 +34,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
@@ -71,14 +71,13 @@ public class MockFSDirectoryService extends FsDirectoryService {
     private final double randomIOExceptionRate;
     private final double randomIOExceptionRateOnOpen;
     private final MockDirectoryWrapper.Throttling throttle;
-    private final Settings indexSettings;
     private final boolean preventDoubleWrite;
     private final boolean noDeleteOpenFile;
     private final boolean crashIndex;
 
     @Inject
-    public MockFSDirectoryService(@IndexSettings Settings indexSettings, IndexStore indexStore, final IndicesService service, final ShardPath path) {
-        super(indexSettings, indexStore, path);
+    public MockFSDirectoryService(IndexSettingsService indexSettingsService, IndexStore indexStore, final IndicesService service, final ShardPath path) {
+        super(indexSettingsService.getSettings(), indexStore, path);
         final long seed = indexSettings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
         this.random = new Random(seed);
         checkIndexOnClose = indexSettings.getAsBoolean(CHECK_INDEX_ON_CLOSE, true);
@@ -94,7 +93,6 @@ public class MockFSDirectoryService extends FsDirectoryService {
             logger.debug("Using MockDirWrapper with seed [{}] throttle: [{}] crashIndex: [{}]", SeedUtils.formatSeed(seed),
                     throttle, crashIndex);
         }
-        this.indexSettings = indexSettings;
         delegateService = randomDirectorService(indexStore, path);
         if (checkIndexOnClose) {
             final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
@@ -102,8 +100,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 boolean canRun = false;
 
                 @Override
-                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
-                                                   @IndexSettings Settings indexSettings) {
+                public void beforeIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, Settings indexSettings) {
                     if (indexShard != null && shardId.equals(sid)) {
                         if (validCheckIndexStates.contains(indexShard.state()) && IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
                             canRun = true;
@@ -112,8 +109,7 @@ public class MockFSDirectoryService extends FsDirectoryService {
                 }
 
                 @Override
-                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard,
-                                                  @IndexSettings Settings indexSettings) {
+                public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, Settings indexSettings) {
                     if (shardId.equals(sid) && indexShard != null && canRun) {
                         assert indexShard.state() == IndexShardState.CLOSED : "Current state must be closed";
                         checkIndex(indexShard.store(), sid);

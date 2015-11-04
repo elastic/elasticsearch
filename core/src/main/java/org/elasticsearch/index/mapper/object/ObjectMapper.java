@@ -45,7 +45,6 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -62,9 +61,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBo
 import static org.elasticsearch.index.mapper.MapperBuilders.object;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
 
-/**
- *
- */
 public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll, Cloneable {
 
     public static final String CONTENT_TYPE = "object";
@@ -185,7 +181,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
             return (Y) objectMapper;
         }
 
-        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable @IndexSettings Settings settings) {
+        protected ObjectMapper createMapper(String name, String fullPath, boolean enabled, Nested nested, Dynamic dynamic, ContentPath.Type pathType, Map<String, Mapper> mappers, @Nullable Settings settings) {
             return new ObjectMapper(name, fullPath, enabled, nested, dynamic, pathType, mappers);
         }
     }

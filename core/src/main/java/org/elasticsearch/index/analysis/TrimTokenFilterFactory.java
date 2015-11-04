@@ -29,19 +29,16 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
-/**
- *
- */
 public class TrimTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean updateOffsets;
     private static final String UPDATE_OFFSETS_KEY = "update_offsets";
 
     @Inject
-    public TrimTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public TrimTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
         if (version.onOrAfter(Version.LUCENE_4_4_0) && settings.get(UPDATE_OFFSETS_KEY) != null) {
             throw new IllegalArgumentException(UPDATE_OFFSETS_KEY +  " is not supported anymore. Please fix your analysis chain or use"
                     + " an older compatibility version (<=4.3) but beware that it might cause highlighting bugs.");

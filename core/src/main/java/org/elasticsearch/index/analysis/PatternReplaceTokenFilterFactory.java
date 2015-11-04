@@ -26,7 +26,7 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.util.regex.Pattern;
 
@@ -38,8 +38,8 @@ public class PatternReplaceTokenFilterFactory extends AbstractTokenFilterFactory
     private final boolean all;
 
     @Inject
-    public PatternReplaceTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PatternReplaceTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
 
         String sPattern = settings.get("pattern", null);
         if (sPattern == null) {

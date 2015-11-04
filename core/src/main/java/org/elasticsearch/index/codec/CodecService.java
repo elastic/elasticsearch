@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 /**
  * Since Lucene 4.0 low level index segments are read and written through a
@@ -55,12 +55,16 @@ public class CodecService extends AbstractIndexComponent {
         this(index, Settings.Builder.EMPTY_SETTINGS);
     }
 
-    public CodecService(Index index, @IndexSettings Settings indexSettings) {
+    public CodecService(Index index, Settings indexSettings) {
         this(index, indexSettings, null);
     }
 
     @Inject
-    public CodecService(Index index, @IndexSettings Settings indexSettings, MapperService mapperService) {
+    public CodecService(Index index, IndexSettingsService indexSettingsService, MapperService mapperService) {
+        this(index, indexSettingsService.getSettings(), mapperService);
+    }
+
+    private CodecService(Index index, Settings indexSettings, MapperService mapperService) {
         super(index, indexSettings);
         this.mapperService = mapperService;
         MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();

@@ -53,7 +53,7 @@ import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
@@ -101,6 +101,8 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         }
     };
 
+    private final Settings indexSettings;
+
     private final AnalysisService analysisService;
 
     /**
@@ -136,10 +138,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private volatile ImmutableSet<String> parentTypes = ImmutableSet.of();
 
     @Inject
-    public MapperService(Index index, @IndexSettings Settings indexSettings, AnalysisService analysisService,
+    public MapperService(Index index, IndexSettingsService indexSettingsService, AnalysisService analysisService,
+                         SimilarityLookupService similarityLookupService,
+                         ScriptService scriptService) {
+        this(index, indexSettingsService.getSettings(), analysisService, similarityLookupService, scriptService);
+    }
+
+
+    public MapperService(Index index, Settings indexSettings, AnalysisService analysisService,
                          SimilarityLookupService similarityLookupService,
                          ScriptService scriptService) {
         super(index, indexSettings);
+        this.indexSettings = indexSettings;
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
         this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService);

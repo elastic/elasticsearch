@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.Closeable;
@@ -52,13 +52,24 @@ public class AnalysisService extends AbstractIndexComponent implements Closeable
     private final NamedAnalyzer defaultSearchAnalyzer;
     private final NamedAnalyzer defaultSearchQuoteAnalyzer;
 
-
     public AnalysisService(Index index, Settings indexSettings) {
         this(index, indexSettings, null, null, null, null, null);
     }
 
+
     @Inject
-    public AnalysisService(Index index, @IndexSettings Settings indexSettings, @Nullable IndicesAnalysisService indicesAnalysisService,
+    public AnalysisService(Index index, IndexSettingsService indexSettingsService, @Nullable IndicesAnalysisService indicesAnalysisService,
+                           @Nullable Map<String, AnalyzerProviderFactory> analyzerFactoryFactories,
+                           @Nullable Map<String, TokenizerFactoryFactory> tokenizerFactoryFactories,
+                           @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,
+                           @Nullable Map<String, TokenFilterFactoryFactory> tokenFilterFactoryFactories) {
+        this(index, indexSettingsService.getSettings(), indicesAnalysisService, analyzerFactoryFactories, tokenizerFactoryFactories,
+                charFilterFactoryFactories, tokenFilterFactoryFactories);
+
+    }
+
+    //package private for testing
+    AnalysisService(Index index, Settings indexSettings, @Nullable IndicesAnalysisService indicesAnalysisService,
                            @Nullable Map<String, AnalyzerProviderFactory> analyzerFactoryFactories,
                            @Nullable Map<String, TokenizerFactoryFactory> tokenizerFactoryFactories,
                            @Nullable Map<String, CharFilterFactoryFactory> charFilterFactoryFactories,

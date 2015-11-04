@@ -20,16 +20,16 @@
 package org.elasticsearch.index.mapper.size;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 public class RegisterSizeFieldMapper extends AbstractIndexComponent {
 
     @Inject
-    public RegisterSizeFieldMapper(Index index, Settings indexSettings, MapperService mapperService) {
-        super(index, indexSettings);
+    public RegisterSizeFieldMapper(Index index, IndexSettingsService indexSettingsService, MapperService mapperService) {
+        super(index, indexSettingsService.getSettings());
         mapperService.documentMapperParser().putRootTypeParser(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
     }
 

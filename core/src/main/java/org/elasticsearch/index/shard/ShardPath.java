@@ -20,12 +20,10 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
-import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 import java.nio.file.FileStore;
@@ -116,7 +114,7 @@ public final class ShardPath {
      * directories with a valid shard state exist the one with the highest version will be used.
      * <b>Note:</b> this method resolves custom data locations for the shard.
      */
-    public static ShardPath loadShardPath(ESLogger logger, NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings) throws IOException {
+    public static ShardPath loadShardPath(ESLogger logger, NodeEnvironment env, ShardId shardId, Settings indexSettings) throws IOException {
         final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         final Path[] paths = env.availableShardPaths(shardId);
         Path loadedPath = null;
@@ -154,7 +152,7 @@ public final class ShardPath {
      * This method tries to delete left-over shards where the index name has been reused but the UUID is different
      * to allow the new shard to be allocated.
      */
-    public static void deleteLeftoverShardDirectory(ESLogger logger, NodeEnvironment env, ShardLock lock, @IndexSettings Settings indexSettings) throws IOException {
+    public static void deleteLeftoverShardDirectory(ESLogger logger, NodeEnvironment env, ShardLock lock, Settings indexSettings) throws IOException {
         final String indexUUID = indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
         final Path[] paths = env.availableShardPaths(lock.getShardId());
         for (Path path : paths) {
@@ -198,7 +196,7 @@ public final class ShardPath {
         return reservedBytes;
     }
 
-    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, @IndexSettings Settings indexSettings,
+    public static ShardPath selectNewPathForShard(NodeEnvironment env, ShardId shardId, Settings indexSettings,
                                                   long avgShardSizeInBytes, Map<Path,Integer> dataPathToShardCount) throws IOException {
 
         final Path dataPath;

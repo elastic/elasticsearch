@@ -47,6 +47,16 @@ bin/plugin remove watcher
 
 .Bug fixes
 * Fixed an issue where the scheduler may get stuck during Watcher startup. This caused no watches to ever fire.
+* Fixed an issue where under specific conditions Watcher would not start if there are not finished watch executions from the
+  previous time that watcher was running and those watch execution are unable the execute during the current start process.
+
+
+[float]
+==== 2.0.1
+
+.Bug fixes
+* Fixed an issue where under specific conditions Watcher would not start if there are not finished watch executions from the
+  previous time that watcher was running and those watch execution are unable the execute during the current start process.
 
 
 [float]

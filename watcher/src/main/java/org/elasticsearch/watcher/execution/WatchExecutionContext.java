@@ -93,6 +93,10 @@ public abstract class WatchExecutionContext {
         return defaultThrottlePeriod;
     }
 
+    public boolean overrideRecordOnConflict() {
+        return false;
+    }
+
     public TriggerEvent triggerEvent() {
         return triggerEvent;
     }

@@ -18,7 +18,6 @@ import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.Input;
-import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.support.clock.Clock;
 import org.elasticsearch.watcher.support.validation.WatcherSettingsValidation;
 import org.elasticsearch.watcher.transform.Transform;
@@ -285,7 +284,11 @@ public class ExecutionService extends AbstractComponent {
         } finally {
             if (ctx.knownWatch() && record != null && ctx.recordExecution()) {
                 try {
-                    historyStore.put(record);
+                    if (ctx.overrideRecordOnConflict()) {
+                        historyStore.forcePut(record);
+                    } else {
+                        historyStore.put(record);
+                    }
                 } catch (Exception e) {
                     logger.error("failed to update watch record [{}]", e, ctx.id());
                 }
@@ -322,7 +325,11 @@ public class ExecutionService extends AbstractComponent {
             String message = "failed to run triggered watch [" + triggeredWatch.id() + "] due to thread pool capacity";
             logger.debug(message);
             WatchRecord record = ctx.abortBeforeExecution(ExecutionState.FAILED, message);
-            historyStore.put(record);
+            if (ctx.overrideRecordOnConflict()) {
+                historyStore.forcePut(record);
+            } else {
+                historyStore.put(record);
+            }
             triggeredWatchStore.delete(triggeredWatch.id());
         }
     }
@@ -382,15 +389,27 @@ public class ExecutionService extends AbstractComponent {
             if (watch == null) {
                 String message = "unable to find watch for record [" + triggeredWatch.id().watchId() + "]/[" + triggeredWatch.id() + "], perhaps it has been deleted, ignoring...";
                 WatchRecord record = new WatchRecord(triggeredWatch.id(), triggeredWatch.triggerEvent(), ExecutionState.NOT_EXECUTED_WATCH_MISSING, message);
-                historyStore.put(record);
+                historyStore.forcePut(record);
                 triggeredWatchStore.delete(triggeredWatch.id());
             } else {
-                TriggeredExecutionContext ctx = new TriggeredExecutionContext(watch, clock.now(DateTimeZone.UTC), triggeredWatch.triggerEvent(), defaultThrottlePeriod);
+                TriggeredExecutionContext ctx = new StartupExecutionContext(watch, clock.now(DateTimeZone.UTC), triggeredWatch.triggerEvent(), defaultThrottlePeriod);
                 executeAsync(ctx, triggeredWatch);
                 counter++;
             }
         }
         logger.debug("executed [{}] watches from the watch history", counter);
+    }
+
+    private final static class StartupExecutionContext extends TriggeredExecutionContext {
+
+        public StartupExecutionContext(Watch watch, DateTime executionTime, TriggerEvent triggerEvent, TimeValue defaultThrottlePeriod) {
+            super(watch, executionTime, triggerEvent, defaultThrottlePeriod);
+        }
+
+        @Override
+        public boolean overrideRecordOnConflict() {
+            return true;
+        }
     }
 
     private final class WatchExecutionTask implements Runnable {

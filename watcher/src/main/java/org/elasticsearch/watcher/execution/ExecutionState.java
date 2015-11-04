@@ -13,7 +13,8 @@ public enum ExecutionState {
     THROTTLED,
     EXECUTED,
     FAILED,
-    NOT_EXECUTED_WATCH_MISSING;
+    NOT_EXECUTED_WATCH_MISSING,
+    EXECUTED_MULTIPLE_TIMES;
 
     public String id() {
         return name().toLowerCase(Locale.ROOT);

@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -13,13 +12,12 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherState;
+import org.elasticsearch.watcher.client.WatchSourceBuilder;
+import org.elasticsearch.watcher.client.WatchSourceBuilders;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
 import org.elasticsearch.watcher.condition.compare.CompareCondition;
-import org.elasticsearch.watcher.execution.ExecutionState;
-import org.elasticsearch.watcher.execution.TriggeredWatch;
-import org.elasticsearch.watcher.execution.TriggeredWatchStore;
-import org.elasticsearch.watcher.execution.Wid;
+import org.elasticsearch.watcher.execution.*;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -29,6 +27,7 @@ import org.elasticsearch.watcher.watch.Watch;
 import org.elasticsearch.watcher.watch.WatchStore;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.util.concurrent.TimeUnit;
 
@@ -37,10 +36,12 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
+import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
+import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
@@ -353,5 +354,54 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
         startWatcher();
         response = watcherClient().prepareWatcherStats().get();
         assertThat(response.getWatcherMetaData().manuallyStopped(), is(false));
+    }
+
+    public void testWatchRecordSavedTwice() throws Exception {
+        // Watcher could prevent to start if a watch record tried to executed twice or more and the watch didn't exist
+        // for that watch record or the execution threadpool rejected the watch record.
+        // A watch record without a watch is the easiest to simulate, so that is what this test does.
+
+        DateTime triggeredTime = new DateTime(2015, 11, 5, 0, 0, 0, 0, DateTimeZone.UTC);
+        final String watchRecordIndex = HistoryStore.getHistoryIndexNameForTime(triggeredTime);
+
+        int numRecords = scaledRandomIntBetween(8, 32);
+        for (int i = 0; i < numRecords; i++) {
+            String watchId = Integer.toString(i);
+            ScheduleTriggerEvent event = new ScheduleTriggerEvent(watchId, triggeredTime, triggeredTime);
+            Wid wid = new Wid(watchId, 0, triggeredTime);
+            TriggeredWatch triggeredWatch = new TriggeredWatch(wid, event);
+            client().prepareIndex(TriggeredWatchStore.INDEX_NAME, TriggeredWatchStore.DOC_TYPE, triggeredWatch.id().value())
+                    .setSource(jsonBuilder().value(triggeredWatch))
+                    .get();
+
+            WatchRecord watchRecord = new WatchRecord(wid, event, ExecutionState.EXECUTED, "executed");
+            client().prepareIndex(watchRecordIndex, HistoryStore.DOC_TYPE, watchRecord.id().value())
+                    .setSource(jsonBuilder().value(watchRecord))
+                    .get();
+
+        }
+
+        stopWatcher();
+        startWatcher();
+        assertBusy(new Runnable() {
+
+            @Override
+            public void run() {
+                // We need to wait until all the records are processed from the internal execution queue, only then we can assert
+                // that numRecords watch records have been processed as part of starting up.
+                WatcherStatsResponse response = watcherClient().prepareWatcherStats().get();
+                assertThat(response.getWatcherState(), equalTo(WatcherState.STARTED));
+                assertThat(response.getThreadPoolQueueSize(), equalTo(0l));
+
+                // but even then since the execution of the watch record is async it may take a little bit before
+                // the actual documents are in the output index
+                refresh();
+                SearchResponse searchResponse = client().prepareSearch(watchRecordIndex).setSize(numRecords).get();
+                assertThat(searchResponse.getHits().getTotalHits(), Matchers.equalTo((long) numRecords));
+                for (int i = 0; i < numRecords; i++) {
+                    assertThat(searchResponse.getHits().getAt(i).getSource().get("state"), Matchers.equalTo("executed_multiple_times"));
+                }
+            }
+        });
     }
 }

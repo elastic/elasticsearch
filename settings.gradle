@@ -29,6 +29,7 @@ String[] projects = [
   'plugins:jvm-example',
   'plugins:site-example',
   'plugins:store-smb',
+  'qa:evil-tests',
   'qa:smoke-test-client',
   'qa:smoke-test-plugins'
 ]

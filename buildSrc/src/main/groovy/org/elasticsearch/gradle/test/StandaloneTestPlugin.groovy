@@ -46,5 +46,6 @@ class StandaloneTestPlugin implements Plugin<Project> {
             classpath = project.sourceSets.test.runtimeClasspath
             testClassesDir project.sourceSets.test.output.classesDir
         }
+        project.check.dependsOn(test)
     }
 }

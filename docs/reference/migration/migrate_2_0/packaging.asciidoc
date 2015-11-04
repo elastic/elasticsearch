@@ -22,7 +22,7 @@ For instance:
 /bin/elasticsearch -d -p /tmp/foo.pid --http.cors.enabled=true --http.cors.allow-origin='*'
 -----------
 
-For a list of static parameters, run `/bin/elasticsearch -h`
+For a list of static parameters, run `bin/elasticsearch -h`
 
 ==== `-f` removed
 

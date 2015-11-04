@@ -140,7 +140,7 @@ class ClusterFormationTasks {
             start = project.tasks.create(name: "${task.name}#start", type: DefaultTask, dependsOn: setup) << {
                 // Fall back to Ant exec task as Gradle Exec task does not support spawning yet
                 ant.exec(executable: 'cmd', spawn: true, dir: home) {
-                    esEnv.each { env(key: key, value: value) }
+                    esEnv.each { key, value -> env(key: key, value: value) }
                     (['/C', 'call', 'bin/elasticsearch'] + esArgs).each { arg(value: it) }
                 }
                 esPostStartActions(ant, logger)

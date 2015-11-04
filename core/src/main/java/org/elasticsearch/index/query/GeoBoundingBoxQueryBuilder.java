@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointInBBoxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
@@ -263,21 +264,26 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
         }
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
-        Query result;
+        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
+        if (context.indexVersionCreated().after(Version.CURRENT)) {
+            return new GeoPointInBBoxQuery(fieldType.names().fullName(), topLeft.lon(), bottomRight.lat(), bottomRight.lon(), topLeft.lat());
+        }
+
+        Query query;
         switch(type) {
             case INDEXED:
-                result = IndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType);
+                query = IndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType);
                 break;
             case MEMORY:
                 IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-                result = new InMemoryGeoBoundingBoxQuery(luceneTopLeft, luceneBottomRight, indexFieldData);
+                query = new InMemoryGeoBoundingBoxQuery(luceneTopLeft, luceneBottomRight, indexFieldData);
                 break;
             default:
                 // Someone extended the type enum w/o adjusting this switch statement.
                 throw new IllegalStateException("geo bounding box type [" + type + "] not supported.");
         }
 
-        return result;
+        return query;
     }
 
     @Override

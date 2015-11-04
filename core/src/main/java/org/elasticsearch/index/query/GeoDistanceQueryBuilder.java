@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -221,11 +222,16 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
         if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
             throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
         }
-        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
-        IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
-        Query query = new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
-        return query;
+        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
+        if (shardContext.indexVersionCreated().onOrBefore(Version.CURRENT)) {
+            GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
+            IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
+            return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
+        }
+
+        normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        return new GeoPointDistanceQuery(fieldType.names().fullName(), center.lon(), center.lat(), normDistance);
     }
 
     @Override

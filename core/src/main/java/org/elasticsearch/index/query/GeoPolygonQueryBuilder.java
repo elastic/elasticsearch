@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointInPolygonQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -104,6 +105,7 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
         for (GeoPoint geoPoint : this.shell) {
             shell.add(new GeoPoint(geoPoint));
         }
+        final int shellSize = shell.size();
 
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc
@@ -135,8 +137,21 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
         }
 
-        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-        return new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
+        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
+        if (context.indexVersionCreated().onOrBefore(Version.CURRENT)) {
+            IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
+            return new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shellSize]));
+        }
+
+        double[] lats = new double[shellSize];
+        double[] lons = new double[shellSize];
+        GeoPoint p;
+        for (int i=0; i<shellSize; ++i) {
+            p = new GeoPoint(shell.get(i));
+            lats[i] = p.lat();
+            lons[i] = p.lon();
+        }
+        return new GeoPointInPolygonQuery(fieldType.names().fullName(), lons, lats);
     }
 
     @Override

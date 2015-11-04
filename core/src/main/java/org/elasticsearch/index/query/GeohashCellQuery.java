@@ -36,7 +36,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -75,8 +75,8 @@ public class GeohashCellQuery {
      * @param geohashes   optional array of additional geohashes
      * @return a new GeoBoundinboxfilter
      */
-    public static Query create(QueryShardContext context, GeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
-        MappedFieldType geoHashMapper = fieldType.geohashFieldType();
+    public static Query create(QueryShardContext context, BaseGeoPointFieldMapper.GeoPointFieldType fieldType, String geohash, @Nullable List<CharSequence> geohashes) {
+        MappedFieldType geoHashMapper = fieldType.geoHashFieldType();
         if (geoHashMapper == null) {
             throw new IllegalArgumentException("geohash filter needs geohash_prefix to be enabled");
         }
@@ -185,15 +185,15 @@ public class GeohashCellQuery {
             MappedFieldType fieldType = context.fieldMapper(fieldName);
             if (fieldType == null) {
                 throw new QueryShardException(context, "failed to parse [{}] query. missing [{}] field [{}]", NAME,
-                        GeoPointFieldMapper.CONTENT_TYPE, fieldName);
+                        BaseGeoPointFieldMapper.CONTENT_TYPE, fieldName);
             }
 
-            if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
+            if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
                 throw new QueryShardException(context, "failed to parse [{}] query. field [{}] is not a geo_point field", NAME, fieldName);
             }
 
-            GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
-            if (!geoFieldType.isGeohashPrefixEnabled()) {
+            BaseGeoPointFieldMapper.GeoPointFieldType geoFieldType = ((BaseGeoPointFieldMapper.GeoPointFieldType) fieldType);
+            if (!geoFieldType.isGeoHashPrefixEnabled()) {
                 throw new QueryShardException(context, "failed to parse [{}] query. [geohash_prefix] is not enabled for field [{}]", NAME,
                         fieldName);
             }

@@ -6,7 +6,6 @@
 package org.elasticsearch.watcher.transport.action.ack;
 
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.get.GetRequest;
@@ -15,6 +14,7 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
@@ -34,7 +34,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.transform.TransformBuilders.searchTransform;
@@ -48,7 +48,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
 
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");
@@ -71,7 +70,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(matchAllRequest().indices("events")))
-                        .condition(scriptCondition("ctx.payload.hits.total > 0"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0l))
                         .transform(searchTransform(matchAllRequest().indices("events")))
                         .addAction("_a1", indexAction("actions", "action1"))
                         .addAction("_a2", indexAction("actions", "action2"))
@@ -143,7 +142,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(matchAllRequest().indices("events")))
-                        .condition(scriptCondition("ctx.payload.hits.total > 0"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0l))
                         .transform(searchTransform(matchAllRequest().indices("events")))
                         .addAction("_a1", indexAction("actions", "action1"))
                         .addAction("_a2", indexAction("actions", "action2"))
@@ -222,7 +221,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("0/5 * * * * ? *")))
                         .input(searchInput(matchAllRequest().indices("events")))
-                        .condition(scriptCondition("ctx.payload.hits.total > 0"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0l))
                         .transform(searchTransform(matchAllRequest().indices("events")))
                         .addAction("_id", indexAction("actions", "action")))
                 .get();
@@ -292,7 +291,7 @@ public class WatchAckTests extends AbstractWatcherIntegrationTestCase {
             watcherClient.prepareAckWatch("_id").setActionIds("id with whitespaces").get();
             fail("Expected ActionRequestValidationException");
         } catch (ActionRequestValidationException e) {
-            assertThat(e.getMessage(), containsString("Watch id cannot have white spaces"));
+            assertThat(e.getMessage(), containsString("Action id cannot have white spaces"));
         }
     }
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.support.http.HttpRequestTemplate;
 import org.elasticsearch.watcher.support.http.auth.basic.BasicAuth;
@@ -30,14 +31,13 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.httpInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
 import static org.hamcrest.Matchers.equalTo;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
@@ -60,7 +60,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                                 .path("/index/_search")
                                 .body(jsonBuilder().startObject().field("size", 1).endObject())
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
-                        .condition(scriptCondition("ctx.payload.hits.total == 1"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
 
@@ -79,7 +79,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                         .input(httpInput(HttpRequestTemplate.builder(address.getHostString(), address.getPort())
                                 .path("/_cluster/stats")
                                 .auth(shieldEnabled() ? new BasicAuth("test", "changeme".toCharArray()) : null)))
-                        .condition(scriptCondition("ctx.payload.nodes.count.total >= 1"))
+                        .condition(compareCondition("ctx.payload.nodes.count.total", CompareCondition.Op.GTE, 1l))
                         .addAction("_id", loggingAction("watch [{{ctx.watch_id}}] matched")))
                 .get();
 
@@ -114,7 +114,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(10, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(httpInput(requestBuilder).extractKeys("hits.total"))
-                        .condition(scriptCondition("ctx.payload.hits.total == 1")))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l)))
                 .get();
 
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
@@ -122,7 +122,7 @@ public class HttpInputIntegrationTests extends AbstractWatcherIntegrationTestCas
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(10, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(httpInput(requestBuilder).extractKeys("hits.total"))
-                        .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))
+                        .condition(compareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0l)))
                 .get();
 
         if (timeWarped()) {

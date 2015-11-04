@@ -59,7 +59,6 @@ import static org.mockito.Mockito.*;
 
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class WebhookActionTests extends ESTestCase {
     static final String TEST_HOST = "test.com";
     static final int TEST_PORT = 8089;
@@ -214,7 +213,7 @@ public class WebhookActionTests extends ESTestCase {
             actionParser.parseExecutable("_watch", randomAsciiOfLength(5), parser);
             fail("expected a WebhookActionException since we only provided either a host or a port but not both");
         } catch (ElasticsearchParseException e) {
-            assertThat(e.getMessage(), containsString("could not parse http request template. missing required ["));
+            assertThat(e.getMessage(), containsString("failed parsing http request template"));
         }
     }
 

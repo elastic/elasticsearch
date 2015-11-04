@@ -13,6 +13,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.actions.email.service.EmailTemplate;
 import org.elasticsearch.watcher.actions.email.service.support.EmailServer;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.trigger.schedule.IntervalSchedule;
 import org.junit.After;
@@ -27,7 +28,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 import static org.elasticsearch.watcher.actions.ActionBuilders.emailAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -36,7 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging("subethamail:TRACE,watcher:TRACE")
 @ESIntegTestCase.ClusterScope(scope = SUITE, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 1)
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestCase {
     static final String USERNAME = "_user";
     static final String PASSWORD = "_passwd";
@@ -84,7 +84,7 @@ public class EmailActionIntegrationTests extends AbstractWatcherIntegrationTestC
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
-                        .condition(scriptCondition("ctx.payload.hits.total > 0"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0l))
                         .addAction("_email", emailAction(EmailTemplate.builder().from("_from").to("_to")
                                 .subject("{{ctx.payload.hits.hits.0._source.field}}")).setAuthentication(USERNAME, PASSWORD.toCharArray())))
                         .get();

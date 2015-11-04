@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.test.integration;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -14,13 +13,15 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
+import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.condition.ConditionBuilders;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.support.WatcherUtils;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
@@ -35,11 +36,7 @@ import org.elasticsearch.watcher.trigger.schedule.support.WeekTimes;
 import org.elasticsearch.watcher.watch.WatchStore;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
-import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
-import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -47,26 +44,24 @@ import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.xContentSource;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.daily;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.hourly;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.interval;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.monthly;
-import static org.elasticsearch.watcher.trigger.schedule.Schedules.weekly;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.watcher.trigger.schedule.Schedules.*;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
-@TestLogging("watcher.trigger.schedule:TRACE")
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected boolean enableShield() {
+        return false;
+    }
+
     public void testIndexWatch() throws Exception {
         WatcherClient watcherClient = watcherClient();
         createIndex("idx");
@@ -78,7 +73,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
-                        .condition(scriptCondition("ctx.payload.hits.total == 1"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l))
                         .addAction("_logger", loggingAction("\n\n************\n" +
                                         "total hits: {{ctx.payload.hits.total}}\n" +
                                         "************\n")
@@ -104,7 +99,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
-                        .condition(scriptCondition("ctx.payload.hits.total == 1")))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l)))
                 .get();
 
         if (timeWarped()) {
@@ -135,7 +130,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest))
-                        .condition(scriptCondition("ctx.payload.hits.total == 1")))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l)))
                 .get();
         assertThat(indexResponse.isCreated(), is(true));
 
@@ -204,7 +199,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .addAction("_id", indexAction("idx", "action"));
 
         watcherClient().preparePutWatch("_name")
-                .setSource(source.condition(scriptCondition("ctx.payload.hits.total == 1")))
+                .setSource(source.condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l)))
                 .get();
 
         if (timeWarped()) {
@@ -215,7 +210,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         assertWatchWithMinimumPerformedActionsCount("_name", 0, false);
 
         watcherClient().preparePutWatch("_name")
-                .setSource(source.condition(scriptCondition("ctx.payload.hits.total == 0")))
+                .setSource(source.condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0l)))
                 .get();
 
         if (timeWarped()) {
@@ -228,7 +223,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().preparePutWatch("_name")
                 .setSource(source
                         .trigger(schedule(Schedules.cron("0/1 * * * * ? 2020")))
-                        .condition(scriptCondition("ctx.payload.hits.total == 0")))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 0l)))
                 .get();
 
         if (timeWarped()) {
@@ -330,14 +325,14 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest).extractKeys("hits.total"))
-                        .condition(scriptCondition("ctx.payload.hits.total == 1")))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l)))
                 .get();
         // in this watcher the condition will fail, because max_score isn't extracted, only total:
         watcherClient.preparePutWatch("_name2")
                 .setSource(watchBuilder()
                         .trigger(schedule(interval(5, IntervalSchedule.Interval.Unit.SECONDS)))
                         .input(searchInput(searchRequest).extractKeys("hits.total"))
-                        .condition(scriptCondition("ctx.payload.hits.max_score >= 0")))
+                        .condition(compareCondition("ctx.payload.hits.max_score", CompareCondition.Op.GTE, 0l)))
                 .get();
 
         if (timeWarped()) {
@@ -444,7 +439,7 @@ public class BasicWatcherTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(request))
-                        .condition(ConditionBuilders.scriptCondition("return ctx.payload.hits.total >= 3")))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GTE, 3l)))
                 .get();
 
         logger.info("created watch [{}] at [{}]", watchName, SystemClock.INSTANCE.nowUTC());

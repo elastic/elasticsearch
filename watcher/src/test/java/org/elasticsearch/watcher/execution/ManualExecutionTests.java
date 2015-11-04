@@ -15,11 +15,9 @@ import org.elasticsearch.watcher.actions.ActionStatus;
 import org.elasticsearch.watcher.actions.logging.LoggingAction;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
-import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
 import org.elasticsearch.watcher.input.simple.SimpleInput;
-import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.clock.SystemClock;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
@@ -66,7 +64,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
+
 public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean enableShield() {
@@ -304,11 +302,12 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertThat(ObjectPath.<String>eval("state", executeWatchResult), equalTo(ExecutionState.THROTTLED.toString()));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
     public void testWatchExecutionDuration() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
-                .condition(new ScriptCondition((new Script.Builder.Inline("sleep 100; return true")).build()))
+//                .condition(new ScriptCondition((new Script.Builder.Inline("sleep 100; return true")).build()))
                 .addAction("log", loggingAction("foobar"));
 
         Watch watch = watchParser().parse("_id", false, watchBuilder.buildAsBytes(XContentType.JSON));
@@ -317,11 +316,12 @@ public class ManualExecutionTests extends AbstractWatcherIntegrationTestCase {
         assertThat(record.result().executionDurationMs(), greaterThanOrEqualTo(100L));
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
     public void testForceDeletionOfLongRunningWatch() throws Exception {
         WatchSourceBuilder watchBuilder = watchBuilder()
                 .trigger(schedule(cron("0 0 0 1 * ? 2099")))
                 .input(simpleInput("foo", "bar"))
-                .condition(new ScriptCondition((new Script.Builder.Inline("sleep 10000; return true")).build()))
+//                .condition(new ScriptCondition((new Script.Builder.Inline("sleep 10000; return true")).build()))
                 .defaultThrottlePeriod(new TimeValue(1, TimeUnit.HOURS))
                 .addAction("log", loggingAction("foobar"));
 

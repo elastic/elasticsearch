@@ -220,6 +220,10 @@ public class CompareCondition implements Condition {
         }
     }
 
+    public static Builder builder(String path, Op op, Object value) {
+        return new Builder(path, op, value);
+    }
+
     public static class Builder implements Condition.Builder<CompareCondition> {
 
         private String path;

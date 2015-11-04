@@ -20,7 +20,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class TriggeredWatchTests extends AbstractWatcherIntegrationTestCase {
     public void testParser() throws Exception {
         Watch watch = WatcherTestUtils.createTestWatch("fired_test", scriptService(), watcherHttpClient(), noopEmailService(), logger);

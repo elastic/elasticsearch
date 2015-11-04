@@ -414,27 +414,38 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
     }
 
     protected void assertWatchWithNoActionNeeded(final String watchName, final long expectedWatchActionsWithNoActionNeeded) throws Exception {
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                // The watch_history index gets created in the background when the first watch is triggered, so we to check first is this index is created and shards are started
-                ClusterState state = client().admin().cluster().prepareState().get().getState();
-                String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndices(state, IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
-                assertThat(watchHistoryIndices, not(emptyArray()));
-                for (String index : watchHistoryIndices) {
-                    IndexRoutingTable routingTable = state.getRoutingTable().index(index);
-                    assertThat(routingTable, notNullValue());
-                    assertThat(routingTable.allPrimaryShardsActive(), is(true));
+        final AtomicReference<SearchResponse> lastResponse = new AtomicReference<>();
+        try {
+            assertBusy(new Runnable() {
+                @Override
+                public void run() {
+                    // The watch_history index gets created in the background when the first watch is triggered, so we to check first is this index is created and shards are started
+                    ClusterState state = client().admin().cluster().prepareState().get().getState();
+                    String[] watchHistoryIndices = indexNameExpressionResolver().concreteIndices(state, IndicesOptions.lenientExpandOpen(), HistoryStore.INDEX_PREFIX + "*");
+                    assertThat(watchHistoryIndices, not(emptyArray()));
+                    for (String index : watchHistoryIndices) {
+                        IndexRoutingTable routingTable = state.getRoutingTable().index(index);
+                        assertThat(routingTable, notNullValue());
+                        assertThat(routingTable.allPrimaryShardsActive(), is(true));
+                    }
+                    refresh();
+                    SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
+                            .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                            .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTION_NOT_NEEDED.id())))
+                            .get();
+                    lastResponse.set(searchResponse);
+                    assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
                 }
-
-                refresh();
-                SearchResponse searchResponse = client().prepareSearch(HistoryStore.INDEX_PREFIX + "*")
-                        .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                        .setQuery(boolQuery().must(matchQuery("watch_id", watchName)).must(matchQuery("state", ExecutionState.EXECUTION_NOT_NEEDED.id())))
-                        .get();
-                assertThat(searchResponse.getHits().getTotalHits(), greaterThanOrEqualTo(expectedWatchActionsWithNoActionNeeded));
+            });
+        } catch (AssertionError error) {
+            SearchResponse searchResponse = lastResponse.get();
+            logger.info("Found [{}] records for watch [{}]", searchResponse.getHits().totalHits(), watchName);
+            int counter = 1;
+            for (SearchHit hit : searchResponse.getHits().getHits()) {
+                logger.info("hit [{}]=\n {}", counter++, XContentHelper.convertToJson(hit.getSourceRef(), true, true));
             }
-        });
+            throw error;
+        }
     }
 
     protected void assertWatchWithMinimumActionsCount(final String watchName, final ExecutionState recordState, final long recordCount) throws Exception {

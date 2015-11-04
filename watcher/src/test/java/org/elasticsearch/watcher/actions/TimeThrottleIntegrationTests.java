@@ -6,10 +6,10 @@
 package org.elasticsearch.watcher.actions;
 
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.watcher.client.WatcherClient;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.history.HistoryStore;
 import org.elasticsearch.watcher.history.WatchRecord;
@@ -24,7 +24,7 @@ import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.matchAllRequest;
 import static org.elasticsearch.watcher.transform.TransformBuilders.searchTransform;
@@ -35,7 +35,6 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTestCase {
     private IndexResponse indexTestDoc() {
         createIndex("actions", "events");
@@ -63,7 +62,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("5s")))
                         .input(searchInput(matchAllRequest().indices("events")))
-                        .condition(scriptCondition("ctx.payload.hits.total > 0"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0l))
                         .transform(searchTransform(matchAllRequest().indices("events")))
                         .addAction("_id", indexAction("actions", "action"))
                         .defaultThrottlePeriod(TimeValue.timeValueSeconds(30)))
@@ -137,7 +136,7 @@ public class TimeThrottleIntegrationTests extends AbstractWatcherIntegrationTest
                 .setSource(watchBuilder()
                         .trigger(schedule(interval("1s")))
                         .input(searchInput(matchAllRequest().indices("events")))
-                        .condition(scriptCondition("ctx.payload.hits.total > 0"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.GT, 0l))
                         .transform(searchTransform(matchAllRequest().indices("events")))
                         .addAction("_id", indexAction("actions", "action")))
                 .get();

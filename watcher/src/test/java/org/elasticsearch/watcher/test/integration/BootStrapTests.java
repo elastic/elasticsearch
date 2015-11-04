@@ -15,6 +15,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.execution.TriggeredWatch;
 import org.elasticsearch.watcher.execution.TriggeredWatchStore;
@@ -38,7 +39,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.watcher.actions.ActionBuilders.indexAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
-import static org.elasticsearch.watcher.condition.ConditionBuilders.scriptCondition;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.newInputSearchRequest;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -50,7 +51,6 @@ import static org.joda.time.DateTimeZone.UTC;
 /**
  */
 @TestLogging("watcher:TRACE")
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {
@@ -221,7 +221,7 @@ public class BootStrapTests extends AbstractWatcherIntegrationTestCase {
                     .setSource(watchBuilder()
                                     .trigger(schedule(cron("0 0/5 * * * ? 2050")))
                                     .input(searchInput(searchRequest))
-                                    .condition(scriptCondition("ctx.payload.hits.total == 1"))
+                                    .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l))
                                     .buildAsBytes(XContentType.JSON)
                     )
                     .setConsistencyLevel(WriteConsistencyLevel.ALL)

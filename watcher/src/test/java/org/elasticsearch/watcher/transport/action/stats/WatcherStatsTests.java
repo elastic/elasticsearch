@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.watcher.transport.action.stats;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
@@ -13,7 +12,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.watcher.WatcherBuild;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.client.WatcherClient;
-import org.elasticsearch.watcher.condition.ConditionBuilders;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
@@ -26,6 +25,7 @@ import static org.elasticsearch.index.query.QueryBuilders.termQuery;
 import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
 import static org.elasticsearch.watcher.trigger.schedule.Schedules.cron;
@@ -38,7 +38,6 @@ import static org.hamcrest.core.IsEqual.equalTo;
  */
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false)
 @TestLogging("watcher:TRACE")
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
     public void testStartedStats() throws Exception {
         WatcherStatsRequest watcherStatsRequest = watcherClient().prepareWatcherStats().request();
@@ -64,7 +63,7 @@ public class WatcherStatsTests extends AbstractWatcherIntegrationTestCase {
                 .setSource(watchBuilder()
                         .trigger(schedule(cron("* * * * * ? *")))
                         .input(searchInput(searchRequest))
-                        .condition(ConditionBuilders.scriptCondition("ctx.payload.hits.total == 1"))
+                        .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l))
                 )
                 .get();
 

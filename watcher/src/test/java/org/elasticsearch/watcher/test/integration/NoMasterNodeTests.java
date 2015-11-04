@@ -27,6 +27,7 @@ import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.client.WatchSourceBuilder;
 import org.elasticsearch.watcher.client.WatchSourceBuilders;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.execution.ExecutionService;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -41,6 +42,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
 import static org.elasticsearch.watcher.condition.ConditionBuilders.alwaysCondition;
+import static org.elasticsearch.watcher.condition.ConditionBuilders.compareCondition;
 import static org.elasticsearch.watcher.input.InputBuilders.searchInput;
 import static org.elasticsearch.watcher.input.InputBuilders.simpleInput;
 import static org.elasticsearch.watcher.trigger.TriggerBuilders.schedule;
@@ -53,7 +55,6 @@ import static org.hamcrest.core.Is.is;
 @TestLogging("discovery:TRACE,watcher:TRACE")
 @ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 0)
 @SuppressLocalMode
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
     private ClusterDiscoveryConfiguration.UnicastZen config;
 
@@ -92,7 +93,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
         WatchSourceBuilder watchSource = watchBuilder()
                 .trigger(schedule(cron("0/5 * * * * ? *")))
                 .input(searchInput(searchRequest))
-                .condition(ConditionBuilders.scriptCondition("ctx.payload.hits.total == 1"));
+                .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l));
 
         // we first need to make sure the license is enabled, otherwise all APIs will be blocked
         ensureLicenseEnabled();
@@ -201,7 +202,7 @@ public class NoMasterNodeTests extends AbstractWatcherIntegrationTestCase {
             WatchSourceBuilder watchSource = watchBuilder()
                     .trigger(schedule(cron("0/5 * * * * ? *")))
                     .input(searchInput(searchRequest))
-                    .condition(ConditionBuilders.scriptCondition("ctx.payload.hits.total == 1"));
+                    .condition(compareCondition("ctx.payload.hits.total", CompareCondition.Op.EQ, 1l));
             watcherClient().preparePutWatch(watchName).setSource(watchSource).get();
         }
         ensureGreen();

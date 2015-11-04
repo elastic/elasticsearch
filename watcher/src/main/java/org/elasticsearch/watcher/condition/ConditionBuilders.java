@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.condition;
 
 import org.elasticsearch.watcher.condition.always.AlwaysCondition;
+import org.elasticsearch.watcher.condition.compare.CompareCondition;
 import org.elasticsearch.watcher.condition.compare.array.ArrayCompareCondition;
 import org.elasticsearch.watcher.condition.never.NeverCondition;
 import org.elasticsearch.watcher.condition.script.ScriptCondition;
@@ -37,6 +38,10 @@ public final class ConditionBuilders {
 
     public static ScriptCondition.Builder scriptCondition(Script script) {
         return ScriptCondition.builder(script);
+    }
+
+    public static CompareCondition.Builder compareCondition(String path, CompareCondition.Op op, Object value) {
+        return CompareCondition.builder(path, op, value);
     }
 
     public static ArrayCompareCondition.Builder arrayCompareCondition(String arrayPath, String path, ArrayCompareCondition.Op op, Object value, ArrayCompareCondition.Quantifier quantifier) {

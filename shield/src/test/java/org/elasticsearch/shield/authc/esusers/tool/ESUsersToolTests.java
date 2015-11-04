@@ -111,6 +111,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUseraddCmdCreate() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = createTempFile();
         Path userRolesFile = createTempFile();
         Settings settings = Settings.builder()
@@ -142,6 +143,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUseraddCmdAppend() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = writeFile("user2:hash2");
         Path userRolesFile = writeFile("r3:user2\nr4:user2");
         Settings settings = Settings.builder()
@@ -178,6 +180,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUseraddCmdAddingUserWithoutRolesDoesNotAddEmptyRole() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = writeFile("user2:hash2");
         Path userRolesFile = writeFile("r3:user2\nr4:user2");
         Settings settings = Settings.builder()
@@ -199,6 +202,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUseraddCmdAppendUserAlreadyExists() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = writeFile("user1:hash1");
         Path userRolesFile = createTempFile();
         Settings settings = Settings.builder()
@@ -215,6 +219,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUseraddCustomRole() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = createTempFile();
         Path userRolesFile = createTempFile();
         Path rolesFile = writeFile("plugin_admin:\n" +
@@ -236,6 +241,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUseraddNonExistantRole() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = createTempFile();
         Path userRolesFile = createTempFile();
         Path rolesFile = writeFile("plugin_admin:\n" +
@@ -282,6 +288,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUserdelCmd() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = writeFile("user1:hash2");
         Path userRolesFile = writeFile("r3:user1\nr4:user1");
         Settings settings = Settings.builder()
@@ -306,6 +313,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUserdelCmdMissingUser() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = writeFile("user1:hash2");
         Path userRolesFile = writeFile("r3:user1\nr4:user1");
         Settings settings = Settings.builder()
@@ -398,6 +406,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testPasswdCmd() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = writeFile("user1:hash2");
         Settings settings = Settings.builder()
                 .put("shield.authc.realms.esusers.type", "esusers")
@@ -420,6 +429,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testPasswdCmdUnknownUser() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = writeFile("user1:hash2");
         Settings settings = Settings.builder()
                 .put("shield.authc.realms.esusers.type", "esusers")
@@ -433,6 +443,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testPasswdCmdMissingFiles() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = createTempFile();
         Settings settings = Settings.builder()
                 .put("shield.authc.realms.esusers.type", "esusers")
@@ -464,6 +475,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testRolesCmdValidatingRoleNames() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         ESUsersTool tool = new ESUsersTool();
         Path usersFile = writeFile("admin:hash");
         Path usersRoleFile = writeFile("admin: admin\n");
@@ -490,6 +502,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testRolesCmdAddingRoleWorks() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = writeFile("admin:hash\nuser:hash");
         Path usersRoleFile = writeFile("admin: admin\nuser: user\n");
         Settings settings = Settings.builder()
@@ -512,6 +525,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testRolesCmdRemovingRoleWorks() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = writeFile("admin:hash\nuser:hash");
         Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo: user\nbar: user\n");
         Settings settings = Settings.builder()
@@ -534,6 +548,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testRolesCmdAddingAndRemovingRoleWorks() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = writeFile("admin:hash\nuser:hash");
         Path usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
         Settings settings = Settings.builder()
@@ -556,6 +571,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testRolesCmdRemovingLastRoleRemovesEntryFromRolesFile() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = writeFile("admin:hash\nuser:hash");
         Path usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
         Settings settings = Settings.builder()
@@ -575,6 +591,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testRolesCmdUserNotFound() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = writeFile("admin:hash\nuser:hash");
         Path usersRoleFile = writeFile("admin: admin\nuser: user\nfoo:user\nbar:user\n");
         Settings settings = Settings.builder()
@@ -591,6 +608,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testRolesCmdTestNotAddingOrRemovingRolesShowsListingOfRoles() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = writeFile("admin:hash\nuser:hash");
         Path usersRoleFile = writeFile("admin: admin\nuser:user\nfoo:user\nbar:user\n");
         Path rolesFile = writeFile("admin:\n  cluster: all\n\nuser:\n  cluster: all\n\nfoo:\n  cluster: all\n\nbar:\n  cluster: all");
@@ -611,6 +629,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testRolesCmdRoleCanBeAddedWhenUserIsNotInRolesFile() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path usersFile = writeFile("admin:hash\nuser:hash");
         Path usersRoleFile = writeFile("admin: admin\n");
         Path rolesFile = writeFile("admin:\n  cluster: all\n\nmyrole:\n  cluster: all");
@@ -812,6 +831,7 @@ public class ESUsersToolTests extends CliToolTestCase {
     }
 
     public void testUseraddUsernameWithPeriod() throws Exception {
+        assumeTrue("test cannot run with security manager enabled", System.getSecurityManager() == null);
         Path userFile = createTempFile();
         Path userRolesFile = createTempFile();
         Settings settings = Settings.builder()

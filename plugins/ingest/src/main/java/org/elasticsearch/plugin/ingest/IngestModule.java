@@ -22,10 +22,10 @@ package org.elasticsearch.plugin.ingest;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
 import org.elasticsearch.ingest.processor.grok.GrokProcessor;
 import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
-import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 
 import java.util.HashMap;
@@ -45,8 +45,7 @@ public class IngestModule extends AbstractModule {
         addProcessor(SimpleProcessor.TYPE, new SimpleProcessor.Factory());
         addProcessor(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory());
         addProcessor(GrokProcessor.TYPE, new GrokProcessor.Factory());
-
-        //TODO addProcessor(DateProcessor.TYPE, DateProcessor.Builder.Factory.class);
+        addProcessor(DateProcessor.TYPE, new DateProcessor.Factory());
 
         MapBinder<String, Processor.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Factory.class);
         for (Map.Entry<String, Processor.Factory> entry : processors.entrySet()) {

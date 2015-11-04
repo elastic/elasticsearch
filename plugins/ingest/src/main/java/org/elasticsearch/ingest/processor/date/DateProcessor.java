@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.processor.Processor;
 import org.joda.time.DateTimeZone;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -86,60 +85,18 @@ public final class DateProcessor implements Processor {
         }
     }
 
-    public static class Builder implements Processor.Builder {
-
-        private String timezone;
-        private String locale;
-        private String matchField;
-        private List<String> matchFormats;
-        private String targetField;
-
-        public Builder() {
-            matchFormats = new ArrayList<String>();
-        }
-
-        public void setTimezone(String timezone) {
-            this.timezone = timezone;
-        }
-
-        public void setLocale(String locale) {
-            this.locale = locale;
-        }
-
-        public void setMatchField(String matchField) {
-            this.matchField = matchField;
-        }
-
-        public void addMatchFormat(String matchFormat) {
-            matchFormats.add(matchFormat);
-        }
-
-        public void setTargetField(String targetField) {
-            this.targetField = targetField;
-        }
+    public static class Factory implements Processor.Factory {
 
         @SuppressWarnings("unchecked")
-        public void fromMap(Map<String, Object> config) {
-            this.timezone = (String) config.get("timezone");
-            this.locale = (String) config.get("locale");
-            this.matchField = (String) config.get("match_field");
-            this.matchFormats = (List<String>) config.get("match_formats");
-            this.targetField = (String) config.get("target_field");
-        }
-
-        @Override
-        public Processor build() {
+        public Processor create(Map<String, Object> config) {
+            //TODO handle default values
+            String timezone = (String) config.get("timezone");
+            String locale = (String) config.get("locale");
+            String matchField = (String) config.get("match_field");
+            List<String> matchFormats = (List<String>) config.get("match_formats");
+            String targetField = (String) config.get("target_field");
             return new DateProcessor(timezone, locale, matchField, matchFormats, targetField);
         }
-
-        public static class Factory implements Processor.Builder.Factory {
-
-            @Override
-            public Processor.Builder create() {
-                return new Builder();
-            }
-        }
-
     }
 
 }

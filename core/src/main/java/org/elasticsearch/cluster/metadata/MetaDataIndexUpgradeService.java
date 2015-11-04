@@ -146,6 +146,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                                     "index.translog.flush_threshold_period",
                                     "index.translog.interval",
                                     "index.translog.sync_interval",
+                                    "index.shard.inactive_time",
                                     UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING));
 
     /**

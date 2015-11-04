@@ -331,18 +331,15 @@ public class IndexShardTests extends ESSingleNodeTestCase {
 
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
-                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0));
+                .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "0s"));
         client().prepareIndex("test", "test").setSource("{}").get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
-        Boolean result = indicesService.indexService("test").getShardOrNull(0).checkIdle(0);
+        Boolean result = indicesService.indexService("test").getShardOrNull(0).checkIdle();
         assertEquals(Boolean.TRUE, result);
-        assertBusy(new Runnable() { // should be very very quick
-            @Override
-            public void run() {
-                IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
-                assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-            }
+        assertBusy(() -> {
+            IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
+            assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         });
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));

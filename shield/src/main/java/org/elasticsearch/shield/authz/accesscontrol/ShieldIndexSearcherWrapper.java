@@ -22,8 +22,8 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -48,20 +48,20 @@ import static org.apache.lucene.search.BooleanClause.Occur.FILTER;
  * Document level security is enabled by wrapping the original {@link DirectoryReader} in a {@link DocumentSubsetReader}
  * instance.
  */
-public final class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
+public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
 
     private final MapperService mapperService;
     private final Set<String> allowedMetaFields;
-    private final IndexQueryParserService parserService;
+    private final QueryShardContext queryShardContext;
     private final BitsetFilterCache bitsetFilterCache;
     private final ShieldLicenseState shieldLicenseState;
     private final ESLogger logger;
 
-    public ShieldIndexSearcherWrapper(IndexSettings indexSettings, IndexQueryParserService parserService,
+    public ShieldIndexSearcherWrapper(IndexSettings indexSettings, QueryShardContext queryShardContext,
                                       MapperService mapperService, BitsetFilterCache bitsetFilterCache, ShieldLicenseState shieldLicenseState) {
         this.logger = Loggers.getLogger(getClass(), indexSettings.getSettings());
         this.mapperService = mapperService;
-        this.parserService = parserService;
+        this.queryShardContext = queryShardContext;
         this.bitsetFilterCache = bitsetFilterCache;
         this.shieldLicenseState = shieldLicenseState;
 
@@ -106,7 +106,8 @@ public final class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
             if (permissions.getQueries() != null) {
                 BooleanQuery.Builder roleQuery = new BooleanQuery.Builder();
                 for (BytesReference bytesReference : permissions.getQueries()) {
-                    ParsedQuery parsedQuery = parserService.parse(bytesReference);
+                    QueryShardContext queryShardContext = copyQueryShardContext(this.queryShardContext);
+                    ParsedQuery parsedQuery = queryShardContext.parse(bytesReference);
                     roleQuery.add(parsedQuery.query(), FILTER);
                 }
                 reader = DocumentSubsetReader.wrap(reader, bitsetFilterCache, roleQuery.build());
@@ -194,6 +195,11 @@ public final class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
 
     public Set<String> getAllowedMetaFields() {
         return allowedMetaFields;
+    }
+
+    // for testing:
+    protected QueryShardContext copyQueryShardContext(QueryShardContext context) {
+        return new QueryShardContext(context);
     }
 
     private void resolveParentChildJoinFields(Set<String> allowedFields) {

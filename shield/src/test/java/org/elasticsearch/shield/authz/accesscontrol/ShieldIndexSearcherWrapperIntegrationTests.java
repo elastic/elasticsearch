@@ -37,8 +37,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.shield.authz.InternalAuthorizationService;
@@ -81,14 +81,19 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         RequestContext.setCurrent(new RequestContext(request));
         IndicesAccessControl.IndexAccessControl indexAccessControl = new IndicesAccessControl.IndexAccessControl(true, null, singleton(new BytesArray("{}")));
         request.putInContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY, new IndicesAccessControl(true, singletonMap("_index", indexAccessControl)));
-        IndexQueryParserService parserService = mock(IndexQueryParserService.class);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST);
+        QueryShardContext queryShardContext = mock(QueryShardContext.class);
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
         ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
-        ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(
-                IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST), parserService, mapperService, bitsetFilterCache, licenseState
-        );
+        ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(indexSettings, queryShardContext, mapperService, bitsetFilterCache, licenseState) {
+
+            @Override
+            protected QueryShardContext copyQueryShardContext(QueryShardContext context) {
+                return queryShardContext;
+            }
+        };
 
         Directory directory = newDirectory();
         IndexWriter iw = new IndexWriter(
@@ -135,7 +140,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(directory), shardId);
         for (int i = 0; i < numValues; i++) {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
-            when(parserService.parse(any(BytesReference.class))).thenReturn(parsedQuery);
+            when(queryShardContext.parse(any(BytesReference.class))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
             IndexSearcher indexSearcher = wrapper.wrap(engineConfig, new IndexSearcher(wrappedDirectoryReader));
 

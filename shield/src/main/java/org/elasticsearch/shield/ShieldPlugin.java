@@ -162,7 +162,7 @@ public class ShieldPlugin extends Plugin {
         }
         assert shieldLicenseState != null;
         module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(),
-                indexService.queryParserService(), indexService.mapperService(),
+                indexService.getQueryShardContext(), indexService.mapperService(),
                 indexService.bitsetFilterCache(), shieldLicenseState));
         if (clientMode == false) {
             module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);

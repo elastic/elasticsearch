@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.health;
+package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -37,12 +37,9 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.action.admin.cluster.health.ClusterShardHealth.readClusterShardHealth;
+import static org.elasticsearch.cluster.health.ClusterShardHealth.readClusterShardHealth;
 
-/**
- *
- */
-public class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable, ToXContent {
+public final class ClusterIndexHealth implements Iterable<ClusterShardHealth>, Streamable, ToXContent {
 
     private String index;
 

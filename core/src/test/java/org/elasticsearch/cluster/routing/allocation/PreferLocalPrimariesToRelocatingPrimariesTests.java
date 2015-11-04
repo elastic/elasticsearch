@@ -69,7 +69,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
                 .put(newNode("node1", singletonMap("tag1", "value1")))
                 .put(newNode("node2", singletonMap("tag1", "value2")))).build();
 
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
@@ -92,7 +92,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
                         .build()))
                 .build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node1")).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("[{}] primaries should be still started but [{}] other primaries should be unassigned", numberOfShards, numberOfShards);
@@ -103,7 +103,7 @@ public class PreferLocalPrimariesToRelocatingPrimariesTests extends ESAllocation
         logger.info("start node back up");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node1", singletonMap("tag1", "value1")))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         while (clusterState.getRoutingNodes().shardsWithState(STARTED).size() < totalNumberOfShards) {

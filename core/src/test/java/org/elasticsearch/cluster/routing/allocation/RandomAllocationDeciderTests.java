@@ -105,7 +105,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
 
             stateBuilder.nodes(newNodesBuilder.build());
             clusterState = stateBuilder.build();
-            routingTable = strategy.reroute(clusterState).routingTable();
+            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
                 routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))
@@ -131,7 +131,7 @@ public class RandomAllocationDeciderTests extends ESAllocationTestCase {
         int iterations = 0;
         do {
             iterations++;
-            routingTable = strategy.reroute(clusterState).routingTable();
+            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
             if (clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size() > 0) {
                 routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))

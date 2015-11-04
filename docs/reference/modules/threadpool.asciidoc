@@ -44,17 +44,6 @@ There are several thread pools, but the important ones include:
     queue_size of `1000`.
 
 `snapshot`::
-<<<<<<< HEAD
-    For snapshot/restore operations. Defaults to `scaling` with a
-    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
-
-`warmer`::
-    For segment warm-up operations. Defaults to `scaling` with a
-    keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
-
-`refresh`::
-    For refresh operations. Defaults to `scaling` with a
-=======
     For snapshot/restore operations. Thread pool type is `scaling` with a
     keep-alive of `5m` and a size of `min(5, (# of available processors)/2)`.
 
@@ -64,7 +53,6 @@ There are several thread pools, but the important ones include:
 
 `refresh`::
     For refresh operations. Thread pool type is `scaling` with a
->>>>>>> 9cc2eb0... Merge pull request #14367 from jasontedor/forbid-changing-thread-pool-types
     keep-alive of `5m` and a size of `min(10, (# of available processors)/2)`.
 
 `listener`::

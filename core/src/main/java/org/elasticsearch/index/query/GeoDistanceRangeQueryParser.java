@@ -36,6 +36,8 @@ import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
 
+import static org.apache.lucene.util.GeoUtils.TOLERANCE;
+
 /**
  * <pre>
  * {
@@ -226,13 +228,13 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
         }
 
         final Query query;
-        // todo move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
+        // norelease move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
         if (parseContext.indexVersionCreated().onOrBefore(Version.V_2_2_0)) {
             query = new GeoDistanceRangeQuery(point, from, to, includeLower, includeUpper, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         } else {
             query = new GeoPointDistanceRangeQuery(indexFieldData.getFieldNames().indexName(), point.lon(), point.lat(),
-                    (includeLower) ? from : from + org.apache.lucene.util.GeoUtils.TOLERANCE,
-                    (includeUpper) ? to : to - org.apache.lucene.util.GeoUtils.TOLERANCE);
+                    (includeLower) ? from : from + TOLERANCE,
+                    (includeUpper) ? to : to - TOLERANCE);
         }
 
         if (queryName != null) {

@@ -196,7 +196,7 @@ public class GeoBoundingBoxQueryParser implements QueryParser {
         GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
         Query query;
-        // todo move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
+        // norelease move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
         if (parseContext.indexVersionCreated().after(Version.V_2_2_0)) {
             query = new GeoPointInBBoxQuery(fieldType.names().fullName(), topLeft.lon(), bottomRight.lat(), bottomRight.lon(), topLeft.lat());
         } else if ("indexed".equals(type)) {

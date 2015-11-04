@@ -28,7 +28,7 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.io.IOException;
 import java.util.List;
@@ -39,8 +39,8 @@ public class StemmerOverrideTokenFilterFactory extends AbstractTokenFilterFactor
     private final StemmerOverrideMap overrideMap;
 
     @Inject
-    public StemmerOverrideTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) throws IOException {
-        super(index, indexSettings, name, settings);
+    public StemmerOverrideTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, Environment env, @Assisted String name, @Assisted Settings settings) throws IOException {
+        super(index, indexSettingsService.getSettings(), name, settings);
 
         List<String> rules = Analysis.getWordList(env, settings, "rules");
         if (rules == null) {

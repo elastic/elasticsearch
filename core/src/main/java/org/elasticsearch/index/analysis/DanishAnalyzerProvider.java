@@ -26,18 +26,15 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
-/**
- *
- */
 public class DanishAnalyzerProvider extends AbstractIndexAnalyzerProvider<DanishAnalyzer> {
 
     private final DanishAnalyzer analyzer;
 
     @Inject
-    public DanishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public DanishAnalyzerProvider(Index index, IndexSettingsService indexSettingsService, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
         analyzer = new DanishAnalyzer(Analysis.parseStopWords(env, settings, DanishAnalyzer.getDefaultStopSet()),
                                       Analysis.parseStemExclusion(settings, CharArraySet.EMPTY_SET));
         analyzer.setVersion(version);

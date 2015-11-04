@@ -25,15 +25,15 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 public class KuromojiReadingFormFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean useRomaji;
 
     @Inject
-    public KuromojiReadingFormFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public KuromojiReadingFormFilterFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
         useRomaji = settings.getAsBoolean("use_romaji", false);
     }
 

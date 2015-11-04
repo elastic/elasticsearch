@@ -26,7 +26,7 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.io.Reader;
 import java.util.List;
@@ -39,8 +39,8 @@ public class MappingCharFilterFactory extends AbstractCharFilterFactory {
     private final NormalizeCharMap normMap;
 
     @Inject
-    public MappingCharFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+    public MappingCharFilterFactory(Index index, IndexSettingsService indexSettingsService, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name);
 
         List<String> rules = Analysis.getWordList(env, settings, "mappings");
         if (rules == null) {

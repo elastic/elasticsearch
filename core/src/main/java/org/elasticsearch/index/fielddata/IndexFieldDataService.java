@@ -37,7 +37,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
@@ -49,8 +49,6 @@ import java.util.Map;
 
 import static org.elasticsearch.index.mapper.MappedFieldType.Names;
 
-/**
- */
 public class IndexFieldDataService extends AbstractIndexComponent {
 
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
@@ -160,9 +158,9 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private IndexFieldData<?> parentIndexFieldData;
 
     @Inject
-    public IndexFieldDataService(Index index, @IndexSettings Settings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
+    public IndexFieldDataService(Index index, IndexSettingsService indexSettingsService, IndicesFieldDataCache indicesFieldDataCache,
                                  CircuitBreakerService circuitBreakerService, MapperService mapperService) {
-        super(index, indexSettings);
+        super(index, indexSettingsService.getSettings());
         this.indicesFieldDataCache = indicesFieldDataCache;
         this.circuitBreakerService = circuitBreakerService;
         this.mapperService = mapperService;
@@ -208,6 +206,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         }
         final boolean docValues = fieldType.hasDocValues();
         IndexFieldData.Builder builder = null;
+        Settings indexSettings = indexSettings();
         String format = type.getFormat(indexSettings);
         if (format != null && FieldDataType.DOC_VALUES_FORMAT_VALUE.equals(format) && !docValues) {
             logger.warn("field [" + fieldNames.fullName() + "] has no doc values, will use default field data format");

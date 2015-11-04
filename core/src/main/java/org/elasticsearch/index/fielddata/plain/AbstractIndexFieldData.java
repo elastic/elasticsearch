@@ -19,7 +19,6 @@
 
 package org.elasticsearch.index.fielddata.plain;
 
-import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.index.TermsEnum;
@@ -30,7 +29,6 @@ import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.IOException;
 
@@ -42,7 +40,7 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     protected final FieldDataType fieldDataType;
     protected final IndexFieldDataCache cache;
 
-    public AbstractIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
+    public AbstractIndexFieldData(Index index, Settings indexSettings, MappedFieldType.Names fieldNames, FieldDataType fieldDataType, IndexFieldDataCache cache) {
         super(index, indexSettings);
         this.fieldNames = fieldNames;
         this.fieldDataType = fieldDataType;

@@ -24,7 +24,6 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.*;
-import org.apache.lucene.search.Filter;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.RAMDirectory;
@@ -76,7 +75,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
-        final BuilderContext context = new BuilderContext(indexService.settingsService().getSettings(), new ContentPath(1));
+        final BuilderContext context = new BuilderContext(indexService.indexSettings(), new ContentPath(1));
         if (type.getType().equals("string")) {
             fieldType = MapperBuilders.stringField(fieldName).tokenized(false).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("float")) {

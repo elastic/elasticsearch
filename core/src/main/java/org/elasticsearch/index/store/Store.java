@@ -50,7 +50,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRefCounted;
 import org.elasticsearch.common.util.concurrent.RefCounted;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -109,12 +109,16 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         }
     };
 
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
+    public Store(ShardId shardId, Settings indexSettings, DirectoryService directoryService, ShardLock shardLock) throws IOException {
         this(shardId, indexSettings, directoryService, shardLock, OnClose.EMPTY);
     }
 
     @Inject
-    public Store(ShardId shardId, @IndexSettings Settings indexSettings, DirectoryService directoryService, ShardLock shardLock, OnClose onClose) throws IOException {
+    public Store(ShardId shardId, IndexSettingsService indexSettingsService, DirectoryService directoryService, ShardLock shardLock, OnClose onClose) throws IOException {
+        this(shardId, indexSettingsService.getSettings(), directoryService, shardLock, onClose);
+    }
+
+    public Store(ShardId shardId, Settings indexSettings, DirectoryService directoryService, ShardLock shardLock, OnClose onClose) throws IOException {
         super(shardId, indexSettings);
         this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", indexSettings, shardId));
         this.shardLock = shardLock;

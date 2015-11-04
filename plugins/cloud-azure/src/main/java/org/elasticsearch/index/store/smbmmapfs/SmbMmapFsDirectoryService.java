@@ -24,8 +24,7 @@ import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.store.SmbDirectoryWrapper;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.store.FsDirectoryService;
 import org.elasticsearch.index.store.IndexStore;
@@ -36,8 +35,8 @@ import java.nio.file.Path;
 public class SmbMmapFsDirectoryService extends FsDirectoryService {
 
     @Inject
-    public SmbMmapFsDirectoryService(@IndexSettings Settings indexSettings, IndexStore indexStore, ShardPath path) {
-        super(indexSettings, indexStore, path);
+    public SmbMmapFsDirectoryService(IndexSettingsService indexSettingsService, IndexStore indexStore, ShardPath path) {
+        super(indexSettingsService.getSettings(), indexStore, path);
     }
 
     @Override

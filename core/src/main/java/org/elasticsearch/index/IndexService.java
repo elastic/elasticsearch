@@ -45,7 +45,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.IndexQueryParserService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -78,8 +77,6 @@ import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
 public class IndexService extends AbstractIndexComponent implements IndexComponent, Iterable<IndexShard> {
 
     private final Injector injector;
-
-    private final Settings indexSettings;
 
     private final PluginsService pluginsService;
 
@@ -130,15 +127,14 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     private final AtomicBoolean deleted = new AtomicBoolean(false);
 
     @Inject
-    public IndexService(Injector injector, Index index, @IndexSettings Settings indexSettings, NodeEnvironment nodeEnv,
+    public IndexService(Injector injector, Index index, NodeEnvironment nodeEnv,
                         AnalysisService analysisService, MapperService mapperService, IndexQueryParserService queryParserService,
                         SimilarityService similarityService, IndexAliasesService aliasesService, IndexCache indexCache,
                         IndexSettingsService settingsService,
                         IndexFieldDataService indexFieldData, BitsetFilterCache bitSetFilterCache, IndicesService indicesServices) {
 
-        super(index, indexSettings);
+        super(index, settingsService.getSettings());
         this.injector = injector;
-        this.indexSettings = indexSettings;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
         this.queryParserService = queryParserService;
@@ -274,7 +270,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
     }
 
     public String indexUUID() {
-        return indexSettings.get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
+        return indexSettings().get(IndexMetaData.SETTING_INDEX_UUID, IndexMetaData.INDEX_UUID_NA_VALUE);
     }
 
     // NOTE: O(numShards) cost, but numShards should be smallish?
@@ -294,6 +290,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     public synchronized IndexShard createShard(int sShardId, ShardRouting routing) {
         final boolean primary = routing.primary();
+        final Settings indexSettings = indexSettings();
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
@@ -422,6 +419,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private void closeShardInjector(String reason, ShardId sId, Injector shardInjector, IndexShard indexShard) {
         final int shardId = sId.id();
+        final Settings indexSettings = indexSettings();
         try {
             try {
                 indicesLifecycle.beforeIndexShardClosed(sId, indexShard, indexSettings);
@@ -495,6 +493,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
 
     private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
+            final Settings indexSettings = indexSettings();
             try {
                 if (ownsShard) {
                     try {
@@ -538,8 +537,9 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    public Settings getIndexSettings() {
-        return indexSettings;
+    @Override
+    public Settings indexSettings() {
+        return settingsService.getSettings();
     }
 
     private static final class BitsetCacheListener implements BitsetFilterCache.Listener {

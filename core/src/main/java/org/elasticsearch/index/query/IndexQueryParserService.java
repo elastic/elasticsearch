@@ -39,7 +39,7 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptService;
@@ -59,6 +59,8 @@ public class IndexQueryParserService extends AbstractIndexComponent {
             return new QueryParseContext(index, IndexQueryParserService.this);
         }
     };
+
+    private final IndexSettingsService indexSettingsService;
 
     final AnalysisService analysisService;
 
@@ -82,13 +84,14 @@ public class IndexQueryParserService extends AbstractIndexComponent {
     private final boolean defaultAllowUnmappedFields;
 
     @Inject
-    public IndexQueryParserService(Index index, @IndexSettings Settings indexSettings,
+    public IndexQueryParserService(Index index, IndexSettingsService indexSettingsService,
                                    IndicesQueriesRegistry indicesQueriesRegistry,
                                    ScriptService scriptService, AnalysisService analysisService,
                                    MapperService mapperService, IndexCache indexCache, IndexFieldDataService fieldDataService,
                                    BitsetFilterCache bitsetFilterCache,
                                    @Nullable SimilarityService similarityService) {
-        super(index, indexSettings);
+        super(index, indexSettingsService.getSettings());
+        this.indexSettingsService = indexSettingsService;
         this.scriptService = scriptService;
         this.analysisService = analysisService;
         this.mapperService = mapperService;
@@ -97,6 +100,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
         this.fieldDataService = fieldDataService;
         this.bitsetFilterCache = bitsetFilterCache;
 
+        Settings indexSettings = indexSettingsService.getSettings();
         this.defaultField = indexSettings.get(DEFAULT_FIELD, AllFieldMapper.NAME);
         this.queryStringLenient = indexSettings.getAsBoolean(QUERY_STRING_LENIENT, false);
         this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
@@ -256,7 +260,7 @@ public class IndexQueryParserService extends AbstractIndexComponent {
      * @return The lowest node version in the cluster when the index was created or <code>null</code> if that was unknown
      */
     public Version getIndexCreatedVersion() {
-        return Version.indexCreated(indexSettings);
+        return Version.indexCreated(indexSettingsService.getSettings());
     }
 
     /**

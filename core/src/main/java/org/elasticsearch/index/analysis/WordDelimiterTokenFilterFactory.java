@@ -30,7 +30,7 @@ import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.util.*;
 import java.util.regex.Matcher;
@@ -45,8 +45,8 @@ public class WordDelimiterTokenFilterFactory extends AbstractTokenFilterFactory 
     private final CharArraySet protoWords;
 
     @Inject
-    public WordDelimiterTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public WordDelimiterTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
 
         // Sample Format for the type table:
         // $ => DIGIT

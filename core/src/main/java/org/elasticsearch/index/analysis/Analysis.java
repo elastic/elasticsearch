@@ -66,7 +66,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -85,7 +84,7 @@ import java.util.Set;
  */
 public class Analysis {
 
-    public static Version parseAnalysisVersion(@IndexSettings Settings indexSettings, Settings settings, ESLogger logger) {
+    public static Version parseAnalysisVersion(Settings indexSettings, Settings settings, ESLogger logger) {
         // check for explicit version on the specific analyzer component
         String sVersion = settings.get("version");
         if (sVersion != null) {

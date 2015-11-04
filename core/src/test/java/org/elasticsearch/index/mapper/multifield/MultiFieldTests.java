@@ -148,7 +148,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     @Test
     public void testBuildThenParse() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.settingsService().getSettings();
+        Settings settings = indexService.indexSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
 
         DocumentMapper builderDocMapper = doc(settings, rootObject("person").add(

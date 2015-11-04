@@ -22,16 +22,12 @@ package org.elasticsearch.index.analysis;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
-/**
- *
- */
 public abstract class AbstractCharFilterFactory extends AbstractIndexComponent implements CharFilterFactory {
 
     private final String name;
 
-    public AbstractCharFilterFactory(Index index, @IndexSettings Settings indexSettings, String name) {
+    public AbstractCharFilterFactory(Index index, Settings indexSettings, String name) {
         super(index, indexSettings);
         this.name = name;
     }

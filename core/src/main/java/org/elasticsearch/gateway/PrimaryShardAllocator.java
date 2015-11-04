@@ -31,7 +31,6 @@ import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -263,7 +262,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
      * Return {@code true} if the index is configured to allow shards to be
      * recovered on any node
      */
-    private boolean recoverOnAnyNode(@IndexSettings Settings idxSettings) {
+    private boolean recoverOnAnyNode(Settings idxSettings) {
         return IndexMetaData.isOnSharedFilesystem(idxSettings) &&
                 idxSettings.getAsBoolean(IndexMetaData.SETTING_SHARED_FS_ALLOW_RECOVERY_ON_ANY_NODE, false);
     }

@@ -67,7 +67,6 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.query.TemplateQueryParser;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
 import org.elasticsearch.index.search.stats.StatsGroupsParseElement;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesLifecycle;
 import org.elasticsearch.indices.IndicesService;
@@ -117,9 +116,6 @@ import static org.elasticsearch.common.Strings.hasLength;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 import static org.elasticsearch.common.unit.TimeValue.timeValueMinutes;
 
-/**
- *
- */
 public class SearchService extends AbstractLifecycleComponent<SearchService> {
 
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
@@ -176,7 +172,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
         this.indicesService = indicesService;
         indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
             @Override
-            public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexClosed(Index index, Settings indexSettings) {
                 // once an index is closed we can just clean up all the pending search context information
                 // to release memory and let references to the filesystem go etc.
                 IndexMetaData idxMeta = SearchService.this.clusterService.state().metaData().index(index.getName());
@@ -191,7 +187,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> {
             }
 
             @Override
-            public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexDeleted(Index index, Settings indexSettings) {
                 freeAllContextForIndex(index);
             }
         });

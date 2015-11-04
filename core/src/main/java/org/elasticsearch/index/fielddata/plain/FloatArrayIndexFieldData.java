@@ -33,7 +33,6 @@ import org.elasticsearch.index.fielddata.ordinals.Ordinals;
 import org.elasticsearch.index.fielddata.ordinals.OrdinalsBuilder;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -42,8 +41,6 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
-/**
- */
 public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumericFieldData> implements IndexNumericFieldData {
 
     private final CircuitBreakerService breakerService;
@@ -51,13 +48,13 @@ public class FloatArrayIndexFieldData extends AbstractIndexFieldData<AtomicNumer
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
+        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             return new FloatArrayIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache, breakerService);
         }
     }
 
-    public FloatArrayIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
+    public FloatArrayIndexFieldData(Index index, Settings indexSettings, MappedFieldType.Names fieldNames,
                                     FieldDataType fieldDataType, IndexFieldDataCache cache, CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
         this.breakerService = breakerService;

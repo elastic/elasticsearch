@@ -20,16 +20,16 @@
 package org.elasticsearch.index.mapper.murmur3;
 
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 public class RegisterMurmur3FieldMapper extends AbstractIndexComponent {
 
     @Inject
-    public RegisterMurmur3FieldMapper(Index index, Settings indexSettings, MapperService mapperService) {
-        super(index, indexSettings);
+    public RegisterMurmur3FieldMapper(Index index, IndexSettingsService indexSettingsService, MapperService mapperService) {
+        super(index, indexSettingsService.getSettings());
         mapperService.documentMapperParser().putTypeParser(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
     }
 

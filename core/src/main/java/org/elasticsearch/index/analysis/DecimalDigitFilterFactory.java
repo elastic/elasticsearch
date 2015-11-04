@@ -24,6 +24,7 @@ import org.apache.lucene.analysis.core.DecimalDigitFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 /**
  * Factory for {@link DecimalDigitFilter}
@@ -31,8 +32,8 @@ import org.elasticsearch.index.Index;
 public final class DecimalDigitFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject
-    public DecimalDigitFilterFactory(Index index, Settings indexSettings, String name, Settings settings) {
-        super(index, indexSettings, name, settings);
+    public DecimalDigitFilterFactory(Index index, IndexSettingsService indexSettingsService, String name, Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
     }
 
     @Override

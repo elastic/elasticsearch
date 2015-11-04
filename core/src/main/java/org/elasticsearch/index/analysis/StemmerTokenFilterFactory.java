@@ -58,24 +58,22 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.tartarus.snowball.ext.*;
 
-/**
- */
 public class StemmerTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private String language;
 
     @Inject
-    public StemmerTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public StemmerTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
         this.language = Strings.capitalize(settings.get("language", settings.get("name", "porter")));
     }
 
     @Override
     public TokenStream create(TokenStream tokenStream) {
-        final Version indexVersion = Version.indexCreated(indexSettings);
+        final Version indexVersion = Version.indexCreated(indexSettings());
 
         if ("arabic".equalsIgnoreCase(language)) {
             return new ArabicStemFilter(tokenStream);

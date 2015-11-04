@@ -29,7 +29,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesLifecycle;
@@ -75,7 +74,7 @@ public class RecoverySource extends AbstractComponent {
         this.indicesService.indicesLifecycle().addListener(new IndicesLifecycle.Listener() {
             @Override
             public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                               @IndexSettings Settings indexSettings) {
+                                               Settings indexSettings) {
                 if (indexShard != null) {
                     ongoingRecoveries.cancel(indexShard, "shard is closed");
                 }

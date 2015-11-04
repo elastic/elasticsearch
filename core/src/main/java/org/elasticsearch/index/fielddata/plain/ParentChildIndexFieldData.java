@@ -55,7 +55,6 @@ import org.elasticsearch.index.mapper.MappedFieldType.Names;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -76,7 +75,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     // while loading.
     private final Object lock = new Object();
 
-    public ParentChildIndexFieldData(Index index, @IndexSettings Settings indexSettings, MappedFieldType.Names fieldNames,
+    public ParentChildIndexFieldData(Index index, Settings indexSettings, MappedFieldType.Names fieldNames,
                                      FieldDataType fieldDataType, IndexFieldDataCache cache, MapperService mapperService,
                                      CircuitBreakerService breakerService) {
         super(index, indexSettings, fieldNames, fieldDataType, cache);
@@ -106,7 +105,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
 
     @Override
     public AtomicParentChildFieldData load(LeafReaderContext context) {
-        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_2_0_0_beta1)) {
+        if (Version.indexCreated(indexSettings()).onOrAfter(Version.V_2_0_0_beta1)) {
             final LeafReader reader = context.reader();
             return new AbstractAtomicParentChildFieldData() {
 
@@ -263,7 +262,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     public static class Builder implements IndexFieldData.Builder {
 
         @Override
-        public IndexFieldData<?> build(Index index, @IndexSettings Settings indexSettings, MappedFieldType fieldType,
+        public IndexFieldData<?> build(Index index, Settings indexSettings, MappedFieldType fieldType,
                                        IndexFieldDataCache cache, CircuitBreakerService breakerService,
                                        MapperService mapperService) {
             return new ParentChildIndexFieldData(index, indexSettings, fieldType.names(), fieldType.fieldDataType(), cache,
@@ -359,7 +358,7 @@ public class ParentChildIndexFieldData extends AbstractIndexFieldData<AtomicPare
     public IndexParentChildFieldData localGlobalDirect(DirectoryReader indexReader) throws Exception {
         final long startTime = System.nanoTime();
         final Set<String> parentTypes;
-        if (Version.indexCreated(indexSettings).before(Version.V_2_0_0_beta1)) {
+        if (Version.indexCreated(indexSettings()).before(Version.V_2_0_0_beta1)) {
             synchronized (lock) {
                 parentTypes = ImmutableSet.copyOf(this.parentTypes);
             }

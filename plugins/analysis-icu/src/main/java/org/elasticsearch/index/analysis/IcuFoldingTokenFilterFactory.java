@@ -25,11 +25,11 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
 import com.ibm.icu.text.FilteredNormalizer2;
 import com.ibm.icu.text.Normalizer2;
 import com.ibm.icu.text.UnicodeSet;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 
 /**
@@ -46,8 +46,8 @@ import com.ibm.icu.text.UnicodeSet;
 public class IcuFoldingTokenFilterFactory extends AbstractTokenFilterFactory {
     private final String unicodeSetFilter;
 
-    @Inject public IcuFoldingTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    @Inject public IcuFoldingTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
         this.unicodeSetFilter = settings.get("unicodeSetFilter");
     }
 

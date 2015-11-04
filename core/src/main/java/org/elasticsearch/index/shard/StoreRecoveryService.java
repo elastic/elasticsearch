@@ -29,13 +29,12 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.routing.RestoreSource;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.store.Store;
@@ -54,9 +53,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
-/**
- *
- */
 public class StoreRecoveryService extends AbstractIndexShardComponent implements Closeable {
 
     private final MappingUpdatedAction mappingUpdatedAction;
@@ -75,9 +71,9 @@ public class StoreRecoveryService extends AbstractIndexShardComponent implements
     private final RepositoriesService repositoriesService;
 
     @Inject
-    public StoreRecoveryService(ShardId shardId, @IndexSettings Settings indexSettings, ThreadPool threadPool,
+    public StoreRecoveryService(ShardId shardId, IndexSettingsService indexSettingsService, ThreadPool threadPool,
                                 MappingUpdatedAction mappingUpdatedAction, ClusterService clusterService, RepositoriesService repositoriesService, RestoreService restoreService) {
-        super(shardId, indexSettings);
+        super(shardId, indexSettingsService.getSettings());
         this.threadPool = threadPool;
         this.mappingUpdatedAction = mappingUpdatedAction;
         this.restoreService = restoreService;

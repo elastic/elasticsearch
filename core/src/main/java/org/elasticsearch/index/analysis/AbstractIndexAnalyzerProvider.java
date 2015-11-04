@@ -24,11 +24,7 @@ import org.apache.lucene.util.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 
-/**
- *
- */
 public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends AbstractIndexComponent implements AnalyzerProvider<T> {
 
     private final String name;
@@ -42,7 +38,7 @@ public abstract class AbstractIndexAnalyzerProvider<T extends Analyzer> extends 
      * @param indexSettings The index settings
      * @param name          The analyzer name
      */
-    public AbstractIndexAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, String name, Settings settings) {
+    public AbstractIndexAnalyzerProvider(Index index, Settings indexSettings, String name, Settings settings) {
         super(index, indexSettings);
         this.name = name;
         this.version = Analysis.parseAnalysisVersion(indexSettings, settings, logger);

@@ -24,8 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -42,8 +41,8 @@ import java.util.concurrent.TimeUnit;
 public class ShardPercolateService extends AbstractIndexShardComponent {
 
     @Inject
-    public ShardPercolateService(ShardId shardId, @IndexSettings Settings indexSettings) {
-        super(shardId, indexSettings);
+    public ShardPercolateService(ShardId shardId, IndexSettingsService indexSettingsService) {
+        super(shardId, indexSettingsService.getSettings());
     }
 
     private final MeanMetric percolateMetric = new MeanMetric();

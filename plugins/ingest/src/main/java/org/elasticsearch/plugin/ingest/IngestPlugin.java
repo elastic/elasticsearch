@@ -20,7 +20,6 @@
 
 package org.elasticsearch.plugin.ingest;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.transport.TransportClient;
@@ -30,6 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.ingest.rest.RestDeletePipelineAction;
 import org.elasticsearch.plugin.ingest.rest.RestGetPipelineAction;
 import org.elasticsearch.plugin.ingest.rest.RestPutPipelineAction;
+import org.elasticsearch.plugin.ingest.rest.RestSimulatePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.IngestActionFilter;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineTransportAction;
@@ -37,11 +37,11 @@ import org.elasticsearch.plugin.ingest.transport.get.GetPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineTransportAction;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineTransportAction;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineTransportAction;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -105,11 +105,13 @@ public class IngestPlugin extends Plugin {
         module.registerAction(PutPipelineAction.INSTANCE, PutPipelineTransportAction.class);
         module.registerAction(GetPipelineAction.INSTANCE, GetPipelineTransportAction.class);
         module.registerAction(DeletePipelineAction.INSTANCE, DeletePipelineTransportAction.class);
+        module.registerAction(SimulatePipelineAction.INSTANCE, SimulatePipelineTransportAction.class);
     }
 
     public void onModule(RestModule restModule) {
         restModule.addRestAction(RestPutPipelineAction.class);
         restModule.addRestAction(RestGetPipelineAction.class);
         restModule.addRestAction(RestDeletePipelineAction.class);
+        restModule.addRestAction(RestSimulatePipelineAction.class);
     }
 }

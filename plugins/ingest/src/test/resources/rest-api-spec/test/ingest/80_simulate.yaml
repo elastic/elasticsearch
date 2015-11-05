@@ -1,0 +1,51 @@
+---
+"Test simulate with stored ingest pipeline":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "simple" : {
+                  "path" : "field1",
+                  "expected_value" : "_value",
+                  "add_field" : "field2",
+                  "add_field_value" : "_value"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+

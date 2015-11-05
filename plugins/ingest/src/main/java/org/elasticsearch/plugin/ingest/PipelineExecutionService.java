@@ -25,7 +25,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.threadpool.ThreadPool;
+
+import java.util.Map;
 
 public class PipelineExecutionService {
 
@@ -40,13 +43,29 @@ public class PipelineExecutionService {
         this.threadPool = threadPool;
     }
 
-    public void execute(Data data, String pipelineId, Listener listener) {
+    public Pipeline getPipeline(String pipelineId) {
         Pipeline pipeline = store.get(pipelineId);
+
         if (pipeline == null) {
-            listener.failed(new IllegalArgumentException(LoggerMessageFormat.format("pipeline with id [{}] does not exist", pipelineId)));
-            return;
+            throw new IllegalArgumentException(LoggerMessageFormat.format("pipeline with id [{}] does not exist", pipelineId));
         }
 
+        return pipeline;
+    }
+
+    public Map<String, Processor.Factory> getProcessorFactoryRegistry() {
+        return store.getProcessorFactoryRegistry();
+    }
+
+    public void execute(Data data, String pipelineId, Listener listener) {
+        try {
+            execute(data, getPipeline(pipelineId), listener);
+        } catch (IllegalArgumentException e) {
+            listener.failed(e);
+        }
+    }
+
+    public void execute(Data data, Pipeline pipeline, Listener listener) {
         threadPool.executor(THREAD_POOL_NAME).execute(new Runnable() {
             @Override
             public void run() {

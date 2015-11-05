@@ -39,6 +39,7 @@ public class IngestModule extends AbstractModule {
     protected void configure() {
         binder().bind(IngestRestFilter.class).asEagerSingleton();
         binder().bind(PipelineExecutionService.class).asEagerSingleton();
+        // TODO(talevy): write it! binder().bind(PipelineSimulateService.class).asEagerSingleton();
         binder().bind(PipelineStore.class).asEagerSingleton();
         binder().bind(PipelineStoreClient.class).asEagerSingleton();
 

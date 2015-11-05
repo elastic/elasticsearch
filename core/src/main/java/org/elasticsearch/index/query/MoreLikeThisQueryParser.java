@@ -46,6 +46,7 @@ public class MoreLikeThisQueryParser implements QueryParser<MoreLikeThisQueryBui
         ParseField MIN_TERM_FREQ = new ParseField("min_term_freq");
         ParseField MIN_DOC_FREQ = new ParseField("min_doc_freq");
         ParseField MAX_DOC_FREQ = new ParseField("max_doc_freq");
+        ParseField MAX_DOC_FREQ_PCT = new ParseField("max_doc_freq_pct");
         ParseField MIN_WORD_LENGTH = new ParseField("min_word_length", "min_word_len");
         ParseField MAX_WORD_LENGTH = new ParseField("max_word_length", "max_word_len");
         ParseField STOP_WORDS = new ParseField("stop_words");
@@ -77,6 +78,7 @@ public class MoreLikeThisQueryParser implements QueryParser<MoreLikeThisQueryBui
         int minTermFreq = MoreLikeThisQueryBuilder.DEFAULT_MIN_TERM_FREQ;
         int minDocFreq = MoreLikeThisQueryBuilder.DEFAULT_MIN_DOC_FREQ;
         int maxDocFreq = MoreLikeThisQueryBuilder.DEFAULT_MAX_DOC_FREQ;
+        int maxDocFreqPct = MoreLikeThisQueryBuilder.DEFAULT_MAX_DOC_FREQ_PCT;
         int minWordLength = MoreLikeThisQueryBuilder.DEFAULT_MIN_WORD_LENGTH;
         int maxWordLength = MoreLikeThisQueryBuilder.DEFAULT_MAX_WORD_LENGTH;
         List<String> stopWords = null;
@@ -107,11 +109,13 @@ public class MoreLikeThisQueryParser implements QueryParser<MoreLikeThisQueryBui
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MAX_QUERY_TERMS)) {
                     maxQueryTerms = parser.intValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MIN_TERM_FREQ)) {
-                    minTermFreq =parser.intValue();
+                    minTermFreq = parser.intValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MIN_DOC_FREQ)) {
                     minDocFreq = parser.intValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MAX_DOC_FREQ)) {
                     maxDocFreq = parser.intValue();
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MAX_DOC_FREQ_PCT)) {
+                    maxDocFreqPct = parser.intValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MIN_WORD_LENGTH)) {
                     minWordLength = parser.intValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Field.MAX_WORD_LENGTH)) {
@@ -200,6 +204,7 @@ public class MoreLikeThisQueryParser implements QueryParser<MoreLikeThisQueryBui
                 .minTermFreq(minTermFreq)
                 .minDocFreq(minDocFreq)
                 .maxDocFreq(maxDocFreq)
+                .maxDocFreqPct(maxDocFreqPct)
                 .minWordLength(minWordLength)
                 .maxWordLength(maxWordLength)
                 .analyzer(analyzer)

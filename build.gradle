@@ -97,13 +97,14 @@ allprojects {
       randomizedrunner:   '2.2.0',
       httpclient:         '4.3.6'
     ]
+
+    // for eclipse hacks...
+    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 }
 
 subprojects {
   repositories {
-    // Uncomment the following line to first resolve against the maven local repo. This is useful for eclipse users who want to work on test-framework.
-    // mavenLocal()
     mavenCentral()
     maven {
       name 'sonatype-snapshots'
@@ -137,12 +138,7 @@ subprojects {
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
           substitute module("org.elasticsearch:elasticsearch:${version}") with project("${projectsPrefix}:core")
-          // so that eclipse doesn't have circular references
-          // the downside is, if you hack on test-framework, you have to gradle install
-          // the first prop detects eclipse itself, the second detects eclipse from commandline
-          if (System.getProperty("eclipse.launcher") == null && gradle.startParameter.taskNames.contains('eclipse') == false) {
-            substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
-          }
+          substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
           substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project("${projectsPrefix}:distribution:zip")
           substitute module("org.elasticsearch.distribution.tar:elasticsearch:${version}") with project("${projectsPrefix}:distribution:tar")
         }

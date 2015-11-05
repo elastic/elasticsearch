@@ -115,7 +115,7 @@ Let's download the Elasticsearch {version} tar as follows (Windows users should 
 
 ["source","sh",subs="attributes,callouts"]
 --------------------------------------------------
-curl -L -O https://download.elastic.co/elasticsearch/elasticsearch/elasticsearch-{version}.tar.gz
+curl -L -O https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/{version}/elasticsearch-{version}.tar.gz
 --------------------------------------------------
 
 Then extract it as follows (Windows users should unzip the zip package):
@@ -1072,4 +1072,3 @@ There are a many other aggregations capabilities that we won't go into detail he
 == Conclusion
 
 Elasticsearch is both a simple and complex product. We've so far learned the basics of what it is, how to look inside of it, and how to work with it using some of the REST APIs. I hope that this tutorial has given you a better understanding of what Elasticsearch is and more importantly, inspired you to further experiment with the rest of its great features!
-

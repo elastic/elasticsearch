@@ -36,7 +36,7 @@
         index: test
         type: test
         id: 1
-        ingest: "my_pipeline"
+        pipeline_id: "my_pipeline"
         body: {field1: "_value"}
 
   - do:
@@ -49,7 +49,7 @@
 
   - do:
       ingest.bulk:
-        ingest: "my_pipeline"
+        pipeline_id: "my_pipeline"
         body:
           - '{ "index": { "_index": "test", "_type": "test", "_id": "2" } }'
           - '{ "field1": "_value" }'

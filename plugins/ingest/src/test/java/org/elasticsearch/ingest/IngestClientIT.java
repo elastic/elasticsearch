@@ -91,7 +91,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertAcked(putMappingResponse);
 
         client().prepareIndex("test", "type", "1").setSource("field1", "123.42 400 <foo>")
-                .putHeader("ingest", "_id")
+                .putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id")
                 .get();
 
         assertBusy(new Runnable() {
@@ -107,7 +107,7 @@ public class IngestClientIT extends ESIntegTestCase {
 
         client().prepareBulk().add(
                 client().prepareIndex("test", "type", "2").setSource("field1", "123.42 400 <foo>")
-        ).putHeader("ingest", "_id").get();
+        ).putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id").get();
         assertBusy(new Runnable() {
             @Override
             public void run() {

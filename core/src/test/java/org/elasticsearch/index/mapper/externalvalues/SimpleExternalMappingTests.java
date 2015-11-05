@@ -35,8 +35,8 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         MapperService mapperService = createIndex("test").mapperService();
         mapperService.documentMapperParser().putRootTypeParser(ExternalMetadataMapper.CONTENT_TYPE,
                 new ExternalMetadataMapper.TypeParser());
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
+        mapperService.documentMapperParser().putTypeParser(ExternalMapperPlugin.EXTERNAL,
+                new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -71,13 +71,13 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
 
     public void testExternalValuesWithMultifield() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
+        mapperService.documentMapperParser().putTypeParser(ExternalMapperPlugin.EXTERNAL,
+                new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
-                    .field("type", RegisterExternalTypes.EXTERNAL)
+                    .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
                             .field("type", "string")
@@ -119,21 +119,21 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
         MapperService mapperService = createIndex("test").mapperService();
 
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL_BIS,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL_BIS, "bar"));
+        mapperService.documentMapperParser().putTypeParser(ExternalMapperPlugin.EXTERNAL,
+                new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
+        mapperService.documentMapperParser().putTypeParser(ExternalMapperPlugin.EXTERNAL_BIS,
+                new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL_BIS, "bar"));
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
-                    .field("type", RegisterExternalTypes.EXTERNAL)
+                    .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
                             .field("type", "string")
                             .startObject("fields")
                                 .startObject("generated")
-                                    .field("type", RegisterExternalTypes.EXTERNAL_BIS)
+                                    .field("type", ExternalMapperPlugin.EXTERNAL_BIS)
                                 .endObject()
                                 .startObject("raw")
                                     .field("type", "string")

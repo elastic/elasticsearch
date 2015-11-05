@@ -24,7 +24,7 @@ import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -65,19 +65,19 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.*;
 import org.elasticsearch.script.Script.ScriptParseException;
@@ -167,6 +167,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Settings settings = Settings.settingsBuilder()
                 .put("name", AbstractQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
                 .build();
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -226,16 +227,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        try {
-                            bind(AnalysisService.class).toInstance(new AnalysisRegistry(null, new Environment(settings)).build(idxSettings));
-                        } catch (IOException e) {
-                            throw new ElasticsearchException(e);
-                        }
-                        SimilarityService service = new SimilarityService(idxSettings, Collections.emptyMap());
-                        bind(SimilarityService.class).toInstance(service);
-                        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));
-                        bind(BitsetFilterCache.class).toInstance(bitsetFilterCache);
-                        bind(IndexCache.class).toInstance(new IndexCache(idxSettings, new NoneQueryCache(idxSettings), bitsetFilterCache));
                         bind(Client.class).toInstance(proxy);
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ScoreFunctionParserMapper.class).asEagerSingleton();
@@ -245,11 +236,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     }
                 }
         ).createInjector();
-        SimilarityService similarityService = injector.getInstance(SimilarityService.class);
-        indexFieldDataService = injector.getInstance(IndexFieldDataService.class);
+        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
         ScriptService scriptService = injector.getInstance(ScriptService.class);
-        MapperService mapperService = injector.getInstance(MapperService.class);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));
+        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService);
+        indexFieldDataService = new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null), new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
         indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
         queryShardContext = new QueryShardContext(idxSettings, proxy, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
         //create some random type with some default field, those types will stick around for all of the subclasses

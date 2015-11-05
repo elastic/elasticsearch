@@ -22,9 +22,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -54,7 +53,7 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         public MockController(Settings settings) {
             super(Settings.builder()
                             .put(SHARD_INACTIVE_INTERVAL_TIME_SETTING, "200h") // disable it
-                            .put(SHARD_INACTIVE_TIME_SETTING, "1ms") // nearly immediate
+                            .put(IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "1ms") // nearly immediate
                             .put(settings)
                             .build(),
                     null, null, 100 * 1024 * 1024); // fix jvm mem size to 100mb
@@ -102,11 +101,12 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         }
 
         @Override
-        protected Boolean checkIdle(ShardId shardId, long inactiveTimeNS) {
+        protected Boolean checkIdle(ShardId shardId) {
+            final TimeValue inactiveTime = settings.getAsTime(IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5));
             Long ns = lastIndexTimeNanos.get(shardId);
             if (ns == null) {
                 return null;
-            } else if (currentTimeInNanos() - ns >= inactiveTimeNS) {
+            } else if (currentTimeInNanos() - ns >= inactiveTime.nanos()) {
                 indexingBuffers.put(shardId, INACTIVE);
                 translogBuffers.put(shardId, INACTIVE);
                 activeShards.remove(shardId);
@@ -165,7 +165,7 @@ public class IndexingMemoryControllerTests extends ESTestCase {
         MockController controller = new MockController(Settings.builder()
                 .put(IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "10mb")
                 .put(IndexingMemoryController.TRANSLOG_BUFFER_SIZE_SETTING, "100kb")
-                .put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "5s")
+                .put(IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "5s")
                 .build());
 
         final ShardId shard1 = new ShardId("test", 1);

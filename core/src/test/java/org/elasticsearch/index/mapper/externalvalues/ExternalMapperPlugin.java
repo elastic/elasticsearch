@@ -19,14 +19,19 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
-import java.util.Collections;
+import java.io.Closeable;
+import java.util.List;
 
 public class ExternalMapperPlugin extends Plugin {
+
+    public static final String EXTERNAL = "external";
+    public static final String EXTERNAL_BIS = "external_bis";
+    public static final String EXTERNAL_UPPER = "external_upper";
+
     @Override
     public String name() {
         return "external-mappers";
@@ -38,7 +43,11 @@ public class ExternalMapperPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> indexModules(Settings indexSettings) {
-        return Collections.<Module>singletonList(new ExternalIndexModule());
+    public void onIndexService(IndexService indexService) {
+        final MapperService mapperService = indexService.mapperService();
+        mapperService.documentMapperParser().putRootTypeParser(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser());
+        mapperService.documentMapperParser().putTypeParser(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
+        mapperService.documentMapperParser().putTypeParser(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
+        mapperService.documentMapperParser().putTypeParser(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
     }
 }

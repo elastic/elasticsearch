@@ -43,7 +43,6 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Booleans;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
@@ -61,8 +60,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.gateway.MetaDataStateFormat;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexServicesProvider;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.ShardBitsetFilterCache;
@@ -154,7 +152,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndicesQueryCache indicesQueryCache;
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
-    private final IndexServicesProvider provider;
+    private final NodeServicesProvider provider;
 
     private TimeValue refreshInterval;
 
@@ -186,7 +184,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS = "index.translog.flush_threshold_ops";
     public static final String INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE = "index.translog.flush_threshold_size";
     public static final String INDEX_TRANSLOG_DISABLE_FLUSH = "index.translog.disable_flush";
-
+    /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
+    public static final String INDEX_SHARD_INACTIVE_TIME_SETTING = "index.shard.inactive_time";
+    private static final String INDICES_INACTIVE_TIME_SETTING = "indices.memory.shard_inactive_time";
 
     private final ShardPath path;
 
@@ -195,29 +195,31 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final EnumSet<IndexShardState> readAllowedStates = EnumSet.of(IndexShardState.STARTED, IndexShardState.RELOCATED, IndexShardState.POST_RECOVERY);
 
     private final IndexSearcherWrapper searcherWrapper;
+    private final TimeValue inactiveTime;
 
     /** True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
      *  IndexingMemoryController}). */
     private final AtomicBoolean active = new AtomicBoolean();
 
-    private final IndexingMemoryController indexingMemoryController;
-
-    @Inject
-    public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexSearcherWrapper indexSearcherWrapper, IndexServicesProvider provider) {
+    public IndexShard(ShardId shardId, IndexSettings indexSettings, ShardPath path, Store store, IndexCache indexCache,
+                      MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
+                      @Nullable EngineFactory engineFactory,
+                      IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, NodeServicesProvider provider) {
         super(shardId, indexSettings);
+        this.inactiveTime = this.indexSettings.getAsTime(INDEX_SHARD_INACTIVE_TIME_SETTING, this.indexSettings.getAsTime(INDICES_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5)));
         this.idxSettings = indexSettings;
-        this.codecService = provider.getCodecService();
+        this.codecService = new CodecService(mapperService, logger);
         this.warmer = provider.getWarmer();
         this.deletionPolicy = new SnapshotDeletionPolicy(new KeepOnlyLastCommitDeletionPolicy());
-        this.similarityService = provider.getSimilarityService();
+        this.similarityService = similarityService;
         Objects.requireNonNull(store, "Store must be provided to the index shard");
-        this.engineFactory = provider.getFactory();
+        this.engineFactory = engineFactory == null ? new InternalEngineFactory() : engineFactory;
         this.store = store;
-        this.indexEventListener = provider.getIndexEventListener();
+        this.indexEventListener = indexEventListener;
         this.mergeSchedulerConfig = new MergeSchedulerConfig(this.indexSettings);
         this.threadPool = provider.getThreadPool();
-        this.mapperService = provider.getMapperService();
-        this.indexCache = provider.getIndexCache();
+        this.mapperService = mapperService;
+        this.indexCache = indexCache;
         this.indexingService = new ShardIndexingService(shardId, indexSettings);
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.termVectorsService =  provider.getTermVectorsService();
@@ -226,7 +228,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.indicesQueryCache =  provider.getIndicesQueryCache();
         this.shardQueryCache = new ShardRequestCache(shardId, indexSettings);
         this.shardFieldData = new ShardFieldData();
-        this.indexFieldDataService =  provider.getIndexFieldDataService();
+        this.indexFieldDataService = indexFieldDataService;
         this.shardBitsetFilterCache = new ShardBitsetFilterCache(shardId, indexSettings);
         state = IndexShardState.CREATED;
         this.refreshInterval = this.indexSettings.getAsTime(INDEX_REFRESH_INTERVAL, EngineConfig.DEFAULT_REFRESH_INTERVAL);
@@ -234,7 +236,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.path = path;
         this.mergePolicyConfig = new MergePolicyConfig(logger, this.indexSettings);
         /* create engine config */
-
         logger.debug("state: [CREATED]");
 
         this.checkIndexOnStartup = this.indexSettings.get("index.shard.check_on_startup", "false");
@@ -249,7 +250,6 @@ public class IndexShard extends AbstractIndexShardComponent {
             cachingPolicy = new UsageTrackingQueryCachingPolicy();
         }
 
-        this.indexingMemoryController = provider.getIndexingMemoryController();
         this.engineConfig = newEngineConfig(translogConfig, cachingPolicy);
         this.flushThresholdOperations = this.indexSettings.getAsInt(INDEX_TRANSLOG_FLUSH_THRESHOLD_OPS, this.indexSettings.getAsInt("index.translog.flush_threshold", Integer.MAX_VALUE));
         this.flushThresholdSize = this.indexSettings.getAsBytesSize(INDEX_TRANSLOG_FLUSH_THRESHOLD_SIZE, new ByteSizeValue(512, ByteSizeUnit.MB));
@@ -919,10 +919,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** Records timestamp of the last write operation, possibly switching {@code active} to true if we were inactive. */
     private void markLastWrite() {
         if (active.getAndSet(true) == false) {
-            // We are currently inactive, but a new write operation just showed up, so we now notify IMC
-            // to wake up and fix our indexing buffer.  We could do this async instead, but cost should
-            // be low, and it's rare this happens.
-            indexingMemoryController.forceCheck();
+            indexEventListener.onShardActive(this);
         }
     }
 
@@ -1036,9 +1033,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
      *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
      *  if the shard is inactive. */
-    public boolean checkIdle(long inactiveTimeNS) {
+    public boolean checkIdle() {
         Engine engineOrNull = getEngineOrNull();
-        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
+        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTime.nanos()) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);
@@ -1051,7 +1048,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /** Returns {@code true} if this shard is active (has seen indexing ops in the last {@link
-     *  IndexingMemoryController#SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}. */
+     *  IndexShard#INDEX_SHARD_INACTIVE_TIME_SETTING} (default 5 minutes), else {@code false}. */
     public boolean getActive() {
         return active.get();
     }
@@ -1238,6 +1235,10 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public IndexEventListener getIndexEventListener() {
         return indexEventListener;
+    }
+
+    public TimeValue getInactiveTime() {
+        return inactiveTime;
     }
 
     class EngineRefresher implements Runnable {
@@ -1469,7 +1470,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         final Engine.Warmer engineWarmer = (searcher, toLevel) -> warmer.warm(searcher, this, idxSettings, toLevel);
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
-                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig, indexingMemoryController.getInactiveTime());
+                mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer, indexCache.query(), cachingPolicy, translogConfig, inactiveTime);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {
@@ -1619,6 +1620,10 @@ public class IndexShard extends AbstractIndexShardComponent {
      */
     public QueryShardContext getQueryShardContext() {
         return queryShardContextCache.get();
+    }
+
+    EngineFactory getEngineFactory() {
+        return engineFactory;
     }
 
 }

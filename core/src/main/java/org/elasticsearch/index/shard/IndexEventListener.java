@@ -90,6 +90,13 @@ public interface IndexEventListener {
     default void onShardInactive(IndexShard indexShard) {}
 
     /**
+     * Called when a shard is marked as active ie. was previously inactive and is now active again.
+     *
+     * @param indexShard The shard that was marked active
+     */
+    default void onShardActive(IndexShard indexShard) {}
+
+    /**
      * Called before the index gets created. Note that this is also called
      * when the index is created on data nodes
      */

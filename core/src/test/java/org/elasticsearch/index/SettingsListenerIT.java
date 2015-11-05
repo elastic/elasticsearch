@@ -65,7 +65,8 @@ public class SettingsListenerIT extends ESIntegTestCase {
             clusterModule.registerIndexDynamicSetting("index.test.new.setting", Validator.INTEGER);
         }
 
-        public void onModule(IndexModule module) {
+        @Override
+        public void onIndexModule(IndexModule module) {
             if (module.getIndex().getName().equals("test")) { // only for the test index
                 module.addIndexSettingsListener(service);
                 service.accept(module.getSettings());

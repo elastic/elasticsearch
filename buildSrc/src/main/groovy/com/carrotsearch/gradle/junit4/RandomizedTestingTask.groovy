@@ -61,6 +61,11 @@ class RandomizedTestingTask extends DefaultTask {
     ListenersConfiguration listenersConfig = new ListenersConfiguration(task: this)
 
     List<String> jvmArgs = new ArrayList<>()
+
+    @Optional
+    @Input
+    String argLine = null
+
     Map<String, String> systemProperties = new HashMap<>()
     PatternFilterable patternSet = new PatternSet()
 
@@ -192,6 +197,9 @@ class RandomizedTestingTask extends DefaultTask {
             }
             for (String arg : jvmArgs) {
                 jvmarg(value: arg)
+            }
+            if (argLine != null) {
+                jvmarg(line: argLine)
             }
             fileset(dir: testClassesDir) {
                 for (String includePattern : patternSet.getIncludes()) {

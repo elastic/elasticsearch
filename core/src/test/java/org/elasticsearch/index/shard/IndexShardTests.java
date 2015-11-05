@@ -329,13 +329,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(0, indexShard.getOperationsCount());
     }
 
-    @AwaitsFix(bugUrl = "simonw is working on a fix")
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "0s"));
-        client().prepareIndex("test", "test").setSource("{}").get();
         ensureGreen("test");
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
+        client().prepareIndex("test", "test").setSource("{}").get();// make the shard active...
         Boolean result = indicesService.indexService("test").getShardOrNull(0).checkIdle();
         assertEquals(Boolean.TRUE, result);
         assertBusy(() -> {

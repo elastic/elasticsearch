@@ -331,6 +331,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     }
 
     @TestLogging("indices.flush:TRACE,index.shard:TRACE,index.engine:TRACE")
+    @AwaitsFix(bugUrl = "simonw is working on this")
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "0s"));

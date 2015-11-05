@@ -29,7 +29,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 public class GeometryCollectionBuilder extends ShapeBuilder {
-    
+
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
 
     protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
@@ -46,42 +46,42 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         this.shapes.add(shape);
         return this;
     }
-    
+
     public GeometryCollectionBuilder point(PointBuilder point) {
         this.shapes.add(point);
         return this;
     }
-    
+
     public GeometryCollectionBuilder multiPoint(MultiPointBuilder multiPoint) {
         this.shapes.add(multiPoint);
         return this;
     }
-    
-    public GeometryCollectionBuilder line(BaseLineStringBuilder<?> line) {
+
+    public GeometryCollectionBuilder line(BaseLineStringBuilder line) {
         this.shapes.add(line);
         return this;
     }
-    
+
     public GeometryCollectionBuilder multiLine(MultiLineStringBuilder multiLine) {
         this.shapes.add(multiLine);
         return this;
     }
-    
+
     public GeometryCollectionBuilder polygon(BasePolygonBuilder<?> polygon) {
         this.shapes.add(polygon);
         return this;
     }
-    
+
     public GeometryCollectionBuilder multiPolygon(MultiPolygonBuilder multiPolygon) {
         this.shapes.add(multiPolygon);
         return this;
     }
-    
+
     public GeometryCollectionBuilder envelope(EnvelopeBuilder envelope) {
         this.shapes.add(envelope);
         return this;
     }
-    
+
     public GeometryCollectionBuilder circle(CircleBuilder circle) {
         this.shapes.add(circle);
         return this;
@@ -120,11 +120,11 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     public Shape build() {
 
         List<Shape> shapes = new ArrayList<>(this.shapes.size());
-        
+
         for (ShapeBuilder shape : this.shapes) {
             shapes.add(shape.build());
         }
-            
+
         if (shapes.size() == 1)
             return shapes.get(0);
         else

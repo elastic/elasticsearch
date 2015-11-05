@@ -34,9 +34,9 @@ public class MultiLineStringBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
-    private final ArrayList<BaseLineStringBuilder<?>> lines = new ArrayList<>();
+    private final ArrayList<LineStringBuilder> lines = new ArrayList<>();
 
-    public MultiLineStringBuilder linestring(BaseLineStringBuilder<?> line) {
+    public MultiLineStringBuilder linestring(LineStringBuilder line) {
         this.lines.add(line);
         return this;
     }
@@ -60,7 +60,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         builder.field(FIELD_TYPE, TYPE.shapename);
         builder.field(FIELD_COORDINATES);
         builder.startArray();
-        for(BaseLineStringBuilder<?> line : lines) {
+        for(BaseLineStringBuilder line : lines) {
             line.coordinatesToXcontent(builder, false);
         }
         builder.endArray();
@@ -73,7 +73,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         final Geometry geometry;
         if(wrapdateline) {
             ArrayList<LineString> parts = new ArrayList<>();
-            for (BaseLineStringBuilder<?> line : lines) {
+            for (BaseLineStringBuilder line : lines) {
                 BaseLineStringBuilder.decompose(FACTORY, line.coordinates(false), parts);
             }
             if(parts.size() == 1) {
@@ -84,7 +84,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
             }
         } else {
             LineString[] lineStrings = new LineString[lines.size()];
-            Iterator<BaseLineStringBuilder<?>> iterator = lines.iterator();
+            Iterator<LineStringBuilder> iterator = lines.iterator();
             for (int i = 0; iterator.hasNext(); i++) {
                 lineStrings[i] = FACTORY.createLineString(iterator.next().coordinates(false));
             }

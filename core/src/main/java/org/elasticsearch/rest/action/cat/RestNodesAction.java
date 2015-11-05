@@ -245,7 +245,7 @@ public class RestNodesAction extends AbstractCatAction {
             }
 
             table.addCell(node.getVersion().number());
-            table.addCell(info == null ? null : info.getBuild().hashShort());
+            table.addCell(info == null ? null : info.getBuild().shortHash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());
             table.addCell(fsInfo == null ? null : fsInfo.getTotal().getAvailable());
             table.addCell(jvmStats == null ? null : jvmStats.getMem().getHeapUsed());

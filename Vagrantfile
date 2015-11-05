@@ -251,10 +251,10 @@ def provision(config,
       rm -rf /tmp/bats
     }
     cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
-export ZIP=/elasticsearch/distribution/zip/build/releases
-export TAR=/elasticsearch/distribution/tar/build/releases
-export RPM=/elasticsearch/distribution/rpm/build/releases
-export DEB=/elasticsearch/distribution/deb/build/releases
+export ZIP=/elasticsearch/distribution/zip/build/distributions
+export TAR=/elasticsearch/distribution/tar/build/distributions
+export RPM=/elasticsearch/distribution/rpm/build/distributions
+export DEB=/elasticsearch/distribution/deb/build/distributions
 export TESTROOT=/elasticsearch/qa/vagrant/build/testroot
 export BATS=/elasticsearch/qa/vagrant/src/test/resources/packaging/scripts
 VARS

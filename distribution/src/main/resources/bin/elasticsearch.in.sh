@@ -10,13 +10,13 @@ EOF
     exit 1
 fi
 
-ES_CLASSPATH="$ES_HOME/lib/${project.build.finalName}.jar:$ES_HOME/lib/*"
+ES_CLASSPATH="$ES_HOME/lib/elasticsearch-${project.version}.jar:$ES_HOME/lib/*"
 
 if [ "x$ES_MIN_MEM" = "x" ]; then
-    ES_MIN_MEM=${packaging.elasticsearch.heap.min}
+    ES_MIN_MEM=${heap.min}
 fi
 if [ "x$ES_MAX_MEM" = "x" ]; then
-    ES_MAX_MEM=${packaging.elasticsearch.heap.max}
+    ES_MAX_MEM=${heap.max}
 fi
 if [ "x$ES_HEAP_SIZE" != "x" ]; then
     ES_MIN_MEM=$ES_HEAP_SIZE

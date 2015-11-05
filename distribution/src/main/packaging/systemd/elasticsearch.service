@@ -5,21 +5,21 @@ Wants=network-online.target
 After=network-online.target
 
 [Service]
-Environment=ES_HOME=${packaging.elasticsearch.home.dir}
-Environment=CONF_DIR=${packaging.elasticsearch.conf.dir}
-Environment=DATA_DIR=${packaging.elasticsearch.data.dir}
-Environment=LOG_DIR=${packaging.elasticsearch.log.dir}
-Environment=PID_DIR=${packaging.elasticsearch.pid.dir}
-EnvironmentFile=-${packaging.env.file}
+Environment=ES_HOME=/usr/share/elasticsearch
+Environment=CONF_DIR=${path.conf}
+Environment=DATA_DIR=/var/lib/elasticsearch
+Environment=LOG_DIR=/var/log/elasticsearch
+Environment=PID_DIR=/var/run/elasticsearch
+EnvironmentFile=-${path.env}
 
-WorkingDirectory=${packaging.elasticsearch.home.dir}
+WorkingDirectory=/usr/share/elasticsearch
 
-User=${packaging.elasticsearch.user}
-Group=${packaging.elasticsearch.group}
+User=elasticsearch
+Group=elasticsearch
 
-ExecStartPre=${packaging.elasticsearch.bin.dir}/elasticsearch-systemd-pre-exec
+ExecStartPre=/usr/share/elasticsearch/bin/elasticsearch-systemd-pre-exec
 
-ExecStart=${packaging.elasticsearch.bin.dir}/elasticsearch \
+ExecStart=/usr/share/elasticsearch/bin/elasticsearch \
                                                 -Des.pidfile=${PID_DIR}/elasticsearch.pid \
                                                 -Des.default.path.home=${ES_HOME} \
                                                 -Des.default.path.logs=${LOG_DIR} \
@@ -33,11 +33,11 @@ StandardOutput=null
 StandardError=journal
 
 # Specifies the maximum file descriptor number that can be opened by this process
-LimitNOFILE=${packaging.os.max.open.files}
+LimitNOFILE=65535
 
 # Specifies the maximum number of bytes of memory that may be locked into RAM
 # Set to "infinity" if you use the 'bootstrap.mlockall: true' option
-# in elasticsearch.yml and 'MAX_LOCKED_MEMORY=unlimited' in ${packaging.env.file}
+# in elasticsearch.yml and 'MAX_LOCKED_MEMORY=unlimited' in ${path.env}
 #LimitMEMLOCK=infinity
 
 # Disable timeout logic and wait until process is stopped
@@ -55,4 +55,4 @@ SuccessExitStatus=143
 [Install]
 WantedBy=multi-user.target
 
-# Built for ${project.name}-${project.version} (${packaging.type})
+# Built for ${project.name}-${project.version} (${project.name})

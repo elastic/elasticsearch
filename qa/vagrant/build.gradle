@@ -19,30 +19,43 @@
 
 import org.elasticsearch.gradle.vagrant.VagrantCommandTask
 import org.elasticsearch.gradle.vagrant.BatsOverVagrantTask
+import org.elasticsearch.gradle.FileContentsTask
 import org.gradle.api.InvalidUserDataException
 
-def testScripts = '2*.bats' // Once the rpm and deb are build this should be *.bats
-def testCommand = "cd \$TESTROOT && sudo bats --tap \$BATS/$testScripts"
-def smokeTestCommand = 'echo I work'
-def representativeBoxes = ['ubuntu-1404', 'centos-7']
-def boxes = representativeBoxes + ['ubuntu-1204', 'ubuntu-1504', 'debian-8',
-  'centos-6', 'oel-7', 'fedora-22', 'opensuse-13', 'sles-12']
+String testScripts = '*.bats'
+String testCommand = "cd \$TESTROOT && sudo bats --tap \$BATS/$testScripts"
+String smokeTestCommand = 'echo I work'
+List<String> representativeBoxes = ['ubuntu-1404', 'centos-7']
+List<String> boxes = representativeBoxes + ['ubuntu-1204', 'ubuntu-1504',
+  'debian-8', 'centos-6', 'oel-7', 'fedora-22', 'opensuse-13', 'sles-12']
+
+/* The version of elasticsearch that we upgrade *from* as part of testing
+ * upgrades. */
+String upgradeFromVersion = '2.0.0'
 
 configurations {
   test
 }
 
+repositories {
+  mavenCentral()
+}
+
 dependencies {
-  test project("${projectsPrefix}:distribution:tar")
-  // NOCOMMMIT: we need the rpm and deb!
-  // test project(path: ':distribution:rpm', configuration: 'archives')
-  // test project(path: ':distribution:deb', configuration: 'archives')
+  test project(path: "${projectsPrefix}:distribution:tar", configuration: 'archives')
+  test project(path: "${projectsPrefix}:distribution:rpm", configuration: 'archives')
+  test project(path: "${projectsPrefix}:distribution:deb", configuration: 'archives')
+
   // Collect all the plugins
   for (Project subproj : project.rootProject.subprojects) {
     if (subproj.path.startsWith(':plugins:')) {
       test project("${projectsPrefix}${subproj.path}")
     }
   }
+
+  // The version of elasticsearch that we upgrade *from*
+  test "org.elasticsearch.distribution.deb:elasticsearch:$upgradeFromVersion@deb"
+  test "org.elasticsearch.distribution.rpm:elasticsearch:$upgradeFromVersion@rpm"
 }
 
 task checkPackages {
@@ -58,14 +71,36 @@ task checkPackagesAllDistros {
 }
 
 task clean(type: Delete) {
-  group = 'Build'
+  group 'Build'
   delete buildDir
 }
 
-task copyDepsToTestRoot(type: Copy) {
-  description "Dump bats test dependencies into the \$TESTROOT."
-  into "$buildDir/testroot"
+File testRoot = new File("$buildDir/testroot")
+task createTestRoot {
+  outputs.dir testRoot
+  doLast {
+    testRoot.mkdirs()
+  }
+}
+
+task createVersionFile(type: FileContentsTask) {
+  dependsOn createTestRoot
+  file "${testRoot}/version"
+  contents = version
+}
+
+task createUpgradeFromFile(type: FileContentsTask) {
+  dependsOn createTestRoot
+  file "${testRoot}/upgrade_from_version"
+  contents = upgradeFromVersion
+}
+
+task prepareTestRoot(type: Copy) {
+  description 'Dump bats test dependencies into the $TESTROOT'
+  into testRoot
   from configurations.test
+
+  dependsOn createVersionFile, createUpgradeFromFile
 }
 
 task checkVagrantVersion(type: Exec) {
@@ -74,10 +109,10 @@ task checkVagrantVersion(type: Exec) {
   commandLine 'vagrant', '--version'
   standardOutput = new ByteArrayOutputStream()
   doLast {
-    def version = standardOutput.toString().trim()
+    String version = standardOutput.toString().trim()
     if ((version ==~ /Vagrant 1\.[789]\..+/) == false) {
-      throw new InvalidUserDataException('Illegal version of vagrant [' +
-        version + ']. Need [Vagrant 1.7+]')
+      throw new InvalidUserDataException(
+        "Illegal version of vagrant [${version}]. Need [Vagrant 1.7+]")
     }
   }
 }
@@ -94,10 +129,10 @@ task vagrantSmokeTestAllDistros {
 
 // Each box gets it own set of tasks
 boxes.each { box ->
-  def boxTask = taskifyBoxName box
-  task "vagrantUp$boxTask"(type: VagrantCommandTask) {
+  String boxTask = taskifyBoxName box
+  task "vagrantUp${boxTask}"(type: VagrantCommandTask) {
     group 'Vagrant'
-    description "Startup a vagrant VM running $box"
+    description "Startup a vagrant VM running ${box}"
     boxName box
     /* Its important that we try to reprovision the box even if it already
       exists. That way updates to the vagrant configuration take automatically.
@@ -114,34 +149,34 @@ boxes.each { box ->
       SKIPPED but that would require running vagrant status which is slow! */
     dependsOn checkVagrantVersion
   }
-  task "vagrantHalt$boxTask"(type: VagrantCommandTask) {
+  task "vagrantHalt${boxTask}"(type: VagrantCommandTask) {
     group 'Vagrant'
     description "Shutdown the vagrant VM running $box"
     boxName box
     commandLine 'halt', box
   }
 
-  task "smokeTest$boxTask"(type: Exec) {
+  task "smokeTest${boxTask}"(type: Exec) {
     group 'Vagrant'
-    description "Smoke test the $box VM"
-    dependsOn "vagrantUp$boxTask"
-    finalizedBy "vagrantHalt$boxTask"
+    description "Smoke test the ${box} VM"
+    dependsOn "vagrantUp${boxTask}"
+    finalizedBy "vagrantHalt${boxTask}"
     commandLine 'vagrant', 'ssh', box, '--command',
-      "set -o pipefail && $smokeTestCommand | sed -ue \'s/^/    $box: /'"
+      "set -o pipefail && ${smokeTestCommand} | sed -ue \'s/^/    ${box}: /'"
     vagrantSmokeTestAllDistros.dependsOn name
     if (representativeBoxes.contains(box)) {
       vagrantSmokeTest.dependsOn name
     }
   }
 
-  task "check$boxTask"(type: BatsOverVagrantTask) {
+  task "check${boxTask}"(type: BatsOverVagrantTask) {
     group 'Package Verification'
-    description "Run packaging tests against $box"
-    dependsOn "vagrantUp$boxTask"
-    finalizedBy "vagrantHalt$boxTask"
+    description "Run packaging tests against ${box}"
+    dependsOn "vagrantUp${boxTask}"
+    finalizedBy "vagrantHalt${boxTask}"
     boxName box
     command testCommand
-    dependsOn copyDepsToTestRoot
+    dependsOn prepareTestRoot
     checkPackagesAllDistros.dependsOn name
     if (representativeBoxes.contains(box)) {
       checkPackages.dependsOn name
@@ -151,6 +186,6 @@ boxes.each { box ->
 
 
 // Twists the box name into a sensible task name
-def taskifyBoxName(box) {
+String taskifyBoxName(box) {
   box.capitalize().replace('-', '')
 }

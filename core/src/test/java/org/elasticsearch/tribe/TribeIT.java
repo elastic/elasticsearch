@@ -74,8 +74,20 @@ public class TribeIT extends ESIntegTestCase {
     @BeforeClass
     public static void setupSecondCluster() throws Exception {
         ESIntegTestCase.beforeClass();
+        NodeConfigurationSource nodeConfigurationSource = new NodeConfigurationSource() {
+            @Override
+            public Settings nodeSettings(int nodeOrdinal) {
+                return Settings.builder().put(Node.HTTP_ENABLED, false).build();
+            }
+
+            @Override
+            public Settings transportClientSettings() {
+                return null;
+            }
+
+        };
         cluster2 = new InternalTestCluster(InternalTestCluster.configuredNodeMode(), randomLong(), createTempDir(), 2, 2,
-                Strings.randomBase64UUID(getRandom()), NodeConfigurationSource.EMPTY, 0, false, SECOND_CLUSTER_NODE_PREFIX, true);
+                Strings.randomBase64UUID(getRandom()), nodeConfigurationSource, 0, false, SECOND_CLUSTER_NODE_PREFIX, true);
 
         cluster2.beforeTest(getRandom(), 0.1);
         cluster2.ensureAtLeastNumDataNodes(2);

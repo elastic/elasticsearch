@@ -423,7 +423,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     @Override
     public void onShardActive(IndexShard indexShard) {
-        // At least on shard used to be inactive ie. a new write operation just showed up.
+        // At least one shard used to be inactive ie. a new write operation just showed up.
         // We try to fix the shards indexing buffer immediately. We could do this async instead, but cost should
         // be low, and it's rare this happens.
         forceCheck();

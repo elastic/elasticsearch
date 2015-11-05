@@ -271,7 +271,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 idxSettings.getNumberOfReplicas(),
                 idxSettings.isShadowReplicaIndex() ? "s" : "");
 
-        // plugin modules must be added here, before others or we can get crazy injection errors...
         final IndexModule indexModule = new IndexModule(idxSettings, indexStoreConfig, analysisRegistry);
         pluginsService.onIndexModule(indexModule);
         for (IndexEventListener listener : builtInListeners) {

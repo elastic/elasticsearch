@@ -188,6 +188,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
             new BitsetFilterCache(INDEX_SETTINGS, warmer, null);
             fail("listener can't be null");
         } catch (IllegalArgumentException ex) {
+            assertEquals("listener must not be null", ex.getMessage());
             // all is well
         }
     }

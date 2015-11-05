@@ -22,15 +22,15 @@
 # under the License.
 
 Vagrant.configure(2) do |config|
-  config.vm.define "precise" do |config|
+  config.vm.define "ubuntu-1204" do |config|
     config.vm.box = "ubuntu/precise64"
     ubuntu_common config
   end
-  config.vm.define "trusty" do |config|
+  config.vm.define "ubuntu-1404" do |config|
     config.vm.box = "ubuntu/trusty64"
     ubuntu_common config
   end
-  config.vm.define "vivid" do |config|
+  config.vm.define "ubuntu-1504" do |config|
     config.vm.box = "ubuntu/vivid64"
     ubuntu_common config, extra: <<-SHELL
       # Install Jayatana so we can work around it being present.
@@ -40,7 +40,7 @@ Vagrant.configure(2) do |config|
   # Wheezy's backports don't contain Openjdk 8 and the backflips required to
   # get the sun jdk on there just aren't worth it. We have jessie for testing
   # debian and it works fine.
-  config.vm.define "jessie" do |config|
+  config.vm.define "debian-8" do |config|
     config.vm.box = "debian/jessie64"
     deb_common config,
       'echo deb http://http.debian.net/debian jessie-backports main > /etc/apt/sources.list.d/backports.list', 'backports'
@@ -137,7 +137,7 @@ def deb_common(config, add_openjdk_repository_command, openjdk_list, extra: '')
     extra: <<-SHELL
       export DEBIAN_FRONTEND=noninteractive
       ls /etc/apt/sources.list.d/#{openjdk_list}.list > /dev/null 2>&1 ||
-        (echo "Importing java-8 ppa" &&
+        (echo "==> Importing java-8 ppa" &&
           #{add_openjdk_repository_command} &&
           apt-get update)
       #{extra}
@@ -223,9 +223,11 @@ def provision(config,
     install() {
       # Only apt-get update if we haven't in the last day
       if [ ! -f #{update_tracking_file} ] || [ "x$(find #{update_tracking_file} -mtime +0)" == "x#{update_tracking_file}" ]; then
-          #{update_command} || true
-          touch #{update_tracking_file}
+        echo "==> Updating repository"
+        #{update_command} || true
+        touch #{update_tracking_file}
       fi
+      echo "==> Installing $1"
       #{install_command} $1
     }
     ensure() {
@@ -242,17 +244,18 @@ def provision(config,
     installed bats || {
       # Bats lives in a git repository....
       ensure git
+      echo "==> Installing bats"
       git clone https://github.com/sstephenson/bats /tmp/bats
       # Centos doesn't add /usr/local/bin to the path....
       /tmp/bats/install.sh /usr
       rm -rf /tmp/bats
     }
     cat \<\<VARS > /etc/profile.d/elasticsearch_vars.sh
-export ZIP=/elasticsearch/distribution/zip/target/releases
-export TAR=/elasticsearch/distribution/tar/target/releases
-export RPM=/elasticsearch/distribution/rpm/target/releases
-export DEB=/elasticsearch/distribution/deb/target/releases
-export TESTROOT=/elasticsearch/qa/vagrant/target/testroot
+export ZIP=/elasticsearch/distribution/zip/build/releases
+export TAR=/elasticsearch/distribution/tar/build/releases
+export RPM=/elasticsearch/distribution/rpm/build/releases
+export DEB=/elasticsearch/distribution/deb/build/releases
+export TESTROOT=/elasticsearch/qa/vagrant/build/testroot
 export BATS=/elasticsearch/qa/vagrant/src/test/resources/packaging/scripts
 VARS
   SHELL

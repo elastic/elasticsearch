@@ -63,4 +63,3 @@ eclipse {
     defaultOutputDir = new File(file('build'), 'eclipse')
   }
 }
-

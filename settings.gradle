@@ -31,7 +31,8 @@ String[] projects = [
   'plugins:store-smb',
   'qa:evil-tests',
   'qa:smoke-test-client',
-  'qa:smoke-test-plugins'
+  'qa:smoke-test-plugins',
+  'qa:vagrant',
 ]
 
 if (hasProperty('elasticsearch.projectsPrefix')) {
@@ -40,4 +41,3 @@ if (hasProperty('elasticsearch.projectsPrefix')) {
 }
 
 include projects
-

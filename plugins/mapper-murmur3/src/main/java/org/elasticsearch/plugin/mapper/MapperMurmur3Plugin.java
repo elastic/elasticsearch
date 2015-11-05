@@ -19,15 +19,11 @@
 
 package org.elasticsearch.plugin.mapper;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.murmur3.Murmur3FieldMapper;
 import org.elasticsearch.plugins.Plugin;
 
 import java.io.Closeable;
-import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 public class MapperMurmur3Plugin extends Plugin {
@@ -43,9 +39,8 @@ public class MapperMurmur3Plugin extends Plugin {
     }
 
     @Override
-    public List<Closeable> indexService(IndexService indexService) {
+    public void onIndexService(IndexService indexService) {
         indexService.mapperService().documentMapperParser().putTypeParser(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
-        return super.indexService(indexService);
     }
 
 }

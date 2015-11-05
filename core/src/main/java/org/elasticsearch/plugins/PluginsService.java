@@ -41,7 +41,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexEventListener;
-import org.elasticsearch.index.shard.IndexShard;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -249,18 +248,11 @@ public class PluginsService extends AbstractComponent {
             plugin.v2().onIndexModule(indexModule);
         }
         indexModule.addIndexEventListener(new IndexEventListener() {
-            final List<Closeable> closeables = new ArrayList<>();
             @Override
             public void afterIndexCreated(IndexService indexService) {
                 for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-                    List<Closeable> services = plugin.v2().indexService(indexService);
-                    closeables.addAll(services);
+                    plugin.v2().onIndexService(indexService);
                 }
-            }
-
-            @Override
-            public void beforeIndexClosed(IndexService indexService) {
-                IOUtils.closeWhileHandlingException(closeables);
             }
         });
     }

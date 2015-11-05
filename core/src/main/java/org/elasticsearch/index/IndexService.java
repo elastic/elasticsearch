@@ -111,10 +111,11 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         this.nodeServicesProvider = nodeServicesProvider;
         this.indexStore = indexStore;
         indexFieldData.setListener(new FieldDataCacheListener(this));
-        this.searcherWrapper = wrapperFactory.newWrapper(this);
         this.bitsetFilterCache = new BitsetFilterCache(indexSettings, nodeServicesProvider.getWarmer(), new BitsetCacheListener(this));
         this.indexCache = new IndexCache(indexSettings, queryCache, bitsetFilterCache);
         this.engineFactory = engineFactory;
+        // initialize this last -- otherwise if the wrapper requires any other member to be non-null we fail with an NPE
+        this.searcherWrapper = wrapperFactory.newWrapper(this);
     }
 
     public int numberOfShards() {

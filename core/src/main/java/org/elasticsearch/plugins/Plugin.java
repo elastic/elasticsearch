@@ -70,11 +70,23 @@ public abstract class Plugin {
         return Settings.Builder.EMPTY_SETTINGS;
     }
 
-    public List<Closeable> indexService(IndexService indexService) {
-        return Collections.EMPTY_LIST;
-    }
+    /**
+     * Called once the given {@link IndexService} is fully constructed but not yet published.
+     * This is used to initialize plugin services that require acess to index level resources
+     */
+    public void onIndexService(IndexService indexService) {}
 
+    /**
+     * Called before a new index is created on a node. The given module can be used to regsiter index-leve
+     * extensions.
+     */
     public void onIndexModule(IndexModule indexModule) {}
 
+    /**
+     * Old-style guice index level extension point.
+     *
+     * @deprecated use #onIndexModule instead
+     */
+    @Deprecated
     public final void onModule(IndexModule indexModule) {}
 }

@@ -43,12 +43,11 @@ public class ExternalMapperPlugin extends Plugin {
     }
 
     @Override
-    public List<Closeable> indexService(IndexService indexService) {
+    public void onIndexService(IndexService indexService) {
         final MapperService mapperService = indexService.mapperService();
         mapperService.documentMapperParser().putRootTypeParser(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser());
         mapperService.documentMapperParser().putTypeParser(EXTERNAL, new ExternalMapper.TypeParser(EXTERNAL, "foo"));
         mapperService.documentMapperParser().putTypeParser(EXTERNAL_BIS, new ExternalMapper.TypeParser(EXTERNAL_BIS, "bar"));
         mapperService.documentMapperParser().putTypeParser(EXTERNAL_UPPER, new ExternalMapper.TypeParser(EXTERNAL_UPPER, "FOO BAR"));
-        return super.indexService(indexService);
     }
 }

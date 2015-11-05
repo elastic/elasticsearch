@@ -13,14 +13,12 @@ import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.util.BitSet;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.IOUtils;
-import org.apache.lucene.util.TestUtil;
+import org.apache.lucene.util.*;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -45,7 +43,17 @@ public class DocumentSubsetReaderTests extends ESTestCase {
     public void before() {
         directory = newDirectory();
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
-        bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
+        bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
     }
 
     @After
@@ -150,7 +158,17 @@ public class DocumentSubsetReaderTests extends ESTestCase {
         IndexWriter iw = new IndexWriter(dir, iwc);
         iw.close();
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+                
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(DirectoryReader.open(dir), bitsetFilterCache, new MatchAllDocsQuery());
         try {
             DocumentSubsetReader.wrap(directoryReader, bitsetFilterCache, new MatchAllDocsQuery());

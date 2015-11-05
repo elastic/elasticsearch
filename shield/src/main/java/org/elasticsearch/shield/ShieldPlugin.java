@@ -16,6 +16,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.shield.action.ShieldActionFilter;
@@ -49,11 +50,9 @@ import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.transport.TransportModule;
 
+import java.io.Closeable;
 import java.nio.file.Path;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Map;
+import java.util.*;
 
 /**
  *
@@ -119,15 +118,6 @@ public class ShieldPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> indexModules(Settings settings) {
-        if (enabled && clientMode == false) {
-            failIfShieldQueryCacheIsNotActive(settings, false);
-            return  Collections.emptyList();
-        }
-        return Collections.emptyList();
-    }
-
-    @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         if (enabled && clientMode == false) {
             return Arrays.<Class<? extends LifecycleComponent>>asList(ShieldLicensee.class, InternalCryptoService.class, FileRolesStore.class, Realms.class, IPFilter.class);
@@ -156,14 +146,22 @@ public class ShieldPlugin extends Plugin {
         clusterDynamicSettingsModule.registerClusterDynamicSetting(IPFilter.IP_FILTER_ENABLED_HTTP_SETTING, Validator.EMPTY);
     }
 
-    public void onModule(IndexModule module) {
+    @Override
+    public void onIndexService(IndexService indexService) {
+        if (enabled && clientMode == false) {
+            failIfShieldQueryCacheIsNotActive(settings, false);
+        }
+    }
+
+    @Override
+    public void onIndexModule(IndexModule module) {
         if (enabled == false) {
             return;
         }
         assert shieldLicenseState != null;
         module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(),
                 indexService.getQueryShardContext(), indexService.mapperService(),
-                indexService.bitsetFilterCache(), shieldLicenseState));
+                indexService.cache().bitsetFilterCache(), shieldLicenseState));
         if (clientMode == false) {
             module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
         }

@@ -24,6 +24,7 @@ import org.apache.lucene.search.TotalHitCountCollector;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.SparseFixedBitSet;
@@ -84,7 +85,17 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
         IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST);
         QueryShardContext queryShardContext = mock(QueryShardContext.class);
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.EMPTY_LIST);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
         ShieldLicenseState licenseState = mock(ShieldLicenseState.class);
         when(licenseState.documentAndFieldLevelSecurityEnabled()).thenReturn(true);
         ShieldIndexSearcherWrapper wrapper = new ShieldIndexSearcherWrapper(indexSettings, queryShardContext, mapperService, bitsetFilterCache, licenseState) {

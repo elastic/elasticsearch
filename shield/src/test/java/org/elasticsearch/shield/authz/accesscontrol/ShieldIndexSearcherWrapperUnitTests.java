@@ -14,6 +14,7 @@ import org.apache.lucene.search.*;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.RAMDirectory;
+import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.SparseFixedBitSet;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -228,7 +229,17 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
 
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.emptyList());
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null));
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
         IndexSearcher result = shieldIndexSearcherWrapper.wrap(engineConfig, indexSearcher);

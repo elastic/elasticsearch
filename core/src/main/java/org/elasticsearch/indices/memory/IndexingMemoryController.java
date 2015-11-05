@@ -54,7 +54,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
     public static final String SHARD_INACTIVE_TIME_SETTING = "indices.memory.shard_inactive_time";
 
-    /** How frequently we check indexing memory usage (default: 1 seconds). */
+    /** How frequently we check indexing memory usage (default: 5 seconds). */
     public static final String SHARD_MEMORY_INTERVAL_TIME_SETTING = "indices.memory.interval";
 
     /** Hardwired translog buffer size */
@@ -107,7 +107,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
         this.inactiveTime = this.settings.getAsTime(SHARD_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5));
         // we need to have this relatively small to free up heap quickly enough
-        this.interval = this.settings.getAsTime(SHARD_MEMORY_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(1));
+        this.interval = this.settings.getAsTime(SHARD_MEMORY_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(5));
 
         this.statusChecker = new ShardsIndicesStatusChecker();
 
@@ -207,7 +207,14 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         statusChecker.run();
     }
 
-    static class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
+    long startMS = System.currentTimeMillis();
+
+    /** called by IndexShard to record that this many bytes were written to translog */
+    public void bytesWritten(int bytes) {
+        statusChecker.bytesWritten(bytes);
+    }
+
+    static final class ShardAndBytesUsed implements Comparable<ShardAndBytesUsed> {
         final long bytesUsed;
         final ShardId shardId;
 
@@ -225,8 +232,25 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     class ShardsIndicesStatusChecker implements Runnable {
 
+        long bytesWrittenSinceCheck;
+
+        public synchronized void bytesWritten(int bytes) {
+            bytesWrittenSinceCheck += bytes;
+            if (bytesWrittenSinceCheck > indexingBuffer.bytes()/20) {
+                // NOTE: this is only an approximate check, because bytes written is to the translog, vs indexing memory buffer which is
+                // typically smaller.  But this logic is here only as a safety against thread starvation or too infrequent checking,
+                // to ensure we are still checking in proportion to bytes processed by indexing:
+                System.out.println(((System.currentTimeMillis() - startMS)/1000.0) + ": NOW CHECK xlog=" + bytesWrittenSinceCheck);
+                run();
+            }
+        }
+
         @Override
         public synchronized void run() {
+
+            // nocommit lower the translog buffer to 8 KB
+
+            // nocommit add defensive try/catch-everything here?  bad if an errant EngineClosedExc kills off this thread!!
 
             // Fast check to sum up how much heap all shards' indexing buffers are using now:
             long totalBytesUsed = 0;
@@ -236,7 +260,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                 checkIdle(shardId, inactiveTime.nanos());
 
                 totalBytesUsed += getIndexBufferRAMBytesUsed(shardId);
+                System.out.println("IMC:   " + shardId + " using " + (getIndexBufferRAMBytesUsed(shardId)/1024./1024.) + " MB");
             }
+
+            System.out.println(((System.currentTimeMillis() - startMS)/1000.0) + ": TOT=" + totalBytesUsed + " vs " + indexingBuffer.bytes());
 
             if (totalBytesUsed > indexingBuffer.bytes()) {
                 // OK we are using too much; make a queue and ask largest shard(s) to refresh:
@@ -251,11 +278,14 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
                 while (totalBytesUsed > indexingBuffer.bytes() && queue.isEmpty() == false) {
                     ShardAndBytesUsed largest = queue.poll();
+                    System.out.println("IMC: write " + largest.shardId + ": " + (largest.bytesUsed/1024./1024.) + " MB");
                     logger.debug("refresh shard [{}] to free up its [{}] indexing buffer", largest.shardId, new ByteSizeValue(largest.bytesUsed));
                     refreshShardAsync(largest.shardId);
                     totalBytesUsed -= largest.bytesUsed;
                 }
             }
+
+            bytesWrittenSinceCheck = 0;
         }
     }
 }

@@ -471,6 +471,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             throw ex;
         }
         indexingService.postIndex(index);
+        indexingMemoryController.bytesWritten(index.getTranslogLocation().size);
         return created;
     }
 
@@ -495,6 +496,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             throw ex;
         }
         indexingService.postDelete(delete);
+        indexingMemoryController.bytesWritten(delete.getTranslogLocation().size);
     }
 
     public Engine.GetResult get(Engine.Get get) {
@@ -978,7 +980,11 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
         if (engine == null) {
             return 0;
         }
-        return engine.indexBufferRAMBytesUsed();
+        try {
+            return engine.indexBufferRAMBytesUsed();
+        } catch (AlreadyClosedException ex) {
+            return 0;
+        }
     }
 
     /** Called by {@link IndexingMemoryController} to check whether more than {@code inactiveTimeNS} has passed since the last
@@ -1193,7 +1199,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndexSett
             });
     }
 
-    class EngineRefresher implements Runnable {
+    final class EngineRefresher implements Runnable {
         @Override
         public void run() {
             // we check before if a refresh is needed, if not, we reschedule, otherwise, we fork, refresh, and then reschedule

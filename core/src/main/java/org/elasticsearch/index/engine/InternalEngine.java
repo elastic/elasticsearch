@@ -760,6 +760,10 @@ public class InternalEngine extends Engine {
     @Override
     public long indexBufferRAMBytesUsed() {
         if (refreshing) {
+            // We tell a "white lie" here, pretending that we instantaneously moved all
+            // heap to disk at the start of refresh.  We do this so IMC  behaves as if we
+            // are using no heap, else it will just keep asking us when it should be
+            // asking others:
             return 0;
         } else {
             return indexWriter.ramBytesUsed() + versionMap.ramBytesUsedForRefresh();

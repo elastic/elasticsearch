@@ -57,7 +57,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         return this;
     }
 
-    public GeometryCollectionBuilder line(BaseLineStringBuilder line) {
+    public GeometryCollectionBuilder line(LineStringBuilder line) {
         this.shapes.add(line);
         return this;
     }
@@ -67,7 +67,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         return this;
     }
 
-    public GeometryCollectionBuilder polygon(BasePolygonBuilder<?> polygon) {
+    public GeometryCollectionBuilder polygon(PolygonBuilder polygon) {
         this.shapes.add(polygon);
         return this;
     }

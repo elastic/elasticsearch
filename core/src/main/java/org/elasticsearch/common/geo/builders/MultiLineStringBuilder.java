@@ -60,7 +60,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         builder.field(FIELD_TYPE, TYPE.shapename);
         builder.field(FIELD_COORDINATES);
         builder.startArray();
-        for(BaseLineStringBuilder line : lines) {
+        for(LineStringBuilder line : lines) {
             line.coordinatesToXcontent(builder, false);
         }
         builder.endArray();
@@ -73,8 +73,8 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         final Geometry geometry;
         if(wrapdateline) {
             ArrayList<LineString> parts = new ArrayList<>();
-            for (BaseLineStringBuilder line : lines) {
-                BaseLineStringBuilder.decompose(FACTORY, line.coordinates(false), parts);
+            for (LineStringBuilder line : lines) {
+                LineStringBuilder.decompose(FACTORY, line.coordinates(false), parts);
             }
             if(parts.size() == 1) {
                 geometry = parts.get(0);

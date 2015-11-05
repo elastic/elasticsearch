@@ -211,7 +211,11 @@ running the Elasticsearch test suite.
 
 h3. Upgrading from Elasticsearch 1.x?
 
-In order to ensure a smooth upgrade process from earlier versions of Elasticsearch (< 1.0.0), it is recommended to perform a full cluster restart. Please see the "setup reference":https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html for more details on the upgrade process.
+In order to ensure a smooth upgrade process from earlier versions of
+Elasticsearch (1.x), it is required to perform a full cluster restart. Please
+see the "setup reference":
+https://www.elastic.co/guide/en/elasticsearch/reference/current/setup-upgrade.html
+for more details on the upgrade process.
 
 h1. License
 

@@ -81,6 +81,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -329,6 +330,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertEquals(0, indexShard.getOperationsCount());
     }
 
+    @TestLogging("indices.flush:TRACE,index.shard:TRACE,index.engine:TRACE")
     public void testMarkAsInactiveTriggersSyncedFlush() throws Exception {
         assertAcked(client().admin().indices().prepareCreate("test")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0, IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "0s"));

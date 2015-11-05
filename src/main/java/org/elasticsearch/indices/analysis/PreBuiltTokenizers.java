@@ -26,13 +26,13 @@ import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
+import org.apache.lucene.analysis.pattern.XPatternTokenizer;
 import org.apache.lucene.analysis.standard.ClassicTokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
 import org.apache.lucene.analysis.th.ThaiTokenizer;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.regex.Regex;
-import org.elasticsearch.index.analysis.PatternTokenizer;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.indices.analysis.PreBuiltCacheFactory.CachingStrategy;
 
@@ -117,7 +117,7 @@ public enum PreBuiltTokenizers {
     PATTERN(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Reader reader, Version version) {
-            return new PatternTokenizer(reader, Regex.compile("\\W+", null), -1);
+            return new XPatternTokenizer(reader, Regex.compile("\\W+", null), -1);
         }
     },
 

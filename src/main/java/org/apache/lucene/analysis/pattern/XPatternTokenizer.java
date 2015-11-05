@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.apache.lucene.analysis.pattern;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -31,6 +31,9 @@ import org.apache.lucene.analysis.tokenattributes.OffsetAttribute;
 import org.apache.lucene.util.AttributeFactory;
 
 /**
+ * Note: This is forked from Lucene 4.10.4 org.apache.lucene.analysis.pattern.PatternTokenizer to
+ * apply LUCENE-6814.
+ *
  * This tokenizer uses regex pattern matching to construct distinct tokens
  * for the input stream.  It takes two arguments:  "pattern" and "group".
  * <p/>
@@ -57,7 +60,7 @@ import org.apache.lucene.util.AttributeFactory;
  *
  * @see Pattern
  */
-public final class PatternTokenizer extends Tokenizer {
+public final class XPatternTokenizer extends Tokenizer {
 
   private final CharTermAttribute termAtt = addAttribute(CharTermAttribute.class);
   private final OffsetAttribute offsetAtt = addAttribute(OffsetAttribute.class);
@@ -69,12 +72,12 @@ public final class PatternTokenizer extends Tokenizer {
   private final Matcher matcher;
 
   /** creates a new PatternTokenizer returning tokens from group (-1 for split functionality) */
-  public PatternTokenizer(Reader input, Pattern pattern, int group) {
+  public XPatternTokenizer(Reader input, Pattern pattern, int group) {
     this(DEFAULT_TOKEN_ATTRIBUTE_FACTORY, input, pattern, group);
   }
 
   /** creates a new PatternTokenizer returning tokens from group (-1 for split functionality) */
-  public PatternTokenizer(AttributeFactory factory, Reader input, Pattern pattern, int group) {
+  public XPatternTokenizer(AttributeFactory factory, Reader input, Pattern pattern, int group) {
     super(factory, input);
     this.group = group;
 

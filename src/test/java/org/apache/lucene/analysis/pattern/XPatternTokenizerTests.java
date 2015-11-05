@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.analysis;
+package org.apache.lucene.analysis.pattern;
 
 import java.io.IOException;
 import java.io.Reader;
@@ -38,7 +38,7 @@ import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
 import org.apache.lucene.analysis.tokenattributes.CharTermAttribute;
 import org.junit.Test;
 
-public class PatternTokenizerTests extends BaseTokenStreamTestCase
+public class XPatternTokenizerTests extends BaseTokenStreamTestCase
 {
   @Test
   public void testSplitting() throws Exception 

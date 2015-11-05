@@ -19,7 +19,7 @@
 
 // Default security policy file.
 // On startup, BootStrap reads environment and adds additional permissions
-// for configured paths to these.
+// for configured paths and network binding to these.
 
 //// System code permissions:
 //// These permissions apply to the JDK itself:
@@ -53,7 +53,7 @@ grant {
   permission org.elasticsearch.SpecialPermission;
 
   // Allow connecting to the internet anywhere
-  permission java.net.SocketPermission "*", "accept,listen,connect,resolve";
+  permission java.net.SocketPermission "*", "accept,connect,resolve";
 
   // Allow read/write to all system properties
   permission java.util.PropertyPermission "*", "read,write";

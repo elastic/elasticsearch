@@ -35,6 +35,7 @@ import org.junit.Assert;
 
 import java.io.FilePermission;
 import java.io.InputStream;
+import java.net.SocketPermission;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -129,6 +130,14 @@ public class BootstrapForTesting {
                 if (System.getProperty("tests.maven") == null) {
                     perms.add(new RuntimePermission("setIO"));
                 }
+                
+                // add bind permissions for testing
+                // ephemeral ports (note, on java 7 before update 51, this is a different permission)
+                // this should really be the only one allowed for tests, otherwise they have race conditions
+                perms.add(new SocketPermission("localhost:0", "listen,resolve"));
+                // ... but tests are messy. like file permissions, just let them live in a fantasy for now.
+                // TODO: cut over all tests to bind to ephemeral ports
+                perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
                 
                 // read test-framework permissions
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), JarHell.parseClassPath());

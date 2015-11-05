@@ -161,7 +161,7 @@ public class MulticastZenPingTests extends ESTestCase {
         MulticastSocket multicastSocket = null;
         try {
             Loggers.getLogger(MulticastZenPing.class).setLevel("TRACE");
-            multicastSocket = new MulticastSocket(54328);
+            multicastSocket = new MulticastSocket();
             multicastSocket.setReceiveBufferSize(2048);
             multicastSocket.setSendBufferSize(2048);
             multicastSocket.setSoTimeout(60000);

@@ -29,6 +29,8 @@ import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 public class GeoProcessorFactoryTests extends ESTestCase {
 
@@ -46,22 +48,48 @@ public class GeoProcessorFactoryTests extends ESTestCase {
     public void testBuild_defaults() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
         factory.setConfigDirectory(configDir);
-        GeoIpProcessor processor = (GeoIpProcessor) factory.create(Collections.emptyMap());
-        assertThat(processor.dbReader.getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("ip_field", "_field");
+
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(config);
+        assertThat(processor.getIpField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("geoip"));
+        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
+    }
+
+    public void testBuild_targetField() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
+        factory.setConfigDirectory(configDir);
+        Map<String, Object> config = new HashMap<>();
+        config.put("ip_field", "_field");
+        config.put("target_field", "_field");
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(config);
+        assertThat(processor.getIpField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("_field"));
     }
 
     public void testBuild_dbFile() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
         factory.setConfigDirectory(configDir);
-        GeoIpProcessor processor = (GeoIpProcessor) factory.create(Collections.singletonMap("database_file", "GeoLite2-Country.mmdb"));
-        assertThat(processor.dbReader.getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
+        Map<String, Object> config = new HashMap<>();
+        config.put("ip_field", "_field");
+        config.put("database_file", "GeoLite2-Country.mmdb");
+        GeoIpProcessor processor = (GeoIpProcessor) factory.create(config);
+        assertThat(processor.getIpField(), equalTo("_field"));
+        assertThat(processor.getTargetField(), equalTo("geoip"));
+        assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
     }
 
     public void testBuild_nonExistingDbFile() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
         factory.setConfigDirectory(configDir);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("ip_field", "_field");
+        config.put("database_file", "does-not-exist.mmdb");
         try {
-            factory.create(Collections.singletonMap("database_file", "does-not-exist.mmdb"));
+            factory.create(config);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), startsWith("database file [does-not-exist.mmdb] doesn't exist in"));
         }

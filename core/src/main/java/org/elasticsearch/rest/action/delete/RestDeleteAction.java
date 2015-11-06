@@ -19,7 +19,6 @@
 
 package org.elasticsearch.rest.action.delete;
 
-import org.elasticsearch.action.ActionWriteResponse;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.delete.DeleteResponse;
@@ -27,7 +26,6 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.*;
 import org.elasticsearch.rest.action.support.RestActions;
@@ -65,28 +63,15 @@ public class RestDeleteAction extends BaseRestHandler {
         client.delete(deleteRequest, new RestBuilderListener<DeleteResponse>(channel) {
             @Override
             public RestResponse buildResponse(DeleteResponse result, XContentBuilder builder) throws Exception {
-                ActionWriteResponse.ShardInfo shardInfo = result.getShardInfo();
-                builder.startObject().field(Fields.FOUND, result.isFound())
-                        .field(Fields._INDEX, result.getIndex())
-                        .field(Fields._TYPE, result.getType())
-                        .field(Fields._ID, result.getId())
-                        .field(Fields._VERSION, result.getVersion())
-                        .value(shardInfo)
-                        .endObject();
-                RestStatus status = shardInfo.status();
+                builder.startObject();
+                result.toXContent(builder, request);
+                builder.endObject();
+                RestStatus status = result.getShardInfo().status();
                 if (!result.isFound()) {
                     status = NOT_FOUND;
                 }
                 return new BytesRestResponse(status, builder);
             }
         });
-    }
-
-    static final class Fields {
-        static final XContentBuilderString FOUND = new XContentBuilderString("found");
-        static final XContentBuilderString _INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString _TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString _ID = new XContentBuilderString("_id");
-        static final XContentBuilderString _VERSION = new XContentBuilderString("_version");
     }
 }

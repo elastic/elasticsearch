@@ -890,6 +890,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.type = type;
             this.id = id;
             this.source = new BytesArray(source);
+            this.seqNo = 0;
+            this.version = 0;
         }
 
         @Override

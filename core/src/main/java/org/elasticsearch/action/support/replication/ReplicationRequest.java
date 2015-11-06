@@ -44,6 +44,9 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
 
     ShardId internalShardId;
 
+    long seqNo;
+    long primaryTerm;
+
     protected TimeValue timeout = DEFAULT_TIMEOUT;
     protected String index;
 
@@ -76,6 +79,9 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         this.timeout = request.timeout();
         this.index = request.index();
         this.consistencyLevel = request.consistencyLevel();
+        this.internalShardId = request.internalShardId;
+        this.seqNo = request.seqNo;
+        this.primaryTerm = request.primaryTerm;
     }
 
     /**
@@ -141,6 +147,29 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         return (T) this;
     }
 
+    /**
+     * Returns the sequence number for this operation. The sequence number is assigned while the operation
+     * is performed on the primary shard.
+     */
+    public long seqNo() {
+        return seqNo;
+    }
+
+    /** sets the sequence number for this operation. should only be called on the primary shard */
+    public void seqNo(long seqNo) {
+        this.seqNo = seqNo;
+    }
+
+    /** returns the primary term active at the time the operation was performed on the primary shard */
+    public long primaryTerm() {
+        return primaryTerm;
+    }
+
+    /** marks the primary term in which the operation was performed */
+    public void primaryTerm(long term) {
+        primaryTerm = term;
+    }
+
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
@@ -161,6 +190,8 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
         index = in.readString();
+        seqNo = in.readVLong();
+        primaryTerm = in.readVLong();
     }
 
     @Override
@@ -175,6 +206,8 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeString(index);
+        out.writeVLong(seqNo);
+        out.writeVLong(primaryTerm);
     }
 
     public T setShardId(ShardId shardId) {

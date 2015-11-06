@@ -312,7 +312,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         client().admin().indices().prepareDelete("test").get();
         assertThat(indexShard.getOperationsCount(), equalTo(0));
         try {
-            indexShard.incrementOperationCounter();
+            indexShard.incrementOperationCounter(indexShard.routingEntry().primaryTerm());
             fail("we should not be able to increment anymore");
         } catch (IndexShardClosedException e) {
             // expected
@@ -325,11 +325,20 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         IndexService indexService = indicesService.indexServiceSafe("test");
         IndexShard indexShard = indexService.getShardOrNull(0);
+        final long primaryTerm = indexShard.shardRouting.primaryTerm();
         assertEquals(0, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
+        indexShard.incrementOperationCounter(primaryTerm);
         assertEquals(1, indexShard.getOperationsCount());
-        indexShard.incrementOperationCounter();
+        indexShard.incrementOperationCounter(primaryTerm);
         assertEquals(2, indexShard.getOperationsCount());
+
+        try {
+            indexShard.incrementOperationCounter(primaryTerm - 1);
+            fail("you can not increment the operation counter with an older primary term");
+        } catch (IllegalIndexShardStateException e) {
+            // expected
+        }
+
         indexShard.decrementOperationCounter();
         indexShard.decrementOperationCounter();
         assertEquals(0, indexShard.getOperationsCount());
@@ -580,9 +589,10 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     private ParsedDocument testParsedDocument(String uid, String id, String type, String routing, long timestamp, long ttl, ParseContext.Document document, BytesReference source, Mapping mappingUpdate) {
         Field uidField = new Field("_uid", uid, UidFieldMapper.Defaults.FIELD_TYPE);
         Field versionField = new NumericDocValuesField("_version", 0);
+        Field seqNoField = new NumericDocValuesField("_seq_no", 0);
         document.add(uidField);
         document.add(versionField);
-        return new ParsedDocument(uidField, versionField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
+        return new ParsedDocument(uidField, versionField, seqNoField, id, type, routing, timestamp, ttl, Arrays.asList(document), source, mappingUpdate);
     }
 
     public void testPreIndex() throws IOException {

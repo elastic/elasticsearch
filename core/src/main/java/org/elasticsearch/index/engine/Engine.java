@@ -706,7 +706,7 @@ public abstract class Engine implements Closeable {
         private final ParsedDocument doc;
 
         public Index(Term uid, ParsedDocument doc, long seqNo, long version, VersionType versionType, Origin origin, long startTime) {
-            super(uid, version, seqNo, versionType, origin, startTime);
+            super(uid, seqNo, version, versionType, origin, startTime);
             this.doc = doc;
         }
 
@@ -715,7 +715,7 @@ public abstract class Engine implements Closeable {
         }
 
         public Index(Term uid, ParsedDocument doc, long version) {
-            this(uid, doc, doc.seqNo().numericValue().longValue(), version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+            this(uid, doc, -1, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public ParsedDocument parsedDoc() {
@@ -750,7 +750,7 @@ public abstract class Engine implements Closeable {
 
         @Override
         public void updateSeqNo(long seqNo) {
-            super.updateVersion(seqNo);
+            super.updateSeqNo(seqNo);
             this.doc.seqNo().setLongValue(seqNo);
         }
 

@@ -20,7 +20,7 @@ package org.elasticsearch.action.support.replication;
 
 import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.ReplicationResponse;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.WriteConsistencyLevel;
 import org.elasticsearch.action.support.ActionFilter;
@@ -74,11 +74,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.state;
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithStartedPrimary;
-import static org.hamcrest.Matchers.arrayWithSize;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class TransportReplicationActionTests extends ESTestCase {
 
@@ -401,7 +397,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
         assertThat(listener.isDone(), equalTo(true));
         Response response = listener.get();
-        final ActionWriteResponse.ShardInfo shardInfo = response.getShardInfo();
+        final ReplicationResponse.ShardInfo shardInfo = response.getShardInfo();
         assertThat(shardInfo.getFailed(), equalTo(criticalFailures));
         assertThat(shardInfo.getFailures(), arrayWithSize(criticalFailures));
         assertThat(shardInfo.getSuccessful(), equalTo(successful));
@@ -586,7 +582,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
     }
 
-    static class Response extends ActionWriteResponse {
+    static class Response extends ReplicationResponse {
     }
 
     class Action extends TransportReplicationAction<Request, Request, Response> {
@@ -632,7 +628,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         @Override
-        protected Releasable getIndexShardOperationsCounter(ShardId shardId) {
+        protected Releasable getIndexShardOperationsCounter(ShardId shardId, long opPrimaryTerm) {
             return getOrCreateIndexShardOperationsCounter();
         }
     }

@@ -73,7 +73,7 @@ public class ParsedDocument {
     }
 
     public Field seqNo() {
-        return version;
+        return seqNo;
     }
 
     public String id() {

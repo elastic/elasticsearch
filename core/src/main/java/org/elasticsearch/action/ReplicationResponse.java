@@ -21,7 +21,6 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,25 +29,23 @@ import org.elasticsearch.common.io.stream.Streamable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.common.xcontent.json.JsonXContent;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
-import java.util.Collections;
 
 /**
  * Base class for write action responses.
  */
-public class ActionWriteResponse extends ActionResponse {
+public class ReplicationResponse extends ActionResponse {
 
-    public final static ActionWriteResponse.ShardInfo.Failure[] EMPTY = new ActionWriteResponse.ShardInfo.Failure[0];
+    public final static ReplicationResponse.ShardInfo.Failure[] EMPTY = new ReplicationResponse.ShardInfo.Failure[0];
 
     private ShardInfo shardInfo;
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-        shardInfo = ActionWriteResponse.ShardInfo.readShardInfo(in);
+        shardInfo = ReplicationResponse.ShardInfo.readShardInfo(in);
     }
 
     @Override

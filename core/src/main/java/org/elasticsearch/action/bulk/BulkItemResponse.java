@@ -20,7 +20,7 @@
 package org.elasticsearch.action.bulk;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionWriteResponse;
+import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.delete.DeleteResponse;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -99,7 +99,7 @@ public class BulkItemResponse implements Streamable {
 
     private String opType;
 
-    private ActionWriteResponse response;
+    private DocWriteResponse response;
 
     private Failure failure;
 
@@ -107,7 +107,7 @@ public class BulkItemResponse implements Streamable {
 
     }
 
-    public BulkItemResponse(int id, String opType, ActionWriteResponse response) {
+    public BulkItemResponse(int id, String opType, DocWriteResponse response) {
         this.id = id;
         this.opType = opType;
         this.response = response;
@@ -140,14 +140,7 @@ public class BulkItemResponse implements Streamable {
         if (failure != null) {
             return failure.getIndex();
         }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).getIndex();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).getIndex();
-        } else if (response instanceof UpdateResponse) {
-            return ((UpdateResponse) response).getIndex();
-        }
-        return null;
+        return response.getIndex();
     }
 
     /**
@@ -157,14 +150,7 @@ public class BulkItemResponse implements Streamable {
         if (failure != null) {
             return failure.getType();
         }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).getType();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).getType();
-        } else if (response instanceof UpdateResponse) {
-            return ((UpdateResponse) response).getType();
-        }
-        return null;
+        return response.getType();
     }
 
     /**
@@ -174,14 +160,7 @@ public class BulkItemResponse implements Streamable {
         if (failure != null) {
             return failure.getId();
         }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).getId();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).getId();
-        } else if (response instanceof UpdateResponse) {
-            return ((UpdateResponse) response).getId();
-        }
-        return null;
+        return response.getId();
     }
 
     /**
@@ -191,21 +170,14 @@ public class BulkItemResponse implements Streamable {
         if (failure != null) {
             return -1;
         }
-        if (response instanceof IndexResponse) {
-            return ((IndexResponse) response).getVersion();
-        } else if (response instanceof DeleteResponse) {
-            return ((DeleteResponse) response).getVersion();
-        } else if (response instanceof UpdateResponse) {
-            return ((UpdateResponse) response).getVersion();
-        }
-        return -1;
+        return response.getVersion();
     }
 
     /**
      * The actual response ({@link IndexResponse} or {@link DeleteResponse}). <tt>null</tt> in
      * case of failure.
      */
-    public <T extends ActionWriteResponse> T getResponse() {
+    public <T extends DocWriteResponse> T getResponse() {
         return (T) response;
     }
 

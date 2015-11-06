@@ -102,7 +102,11 @@ public class SimulatedItemResponse implements Streamable, StatusToXContent {
 
     @Override
     public RestStatus status() {
-        return null;
+        if (failed()) {
+            return RestStatus.BAD_REQUEST;
+        } else {
+            return RestStatus.OK;
+        }
     }
 
     @Override

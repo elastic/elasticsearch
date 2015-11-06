@@ -1,0 +1,54 @@
+body {
+  background: #222222;
+}
+
+.inner-addon {
+  position: relative;
+}
+
+.inner-addon .fa {
+  position: absolute;
+  padding: 10px;
+  pointer-events: none;
+  color: #A2A4AC;
+}
+
+.left-addon .fa  { left:  0px;}
+.right-addon .fa { right: 0px;}
+
+.left-addon input  { padding-left:  30px !important; }
+.right-addon input { padding-right: 30px !important; }
+
+.container {
+  width: 350px;
+  margin: auto;
+  text-align: center;
+
+  h1, button {
+    margin: 1em;
+  }
+}
+
+.has-error {
+  color: red;
+}
+
+.login {
+  background-color: #94C63D;
+  color: white;
+  width: 200px;
+  font-size: 1.5em;
+  border: none;
+
+  &:disabled {
+    background-color: #44532A;
+    color: #636464;
+  }
+}
+
+input.form-control {
+  border: none;
+  font-size: 1.25em;
+  height: auto;
+  padding: 0.5em;
+}

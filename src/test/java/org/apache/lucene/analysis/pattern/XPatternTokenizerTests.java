@@ -57,7 +57,7 @@ public class XPatternTokenizerTests extends BaseTokenStreamTestCase
     };
     
     for( String[] test : tests ) {     
-      TokenStream stream = new PatternTokenizer(newAttributeFactory(), new StringReader(test[2]), Pattern.compile(test[1]), Integer.parseInt(test[0]));
+      TokenStream stream = new XPatternTokenizer(newAttributeFactory(), new StringReader(test[2]), Pattern.compile(test[1]), Integer.parseInt(test[0]));
       String out = tsToString( stream );
       // System.out.println( test[2] + " ==> " + out );
 
@@ -90,7 +90,7 @@ public class XPatternTokenizerTests extends BaseTokenStreamTestCase
     CharFilter charStream = new MappingCharFilter( normMap, new StringReader( INPUT ) );
 
     // create PatternTokenizer
-    Tokenizer stream = new PatternTokenizer(newAttributeFactory(), charStream, Pattern.compile("[,;/\\s]+"), -1);
+    Tokenizer stream = new XPatternTokenizer(newAttributeFactory(), charStream, Pattern.compile("[,;/\\s]+"), -1);
     assertTokenStreamContents(stream,
         new String[] { "Günther", "Günther", "is", "here" },
         new int[] { 0, 13, 26, 29 },
@@ -98,7 +98,7 @@ public class XPatternTokenizerTests extends BaseTokenStreamTestCase
         INPUT.length());
     
     charStream = new MappingCharFilter( normMap, new StringReader( INPUT ) );
-    stream = new PatternTokenizer(newAttributeFactory(), charStream, Pattern.compile("Günther"), 0);
+    stream = new XPatternTokenizer(newAttributeFactory(), charStream, Pattern.compile("Günther"), 0);
     assertTokenStreamContents(stream,
         new String[] { "Günther", "Günther" },
         new int[] { 0, 13 },
@@ -135,7 +135,7 @@ public class XPatternTokenizerTests extends BaseTokenStreamTestCase
     Analyzer a = new Analyzer() {
       @Override
       protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-        Tokenizer tokenizer = new PatternTokenizer(newAttributeFactory(), reader, Pattern.compile("a"), -1);
+        Tokenizer tokenizer = new XPatternTokenizer(newAttributeFactory(), reader, Pattern.compile("a"), -1);
         return new TokenStreamComponents(tokenizer);
       }    
     };
@@ -144,7 +144,7 @@ public class XPatternTokenizerTests extends BaseTokenStreamTestCase
     Analyzer b = new Analyzer() {
       @Override
       protected TokenStreamComponents createComponents(String fieldName, Reader reader) {
-        Tokenizer tokenizer = new PatternTokenizer(newAttributeFactory(), reader, Pattern.compile("a"), 0);
+        Tokenizer tokenizer = new XPatternTokenizer(newAttributeFactory(), reader, Pattern.compile("a"), 0);
         return new TokenStreamComponents(tokenizer);
       }    
     };

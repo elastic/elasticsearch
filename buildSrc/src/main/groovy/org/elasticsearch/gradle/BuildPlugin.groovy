@@ -59,6 +59,11 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException('Gradle 2.6 or above is required to build elasticsearch')
             }
 
+            // enforce Java version
+            if (JavaVersion.current().compareTo(JavaVersion.VERSION_1_8) < 0) {
+                throw new GradleException('Java 8 or above is required to build Elasticsearch')
+            }
+
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'

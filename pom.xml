@@ -32,6 +32,7 @@
 
     <properties>
         <elasticsearch.version>2.1.0-SNAPSHOT</elasticsearch.version>
+        <elasticsearch.plugin.name>mapper-attachments</elasticsearch.plugin.name>
         <elasticsearch.plugin.classname>org.elasticsearch.plugin.mapper.attachments.MapperAttachmentsPlugin</elasticsearch.plugin.classname>
         <elasticsearch.assembly.descriptor>${project.basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <tests.rest.suite>mapper_attachments</tests.rest.suite>

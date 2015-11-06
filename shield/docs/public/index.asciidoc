@@ -2,7 +2,7 @@
 
 = Shield Reference
 
-:ref: http://www.elastic.co/guide/en/elasticsearch/reference/current
+:ref: http://www.elastic.co/guide/en/elasticsearch/reference/2.0
 :ref-17: http://www.elastic.co/guide/en/elasticsearch/reference/1.7
 
 :version: 2.1.0

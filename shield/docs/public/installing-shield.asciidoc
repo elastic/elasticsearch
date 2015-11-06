@@ -157,7 +157,21 @@ curl -XGET localhost:9200/_search -u tribe_user:tribe_user
 As for encrypted communication, the required settings are the same as described in <<securing-communications, Securing Communications with Encryption and IP Filtering>>,
 but need to be specified per tribe as we did for discovery settings above.
 
+[float]
+[[uninstalling-shield]]
+=== Uninstalling Shield
 
+IMPORTANT: Uninstalling Shield requires a {ref}/restart-upgrade.html[full cluster restart].
 
+To uninstall Shield:
 
+. Shut down Elasticsearch. 
 
+. Remove the Shield plugin from Elasticsearch:
++
+[source,shell]
+----------------------------------------------------------
+bin/plugin remove shield
+----------------------------------------------------------
+
+. Restart Elasticsearch.

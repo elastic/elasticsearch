@@ -102,3 +102,20 @@ bin/plugin install file:///path/to/file/license-2.0.0.zip <1>
 bin/plugin install file:///path/to/file/watcher-2.0.0.zip 
 ----------------------------------------------------------
 <1> Note that you must specify an absolute path to the zip file after the `file://` protocol.
+
+[float]
+[[uninstalling-watcher]]
+=== Uninstalling Watcher
+
+To uninstall Watcher:
+
+. Shut down Elasticsearch. 
+
+. Remove the Watcher plugin from Elasticsearch:
++
+[source,shell]
+----------------------------------------------------------
+bin/plugin remove watcher
+----------------------------------------------------------
+
+. Restart Elasticsearch.

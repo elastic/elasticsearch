@@ -77,4 +77,17 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("continent_name"), equalTo("Europe"));
     }
 
+    public void testAddressIsNotInTheDatabase() throws Exception {
+        InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");
+        GeoIpProcessor processor = new GeoIpProcessor("source_field", new DatabaseReader.Builder(database).build(), "target_field");
+
+        Map<String, Object> document = new HashMap<>();
+        document.put("source_field", "202.45.11.11");
+        Data data = new Data("_index", "_type", "_id", document);
+        processor.execute(data);
+        @SuppressWarnings("unchecked")
+        Map<String, Object> geoData = (Map<String, Object>) data.getDocument().get("target_field");
+        assertThat(geoData.size(), equalTo(0));
+    }
+
 }

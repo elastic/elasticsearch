@@ -20,10 +20,12 @@
 package org.elasticsearch.ingest.processor.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
+import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.*;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.Data;
@@ -38,6 +40,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -67,13 +70,21 @@ public final class GeoIpProcessor implements Processor {
             throw new RuntimeException(e);
         }
 
-        final Map<String, Object> geoData;
+        Map<String, Object> geoData;
         switch (dbReader.getMetadata().getDatabaseType()) {
             case "GeoLite2-City":
-                geoData = retrieveCityGeoData(ipAddress);
+                try {
+                    geoData = retrieveCityGeoData(ipAddress);
+                } catch (AddressNotFoundRuntimeException e) {
+                    geoData = Collections.emptyMap();
+                }
                 break;
             case "GeoLite2-Country":
-                geoData = retrieveCountryGeoData(ipAddress);
+                try {
+                    geoData = retrieveCountryGeoData(ipAddress);
+                } catch (AddressNotFoundRuntimeException e) {
+                    geoData = Collections.emptyMap();
+                }
                 break;
             default:
                 throw new IllegalStateException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType() + "]");
@@ -98,14 +109,13 @@ public final class GeoIpProcessor implements Processor {
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        CityResponse response = AccessController.doPrivileged(new PrivilegedAction<CityResponse>() {
-            @Override
-            public CityResponse run() {
-                try {
-                    return dbReader.city(ipAddress);
-                } catch (IOException | GeoIp2Exception e) {
-                    throw new RuntimeException(e);
-                }
+        CityResponse response = AccessController.doPrivileged((PrivilegedAction<CityResponse>) () -> {
+            try {
+                return dbReader.city(ipAddress);
+            } catch (AddressNotFoundException e) {
+                throw new AddressNotFoundRuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         });
 
@@ -136,14 +146,13 @@ public final class GeoIpProcessor implements Processor {
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
-        CountryResponse response = AccessController.doPrivileged(new PrivilegedAction<CountryResponse>() {
-            @Override
-            public CountryResponse run() {
-                try {
-                    return dbReader.country(ipAddress);
-                } catch (IOException | GeoIp2Exception e) {
-                    throw new RuntimeException(e);
-                }
+        CountryResponse response = AccessController.doPrivileged((PrivilegedAction<CountryResponse>) () -> {
+            try {
+                return dbReader.country(ipAddress);
+            } catch (AddressNotFoundException e) {
+                throw new AddressNotFoundRuntimeException(e);
+            } catch (Exception e) {
+                throw new RuntimeException(e);
             }
         });
 
@@ -187,6 +196,16 @@ public final class GeoIpProcessor implements Processor {
         @Override
         public void close() throws IOException {
             databaseReaderService.close();
+        }
+    }
+
+    // Geoip2's AddressNotFoundException is checked and due to the fact that we need run their code
+    // inside a PrivilegedAction code block, we are forced to catch any checked exception and rethrow
+    // it with an unchecked exception.
+    private final static class AddressNotFoundRuntimeException extends RuntimeException {
+
+        public AddressNotFoundRuntimeException(Throwable cause) {
+            super(cause);
         }
     }
 

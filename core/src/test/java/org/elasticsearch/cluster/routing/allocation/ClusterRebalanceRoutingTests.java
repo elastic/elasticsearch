@@ -30,10 +30,11 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -623,5 +624,73 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
+    }
+
+    public void testRebalanceWhileShardFetching() {
+        final AtomicInteger numFetch = new AtomicInteger(1);
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new NoopGatewayAllocator() {
+            @Override
+            public int getNumberOfInFlightFetch() {
+                return numFetch.get();
+            }
+        });
+
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+                .build();
+
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaData.index("test"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+
+        logger.info("start two nodes");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
+        routingTable = strategy.reroute(clusterState).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
+        }
+
+        logger.debug("start all the primary shards for test");
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState("test", INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
+        }
+
+        logger.debug("now, start 1 more node, check that rebalancing will not happen since we have shard sync going on");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+                .put(newNode("node2")))
+                .build();
+
+        RoutingAllocation.Result reroute = strategy.reroute(clusterState);
+        assertFalse(reroute.changed());
+        numFetch.set(0);
+        reroute = strategy.reroute(clusterState);
+        assertTrue(reroute.changed());
+        routingTable = reroute.routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+        int numStarted = 0;
+        int numRelocating = 0;
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(1));
+            if (routingTable.index("test").shard(i).primaryShard().state() == STARTED) {
+                numStarted++;
+            } else if (routingTable.index("test").shard(i).primaryShard().state() == RELOCATING) {
+                numRelocating++;
+            }
+        }
+        assertEquals(numStarted, 1);
+        assertEquals(numRelocating, 1);
+
     }
 }

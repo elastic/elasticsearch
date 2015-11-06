@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
+import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
@@ -77,6 +78,12 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         return new AllocationService(settings,
                 randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), clusterInfoService);
+    }
+
+    public static AllocationService createAllocationService(Settings settings, GatewayAllocator allocator) {
+        return new AllocationService(settings,
+                randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
+                new ShardsAllocators(settings, allocator), EmptyClusterInfoService.INSTANCE);
     }
 
 

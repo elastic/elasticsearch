@@ -76,7 +76,20 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
 
     @Override
     public boolean rebalance(RoutingAllocation allocation) {
-        return allocator.rebalance(allocation);
+        final int numberOfInFlightFetch = gatewayAllocator.getNumberOfInFlightFetch();
+        if (numberOfInFlightFetch == 0) {
+            /*
+             * see https://github.com/elastic/elasticsearch/issues/14387
+             * if we allow rebalance operations while we are still fetching shard store data
+             * we might end up with unnecessary rebalance operations which can be super confusion/frustrating
+             * since once the fetches come back we might just move all the shards back again.
+             * Therefore we only do a rebalance if we have fetched all information.
+             */
+            return allocator.rebalance(allocation);
+        } else {
+            logger.debug("skip rebalance [{}] shard store fetch operations are still in-flight", numberOfInFlightFetch);
+        }
+        return false;
     }
 
     @Override

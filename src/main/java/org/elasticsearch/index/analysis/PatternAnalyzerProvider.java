@@ -24,7 +24,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
+import org.apache.lucene.analysis.pattern.XPatternTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.ElasticsearchIllegalArgumentException;
 import org.elasticsearch.Version;
@@ -62,7 +62,7 @@ public class PatternAnalyzerProvider extends AbstractIndexAnalyzerProvider<Analy
 
         @Override
         protected TokenStreamComponents createComponents(String s, Reader reader) {
-            final TokenStreamComponents source = new TokenStreamComponents(new PatternTokenizer(reader, pattern, -1));
+            final TokenStreamComponents source = new TokenStreamComponents(new XPatternTokenizer(reader, pattern, -1));
             TokenStream result = null;
             if (lowercase) {
                  result = new LowerCaseFilter(version, source.getTokenStream());

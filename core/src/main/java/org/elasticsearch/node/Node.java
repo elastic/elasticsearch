@@ -135,7 +135,7 @@ public class Node implements Releasable {
         Settings tmpSettings = TribeService.processSettings(tmpEnv.settings());
 
         ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
-        logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.hashShort(), Build.CURRENT.timestamp());
+        logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
 
         logger.info("initializing ...");
 

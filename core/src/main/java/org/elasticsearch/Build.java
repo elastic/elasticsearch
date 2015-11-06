@@ -19,81 +19,67 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.joda.time.DateTimeZone;
-import org.joda.time.format.ISODateTimeFormat;
 
 import java.io.IOException;
-import java.io.InputStream;
-import java.util.Properties;
+import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 
 /**
  */
+@SuppressForbidden(reason = "needs JarFile to read the manifest")
 public class Build {
 
     public static final Build CURRENT;
 
     static {
-        String hash = "NA";
-        String hashShort = "NA";
-        String timestamp = "NA";
+        String shortHash = "Unknown";
+        String date = "Unknown";
 
-        try (InputStream is = Build.class.getResourceAsStream("/es-build.properties")){
-            Properties props = new Properties();
-            props.load(is);
-            hash = props.getProperty("hash", hash);
-            if (!hash.equals("NA")) {
-                hashShort = hash.substring(0, 7);
-            }
-            String gitTimestampRaw = props.getProperty("timestamp");
-            if (gitTimestampRaw != null) {
-                timestamp = ISODateTimeFormat.dateTimeNoMillis().withZone(DateTimeZone.UTC).print(Long.parseLong(gitTimestampRaw));
-            }
-        } catch (Exception e) {
+        String path = Build.class.getProtectionDomain().getCodeSource().getLocation().getPath();
+        try {
+            JarFile jar = new JarFile(path);
+            Manifest manifest = jar.getManifest();
+            shortHash = manifest.getMainAttributes().getValue("Change");
+            date = manifest.getMainAttributes().getValue("Build-Date");
+        } catch (IOException e) {
             // just ignore...
         }
 
-        CURRENT = new Build(hash, hashShort, timestamp);
+        CURRENT = new Build(shortHash, date);
     }
 
-    private String hash;
-    private String hashShort;
-    private String timestamp;
+    private String shortHash;
+    private String date;
 
-    Build(String hash, String hashShort, String timestamp) {
-        this.hash = hash;
-        this.hashShort = hashShort;
-        this.timestamp = timestamp;
+    Build(String shortHash, String date) {
+        this.shortHash = shortHash;
+        this.date = date;
     }
 
-    public String hash() {
-        return hash;
+    public String shortHash() {
+        return shortHash;
     }
 
-    public String hashShort() {
-        return hashShort;
-    }
-
-    public String timestamp() {
-        return timestamp;
+    public String date() {
+        return date;
     }
 
     public static Build readBuild(StreamInput in) throws IOException {
         String hash = in.readString();
-        String hashShort = in.readString();
-        String timestamp = in.readString();
-        return new Build(hash, hashShort, timestamp);
+        String date = in.readString();
+        return new Build(hash, date);
     }
 
     public static void writeBuild(Build build, StreamOutput out) throws IOException {
-        out.writeString(build.hash());
-        out.writeString(build.hashShort());
-        out.writeString(build.timestamp());
+        out.writeString(build.shortHash());
+        out.writeString(build.date());
     }
 
     @Override
     public String toString() {
-        return "[" + hash + "][" + timestamp + "]";
+        return "[" + shortHash + "][" + date + "]";
     }
 }

@@ -37,6 +37,8 @@
         <elasticsearch.assembly.descriptor>${project.basedir}/src/main/assemblies/plugin.xml</elasticsearch.assembly.descriptor>
         <tests.rest.suite>mapper_attachments</tests.rest.suite>
         <tests.rest.load_packaged>false</tests.rest.load_packaged>
+
+        <elasticsearch.integ.antfile>${project.basedir}/src/test/resources/integ-tests-183.xml</elasticsearch.integ.antfile>
     </properties>
 
     <dependencies>

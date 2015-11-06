@@ -26,6 +26,12 @@ subprojects {
 
 }
 
+if (hasProperty('projectsPrefix') == false) {
+  allprojects {
+    project.ext['projectsPrefix'] = ''
+  }
+}
+
         <repository>
             <id>elasticsearch-releases</id>
             <url>http://maven.elasticsearch.org/releases</url>
@@ -67,7 +73,7 @@ subprojects {
 */
 
 // ================= Local Elasticsearch attachment ===============
-if ('elasticsearch' in attachments) {
+if (hasProperty('attachments') && 'elasticsearch' in attachments) {
   subprojects {
     configurations {
       all {

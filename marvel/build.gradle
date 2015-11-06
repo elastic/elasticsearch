@@ -12,8 +12,6 @@ configurations {
   licensePluginZip
 }
 
-print "MARVEL: ${dependencies}"
-
 dependencies {
   licensePluginZip project(path: "${projectsPrefix}:license:plugin") // zip
   provided project(path: "${projectsPrefix}:license:plugin", configuration: 'runtime')

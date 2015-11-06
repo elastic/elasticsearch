@@ -1,5 +1,4 @@
 rootProject.name = 'x-plugins'
-
 apply plugin: 'elasticsearch.project-settings-attachment'
 
 String prefix = ''

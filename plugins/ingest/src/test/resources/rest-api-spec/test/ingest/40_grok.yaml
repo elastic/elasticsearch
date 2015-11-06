@@ -34,7 +34,7 @@
         index: test
         type: test
         id: 1
-        ingest: "my_pipeline"
+        pipeline_id: "my_pipeline"
         body: {field1: "123.42 400 <foo>"}
 
   - do:

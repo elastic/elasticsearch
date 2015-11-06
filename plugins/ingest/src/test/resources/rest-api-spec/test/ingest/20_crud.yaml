@@ -55,3 +55,40 @@
       catch: missing
       ingest.get_pipeline:
         ids: "my_pipeline"
+
+---
+"Test invalid config":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      catch: param
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                }
+              }
+            ]
+          }
+
+  - do:
+      catch: param
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "geoip" : {
+                  "ip_field" : 1234
+                }
+              }
+            ]
+          }

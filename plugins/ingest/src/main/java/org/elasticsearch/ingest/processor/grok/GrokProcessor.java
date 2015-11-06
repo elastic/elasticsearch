@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor.grok;
 
 import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
 import java.io.IOException;
@@ -55,18 +56,28 @@ public final class GrokProcessor implements Processor {
         }
     }
 
+    String getMatchField() {
+        return matchField;
+    }
+
+    Grok getGrok() {
+        return grok;
+    }
+
     public static class Factory implements Processor.Factory {
         private Path grokConfigDirectory;
 
         public Processor create(Map<String, Object> config) throws IOException {
-            String matchField = (String) config.get("field");
-            String matchPattern = (String) config.get("pattern");
+            String matchField = ConfigurationUtils.readStringProperty(config, "field", null);
+            String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern", null);
             Map<String, String> patternBank = new HashMap<>();
             Path patternsDirectory = grokConfigDirectory.resolve("patterns");
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(patternsDirectory)) {
                 for (Path patternFilePath : stream) {
-                    try(InputStream is = Files.newInputStream(patternFilePath, StandardOpenOption.READ)) {
-                        PatternUtils.loadBankFromStream(patternBank, is);
+                    if (Files.isRegularFile(patternFilePath)) {
+                        try(InputStream is = Files.newInputStream(patternFilePath, StandardOpenOption.READ)) {
+                            PatternUtils.loadBankFromStream(patternBank, is);
+                        }
                     }
                 }
             }

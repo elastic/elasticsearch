@@ -66,7 +66,7 @@
           "options" : ["internal", "external", "external_gte", "force"],
           "description" : "Specific version type"
         },
-        "ingest" : {
+        "pipeline_id" : {
           "type" : "string",
           "description" : "The pipeline id to preprocess incoming documents with"
         }

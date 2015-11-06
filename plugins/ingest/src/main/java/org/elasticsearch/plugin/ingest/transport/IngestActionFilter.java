@@ -48,9 +48,9 @@ public class IngestActionFilter extends AbstractComponent implements ActionFilte
 
     @Override
     public void apply(String action, ActionRequest request, ActionListener listener, ActionFilterChain chain) {
-        String pipelineId = request.getFromContext(IngestPlugin.INGEST_PARAM_CONTEXT_KEY);
+        String pipelineId = request.getFromContext(IngestPlugin.PIPELINE_ID_PARAM_CONTEXT_KEY);
         if (pipelineId == null) {
-            pipelineId = request.getHeader(IngestPlugin.INGEST_PARAM);
+            pipelineId = request.getHeader(IngestPlugin.PIPELINE_ID_PARAM);
             if (pipelineId == null) {
                 chain.proceed(action, request, listener);
                 return;
@@ -76,7 +76,7 @@ public class IngestActionFilter extends AbstractComponent implements ActionFilte
         // The IndexRequest has the same type on the node that receives the request and the node that
         // processes the primary action. This could lead to a pipeline being executed twice for the same
         // index request, hence this check
-        if (indexRequest.hasHeader(IngestPlugin.INGEST_ALREADY_PROCESSED)) {
+        if (indexRequest.hasHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED)) {
             chain.proceed(action, indexRequest, listener);
             return;
         }
@@ -89,7 +89,7 @@ public class IngestActionFilter extends AbstractComponent implements ActionFilte
                 if (data.isModified()) {
                     indexRequest.source(data.getDocument());
                 }
-                indexRequest.putHeader(IngestPlugin.INGEST_ALREADY_PROCESSED, true);
+                indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
                 chain.proceed(action, indexRequest, listener);
             }
 

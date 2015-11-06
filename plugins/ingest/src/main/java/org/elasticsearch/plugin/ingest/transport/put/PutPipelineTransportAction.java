@@ -28,24 +28,37 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.function.Supplier;
+import java.io.IOException;
+import java.util.Map;
 
 public class PutPipelineTransportAction extends HandledTransportAction<PutPipelineRequest, PutPipelineResponse> {
 
     private final TransportIndexAction indexAction;
+    private final PipelineStore pipelineStore;
 
     @Inject
-    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, TransportIndexAction indexAction) {
+    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, TransportIndexAction indexAction, PipelineStore pipelineStore) {
         super(settings, PutPipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
         this.indexAction = indexAction;
+        this.pipelineStore = pipelineStore;
     }
 
     @Override
     protected void doExecute(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener) {
+        // validates the pipeline and processor configuration:
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.source(), false).v2();
+        try {
+            pipelineStore.constructPipeline(request.id(), pipelineConfig);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+
         IndexRequest indexRequest = new IndexRequest();
         indexRequest.index(PipelineStore.INDEX);
         indexRequest.type(PipelineStore.TYPE);

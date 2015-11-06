@@ -71,7 +71,7 @@ public class IngestActionFilterTests extends ESTestCase {
     public void testApplyIngestIdViaRequestParam() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(IngestPlugin.INGEST_PARAM, "_id");
+        indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -84,7 +84,7 @@ public class IngestActionFilterTests extends ESTestCase {
     public void testApplyIngestIdViaContext() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putInContext(IngestPlugin.INGEST_PARAM_CONTEXT_KEY, "_id");
+        indexRequest.putInContext(IngestPlugin.PIPELINE_ID_PARAM_CONTEXT_KEY, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -97,8 +97,8 @@ public class IngestActionFilterTests extends ESTestCase {
     public void testApplyAlreadyProcessed() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(IngestPlugin.INGEST_PARAM, "_id");
-        indexRequest.putHeader(IngestPlugin.INGEST_ALREADY_PROCESSED, true);
+        indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
+        indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -111,7 +111,7 @@ public class IngestActionFilterTests extends ESTestCase {
     public void testApply_executed() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(IngestPlugin.INGEST_PARAM, "_id");
+        indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -135,7 +135,7 @@ public class IngestActionFilterTests extends ESTestCase {
     public void testApply_failed() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
-        indexRequest.putHeader(IngestPlugin.INGEST_PARAM, "_id");
+        indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
@@ -169,7 +169,7 @@ public class IngestActionFilterTests extends ESTestCase {
         filter = new IngestActionFilter(Settings.EMPTY, executionService);
 
         BulkRequest bulkRequest = new BulkRequest();
-        bulkRequest.putHeader(IngestPlugin.INGEST_PARAM, "_id");
+        bulkRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
         int numRequest = scaledRandomIntBetween(8, 64);
         for (int i = 0; i < numRequest; i++) {
             if (rarely()) {

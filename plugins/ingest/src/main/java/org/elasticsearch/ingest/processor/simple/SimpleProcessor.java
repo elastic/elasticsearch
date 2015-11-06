@@ -20,6 +20,7 @@
 package org.elasticsearch.ingest.processor.simple;
 
 import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
 import java.io.IOException;
@@ -55,10 +56,10 @@ public final class SimpleProcessor implements Processor {
     public static class Factory implements Processor.Factory {
 
         public Processor create(Map<String, Object> config) {
-            String path = (String) config.get("path");
-            String expectedValue = (String) config.get("expected_value");
-            String addField = (String) config.get("add_field");
-            String addFieldValue = (String) config.get("add_field_value");
+            String path = ConfigurationUtils.readStringProperty(config, "path", null);
+            String expectedValue = ConfigurationUtils.readStringProperty(config, "expected_value", null);
+            String addField = ConfigurationUtils.readStringProperty(config, "add_field", null);
+            String addFieldValue = ConfigurationUtils.readStringProperty(config, "add_field_value", null);
             return new SimpleProcessor(path, expectedValue, addField, addFieldValue);
         }
 

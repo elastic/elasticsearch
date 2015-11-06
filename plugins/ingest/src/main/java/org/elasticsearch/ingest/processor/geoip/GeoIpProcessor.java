@@ -27,6 +27,7 @@ import com.maxmind.geoip2.record.*;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
 import java.io.InputStream;
@@ -41,18 +42,19 @@ import java.security.PrivilegedAction;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.processor.ConfigurationUtils.readStringProperty;
+
 public final class GeoIpProcessor implements Processor {
 
     public static final String TYPE = "geoip";
 
     private final String ipField;
     private final String targetField;
-    // pck-protected visibility for tests:
-    final DatabaseReader dbReader;
+    private final DatabaseReader dbReader;
 
     GeoIpProcessor(String ipField, DatabaseReader dbReader, String targetField) throws IOException {
         this.ipField = ipField;
-        this.targetField = targetField == null ? "geoip" : targetField;
+        this.targetField = targetField;
         this.dbReader = dbReader;
     }
 
@@ -78,6 +80,18 @@ public final class GeoIpProcessor implements Processor {
                 throw new IllegalStateException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType() + "]");
         }
         data.addField(targetField, geoData);
+    }
+
+    String getIpField() {
+        return ipField;
+    }
+
+    String getTargetField() {
+        return targetField;
+    }
+
+    DatabaseReader getDbReader() {
+        return dbReader;
     }
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
@@ -151,19 +165,12 @@ public final class GeoIpProcessor implements Processor {
         private final DatabaseReaderService databaseReaderService = new DatabaseReaderService();
 
         public Processor create(Map<String, Object> config) throws IOException {
-            String ipField = (String) config.get("ip_field");
-
-            String targetField = (String) config.get("target_field");
-            if (targetField == null) {
-                targetField = "geoip";
-            }
-            String databaseFile = (String) config.get("database_file");
-            if (databaseFile == null) {
-                databaseFile = "GeoLite2-City.mmdb";
-            }
+            String ipField = readStringProperty(config, "ip_field", null);
+            String targetField = readStringProperty(config, "target_field", "geoip");
+            String databaseFile = readStringProperty(config, "database_file", "GeoLite2-City.mmdb");
 
             Path databasePath = geoIpConfigDirectory.resolve(databaseFile);
-            if (Files.exists(databasePath)) {
+            if (Files.exists(databasePath) && Files.isRegularFile(databasePath)) {
                 try (InputStream database = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
                     DatabaseReader databaseReader = databaseReaderService.getOrCreateDatabaseReader(databaseFile, database);
                     return new GeoIpProcessor(ipField, databaseReader, targetField);

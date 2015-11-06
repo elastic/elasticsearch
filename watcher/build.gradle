@@ -12,9 +12,9 @@ configurations {
 }
 
 dependencies {
-  licensePluginZip project(path: ':license:plugin') // zip
-  provided project(path: ':license:plugin', configuration: 'runtime')
-  provided project(path: ':shield', configuration: 'runtime')
+  licensePluginZip project(path: "${projectsPrefix}:license:plugin") // zip
+  provided project(path: "${projectsPrefix}:license:plugin", configuration: 'runtime')
+  provided project(path: "${projectsPrefix}:shield", configuration: 'runtime')
 
   compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
   compile 'com.sun.mail:javax.mail:1.5.3'

@@ -159,7 +159,7 @@ is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too
 [options="header"]
 |======
 | Name                   | Required  | Default             | Description
-| `ip_field`             | yes       | -                   | The field to get the ip address from for the geographical lookip.
+| `ip_field`             | yes       | -                   | The field to get the ip address from for the geographical lookup.
 | `target_field`         | no        | geoip               | The field that will hold the geographical information looked up from the Maxmind database.
 | `database_file`        | no        | GeoLite2-City.mmdb  | The database filename in the geoip config directory. The ingest plugin ships with the GeoLite2-City.mmdb and GeoLite2-Country.mmdb files.
 |======
@@ -171,7 +171,7 @@ and `location`.
 If the GeoLite2 Country database is used then the following fields will be added under the `target_field`: `ip`,
 `country_iso_code`, `country_name` and `continent_name`.
 
-An example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field`:
+An example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 
 [source,js]
 --------------------------------------------------
@@ -204,6 +204,45 @@ An example that uses the default country database and add the geographical infor
   ]
 }
 --------------------------------------------------
+
+==== Date processor
+
+The date processor is used for parsing dates from fields, and then using that date or timestamp as the timestamp for that document.
+The date processor adds by default the parsed date as a new field called `@timestamp`, configurable by setting the `target_field`
+configuration parameter. Multiple date formats are supported as part of the same date processor definition. They will be used
+sequentially to attempt parsing the date field, in the same order they were defined as part of the processor definition.
+
+[[date-options]]
+.Date options
+[options="header"]
+|======
+| Name                   | Required  | Default             | Description
+| `match_field`          | yes       | -                   | The field to get the date from.
+| `target_field`         | no        | @timestamp          | The field that will hold the parsed date.
+| `match_formats`        | yes       | -                   | Array of the expected date formats. Can be a joda pattern or one of the following formats: ISO8601, UNIX, UNIX_MS, TAI64N.
+| `timezone`             | no        | UTC                 | The timezone to use when parsing the date.
+| `locale`               | no        | ENGLISH             | The locale to use when parsing the date, relevant when parsing month names or week days.
+|======
+
+An example that adds the parsed date to the `timestamp` field based on the `initial_date` field:
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "date" : {
+        "match_field" : "initial_date",
+        "target_field" : "timestamp",
+        "match_formats" : ["dd/MM/yyyy hh:mm:ss"],
+        "timezone" : "Europe/Amsterdam"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
 
 === Put pipeline API
 

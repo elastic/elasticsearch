@@ -23,16 +23,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.Before;
 
-import static org.hamcrest.Matchers.*;
-
 import java.io.ByteArrayInputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-public class GeoProcessorFactoryTests extends ESTestCase {
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.startsWith;
+
+public class GeoIpProcessorFactoryTests extends ESTestCase {
 
     private Path configDir;
 
@@ -52,7 +52,7 @@ public class GeoProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("ip_field", "_field");
 
-        GeoIpProcessor processor = (GeoIpProcessor) factory.create(config);
+        GeoIpProcessor processor = factory.create(config);
         assertThat(processor.getIpField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
@@ -64,7 +64,7 @@ public class GeoProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("ip_field", "_field");
         config.put("target_field", "_field");
-        GeoIpProcessor processor = (GeoIpProcessor) factory.create(config);
+        GeoIpProcessor processor = factory.create(config);
         assertThat(processor.getIpField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
     }
@@ -75,7 +75,7 @@ public class GeoProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("ip_field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
-        GeoIpProcessor processor = (GeoIpProcessor) factory.create(config);
+        GeoIpProcessor processor = factory.create(config);
         assertThat(processor.getIpField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));

@@ -49,7 +49,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");
         config.put("pattern", "(?<foo>\\w+)");
-        GrokProcessor processor = (GrokProcessor) factory.create(config);
+        GrokProcessor processor = factory.create(config);
         assertThat(processor.getMatchField(), equalTo("_field"));
         assertThat(processor.getGrok(), notNullValue());
     }

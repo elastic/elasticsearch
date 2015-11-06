@@ -26,17 +26,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AbstractIndexAnalyzerProvider;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
-/**
- */
 public class PolishAnalyzerProvider extends AbstractIndexAnalyzerProvider<PolishAnalyzer> {
 
     private final PolishAnalyzer analyzer;
 
     @Inject
-    public PolishAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PolishAnalyzerProvider(Index index, IndexSettingsService indexSettingsService, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
 
         analyzer = new PolishAnalyzer(PolishAnalyzer.getDefaultStopSet());
         analyzer.setVersion(version);

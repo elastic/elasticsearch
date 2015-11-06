@@ -36,14 +36,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.phonetic.HaasePhonetik;
 import org.elasticsearch.index.analysis.phonetic.KoelnerPhonetik;
 import org.elasticsearch.index.analysis.phonetic.Nysiis;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.util.Arrays;
 import java.util.HashSet;
 
-/**
- *
- */
 public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final Encoder encoder;
@@ -54,8 +51,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
     private RuleType ruletype;
 
     @Inject
-    public PhoneticTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+    public PhoneticTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
         this.languageset = null;
         this.nametype = null;
         this.ruletype = null;

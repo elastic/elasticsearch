@@ -26,7 +26,6 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -66,7 +65,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+    public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.beforeIndexAddedToCluster(index, indexSettings);
@@ -77,7 +76,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+    public void beforeIndexCreated(Index index, Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.beforeIndexCreated(index, indexSettings);
@@ -99,7 +98,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void beforeIndexShardCreated(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.beforeIndexShardCreated(shardId, indexSettings);
@@ -177,7 +176,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+    public void afterIndexDeleted(Index index, Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.afterIndexDeleted(index, indexSettings);
@@ -188,7 +187,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
         }
     }
 
-    public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+    public void afterIndexClosed(Index index, Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.afterIndexClosed(index, indexSettings);
@@ -200,7 +199,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
     }
 
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                       @IndexSettings Settings indexSettings) {
+                                       Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.beforeIndexShardClosed(shardId, indexShard, indexSettings);
@@ -212,7 +211,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
     }
 
     public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                      @IndexSettings Settings indexSettings) {
+                                      Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.afterIndexShardClosed(shardId, indexShard, indexSettings);
@@ -224,7 +223,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
     }
 
     public void beforeIndexShardDeleted(ShardId shardId,
-                                       @IndexSettings Settings indexSettings) {
+                                       Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.beforeIndexShardDeleted(shardId, indexSettings);
@@ -236,7 +235,7 @@ public class InternalIndicesLifecycle extends AbstractComponent implements Indic
     }
 
     public void afterIndexShardDeleted(ShardId shardId,
-                                      @IndexSettings Settings indexSettings) {
+                                      Settings indexSettings) {
         for (Listener listener : listeners) {
             try {
                 listener.afterIndexShardDeleted(shardId, indexSettings);

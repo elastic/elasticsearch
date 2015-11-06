@@ -21,8 +21,7 @@ package org.elasticsearch.index.deletionpolicy;
 
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -36,8 +35,8 @@ public class KeepLastNDeletionPolicy extends AbstractESDeletionPolicy {
     private final int numToKeep;
 
     @Inject
-    public KeepLastNDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings) {
-        super(shardId, indexSettings);
+    public KeepLastNDeletionPolicy(ShardId shardId, IndexSettingsService indexSettingsService) {
+        super(shardId, indexSettingsService.getSettings());
         this.numToKeep = indexSettings.getAsInt("index.deletionpolicy.num_to_keep", 5);
         logger.debug("Using [keep_last_n] deletion policy with num_to_keep[{}]", numToKeep);
     }

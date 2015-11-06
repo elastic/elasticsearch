@@ -25,19 +25,16 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
-/**
- *
- */
 public class UniqueTokenFilterFactory extends AbstractTokenFilterFactory {
 
     private final boolean onlyOnSamePosition;
 
     @Inject
-    public UniqueTokenFilterFactory(Index index, @IndexSettings Settings indexSettings,
+    public UniqueTokenFilterFactory(Index index, IndexSettingsService indexSettingsService,
                                     @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+        super(index, indexSettingsService.getSettings(), name, settings);
         this.onlyOnSamePosition = settings.getAsBoolean("only_on_same_position", false);
     }
 

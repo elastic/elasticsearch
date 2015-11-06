@@ -58,7 +58,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.gateway.PrimaryShardAllocator;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.MergePolicyConfig;
@@ -200,7 +199,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
         final CopyOnWriteArrayList<Throwable> exception = new CopyOnWriteArrayList<>();
         final IndicesLifecycle.Listener listener = new IndicesLifecycle.Listener() {
             @Override
-            public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, @IndexSettings Settings indexSettings) {
+            public void afterIndexShardClosed(ShardId sid, @Nullable IndexShard indexShard, Settings indexSettings) {
                 if (indexShard != null) {
                     Store store = ((IndexShard) indexShard).store();
                     store.incRef();

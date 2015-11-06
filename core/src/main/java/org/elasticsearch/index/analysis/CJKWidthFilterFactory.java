@@ -24,12 +24,13 @@ import org.apache.lucene.analysis.cjk.CJKWidthFilter;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 public final class CJKWidthFilterFactory extends AbstractTokenFilterFactory {
 
     @Inject
-    public CJKWidthFilterFactory(Index index, Settings indexSettings, String name, Settings settings) {
-        super(index, indexSettings, name, settings);
+    public CJKWidthFilterFactory(Index index, IndexSettingsService indexSettingsService, String name, Settings settings) {
+        super(index, indexSettingsService.getSettings(), name, settings);
     }
 
     @Override

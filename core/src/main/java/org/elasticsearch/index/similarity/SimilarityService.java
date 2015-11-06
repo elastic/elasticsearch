@@ -22,36 +22,22 @@ package org.elasticsearch.index.similarity;
 import org.apache.lucene.search.similarities.PerFieldSimilarityWrapper;
 import org.apache.lucene.search.similarities.Similarity;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
-/**
- *
- */
 public class SimilarityService extends AbstractIndexComponent {
-
     private final SimilarityLookupService similarityLookupService;
     private final MapperService mapperService;
 
     private final Similarity perFieldSimilarity;
 
-    public SimilarityService(Index index) {
-        this(index, Settings.Builder.EMPTY_SETTINGS);
-    }
-
-    public SimilarityService(Index index, Settings settings) {
-        this(index, settings, new SimilarityLookupService(index, settings), null);
-    }
-
     @Inject
-    public SimilarityService(Index index, @IndexSettings Settings indexSettings,
+    public SimilarityService(Index index, IndexSettingsService indexSettingsService,
                              final SimilarityLookupService similarityLookupService, final MapperService mapperService) {
-        super(index, indexSettings);
+        super(index, indexSettingsService.getSettings());
         this.similarityLookupService = similarityLookupService;
         this.mapperService = mapperService;
 

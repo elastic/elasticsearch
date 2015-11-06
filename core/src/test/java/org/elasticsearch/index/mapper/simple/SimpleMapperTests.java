@@ -43,7 +43,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
     @Test
     public void testSimpleMapper() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.settingsService().getSettings();
+        Settings settings = indexService.indexSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         DocumentMapper docMapper = doc(settings,
                 rootObject("person")
@@ -121,7 +121,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
     @Test
     public void testNoDocumentSent() throws Exception {
         IndexService indexService = createIndex("test");
-        Settings settings = indexService.settingsService().getSettings();
+        Settings settings = indexService.indexSettings();
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         DocumentMapper docMapper = doc(settings,
                 rootObject("person")

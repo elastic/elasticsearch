@@ -25,15 +25,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.indices.store.IndicesStore;
 
 import java.io.Closeable;
 
-/**
- *
- */
 public class IndexStore extends AbstractIndexComponent implements Closeable {
 
     public static final String INDEX_STORE_THROTTLE_TYPE = "index.store.throttle.type";
@@ -77,9 +73,10 @@ public class IndexStore extends AbstractIndexComponent implements Closeable {
     private final ApplySettings applySettings = new ApplySettings();
 
     @Inject
-    public IndexStore(Index index, @IndexSettings Settings indexSettings, IndexSettingsService settingsService, IndicesStore indicesStore) {
-        super(index, indexSettings);
-         this.indicesStore = indicesStore;
+    public IndexStore(Index index, IndexSettingsService settingsService, IndicesStore indicesStore) {
+        super(index, settingsService.getSettings());
+        Settings indexSettings = settingsService.getSettings();
+        this.indicesStore = indicesStore;
 
         this.rateLimitingType = indexSettings.get(INDEX_STORE_THROTTLE_TYPE, "none");
         if (rateLimitingType.equalsIgnoreCase("node")) {

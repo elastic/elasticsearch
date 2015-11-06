@@ -47,7 +47,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardUtils;
@@ -58,7 +58,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.*;
@@ -91,7 +90,12 @@ public class BitsetFilterCache extends AbstractIndexComponent implements LeafRea
     private IndicesWarmer indicesWarmer;
 
     @Inject
-    public BitsetFilterCache(Index index, @IndexSettings Settings indexSettings) {
+    public BitsetFilterCache(Index index, IndexSettingsService indexSettingsService) {
+        this(index, indexSettingsService.getSettings());
+    }
+
+    //package private for testing
+    BitsetFilterCache(Index index, Settings indexSettings) {
         super(index, indexSettings);
         this.loadRandomAccessFiltersEagerly = indexSettings.getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
         this.loadedFilters = CacheBuilder.newBuilder().removalListener(this).build();

@@ -22,7 +22,7 @@ package org.elasticsearch.index.deletionpolicy;
 import org.apache.lucene.index.IndexCommit;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.util.List;
@@ -36,7 +36,11 @@ import java.util.List;
 public class KeepOnlyLastDeletionPolicy extends AbstractESDeletionPolicy {
 
     @Inject
-    public KeepOnlyLastDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public KeepOnlyLastDeletionPolicy(ShardId shardId, IndexSettingsService indexSettingsService) {
+        this(shardId, indexSettingsService.getSettings());
+    }
+
+    public KeepOnlyLastDeletionPolicy(ShardId shardId, Settings indexSettings) {
         super(shardId, indexSettings);
         logger.debug("Using [keep_only_last] deletion policy");
     }

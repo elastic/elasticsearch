@@ -41,6 +41,5 @@ public class IndexSettingsModule extends AbstractModule {
     protected void configure() {
         IndexSettingsService indexSettingsService = new IndexSettingsService(index, settings);
         bind(IndexSettingsService.class).toInstance(indexSettingsService);
-        bind(Settings.class).annotatedWith(IndexSettings.class).toProvider(new IndexSettingsProvider(indexSettingsService));
     }
 }

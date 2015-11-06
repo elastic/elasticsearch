@@ -31,10 +31,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisSettingsRequired;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.xml.sax.InputSource;
 
-import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -49,8 +48,8 @@ public class HyphenationCompoundWordTokenFilterFactory extends AbstractCompoundW
     private final HyphenationTree hyphenationTree;
 
     @Inject
-    public HyphenationCompoundWordTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, env, name, settings);
+    public HyphenationCompoundWordTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, Environment env, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), env, name, settings);
 
         String hyphenationPatternsPath = settings.get("hyphenation_patterns_path", null);
         if (hyphenationPatternsPath == null) {

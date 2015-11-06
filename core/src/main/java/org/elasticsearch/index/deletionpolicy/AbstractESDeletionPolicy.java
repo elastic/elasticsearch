@@ -23,7 +23,6 @@ import org.apache.lucene.index.IndexDeletionPolicy;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
@@ -35,7 +34,7 @@ abstract class AbstractESDeletionPolicy extends IndexDeletionPolicy implements I
 
     protected final Settings indexSettings;
 
-    protected AbstractESDeletionPolicy(ShardId shardId, @IndexSettings Settings indexSettings) {
+    protected AbstractESDeletionPolicy(ShardId shardId, Settings indexSettings) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.logger = Loggers.getLogger(getClass(), indexSettings, shardId);

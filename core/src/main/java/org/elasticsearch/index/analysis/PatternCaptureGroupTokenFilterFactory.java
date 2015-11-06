@@ -26,7 +26,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.util.regex.Pattern;
 
@@ -38,8 +38,11 @@ public class PatternCaptureGroupTokenFilterFactory extends AbstractTokenFilterFa
     private static final String PRESERVE_ORIG_KEY = "preserve_original";
 
     @Inject
-    public PatternCaptureGroupTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name,
-            @Assisted Settings settings) {
+    public PatternCaptureGroupTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        this(index, indexSettingsService.getSettings(), name, settings);
+    }
+
+    public PatternCaptureGroupTokenFilterFactory(Index index, Settings indexSettings, String name, Settings settings) {
         super(index, indexSettings, name, settings);
         String[] regexes = settings.getAsArray(PATTERNS_KEY, null, false);
         if (regexes == null) {

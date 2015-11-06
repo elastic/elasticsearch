@@ -27,7 +27,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.settings.IndexSettings;
 
 /**
  * A global component allowing to register for lifecycle of an index (create/closed) and
@@ -64,7 +63,7 @@ public interface IndicesLifecycle {
         /**
          * Called on the Master node only before the index is created
          */
-        public void beforeIndexAddedToCluster(Index index, @IndexSettings Settings indexSettings) {
+        public void beforeIndexAddedToCluster(Index index, Settings indexSettings) {
 
         }
 
@@ -72,7 +71,7 @@ public interface IndicesLifecycle {
          * Called before the index gets created. Note that this is also called
          * when the index is created on data nodes
          */
-        public void beforeIndexCreated(Index index, @IndexSettings Settings indexSettings) {
+        public void beforeIndexCreated(Index index, Settings indexSettings) {
 
         }
 
@@ -86,7 +85,7 @@ public interface IndicesLifecycle {
         /**
          * Called before the index shard gets created.
          */
-        public void beforeIndexShardCreated(ShardId shardId, @IndexSettings Settings indexSettings) {
+        public void beforeIndexShardCreated(ShardId shardId, Settings indexSettings) {
 
         }
 
@@ -129,7 +128,7 @@ public interface IndicesLifecycle {
          *
          * @param index The index
          */
-        public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+        public void afterIndexClosed(Index index, Settings indexSettings) {
 
         }
 
@@ -139,7 +138,7 @@ public interface IndicesLifecycle {
          * @param indexShard The index shard
          */
         public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                           @IndexSettings Settings indexSettings) {
+                                           Settings indexSettings) {
 
         }
 
@@ -149,7 +148,7 @@ public interface IndicesLifecycle {
          * @param shardId The shard id
          */
         public void afterIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                          @IndexSettings Settings indexSettings) {
+                                          Settings indexSettings) {
 
         }
 
@@ -160,7 +159,7 @@ public interface IndicesLifecycle {
          * @param shardId The shard id
          * @param indexSettings the shards index settings
          */
-        public void beforeIndexShardDeleted(ShardId shardId, @IndexSettings Settings indexSettings) {
+        public void beforeIndexShardDeleted(ShardId shardId, Settings indexSettings) {
         }
 
         /**
@@ -171,7 +170,7 @@ public interface IndicesLifecycle {
          * @param shardId The shard id
          * @param indexSettings the shards index settings
          */
-        public void afterIndexShardDeleted(ShardId shardId, @IndexSettings Settings indexSettings) {
+        public void afterIndexShardDeleted(ShardId shardId, Settings indexSettings) {
         }
 
         /**
@@ -194,7 +193,7 @@ public interface IndicesLifecycle {
          *
          * @param index The index
          */
-        public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+        public void afterIndexDeleted(Index index, Settings indexSettings) {
 
         }
 

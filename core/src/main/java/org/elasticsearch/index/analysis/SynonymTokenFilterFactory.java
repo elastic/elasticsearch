@@ -34,7 +34,7 @@ import org.elasticsearch.common.io.FastStringReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
 import java.io.Reader;
@@ -48,9 +48,9 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     private final boolean ignoreCase;
 
     @Inject
-    public SynonymTokenFilterFactory(Index index, @IndexSettings Settings indexSettings, Environment env, IndicesAnalysisService indicesAnalysisService, Map<String, TokenizerFactoryFactory> tokenizerFactories,
+    public SynonymTokenFilterFactory(Index index, IndexSettingsService indexSettingsService, Environment env, IndicesAnalysisService indicesAnalysisService, Map<String, TokenizerFactoryFactory> tokenizerFactories,
                                      @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
+        super(index, indexSettingsService.getSettings(), name, settings);
 
         Reader rulesReader = null;
         if (settings.getAsArray("synonyms", null) != null) {
@@ -79,7 +79,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
             throw new IllegalArgumentException("failed to find tokenizer [" + tokenizerName + "] for synonym token filter");
         }
 
-        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, Settings.builder().put(indexSettings).put(settings).build());
+        final TokenizerFactory tokenizerFactory = tokenizerFactoryFactory.create(tokenizerName, Settings.builder().put(indexSettingsService.getSettings()).put(settings).build());
 
         Analyzer analyzer = new Analyzer() {
             @Override

@@ -24,7 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.settings.IndexSettingsService;
 
 import java.io.Reader;
 import java.util.regex.Pattern;
@@ -36,8 +36,8 @@ public class PatternReplaceCharFilterFactory extends AbstractCharFilterFactory {
     private final String replacement;
 
     @Inject
-    public PatternReplaceCharFilterFactory(Index index, @IndexSettings Settings indexSettings, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name);
+    public PatternReplaceCharFilterFactory(Index index, IndexSettingsService indexSettingsService, @Assisted String name, @Assisted Settings settings) {
+        super(index, indexSettingsService.getSettings(), name);
 
         if (!Strings.hasLength(settings.get("pattern"))) {
             throw new IllegalArgumentException("pattern is missing for [" + name + "] char filter of type 'pattern_replace'");

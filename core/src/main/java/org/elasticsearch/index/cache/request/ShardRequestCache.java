@@ -22,16 +22,12 @@ package org.elasticsearch.index.cache.request;
 import com.google.common.cache.RemovalListener;
 import com.google.common.cache.RemovalNotification;
 
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 
-/**
- */
 public class ShardRequestCache extends AbstractIndexShardComponent implements RemovalListener<IndicesRequestCache.Key, IndicesRequestCache.Value> {
 
     final CounterMetric evictionsMetric = new CounterMetric();
@@ -39,7 +35,7 @@ public class ShardRequestCache extends AbstractIndexShardComponent implements Re
     final CounterMetric hitCount = new CounterMetric();
     final CounterMetric missCount = new CounterMetric();
 
-    public ShardRequestCache(ShardId shardId, @IndexSettings Settings indexSettings) {
+    public ShardRequestCache(ShardId shardId, Settings indexSettings) {
         super(shardId, indexSettings);
     }
 

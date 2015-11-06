@@ -192,7 +192,7 @@ public class DefaultSearchContext extends SearchContext {
             long resultWindow = from + size;
             // We need settingsService's view of the settings because its dynamic.
             // indexService's isn't.
-            int maxResultWindow = indexService.settingsService().getSettings().getAsInt(MAX_RESULT_WINDOW, Defaults.MAX_RESULT_WINDOW);
+            int maxResultWindow = indexService.indexSettings().getAsInt(MAX_RESULT_WINDOW, Defaults.MAX_RESULT_WINDOW);
 
             if (resultWindow > maxResultWindow) {
                 throw new QueryPhaseExecutionException(this,

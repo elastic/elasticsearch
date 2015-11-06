@@ -25,25 +25,22 @@ import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.ingest.Data;
-import org.elasticsearch.plugin.ingest.PipelineExecutionService;
+import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicInteger;
 
 public class SimulatePipelineTransportAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
 
-    private final PipelineExecutionService executionService;
+    private final PipelineStore pipelineStore;
 
     @Inject
-    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineExecutionService executionService) {
+    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStore pipelineStore) {
         super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SimulatePipelineRequest::new);
-        this.executionService = executionService;
+        this.pipelineStore = pipelineStore;
     }
 
     @Override
@@ -53,49 +50,17 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
         SimulatePipelineRequestPayload payload;
         SimulatePipelineRequestPayload.Factory factory = new SimulatePipelineRequestPayload.Factory();
         try {
-            payload = factory.create(request.id(), source, executionService);
+            payload = factory.create(request.id(), source, pipelineStore);
         } catch (IOException e) {
             listener.onFailure(e);
             return;
         }
 
-        final AtomicArray<SimulatedItemResponse> responses = new AtomicArray<>(payload.size());
-        final AtomicInteger counter = new AtomicInteger(payload.size());
-
-        for (int i = 0; i < payload.size(); i++) {
-            final int index = i;
-
-            executionService.execute(payload.getDocument(index), payload.pipeline(), new PipelineExecutionService.Listener() {
-                @Override
-                public void executed(Data data) {
-                    responses.set(index, new SimulatedItemResponse(data));
-
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
-                }
-
-                @Override
-                public void failed(Exception e) {
-                    logger.error("failed to execute pipeline [{}]", e, payload.pipelineId());
-                    responses.set(index, new SimulatedItemResponse(e));
-
-                    if (counter.decrementAndGet() == 0) {
-                        finishHim();
-                    }
-                }
-
-                public void finishHim() {
-                    SimulatedItemResponse[] responseArray = new SimulatedItemResponse[responses.length()];
-                    responses.toArray(responseArray);
-
-                    SimulatePipelineResponse response = new SimulatePipelineResponse()
-                            .pipelineId(payload.pipelineId())
-                            .responses(responseArray);
-
-                    listener.onResponse(response);
-                }
-            });
-        }
+        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
+            @Override
+            public void run() {
+                listener.onResponse(payload.execute());
+            }
+        });
     }
 }

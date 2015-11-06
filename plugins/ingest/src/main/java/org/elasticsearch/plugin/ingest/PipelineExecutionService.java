@@ -53,10 +53,6 @@ public class PipelineExecutionService {
         return pipeline;
     }
 
-    public Map<String, Processor.Factory> getProcessorFactoryRegistry() {
-        return store.getProcessorFactoryRegistry();
-    }
-
     public void execute(Data data, String pipelineId, Listener listener) {
         try {
             execute(data, getPipeline(pipelineId), listener);

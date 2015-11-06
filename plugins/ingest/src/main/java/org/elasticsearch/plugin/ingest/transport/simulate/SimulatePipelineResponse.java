@@ -27,35 +27,46 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Objects;
 
 public class SimulatePipelineResponse extends ActionResponse implements StatusToXContent {
 
     private String pipelineId;
-    private SimulatedItemResponse[] responses;
+    private List<SimulatedItemResponse> responses;
+
+    public SimulatePipelineResponse() {
+
+    }
+
+    public SimulatePipelineResponse(String pipelineId, List<SimulatedItemResponse> responses) {
+        this.pipelineId = pipelineId;
+        this.responses = Collections.unmodifiableList(responses);
+    }
 
     public String pipelineId() {
         return pipelineId;
     }
 
-    public SimulatePipelineResponse pipelineId(String pipelineId) {
+    public void pipelineId(String pipelineId) {
         this.pipelineId = pipelineId;
-        return this;
     }
 
-    public SimulatePipelineResponse responses(SimulatedItemResponse[] responses) {
-        this.responses = responses;
-        return this;
-    }
-
-    public SimulatedItemResponse[] responses() {
+    public List<SimulatedItemResponse> responses() {
         return responses;
+    }
+
+    public void responses(List<SimulatedItemResponse> responses) {
+        this.responses = responses;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(pipelineId);
-        out.writeVInt(responses.length);
+        out.writeVInt(responses.size());
         for (SimulatedItemResponse response : responses) {
             response.writeTo(out);
         }
@@ -66,11 +77,11 @@ public class SimulatePipelineResponse extends ActionResponse implements StatusTo
         super.readFrom(in);
         this.pipelineId = in.readString();
         int responsesLength = in.readVInt();
-        responses = new SimulatedItemResponse[responsesLength];
+        responses = new ArrayList<>();
         for (int i = 0; i < responsesLength; i++) {
             SimulatedItemResponse response = new SimulatedItemResponse();
             response.readFrom(in);
-            responses[i] = response;
+            responses.add(response);
         }
 
     }
@@ -90,9 +101,23 @@ public class SimulatePipelineResponse extends ActionResponse implements StatusTo
     public RestStatus status() {
         for (SimulatedItemResponse response : responses) {
             if (response.failed()) {
-                return response.status();
+                return RestStatus.BAD_REQUEST;
             }
         }
         return RestStatus.OK;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        SimulatePipelineResponse that = (SimulatePipelineResponse) o;
+        return Objects.equals(pipelineId, that.pipelineId) &&
+                Objects.equals(responses, that.responses);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(pipelineId, responses);
     }
 }

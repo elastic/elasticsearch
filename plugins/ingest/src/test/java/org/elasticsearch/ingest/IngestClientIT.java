@@ -105,14 +105,10 @@ public class IngestClientIT extends ESIntegTestCase {
         expectedDoc.put("foo", "bar");
         Data expectedData = new Data("index", "type", "id", expectedDoc);
         SimulatedItemResponse expectedResponse = new SimulatedItemResponse(expectedData);
-        SimulatedItemResponse[] expectedResponses = new SimulatedItemResponse[] { expectedResponse };
+        List<SimulatedItemResponse> expectedResponses = Arrays.asList(expectedResponse);
+        SimulatePipelineResponse expected = new SimulatePipelineResponse("_id", expectedResponses);
 
-        assertThat(response.responses().length, equalTo(1));
-        assertThat(response.responses()[0].getData().getIndex(), equalTo(expectedResponse.getData().getIndex()));
-        assertThat(response.responses()[0].getData(), equalTo(expectedResponse.getData()));
-        assertThat(response.responses()[0], equalTo(expectedResponse));
-        assertThat(response.responses(), equalTo(expectedResponses));
-        assertThat(response.pipelineId(), equalTo("_id"));
+        assertThat(response, equalTo(expected));
     }
 
     public void test() throws Exception {

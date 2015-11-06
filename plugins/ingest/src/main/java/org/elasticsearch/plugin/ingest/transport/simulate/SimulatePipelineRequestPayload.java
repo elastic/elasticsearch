@@ -22,6 +22,7 @@ import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
+import org.elasticsearch.plugin.ingest.PipelineStore;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -48,24 +49,33 @@ public class SimulatePipelineRequestPayload {
     }
 
 
-    public Data getDocument(int i) {
-        return documents.get(i);
+    public List<Data> documents() {
+        return documents;
     }
 
-    public int size() {
-        return documents.size();
+    public SimulatePipelineResponse execute() {
+        List<SimulatedItemResponse> responses = new ArrayList<>();
+        for (Data data : documents) {
+            try {
+                pipeline.execute(data);
+                responses.add(new SimulatedItemResponse(data));
+            } catch (Exception e) {
+                responses.add(new SimulatedItemResponse(e));
+            }
+        }
+        return new SimulatePipelineResponse(pipeline.getId(), responses);
     }
 
     public static class Factory {
 
-        public SimulatePipelineRequestPayload create(String pipelineId, Map<String, Object> config, PipelineExecutionService executionService) throws IOException {
+        public SimulatePipelineRequestPayload create(String pipelineId, Map<String, Object> config, PipelineStore pipelineStore) throws IOException {
             Pipeline pipeline;
             // if pipeline `id` passed to request, fetch pipeline from store.
             if (pipelineId != null) {
-                pipeline = executionService.getPipeline(pipelineId);
+                pipeline = pipelineStore.get(pipelineId);
             } else {
                 Map<String, Object> pipelineConfig = (Map<String, Object>) config.get("pipeline");
-                pipeline = (new Pipeline.Factory()).create("_pipeline_id", pipelineConfig, executionService.getProcessorFactoryRegistry());
+                pipeline = (new Pipeline.Factory()).create("_pipeline_id", pipelineConfig, pipelineStore.getProcessorFactoryRegistry());
             }
 
             // distribute docs by shard key to SimulateShardPipelineResponse

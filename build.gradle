@@ -70,7 +70,6 @@ dependencies {
     exclude group: 'edu.ucar', module: 'netcdf4'
     exclude group: 'com.uwyn', module: 'jhighlight'
     // ES core already has these
-    exclude group: 'org.aw2.asm', module: 'asm-debug-all'
     exclude group: 'commons-logging', module: 'commons-logging-api'
   }
 }

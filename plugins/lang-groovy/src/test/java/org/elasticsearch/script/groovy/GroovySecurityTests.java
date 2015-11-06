@@ -39,6 +39,12 @@ public class GroovySecurityTests extends ESTestCase {
 
     private GroovyScriptEngineService se;
 
+    static {
+        // ensure we load all the timezones in the parent classloader with all permissions
+        // relates to https://github.com/elastic/elasticsearch/issues/14524
+        org.joda.time.DateTimeZone.getDefault();
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
@@ -46,7 +52,7 @@ public class GroovySecurityTests extends ESTestCase {
         // otherwise will exit your VM and other bad stuff
         assumeTrue("test requires security manager to be enabled", System.getSecurityManager() != null);
     }
-    
+
     @Override
     public void tearDown() throws Exception {
         se.close();
@@ -91,7 +97,7 @@ public class GroovySecurityTests extends ESTestCase {
 
         // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
         assertFailure("def methodName = 'ex'; Runtime.\"${'get' + 'Runtime'}\"().\"${methodName}ec\"(\"touch /tmp/gotcha2\")");
-        
+
         // AccessControlException[access denied ("java.lang.RuntimePermission" "modifyThreadGroup")]
         assertFailure("t = new Thread({ println 3 });");
 

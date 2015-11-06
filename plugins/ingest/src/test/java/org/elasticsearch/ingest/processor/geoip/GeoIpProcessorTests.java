@@ -29,7 +29,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class GeoProcessorTests extends ESTestCase {
+public class GeoIpProcessorTests extends ESTestCase {
 
     public void testCity() throws Exception {
         InputStream database = GeoIpProcessor.class.getResourceAsStream("/GeoLite2-City.mmdb");

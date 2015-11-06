@@ -64,10 +64,10 @@ public final class GrokProcessor implements Processor {
         return grok;
     }
 
-    public static class Factory implements Processor.Factory {
+    public static class Factory implements Processor.Factory<GrokProcessor> {
         private Path grokConfigDirectory;
 
-        public Processor create(Map<String, Object> config) throws IOException {
+        public GrokProcessor create(Map<String, Object> config) throws IOException {
             String matchField = ConfigurationUtils.readStringProperty(config, "field", null);
             String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern", null);
             Map<String, String> patternBank = new HashMap<>();

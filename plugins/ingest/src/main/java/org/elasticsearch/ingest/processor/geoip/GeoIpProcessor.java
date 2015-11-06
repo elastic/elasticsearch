@@ -27,14 +27,13 @@ import com.maxmind.geoip2.record.*;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.Data;
-import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
+import java.io.IOException;
 import java.io.InputStream;
+import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.file.Files;
-import java.io.IOException;
-import java.net.InetAddress;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.AccessController;
@@ -159,12 +158,12 @@ public final class GeoIpProcessor implements Processor {
         return geoData;
     }
 
-    public static class Factory implements Processor.Factory {
+    public static class Factory implements Processor.Factory<GeoIpProcessor> {
 
         private Path geoIpConfigDirectory;
         private final DatabaseReaderService databaseReaderService = new DatabaseReaderService();
 
-        public Processor create(Map<String, Object> config) throws IOException {
+        public GeoIpProcessor create(Map<String, Object> config) throws IOException {
             String ipField = readStringProperty(config, "ip_field", null);
             String targetField = readStringProperty(config, "target_field", "geoip");
             String databaseFile = readStringProperty(config, "database_file", "GeoLite2-City.mmdb");

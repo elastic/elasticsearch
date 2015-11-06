@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.util.Map;
 
 public final class SimpleProcessor implements Processor {
@@ -53,9 +52,9 @@ public final class SimpleProcessor implements Processor {
         }
     }
 
-    public static class Factory implements Processor.Factory {
+    public static class Factory implements Processor.Factory<SimpleProcessor> {
 
-        public Processor create(Map<String, Object> config) {
+        public SimpleProcessor create(Map<String, Object> config) {
             String path = ConfigurationUtils.readStringProperty(config, "path", null);
             String expectedValue = ConfigurationUtils.readStringProperty(config, "expected_value", null);
             String addField = ConfigurationUtils.readStringProperty(config, "add_field", null);

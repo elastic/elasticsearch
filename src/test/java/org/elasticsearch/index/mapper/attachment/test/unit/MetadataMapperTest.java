@@ -46,7 +46,7 @@ public class MetadataMapperTest extends AttachmentUnitTestCase {
                                              .put(this.testSettings)
                                              .put(otherSettings)
                                              .build();
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(settings);
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), settings).documentMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/metadata/test-mapping.json");
@@ -76,32 +76,30 @@ public class MetadataMapperTest extends AttachmentUnitTestCase {
         assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue(), is(expectedLength));
     }
 
-    @Test
     public void testIgnoreWithoutDate() throws Exception {
         checkMeta("htmlWithoutDateMeta.html", Settings.builder().build(), null, 300L);
     }
 
-    @Test
     public void testIgnoreWithEmptyDate() throws Exception {
         checkMeta("htmlWithEmptyDateMeta.html", Settings.builder().build(), null, 334L);
     }
 
-    @Test
     public void testIgnoreWithCorrectDate() throws Exception {
         checkMeta("htmlWithValidDateMeta.html", Settings.builder().build(), 1354233600000L, 344L);
     }
 
-    @Test
     public void testWithoutDate() throws Exception {
         checkMeta("htmlWithoutDateMeta.html", Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, 300L);
     }
 
-    @Test(expected = MapperParsingException.class)
     public void testWithEmptyDate() throws Exception {
-        checkMeta("htmlWithEmptyDateMeta.html", Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, null);
+        try {
+            checkMeta("htmlWithEmptyDateMeta.html", Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, null);
+        } catch (MapperParsingException e) {
+            throw e;
+        }
     }
 
-    @Test
     public void testWithCorrectDate() throws Exception {
         checkMeta("htmlWithValidDateMeta.html", Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(), 1354233600000L, 344L);
     }

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
@@ -38,12 +39,11 @@ public class DateAttachmentMapperTests extends AttachmentUnitTestCase {
     private DocumentMapperParser mapperParser;
 
     @Before
-    public void setupMapperParser() {
-        mapperParser = MapperTestUtils.newMapperParser(createTempDir());
+    public void setupMapperParser() throws Exception {
+        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }
 
-    @Test
     public void testSimpleMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/date/date-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);

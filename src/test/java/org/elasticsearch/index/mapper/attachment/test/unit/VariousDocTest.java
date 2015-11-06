@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.apache.tika.Tika;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -49,7 +50,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
 
     @Before
     public void createMapper() throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(createTempDir());
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/various-doc/test-mapping.json");
@@ -59,7 +60,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
     /**
      * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/104
      */
-    @Test
     public void testWordDocxDocument104() throws Exception {
         assertParseable("issue-104.docx");
         testMapper("issue-104.docx", false);
@@ -68,7 +68,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
     /**
      * Test for encrypted PDF
      */
-    @Test
     public void testEncryptedPDFDocument() throws Exception {
         assertException("encrypted.pdf");
         // TODO Remove when this will be fixed in Tika. See https://issues.apache.org/jira/browse/TIKA-1548
@@ -79,7 +78,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
     /**
      * Test for HTML
      */
-    @Test
     public void testHtmlDocument() throws Exception {
         assertParseable("htmlWithEmptyDateMeta.html");
         testMapper("htmlWithEmptyDateMeta.html", false);
@@ -88,7 +86,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
     /**
      * Test for XHTML
      */
-    @Test
     public void testXHtmlDocument() throws Exception {
         assertParseable("testXHTML.html");
         testMapper("testXHTML.html", false);
@@ -97,7 +94,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
     /**
      * Test for TXT
      */
-    @Test
     public void testTxtDocument() throws Exception {
         assertParseable("text-in-english.txt");
         testMapper("text-in-english.txt", false);
@@ -107,7 +103,6 @@ public class VariousDocTest extends AttachmentUnitTestCase {
      * Test for ASCIIDOC
      * Not yet supported by Tika: https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/29
      */
-    @Test
     public void testAsciidocDocument() throws Exception {
         assertParseable("asciidoc.asciidoc");
         testMapper("asciidoc.asciidoc", false);

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper.attachment.test.unit;
 
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
@@ -48,8 +49,8 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
     private ThreadPool threadPool;
 
     @Before
-    public void setupMapperParser() {
-        mapperParser = MapperTestUtils.newMapperParser(createTempDir());
+    public void setupMapperParser() throws Exception {
+        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
     }
@@ -59,7 +60,6 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         terminate(threadPool);
     }
 
-    @Test
     public void testSimpleMappings() throws Exception {
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
@@ -87,7 +87,6 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         assertThat(docMapper.mappers().getMapper("file.content_type.suggest"), instanceOf(StringFieldMapper.class));
     }
 
-    @Test
     public void testExternalValues() throws Exception {
         String originalText = "This is an elasticsearch mapper attachment test.";
         String contentType = "text/plain; charset=ISO-8859-1";
@@ -96,7 +95,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
         threadPool = new ThreadPool("testing-only");
 
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir());
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
         mapperService.documentMapperParser().putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");

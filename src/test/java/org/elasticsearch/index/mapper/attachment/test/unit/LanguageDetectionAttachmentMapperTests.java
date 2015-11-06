@@ -51,11 +51,10 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
     }
 
     public void setupMapperParser(boolean langDetect) throws IOException {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperParser(
-                Settings.settingsBuilder()
-                                  .put("path.home", createTempDir())
-                                  .put("index.mapping.attachment.detect_language", langDetect)
-                                 .build());
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(),
+            Settings.settingsBuilder()
+                .put("index.mapping.attachment.detect_language", langDetect)
+            .build()).documentMapperParser();
         mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/language/language-mapping.json");
         docMapper = mapperParser.parse(mapping);
@@ -84,38 +83,31 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         assertThat(doc.get(docMapper.mappers().getMapper("file.language").fieldType().names().indexName()), equalTo(expected));
     }
 
-    @Test
     public void testFrDetection() throws Exception {
         testLanguage("text-in-french.txt", "fr");
     }
 
-    @Test
     public void testEnDetection() throws Exception {
         testLanguage("text-in-english.txt", "en");
     }
 
-    @Test
     public void testFrForced() throws Exception {
         testLanguage("text-in-english.txt", "fr", "fr");
     }
 
     /**
      * This test gives strange results! detection of ":-)" gives "lt" as a result
-     * @throws Exception
      */
-    @Test
     public void testNoLanguage() throws Exception {
         testLanguage("text-in-nolang.txt", "lt");
     }
 
-    @Test
     public void testLangDetectDisabled() throws Exception {
         // We replace the mapper with another one which have index.mapping.attachment.detect_language = false
         setupMapperParser(false);
         testLanguage("text-in-english.txt", null);
     }
 
-    @Test
     public void testLangDetectDocumentEnabled() throws Exception {
         // We replace the mapper with another one which have index.mapping.attachment.detect_language = false
         setupMapperParser(false);

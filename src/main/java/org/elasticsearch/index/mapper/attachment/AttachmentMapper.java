@@ -26,6 +26,7 @@ import org.apache.tika.Tika;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
@@ -58,7 +59,7 @@ import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika
  *      }
  * }
  * </pre>
- * <p/>
+ * <p>
  * _content_length = Specify the maximum amount of characters to extract from the attachment. If not specified, then the default for
  * tika is 100,000 characters. Caution is required when setting large values as this can cause memory issues.
  */
@@ -624,8 +625,9 @@ public class AttachmentMapper extends FieldMapper {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Iterator<Mapper> iterator() {
-        List<FieldMapper> extras = Arrays.asList(
+        List<Mapper> extras = Arrays.asList(
                 contentMapper,
                 dateMapper,
                 titleMapper,
@@ -635,7 +637,7 @@ public class AttachmentMapper extends FieldMapper {
                 contentTypeMapper,
                 contentLengthMapper,
                 languageMapper);
-        return CollectionUtils.concat(super.iterator(), extras.iterator());
+        return Iterators.concat(super.iterator(), extras.iterator());
     }
 
     @Override

@@ -1,18 +1,22 @@
 [[input-chain]]
 ==== Chain Input
 
-An <<input, input>> that enables you to chain several inputs one after the other and have each input populating the execution context.
-The `chain` input is useful when the output of one input should change the input of another or you need several inputs to gather all the
-information needed for an action..
+An <<input, input>> that enables you to string together multiple inputs to load data into the watch execution
+context. Each input loads data into the execution context and that data is available to subsequent inputs in the chain.
 
-You can define the chained input as following
+The `chain` input is useful when you want to perform an action based on data from multiple sources. 
+You can also use the data collected by one input to load data from another source. 
+
+To reference data loaded by a particular input, you use the input's name, `ctx.payload.<input-name>.<value>`.
+
+For example, the following chain input loads data from an HTTP server using the path set by a `simple` input.
 
 [source,json]
 --------------------------------------------------
 {
   "input" : {
     "chain" : {
-      "inputs" : [
+      "inputs" : [ <1>
         "first" : {
           "simple" : { "path" : "/_search" }
         },
@@ -21,7 +25,7 @@ You can define the chained input as following
             "request" : {
               "host" : "localhost",
               "port" : 9200,
-              "path" : "{{ctx.payload.first.path}}"
+              "path" : "{{ctx.payload.first.path}}" <2>
             }
           }
         }
@@ -31,9 +35,5 @@ You can define the chained input as following
   ...
 }
 --------------------------------------------------
-
-As you can see, the name of the input (`first` and `second` in this example) can be used to access values from the context in consecutive inputs.
-
-In case you are wondering about the structure of this input. The `inputs` must be an array, because JSON does not guarantee the order of arbitrary
-objects, one has to use a list.
-
+<1> The inputs in a chain are specified as an array to guarantee the order in which the inputs are processed. (JSON does not guarantee the order of arbitrary objects.)
+<2> Loads the `path` set by the `first` input.

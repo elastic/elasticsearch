@@ -9,8 +9,8 @@ you can customize a watch by modifying its <<changing-inputs, inputs>>,
 
 [[changing-inputs]]
 === Changing Inputs
-Watcher supports three types of inputs <<loading-static-data, simple>>,
-<<loading-search-results, search>>, and <<loading-http-data, http>>.
+Watcher supports four types of inputs <<loading-static-data, simple>>,
+<<loading-search-results, search>>, <<loading-http-data, http>>, and <<input-chain, chain>>.
 
 [[loading-static-data]]
 ==== Loading Static Data with the Simple Input
@@ -114,6 +114,13 @@ during the month of May, 2015 that were tagged with `elasticsearch`.
 <1> The query string parameters are passed to the server using a `params` field, they are not
     included as part of the path.
 ////////////    
+
+[[chaining-inputs]]
+==== Chaining Inputs
+
+You can create an <<input-chain, input chain>> to load data from multiple sources into a watch. 
+The inputs in a chain are processed in order, so the the data loaded by one input can be used 
+by subsequent inputs.
 
 [[changing-conditions]]
 === Changing Conditions

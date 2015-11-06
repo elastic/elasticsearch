@@ -20,11 +20,11 @@
 package org.elasticsearch.index.analysis;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.analysis.Tokenizer;
 import org.apache.lucene.analysis.core.LowerCaseFilter;
 import org.apache.lucene.analysis.core.StopFilter;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
+import org.apache.lucene.analysis.pattern.XPatternTokenizer;
 import org.apache.lucene.analysis.util.CharArraySet;
 
 import java.util.regex.Pattern;
@@ -43,7 +43,7 @@ public final class PatternAnalyzer extends Analyzer {
 
     @Override
     protected TokenStreamComponents createComponents(String s) {
-        final Tokenizer tokenizer = new PatternTokenizer(pattern, -1);
+        final Tokenizer tokenizer = new XPatternTokenizer(pattern, -1);
         TokenStream stream = tokenizer;
         if (lowercase) {
             stream = new LowerCaseFilter(stream);

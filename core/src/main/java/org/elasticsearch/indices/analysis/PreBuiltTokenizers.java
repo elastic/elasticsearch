@@ -28,7 +28,7 @@ import org.apache.lucene.analysis.ngram.NGramTokenizer;
 import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
 import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
 import org.apache.lucene.analysis.path.PathHierarchyTokenizer;
-import org.apache.lucene.analysis.pattern.PatternTokenizer;
+import org.apache.lucene.analysis.pattern.XPatternTokenizer;
 import org.apache.lucene.analysis.standard.ClassicTokenizer;
 import org.apache.lucene.analysis.standard.StandardTokenizer;
 import org.apache.lucene.analysis.standard.UAX29URLEmailTokenizer;
@@ -142,7 +142,7 @@ public enum PreBuiltTokenizers {
     PATTERN(CachingStrategy.ONE) {
         @Override
         protected Tokenizer create(Version version) {
-            return new PatternTokenizer(Regex.compile("\\W+", null), -1);
+            return new XPatternTokenizer(Regex.compile("\\W+", null), -1);
         }
     },
 

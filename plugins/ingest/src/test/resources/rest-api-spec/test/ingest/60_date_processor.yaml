@@ -1,0 +1,49 @@
+---
+"Test date processor":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "date" : {
+                  "match_field" : "date_source_field",
+                  "target_field" : "date_target_field",
+                  "match_formats" : ["dd/MM/yyyy"],
+                  "timezone" : "Europe/Amsterdam"
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline"
+        body: {date_source_field: "12/06/2010"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.date_source_field: "12/06/2010" }
+  - match: { _source.date_target_field: "2010-06-12T00:00:00.000+02:00" }
+

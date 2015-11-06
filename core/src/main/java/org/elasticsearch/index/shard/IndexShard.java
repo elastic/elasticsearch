@@ -1034,8 +1034,12 @@ public class IndexShard extends AbstractIndexShardComponent {
      *  indexing operation, and become inactive (reducing indexing and translog buffers to tiny values) if so.  This returns true
      *  if the shard is inactive. */
     public boolean checkIdle() {
+        return checkIdle(inactiveTime.nanos());
+    }
+
+    final boolean checkIdle(long inactiveTimeNS) { // pkg private for testing
         Engine engineOrNull = getEngineOrNull();
-        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTime.nanos()) {
+        if (engineOrNull != null && System.nanoTime() - engineOrNull.getLastWriteNanos() >= inactiveTimeNS) {
             boolean wasActive = active.getAndSet(false);
             if (wasActive) {
                 updateBufferSize(IndexingMemoryController.INACTIVE_SHARD_INDEXING_BUFFER, IndexingMemoryController.INACTIVE_SHARD_TRANSLOG_BUFFER);

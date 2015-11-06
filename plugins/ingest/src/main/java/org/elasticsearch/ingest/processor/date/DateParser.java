@@ -21,9 +21,15 @@ package org.elasticsearch.ingest.processor.date;
 
 import org.joda.time.DateTime;
 
+/**
+ * Parser for dates provided as strings. Parses into a joda {@link DateTime} object.
+ * We use our own joda wrapper as we support some formats that are not supported directly by joda.
+ *
+ */
 public interface DateParser {
 
-    public long parseMillis(String date);
-
-    public DateTime parseDateTime(String date);
+    /**
+     * Parser the date provided as a string argument into a joda {@link DateTime} object
+     */
+    DateTime parseDateTime(String date);
 }

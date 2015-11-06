@@ -21,80 +21,75 @@ package org.elasticsearch.ingest.processor.date;
 
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.processor.Processor;
+import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public final class DateProcessor implements Processor {
 
     public static final String TYPE = "date";
-    public static final String DEFAULT_TARGET_FIELD = "@timestamp";
+    static final String DEFAULT_TARGET_FIELD = "@timestamp";
 
     private final DateTimeZone timezone;
     private final Locale locale;
     private final String matchField;
     private final String targetField;
-    private final List<String> matchFormats;
-    private final List<DateParser> parserList;
+    private final List<DateParser> dateParsers;
 
-    public DateProcessor(String timezone, String locale, String matchField, List<String> matchFormats, String targetField) {
-        this.timezone = (timezone == null) ? DateTimeZone.UTC : DateTimeZone.forID(timezone);
-        this.locale = Locale.forLanguageTag(locale);
+    DateProcessor(DateTimeZone timezone, Locale locale, String matchField, List<String> matchFormats, String targetField) {
+        this.timezone = timezone;
+        this.locale = locale;
         this.matchField = matchField;
-        this.matchFormats = matchFormats;
-        this.parserList = matchFormats.stream().map(elt -> getParser(elt)).collect(Collectors.toList());
-        this.targetField = (targetField == null) ? DEFAULT_TARGET_FIELD : targetField;
+        this.targetField = targetField;
+        this.dateParsers = new ArrayList<>();
+        for (String matchFormat : matchFormats) {
+             dateParsers.add(DateParserFactory.createDateParser(matchFormat, timezone, locale));
+        }
     }
 
     @Override
     public void execute(Data data) {
-        String value = (String) data.getProperty(matchField);
-        // TODO(talevy): handle multiple patterns
+        String value = data.getProperty(matchField);
         // TODO(talevy): handle custom timestamp fields
-        String dateAsISO8601 = parserList.get(0).parseDateTime(value).toString();
-        data.addField(targetField, dateAsISO8601);
-    }
 
-    private DateParser getParser(String format) {
-        if ("ISO8601".equals(format)) {
-            // TODO(talevy): fallback solution for almost ISO8601
-            if (timezone == null) {
-                return new ISO8601DateParser();
-            } else {
-                return new ISO8601DateParser(timezone);
-            }
-        } else if ("UNIX".equals(format)) {
-            return new UnixDateParser(timezone);
-        } else if ("UNIX_MS".equals(format)) {
-            return new UnixMsDateParser(timezone);
-        } else if ("TAI64N".equals(format)) {
-            return new TAI64NDateParser(timezone);
-        } else {
-            if (timezone != null && locale != null) {
-                return new JodaPatternDateParser(format, timezone, locale);
-            } else if (timezone != null) {
-                return new JodaPatternDateParser(format, timezone);
-            } else if (locale != null) {
-                return new JodaPatternDateParser(format, locale);
-            } else {
-                return new JodaPatternDateParser(format);
+        DateTime dateTime = null;
+        Exception lastException = null;
+        for (DateParser dateParser : dateParsers) {
+            try {
+                dateTime = dateParser.parseDateTime(value);
+            } catch(Exception e) {
+                //TODO is there a better way other than catching exception?
+                //try the next parser
+                lastException = e;
             }
         }
+
+        if (dateTime == null) {
+            throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
+        }
+
+        String dateAsISO8601 = dateTime.toString();
+        data.addField(targetField, dateAsISO8601);
     }
 
     public static class Factory implements Processor.Factory {
 
         @SuppressWarnings("unchecked")
         public Processor create(Map<String, Object> config) {
-            //TODO handle default values
-            String timezone = (String) config.get("timezone");
-            String locale = (String) config.get("locale");
+            String timezoneString = (String) config.get("timezone");
+            DateTimeZone timezone = (timezoneString == null) ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
+            String localeString = (String) config.get("locale");
+            Locale locale = localeString == null ? Locale.ENGLISH : Locale.forLanguageTag(localeString);
             String matchField = (String) config.get("match_field");
             List<String> matchFormats = (List<String>) config.get("match_formats");
             String targetField = (String) config.get("target_field");
+            if (targetField == null) {
+                targetField = DEFAULT_TARGET_FIELD;
+            }
             return new DateProcessor(timezone, locale, matchField, matchFormats, targetField);
         }
     }

@@ -29,16 +29,7 @@ public class ISO8601DateParser implements DateParser {
     private final DateTimeFormatter formatter;
 
     public ISO8601DateParser(DateTimeZone timezone) {
-        formatter = ISODateTimeFormat.dateTimeParser().withZone(timezone);
-    }
-
-    public ISO8601DateParser() {
-        formatter = ISODateTimeFormat.dateTimeParser().withOffsetParsed();
-    }
-
-    @Override
-    public long parseMillis(String date) {
-        return formatter.parseMillis(date);
+        this.formatter = ISODateTimeFormat.dateTimeParser().withZone(timezone);
     }
 
     @Override

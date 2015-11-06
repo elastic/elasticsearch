@@ -28,6 +28,7 @@ dependencies {
     // we don't use Maxmind's http service:
     exclude group: 'com.google.http-client', module: 'google-http-client'
   }
+  compile 'joda-time:joda-time:2.8.2'
   testCompile 'org.elasticsearch:geolite2-databases:20151029'
   testCompile 'org.elasticsearch:securemock:1.1'
 }

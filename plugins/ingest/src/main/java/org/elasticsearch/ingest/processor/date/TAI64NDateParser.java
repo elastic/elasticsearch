@@ -30,19 +30,18 @@ public class TAI64NDateParser implements DateParser {
     }
 
     @Override
-    public long parseMillis(String date) {
+    public DateTime parseDateTime(String date) {
+        return new DateTime(parseMillis(date), timezone);
+    }
+
+    private static long parseMillis(String date) {
         if (date.startsWith("@")) {
-           date = date.substring(1);
+            date = date.substring(1);
         }
         long base = Long.parseLong(date.substring(1, 16), 16);
         // 1356138046000
         long rest = Long.parseLong(date.substring(16, 24), 16);
 
         return ((base * 1000) - 10000) + (rest/1000000);
-    }
-
-    @Override
-    public DateTime parseDateTime(String date) {
-        return new DateTime(parseMillis(date), timezone);
     }
 }

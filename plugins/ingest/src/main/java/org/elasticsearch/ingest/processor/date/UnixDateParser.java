@@ -30,12 +30,11 @@ public class UnixDateParser implements DateParser {
     }
 
     @Override
-    public long parseMillis(String date) {
-        return (long) (Float.parseFloat(date) * 1000);
-    }
-
-    @Override
     public DateTime parseDateTime(String date) {
        return new DateTime(parseMillis(date), timezone);
+    }
+
+    private static long parseMillis(String date) {
+        return (long) (Float.parseFloat(date) * 1000);
     }
 }

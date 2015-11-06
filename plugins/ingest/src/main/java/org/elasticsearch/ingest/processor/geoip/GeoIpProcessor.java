@@ -164,7 +164,7 @@ public final class GeoIpProcessor implements Processor {
         private final DatabaseReaderService databaseReaderService = new DatabaseReaderService();
 
         public GeoIpProcessor create(Map<String, Object> config) throws IOException {
-            String ipField = readStringProperty(config, "ip_field", null);
+            String ipField = readStringProperty(config, "ip_field");
             String targetField = readStringProperty(config, "target_field", "geoip");
             String databaseFile = readStringProperty(config, "database_file", "GeoLite2-City.mmdb");
 

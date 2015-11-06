@@ -20,9 +20,11 @@
 package org.elasticsearch.ingest.processor.date;
 
 import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+import org.joda.time.format.ISODateTimeFormat;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,6 +40,7 @@ public final class DateProcessor implements Processor {
     private final Locale locale;
     private final String matchField;
     private final String targetField;
+    private final List<String> matchFormats;
     private final List<DateParser> dateParsers;
 
     DateProcessor(DateTimeZone timezone, Locale locale, String matchField, List<String> matchFormats, String targetField) {
@@ -45,6 +48,7 @@ public final class DateProcessor implements Processor {
         this.locale = locale;
         this.matchField = matchField;
         this.targetField = targetField;
+        this.matchFormats = matchFormats;
         this.dateParsers = new ArrayList<>();
         for (String matchFormat : matchFormats) {
              dateParsers.add(DateParserFactory.createDateParser(matchFormat, timezone, locale));
@@ -62,8 +66,7 @@ public final class DateProcessor implements Processor {
             try {
                 dateTime = dateParser.parseDateTime(value);
             } catch(Exception e) {
-                //TODO is there a better way other than catching exception?
-                //try the next parser
+                //try the next parser and keep track of the last exception
                 lastException = e;
             }
         }
@@ -72,26 +75,41 @@ public final class DateProcessor implements Processor {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
         }
 
-        String dateAsISO8601 = dateTime.toString();
-        data.addField(targetField, dateAsISO8601);
+        data.addField(targetField, ISODateTimeFormat.dateTime().print(dateTime));
     }
 
-    public static class Factory implements Processor.Factory {
+    DateTimeZone getTimezone() {
+        return timezone;
+    }
+
+    Locale getLocale() {
+        return locale;
+    }
+
+    String getMatchField() {
+        return matchField;
+    }
+
+    String getTargetField() {
+        return targetField;
+    }
+
+    List<String> getMatchFormats() {
+        return matchFormats;
+    }
+
+    public static class Factory implements Processor.Factory<DateProcessor> {
 
         @SuppressWarnings("unchecked")
-        public Processor create(Map<String, Object> config) {
-            String timezoneString = (String) config.get("timezone");
-            DateTimeZone timezone = (timezoneString == null) ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
-            String localeString = (String) config.get("locale");
+        public DateProcessor create(Map<String, Object> config) {
+            String matchField = ConfigurationUtils.readStringProperty(config, "match_field");
+            String targetField = ConfigurationUtils.readStringProperty(config, "target_field", DEFAULT_TARGET_FIELD);
+            String timezoneString = ConfigurationUtils.readOptionalStringProperty(config, "timezone");
+            DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
+            String localeString = ConfigurationUtils.readOptionalStringProperty(config, "locale");
             Locale locale = localeString == null ? Locale.ENGLISH : Locale.forLanguageTag(localeString);
-            String matchField = (String) config.get("match_field");
-            List<String> matchFormats = (List<String>) config.get("match_formats");
-            String targetField = (String) config.get("target_field");
-            if (targetField == null) {
-                targetField = DEFAULT_TARGET_FIELD;
-            }
+            List<String> matchFormats = ConfigurationUtils.readStringList(config, "match_formats");
             return new DateProcessor(timezone, locale, matchField, matchFormats, targetField);
         }
     }
-
 }

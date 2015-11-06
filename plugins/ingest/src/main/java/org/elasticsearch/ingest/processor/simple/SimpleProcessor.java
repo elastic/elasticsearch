@@ -55,10 +55,10 @@ public final class SimpleProcessor implements Processor {
     public static class Factory implements Processor.Factory<SimpleProcessor> {
 
         public SimpleProcessor create(Map<String, Object> config) {
-            String path = ConfigurationUtils.readStringProperty(config, "path", null);
-            String expectedValue = ConfigurationUtils.readStringProperty(config, "expected_value", null);
+            String path = ConfigurationUtils.readStringProperty(config, "path");
+            String expectedValue = ConfigurationUtils.readStringProperty(config, "expected_value");
             String addField = ConfigurationUtils.readStringProperty(config, "add_field", null);
-            String addFieldValue = ConfigurationUtils.readStringProperty(config, "add_field_value", null);
+            String addFieldValue = ConfigurationUtils.readStringProperty(config, "add_field_value");
             return new SimpleProcessor(path, expectedValue, addField, addFieldValue);
         }
 

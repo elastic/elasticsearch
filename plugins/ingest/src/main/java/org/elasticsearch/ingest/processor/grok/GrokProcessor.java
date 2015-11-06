@@ -68,8 +68,8 @@ public final class GrokProcessor implements Processor {
         private Path grokConfigDirectory;
 
         public GrokProcessor create(Map<String, Object> config) throws IOException {
-            String matchField = ConfigurationUtils.readStringProperty(config, "field", null);
-            String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern", null);
+            String matchField = ConfigurationUtils.readStringProperty(config, "field");
+            String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern");
             Map<String, String> patternBank = new HashMap<>();
             Path patternsDirectory = grokConfigDirectory.resolve("patterns");
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(patternsDirectory)) {

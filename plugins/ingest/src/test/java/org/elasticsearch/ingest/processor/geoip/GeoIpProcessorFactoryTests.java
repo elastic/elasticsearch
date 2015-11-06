@@ -94,6 +94,4 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
             assertThat(e.getMessage(), startsWith("database file [does-not-exist.mmdb] doesn't exist in"));
         }
     }
-
-
 }

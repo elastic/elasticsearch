@@ -1288,7 +1288,7 @@ public final class InternalTestCluster extends TestCluster {
      * Restarts a random data node in the cluster
      */
     public void restartRandomDataNode() throws Exception {
-        restartRandomNode(EMPTY_CALLBACK);
+        restartRandomDataNode(EMPTY_CALLBACK);
     }
 
     /**

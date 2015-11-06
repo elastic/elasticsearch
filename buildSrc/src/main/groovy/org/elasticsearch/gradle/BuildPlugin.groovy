@@ -60,7 +60,7 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // enforce Java version
-            if (JavaVersion.current().compareTo(JavaVersion.VERSION_1_8) < 0) {
+            if (!JavaVersion.current().isJava8Compatible()) {
                 throw new GradleException('Java 8 or above is required to build Elasticsearch')
             }
 

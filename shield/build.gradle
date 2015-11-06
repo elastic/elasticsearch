@@ -10,9 +10,9 @@ configurations {
 }
 
 dependencies {
-  licensePluginZip project(path: ':license:plugin') // zip
-  provided project(path: ':license:plugin', configuration: 'runtime')
-  compile project(':license:plugin-api')
+  licensePluginZip project(path: "${projectsPrefix}:license:plugin") // zip
+  provided project(path: "${projectsPrefix}:license:plugin", configuration: 'runtime')
+  compile project("${projectsPrefix}:license:plugin-api")
   compile 'dk.brics.automaton:automaton:1.11-8'
   compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
   testCompile "org.elasticsearch:test-framework:${version}"

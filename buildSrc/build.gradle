@@ -22,9 +22,20 @@ repositories {
   jcenter()
 }
 
-subprojects {
-  rootProject.dependencies {
-    runtime project(path)
-  } 
+dependencies {
+  runtime 'org.elasticsearch.gradle:project-attachment-plugin:1.0.0-SNAPSHOT'
+  runtime 'org.elasticsearch.gradle:build-tools:3.0.0-SNAPSHOT'
+}
+
+if ('elasticsearch' in attachments) {
+  configurations {
+    all {
+      resolutionStrategy {
+        dependencySubstitution {
+          substitute module('org.elasticsearch.gradle:build-tools') with project(':elasticsearch')
+        }
+      }
+    }
+  }
 }
 

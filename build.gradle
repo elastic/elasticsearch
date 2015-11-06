@@ -1,21 +1,5 @@
 import org.elasticsearch.gradle.ElasticsearchProperties
 
-buildscript {
-  repositories {
-    mavenCentral()
-    maven {
-      name 'sonatype-snapshots'
-      url 'http://oss.sonatype.org/content/repositories/snapshots/'
-    }
-    jcenter()
-  }
-  dependencies {
-    classpath 'org.elasticsearch.gradle:build-tools:3.0.0-SNAPSHOT'
-    classpath 'org.elasticsearch.gradle:project-attachment-plugin:1.0.0-SNAPSHOT'
-  }
-}
-apply plugin: 'elasticsearch.project-attachment'
-
 allprojects {
   apply plugin: 'idea'
   apply plugin: 'eclipse'
@@ -41,6 +25,7 @@ subprojects {
   }
 
 }
+
         <repository>
             <id>elasticsearch-releases</id>
             <url>http://maven.elasticsearch.org/releases</url>
@@ -84,7 +69,6 @@ subprojects {
 // ================= Local Elasticsearch attachment ===============
 if ('elasticsearch' in attachments) {
   subprojects {
-    it.ext.projectsPrefix = ':elasticsearch'
     configurations {
       all {
         resolutionStrategy {
@@ -93,6 +77,7 @@ if ('elasticsearch' in attachments) {
             substitute module("org.elasticsearch:elasticsearch:${version}") with project(":elasticsearch:core")
             substitute module("org.elasticsearch:test-framework:${version}") with project(":elasticsearch:test-framework")
             substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project(":elasticsearch:distribution:zip")
+            substitute module("org.elasticsearch.distribution.tar:elasticsearch:${version}") with project(":elasticsearch:distribution:tar")
           }
         }
       }

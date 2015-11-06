@@ -42,7 +42,6 @@
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/CardinalityIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/CardinalityTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/child/ChildQuerySearchIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ChildQuerySearchTests.java
   renamed:    core/src/test/java/org/elasticsearch/transport/ContextAndHeaderTransportIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ContextAndHeaderTransportTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DateHistogramIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DateHistogramTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DateRangeIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DateRangeTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/DoubleTermsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/DoubleTermsTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/EquivalenceIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/EquivalenceTests.java

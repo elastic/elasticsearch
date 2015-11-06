@@ -5,14 +5,14 @@ esplugin {
   isolated false
 }
 
-configurations.create('jar')
-artifacts {
-  jar project.jar
+configurations {
+  licensePluginZip
 }
 
 dependencies {
+  licensePluginZip project(path: ':license:plugin') // zip
+  provided project(path: ':license:plugin', configuration: 'runtime')
   compile project(':license:plugin-api')
-  compile project(path: ':license:plugin', configuration: 'runtime')
   compile 'dk.brics.automaton:automaton:1.11-8'
   compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
   testCompile "org.elasticsearch:test-framework:${version}"

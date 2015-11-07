@@ -486,10 +486,6 @@ public class AttachmentMapper extends FieldMapper {
         try {
             parsedContent = parseWithTika(content, metadata, indexedChars);
         } catch (Throwable e) {
-            // unbox checked exception
-            if (e instanceof PrivilegedActionException) {
-              e = e.getCause();
-            }
             // #18: we could ignore errors when Tika does not parse data
             if (!ignoreErrors) {
                 logger.trace("exception caught", e);

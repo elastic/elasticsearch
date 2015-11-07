@@ -192,4 +192,10 @@ allprojects {
   tasks.eclipse.dependsOn(copyEclipseSettings)
 }
 
+// add buildSrc itself as a groovy project
+task buildSrcEclipse(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['cleanEclipse', 'eclipse']
+}
+tasks.eclipse.dependsOn(buildSrcEclipse)
 

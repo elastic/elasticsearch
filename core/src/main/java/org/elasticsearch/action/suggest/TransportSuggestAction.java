@@ -142,7 +142,8 @@ public class TransportSuggestAction extends TransportBroadcastAction<SuggestRequ
                 if (parser.nextToken() != XContentParser.Token.START_OBJECT) {
                     throw new IllegalArgumentException("suggest content missing");
                 }
-                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(), request.shardId().getIndex(), request.shardId().id(), request);
+                final SuggestionSearchContext context = suggestPhase.parseElement().parseInternal(parser, indexService.mapperService(),
+                        indexService.fieldData(), request.shardId().getIndex(), request.shardId().id(), request);
                 final Suggest result = suggestPhase.execute(context, searcher.searcher());
                 return new ShardSuggestResponse(request.shardId(), result);
             }

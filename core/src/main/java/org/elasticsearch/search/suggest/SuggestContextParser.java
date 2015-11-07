@@ -26,6 +26,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import java.io.IOException;
 
 public interface SuggestContextParser {
-    SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, HasContextAndHeaders headersContext) throws IOException;
+    SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService indexFieldDataService, HasContextAndHeaders headersContext) throws IOException;
 
 }

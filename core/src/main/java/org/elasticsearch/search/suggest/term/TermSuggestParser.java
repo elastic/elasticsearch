@@ -39,7 +39,7 @@ public final class TermSuggestParser implements SuggestContextParser {
     }
 
     @Override
-    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService,
+    public SuggestionSearchContext.SuggestionContext parse(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
              HasContextAndHeaders headersContext) throws IOException {
         XContentParser.Token token;
         String fieldName = null;

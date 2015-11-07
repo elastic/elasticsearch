@@ -45,13 +45,13 @@ public final class SuggestParseElement implements SearchParseElement {
 
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
-        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(),
+        SuggestionSearchContext suggestionSearchContext = parseInternal(parser, context.mapperService(), context.fieldData(),
                 context.shardTarget().index(), context.shardTarget().shardId(), context);
         context.suggest(suggestionSearchContext);
     }
 
-    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService,
-            String index, int shardId, HasContextAndHeaders headersContext) throws IOException {
+    public SuggestionSearchContext parseInternal(XContentParser parser, MapperService mapperService, IndexFieldDataService fieldDataService,
+                                                 String index, int shardId, HasContextAndHeaders headersContext) throws IOException {
         SuggestionSearchContext suggestionSearchContext = new SuggestionSearchContext();
 
         BytesRef globalText = null;
@@ -96,7 +96,7 @@ public final class SuggestParseElement implements SearchParseElement {
                             throw new IllegalArgumentException("Suggester[" + fieldName + "] not supported");
                         }
                         final SuggestContextParser contextParser = suggesters.get(fieldName).getContextParser();
-                        suggestionContext = contextParser.parse(parser, mapperService, headersContext);
+                        suggestionContext = contextParser.parse(parser, mapperService, fieldDataService, headersContext);
                     }
                 }
                 if (suggestionContext != null) {

@@ -390,7 +390,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.  returns Boolean.TRUE if
      *  it did deactive, Boolean.FALSE if it did not, and null if the shard is unknown */
     protected Boolean checkIdle(ShardId shardId) {
-        final String ignoreReason;
+        String ignoreReason; // eclipse compiler does not know it is really final
         final IndexShard shard = getShard(shardId);
         if (shard != null) {
             try {

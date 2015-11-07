@@ -24,6 +24,9 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Paths;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
@@ -38,14 +41,13 @@ public class Build {
         String shortHash = "Unknown";
         String date = "Unknown";
 
-        String path = Build.class.getProtectionDomain().getCodeSource().getLocation().getPath();
-        try {
-            JarFile jar = new JarFile(path);
+        URL path = Build.class.getProtectionDomain().getCodeSource().getLocation();
+        try (JarFile jar = new JarFile(Paths.get(path.toURI()).toString())) {
             Manifest manifest = jar.getManifest();
             shortHash = manifest.getMainAttributes().getValue("Change");
             date = manifest.getMainAttributes().getValue("Build-Date");
-        } catch (IOException e) {
-            // just ignore...
+        } catch (IOException | URISyntaxException e) {
+            // just ignore... (in tests) we'll hit SecurityException if this logic is wrong (for real)
         }
 
         CURRENT = new Build(shortHash, date);

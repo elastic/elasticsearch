@@ -117,6 +117,7 @@ public class CompletionSuggester extends Suggester<CompletionSuggestionContext> 
     }
 
     // TODO: this should be refactored and moved to lucene
+    // see https://issues.apache.org/jira/browse/LUCENE-6880
     private final static class TopDocumentsCollector extends TopSuggestDocsCollector {
 
         /**

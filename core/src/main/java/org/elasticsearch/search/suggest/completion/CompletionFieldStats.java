@@ -25,6 +25,7 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.regex.Regex;
 
 import java.io.IOException;
@@ -43,7 +44,7 @@ public class CompletionFieldStats {
                 for (String fieldName : atomicReader.fields()) {
                     Terms terms = atomicReader.fields().terms(fieldName);
                     if (terms instanceof CompletionTerms) {
-                        // TODO: currently we load up the suggester for reporting it's size
+                        // TODO: currently we load up the suggester for reporting its size
                         long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
                         if (fields != null && fields.length > 0 && Regex.simpleMatch(fields, fieldName)) {
                             completionFields.addTo(fieldName, fstSize);
@@ -52,7 +53,7 @@ public class CompletionFieldStats {
                     }
                 }
             } catch (IOException ignored) {
-                throw  new RuntimeException(ignored);
+                throw new ElasticsearchException(ignored);
             }
         }
         return new CompletionStats(sizeInBytes, completionFields);

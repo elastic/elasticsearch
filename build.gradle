@@ -37,6 +37,7 @@ apply plugin: 'eclipse'
 apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
+  name 'mapper-attachments'
   description 'The mapper attachments plugin adds the attachment type to Elasticsearch using Apache Tika.'
   classname 'org.elasticsearch.mapper.attachments.MapperAttachmentsPlugin'
 }

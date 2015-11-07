@@ -10,5 +10,5 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: elasticsearch-mapper-attachments  }
+    - match:  { nodes.$master.plugins.0.name: mapper-attachments  }
     - match:  { nodes.$master.plugins.0.jvm: true  }

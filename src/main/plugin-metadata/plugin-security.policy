@@ -21,6 +21,6 @@ grant {
   // TODO: fix tika not to actually install bouncy castle like this
   permission java.security.SecurityPermission "putProviderProperty.BC";
   permission java.security.SecurityPermission "insertProvider";
-  // TODO: fix POI XWPF to not do this
+  // TODO: fix POI XWPF to not do this: https://bz.apache.org/bugzilla/show_bug.cgi?id=58597
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

@@ -17,25 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.attachment.test.unit;
+package org.elasticsearch.mapper.attachments;
 
-import org.apache.tika.Tika;
+import org.apache.tika.io.IOUtils;
+import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
+import org.elasticsearch.mapper.attachments.AttachmentMapper;
 import org.junit.Before;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.io.InputStream;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.attachment.AttachmentMapper.FieldNames.*;
-import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
+import static org.elasticsearch.mapper.attachments.AttachmentMapper.FieldNames.*;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.isEmptyOrNullString;
@@ -44,7 +42,7 @@ import static org.hamcrest.Matchers.not;
 /**
  * Test for different documents
  */
-public class VariousDocTest extends AttachmentUnitTestCase {
+public class VariousDocTests extends AttachmentUnitTestCase {
 
     protected DocumentMapper docMapper;
 
@@ -69,7 +67,7 @@ public class VariousDocTest extends AttachmentUnitTestCase {
      * Test for encrypted PDF
      */
     public void testEncryptedPDFDocument() throws Exception {
-        assertException("encrypted.pdf");
+        assertException("encrypted.pdf", "is encrypted");
         // TODO Remove when this will be fixed in Tika. See https://issues.apache.org/jira/browse/TIKA-1548
         System.clearProperty("sun.font.fontmanager");
         testMapper("encrypted.pdf", true);
@@ -108,24 +106,25 @@ public class VariousDocTest extends AttachmentUnitTestCase {
         testMapper("asciidoc.asciidoc", false);
     }
 
-    void assertException(String filename) {
-        Tika tika = tika();
-        assumeTrue("Tika has been disabled. Ignoring test...", tika != null);
-
-        try (InputStream is = VariousDocTest.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
-            tika.parseToString(is);
+    void assertException(String filename, String expectedMessage) throws Exception {
+        try (InputStream is = VariousDocTests.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
+            byte bytes[] = IOUtils.toByteArray(is);
+            AttachmentMapper.parseWithTika(bytes, new Metadata(), -1);
             fail("expected exception");
         } catch (Exception e) {
-            // expected. TODO: check message
+            if (e.getMessage() != null && e.getMessage().contains(expectedMessage)) {
+              // ok
+            } else {
+              // unexpected
+              throw e;
+            }
         }
     }
 
     protected void assertParseable(String filename) throws Exception {
-        Tika tika = tika();
-        assumeTrue("Tika has been disabled. Ignoring test...", tika != null);
-
-        try (InputStream is = VariousDocTest.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
-            String parsedContent = tika.parseToString(is);
+        try (InputStream is = VariousDocTests.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
+            byte bytes[] = IOUtils.toByteArray(is);
+            String parsedContent = AttachmentMapper.parseWithTika(bytes, new Metadata(), -1);  
             assertThat(parsedContent, not(isEmptyOrNullString()));
             logger.debug("extracted content: {}", parsedContent);
         }

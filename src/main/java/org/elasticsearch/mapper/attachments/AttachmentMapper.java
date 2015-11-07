@@ -17,32 +17,34 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.attachment;
+package org.elasticsearch.mapper.attachments;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.lucene.util.Constants;
 import org.apache.tika.Tika;
+import org.apache.tika.exception.TikaException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parsePathType;
-import static org.elasticsearch.plugin.mapper.attachments.tika.TikaInstance.tika;
 
 /**
  * <pre>
@@ -482,21 +484,12 @@ public class AttachmentMapper extends FieldMapper {
 
         String parsedContent;
         try {
-            Tika tika = tika();
-            if (tika == null) {
-                if (!ignoreErrors) {
-                    throw new MapperParsingException("Tika can not be initialized with the current Locale [" +
-                            Locale.getDefault().getLanguage() + "] on the current JVM [" +
-                            Constants.JAVA_VERSION + "]");
-                } else {
-                    logger.warn("Tika can not be initialized with the current Locale [{}] on the current JVM [{}]",
-                            Locale.getDefault().getLanguage(), Constants.JAVA_VERSION);
-                    return null;
-                }
-            }
-            // Set the maximum length of strings returned by the parseToString method, -1 sets no limit
-            parsedContent = tika.parseToString(StreamInput.wrap(content), metadata, indexedChars);
+            parsedContent = parseWithTika(content, metadata, indexedChars);
         } catch (Throwable e) {
+            // unbox checked exception
+            if (e instanceof PrivilegedActionException) {
+              e = e.getCause();
+            }
             // #18: we could ignore errors when Tika does not parse data
             if (!ignoreErrors) {
                 logger.trace("exception caught", e);
@@ -612,6 +605,40 @@ public class AttachmentMapper extends FieldMapper {
 //        multiFields.parse(this, context);
 
         return null;
+    }
+
+    // singleton
+    private static final Tika TIKA_INSTANCE = new Tika();
+
+    /**
+     * parses with tika, throwing any exception hit while parsing the document
+     */
+    // only package private for testing!
+    static String parseWithTika(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
+        // check that its not unprivileged code like a script
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+
+        try {
+            return AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
+                @Override
+                public String run() throws TikaException, IOException {
+                    return TIKA_INSTANCE.parseToString(StreamInput.wrap(content), metadata, limit);
+                }
+            });
+        } catch (PrivilegedActionException e) {
+            // checked exception from tika: unbox it
+            Throwable cause = e.getCause();
+            if (cause instanceof TikaException) {
+                throw (TikaException) cause;
+            } else if (cause instanceof IOException) {
+                throw (IOException) cause;
+            } else {
+                throw new AssertionError(cause);
+            }
+        }
     }
 
     @Override

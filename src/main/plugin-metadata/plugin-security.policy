@@ -17,29 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments.tika;
-
-
-import org.apache.tika.Tika;
-
-import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isLocaleCompatible;
-
-/**
- *
- */
-public class TikaInstance {
-
-    private static final Tika tika;
-
-    static {
-        if (isLocaleCompatible()) {
-           tika = new Tika();
-        } else {
-            tika = null;
-        }
-    }
-
-    public static Tika tika() {
-        return tika;
-    }
-}
+grant {
+  // TODO: fix tika not to actually install bouncy castle like this
+  permission java.security.SecurityPermission "putProviderProperty.BC";
+  permission java.security.SecurityPermission "insertProvider";
+  // TODO: fix POI XWPF to not do this
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};

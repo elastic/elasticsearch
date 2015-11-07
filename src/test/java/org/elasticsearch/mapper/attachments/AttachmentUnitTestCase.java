@@ -17,26 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments;
+package org.elasticsearch.mapper.attachments;
 
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
-public class MapperAttachmentsPlugin extends Plugin {
+public class AttachmentUnitTestCase extends ESTestCase {
 
-    @Override
-    public String name() {
-        return "mapper-attachments";
-    }
-
-    @Override
-    public String description() {
-        return "Adds the attachment type allowing to parse difference attachment formats";
-    }
-
-    @Override
-    public void onIndexService(IndexService indexService) {
-        indexService.mapperService().documentMapperParser().putTypeParser("attachment", new AttachmentMapper.TypeParser());
+    protected Settings testSettings;
+    
+    @Before
+    public void createSettings() throws Exception {
+      testSettings = Settings.builder()
+                             .put("path.home", createTempDir())
+                             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                             .build();
     }
 }

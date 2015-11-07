@@ -13,5 +13,7 @@
 /.local-*-execution-hints.log
 /eclipse-build/
 build/
+**/.local*
 generated-resources/
 .gradle/
+/bin/

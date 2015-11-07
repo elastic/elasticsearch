@@ -38,7 +38,7 @@ apply plugin: 'elasticsearch.esplugin'
 
 esplugin {
   description 'The mapper attachments plugin adds the attachment type to Elasticsearch using Apache Tika.'
-  classname 'org.elasticsearch.plugin.mapper.attachments.MapperAttachmentsPlugin'
+  classname 'org.elasticsearch.mapper.attachments.MapperAttachmentsPlugin'
 }
 
 group = 'org.elasticsearch.plugin'
@@ -60,7 +60,7 @@ repositories {
 }
 
 dependencies {
-  compile('org.apache.tika:tika-parsers:1.10') {
+  compile('org.apache.tika:tika-parsers:1.11') {
     // TODO: is all of edu.ucar incompatibile with apache2 license? if so, we can exclude the group?
     // Not Apache2 License compatible
     exclude group: 'edu.ucar', module: 'netcdf'

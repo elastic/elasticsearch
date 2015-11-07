@@ -134,7 +134,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
         try {
             // we know OSX has bugs in the JVM when creating multiple instances of multicast sockets
             // causing for "socket close" exceptions when receive and/or crashes
-            boolean shared = settings.getAsBoolean("discovery.zen.ping.multicast.shared", Constants.MAC_OS_X);
+            final boolean shared = settings.getAsBoolean("discovery.zen.ping.multicast.shared", Constants.MAC_OS_X);
             // OSX does not correctly send multicasts FROM the right interface
             boolean deferToInterface = settings.getAsBoolean("discovery.zen.ping.multicast.defer_group_to_set_interface", Constants.MAC_OS_X);
             // don't use publish address, the use case for that is e.g. a firewall or proxy and

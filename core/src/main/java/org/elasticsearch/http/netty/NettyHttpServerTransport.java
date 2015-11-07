@@ -81,6 +81,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     public static final boolean DEFAULT_SETTING_PIPELINING = true;
     public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
+    public static final String DEFAULT_PORT_RANGE = "9200-9300";
 
     protected final NetworkService networkService;
     protected final BigArrays bigArrays;
@@ -157,7 +158,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.maxCompositeBufferComponents = settings.getAsInt("http.netty.max_composite_buffer_components", -1);
         this.workerCount = settings.getAsInt("http.netty.worker_count", EsExecutors.boundedNumberOfProcessors(settings) * 2);
         this.blockingServer = settings.getAsBoolean("http.netty.http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
-        this.port = settings.get("http.netty.port", settings.get("http.port", "9200-9300"));
+        this.port = settings.get("http.netty.port", settings.get("http.port", DEFAULT_PORT_RANGE));
         this.bindHosts = settings.getAsArray("http.netty.bind_host", settings.getAsArray("http.bind_host", settings.getAsArray("http.host", null)));
         this.publishHosts = settings.getAsArray("http.netty.publish_host", settings.getAsArray("http.publish_host", settings.getAsArray("http.host", null)));
         this.publishPort = settings.getAsInt("http.netty.publish_port", settings.getAsInt("http.publish_port", 0));

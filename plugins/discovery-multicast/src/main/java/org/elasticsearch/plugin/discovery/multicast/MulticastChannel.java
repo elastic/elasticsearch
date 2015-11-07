@@ -45,7 +45,7 @@ import static org.elasticsearch.common.util.concurrent.EsExecutors.daemonThreadF
  * A multicast channel that supports registering for receive events, and sending datagram packets. Allows
  * to easily share the same multicast socket if it holds the same config.
  */
-public abstract class MulticastChannel implements Closeable {
+abstract class MulticastChannel implements Closeable {
 
     /**
      * Builds a channel based on the provided config, allowing to control if sharing a channel that uses

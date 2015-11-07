@@ -1,0 +1,82 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.ElasticsearchProperties
+
+buildscript {
+  repositories {
+    mavenCentral()
+    maven {
+      name 'sonatype-snapshots'
+      url 'http://oss.sonatype.org/content/repositories/snapshots/'
+    }
+    jcenter()
+  }
+  dependencies {
+    classpath 'org.elasticsearch.gradle:build-tools:3.0.0-SNAPSHOT'
+  }
+}
+apply plugin: 'idea'
+apply plugin: 'eclipse'
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  description 'The mapper attachments plugin adds the attachment type to Elasticsearch using Apache Tika.'
+  classname 'org.elasticsearch.plugin.mapper.attachments.MapperAttachmentsPlugin'
+}
+
+group = 'org.elasticsearch.plugin'
+version = ElasticsearchProperties.version
+ext.luceneVersion = ElasticsearchProperties.luceneVersion
+repositories {
+  mavenCentral()
+  maven {
+    name 'sonatype-snapshots'
+    url 'http://oss.sonatype.org/content/repositories/snapshots/'
+  }
+  if (luceneVersion.contains('-snapshot')) {
+    String revision = (luceneVersion =~ /\d\.\d\.\d-snapshot-(\d+)/)[0][1]
+    maven {
+      name 'lucene-snapshots'
+      url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+    }
+  }
+}
+
+dependencies {
+  compile('org.apache.tika:tika-parsers:1.10') {
+    // TODO: is all of edu.ucar incompatibile with apache2 license? if so, we can exclude the group?
+    // Not Apache2 License compatible
+    exclude group: 'edu.ucar', module: 'netcdf'
+    exclude group: 'edu.ucar', module: 'cdm'
+    exclude group: 'edu.ucar', module: 'httpservices'
+    exclude group: 'edu.ucar', module: 'grib'
+    exclude group: 'edu.ucar', module: 'netcdf4'
+    exclude group: 'com.uwyn', module: 'jhighlight'
+    // ES core already has these
+    exclude group: 'commons-logging', module: 'commons-logging-api'
+  }
+}
+
+compileJava.options.compilerArgs << '-Xlint:-cast,-deprecation,-rawtypes'
+
+forbiddenPatterns {
+  exclude '**/*.docx'
+  exclude '**/*.pdf'
+}

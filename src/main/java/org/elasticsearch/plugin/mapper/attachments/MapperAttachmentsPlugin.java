@@ -19,16 +19,10 @@
 
 package org.elasticsearch.plugin.mapper.attachments;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
 import org.elasticsearch.plugins.Plugin;
 
-import java.util.Collection;
-import java.util.Collections;
-
-/**
- *
- */
 public class MapperAttachmentsPlugin extends Plugin {
 
     @Override
@@ -42,7 +36,7 @@ public class MapperAttachmentsPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Module> indexModules(Settings indexSettings) {
-        return Collections.<Module>singletonList(new AttachmentsIndexModule());
+    public void onIndexService(IndexService indexService) {
+        indexService.mapperService().documentMapperParser().putTypeParser("attachment", new AttachmentMapper.TypeParser());
     }
 }

@@ -35,7 +35,7 @@ You need to install a version matching your Elasticsearch version:
 To build a `SNAPSHOT` version, you need to build it with Maven:
 
 ```bash
-mvn clean install
+gradle clean assemble
 plugin --install mapper-attachments \
        --url file:target/releases/elasticsearch-mapper-attachments-X.X.X-SNAPSHOT.zip
 ```

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.attachment.test.unit;
+package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -26,8 +26,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
+import org.elasticsearch.mapper.attachments.AttachmentMapper;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;

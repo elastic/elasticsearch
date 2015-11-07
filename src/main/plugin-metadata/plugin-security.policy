@@ -17,26 +17,10 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments;
-
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.elasticsearch.plugins.Plugin;
-
-public class MapperAttachmentsPlugin extends Plugin {
-
-    @Override
-    public String name() {
-        return "mapper-attachments";
-    }
-
-    @Override
-    public String description() {
-        return "Adds the attachment type allowing to parse difference attachment formats";
-    }
-
-    @Override
-    public void onIndexService(IndexService indexService) {
-        indexService.mapperService().documentMapperParser().putTypeParser("attachment", new AttachmentMapper.TypeParser());
-    }
-}
+grant {
+  // TODO: fix tika not to actually install bouncy castle like this
+  permission java.security.SecurityPermission "putProviderProperty.BC";
+  permission java.security.SecurityPermission "insertProvider";
+  // TODO: fix POI XWPF to not do this: https://bz.apache.org/bugzilla/show_bug.cgi?id=58597
+  permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
+};

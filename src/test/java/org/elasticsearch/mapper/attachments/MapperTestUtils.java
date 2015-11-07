@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.attachment.test;
+package org.elasticsearch.mapper.attachments;
 
-import org.apache.lucene.util.Constants;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
@@ -35,12 +34,8 @@ import org.elasticsearch.test.IndexSettingsModule;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Locale;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.assumeTrue;
-import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isLocaleCompatible;
-
-public class MapperTestUtils {
+class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings indexSettings) throws IOException {
         Settings nodeSettings = Settings.builder()
@@ -55,14 +50,4 @@ public class MapperTestUtils {
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         return new MapperService(idxSettings, analysisService, similarityService);
     }
-
-    /**
-     * We can have issues with some JVMs and Locale
-     * See https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/105
-     */
-    public static void assumeCorrectLocale() {
-        assumeTrue("Current Locale language " + Locale.getDefault().getLanguage() +" could cause an error with Java " +
-                Constants.JAVA_VERSION, isLocaleCompatible());
-    }
-
 }

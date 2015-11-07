@@ -17,29 +17,23 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.mapper.attachments.tika;
+package org.elasticsearch.mapper.attachments;
 
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.ESTestCase;
+import org.junit.Before;
 
-import org.apache.tika.Tika;
+public class AttachmentUnitTestCase extends ESTestCase {
 
-import static org.elasticsearch.plugin.mapper.attachments.tika.LocaleChecker.isLocaleCompatible;
-
-/**
- *
- */
-public class TikaInstance {
-
-    private static final Tika tika;
-
-    static {
-        if (isLocaleCompatible()) {
-           tika = new Tika();
-        } else {
-            tika = null;
-        }
-    }
-
-    public static Tika tika() {
-        return tika;
+    protected Settings testSettings;
+    
+    @Before
+    public void createSettings() throws Exception {
+      testSettings = Settings.builder()
+                             .put("path.home", createTempDir())
+                             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT.id)
+                             .build();
     }
 }

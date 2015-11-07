@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.attachment.test.unit;
+package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -25,9 +25,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
-import org.junit.Test;
+import org.elasticsearch.mapper.attachments.AttachmentMapper;
 
 import java.io.IOException;
 
@@ -41,7 +39,7 @@ import static org.hamcrest.Matchers.*;
  * Note that we have converted /org/elasticsearch/index/mapper/xcontent/testContentLength.txt
  * to a /org/elasticsearch/index/mapper/xcontent/encrypted.pdf with password `12345678`.
  */
-public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
+public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
 
     public void testMultipleDocsEncryptedLast() throws IOException {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
@@ -127,8 +125,10 @@ public class EncryptedDocMapperTest extends AttachmentUnitTestCase {
             docMapper.parse("person", "person", "1", json);
             fail("Expected doc parsing exception");
         } catch (MapperParsingException e) {
-            // TODO: check the error message...getting security problems atm
-            //assertTrue(e.getMessage(), e.getMessage().contains())
+            if (e.getMessage() == null || e.getMessage().contains("is encrypted") == false) {
+                // wrong exception
+                throw e;
+            }
         }
     }
 

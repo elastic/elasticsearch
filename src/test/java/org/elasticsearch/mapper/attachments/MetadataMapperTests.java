@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.attachment.test.unit;
+package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -25,9 +25,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
-import org.junit.Test;
+import org.elasticsearch.mapper.attachments.AttachmentMapper;
 
 import java.io.IOException;
 
@@ -39,7 +37,7 @@ import static org.hamcrest.Matchers.*;
 /**
  * Test for https://github.com/elasticsearch/elasticsearch-mapper-attachments/issues/38
  */
-public class MetadataMapperTest extends AttachmentUnitTestCase {
+public class MetadataMapperTests extends AttachmentUnitTestCase {
 
     protected void checkMeta(String filename, Settings otherSettings, Long expectedDate, Long expectedLength) throws IOException {
         Settings settings = Settings.builder()
@@ -95,8 +93,8 @@ public class MetadataMapperTest extends AttachmentUnitTestCase {
     public void testWithEmptyDate() throws Exception {
         try {
             checkMeta("htmlWithEmptyDateMeta.html", Settings.builder().put("index.mapping.attachment.ignore_errors", false).build(), null, null);
-        } catch (MapperParsingException e) {
-            throw e;
+        } catch (MapperParsingException expected) {
+            assertTrue(expected.getMessage().contains("failed to parse"));
         }
     }
 

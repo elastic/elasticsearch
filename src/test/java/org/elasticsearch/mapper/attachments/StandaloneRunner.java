@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.index.mapper.attachment.test.standalone;
+package org.elasticsearch.mapper.attachments;
 
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -32,8 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.attachment.AttachmentMapper;
-import org.elasticsearch.index.mapper.attachment.test.MapperTestUtils;
+import org.elasticsearch.mapper.attachments.AttachmentMapper;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;

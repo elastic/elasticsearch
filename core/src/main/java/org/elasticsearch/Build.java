@@ -27,7 +27,9 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.util.jar.JarFile;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
@@ -40,10 +42,15 @@ public class Build {
         final String shortHash;
         final String date;
 
-        Manifest manifest = getManifest();
-        if (manifest != null) {
-            shortHash = manifest.getMainAttributes().getValue("Change");
-            date = manifest.getMainAttributes().getValue("Build-Date");
+        Path path = getElasticsearchCodebase();
+        if (path.toString().endsWith(".jar")) {
+            try (JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
+                Manifest manifest = jar.getManifest();
+                shortHash = manifest.getMainAttributes().getValue("Change");
+                date = manifest.getMainAttributes().getValue("Build-Date");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         } else {
             // not running from a jar (unit tests, IDE)
             shortHash = "Unknown";
@@ -53,18 +60,16 @@ public class Build {
         CURRENT = new Build(shortHash, date);
     }
 
-    /** Return manifest of elasticsearch.jar, or null if not running from a jar */
-    @SuppressForbidden(reason = "needs JarFile to read the manifest")
-    static Manifest getManifest() {
+    /**
+     * Returns path to elasticsearch codebase path
+     */
+    @SuppressForbidden(reason = "looks up path of elasticsearch.jar directly")
+    static Path getElasticsearchCodebase() {
         URL url = Build.class.getProtectionDomain().getCodeSource().getLocation();
-        if (url.getPath().endsWith(".jar")) {
-            try (JarFile jar = new JarFile(PathUtils.get(url.toURI()).toString())) {
-                return jar.getManifest();
-            } catch (URISyntaxException | IOException e) {
-                throw new RuntimeException(e);
-            }
-        } else {
-            return null;
+        try {
+            return PathUtils.get(url.toURI());
+        } catch (URISyntaxException bogus) {
+            throw new RuntimeException(bogus);
         }
     }
 

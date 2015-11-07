@@ -20,37 +20,52 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.Paths;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 /**
  */
-@SuppressForbidden(reason = "needs JarFile to read the manifest")
 public class Build {
 
     public static final Build CURRENT;
 
     static {
-        String shortHash = "Unknown";
-        String date = "Unknown";
+        final String shortHash;
+        final String date;
 
-        URL path = Build.class.getProtectionDomain().getCodeSource().getLocation();
-        try (JarFile jar = new JarFile(Paths.get(path.toURI()).toString())) {
-            Manifest manifest = jar.getManifest();
+        Manifest manifest = getManifest();
+        if (manifest != null) {
             shortHash = manifest.getMainAttributes().getValue("Change");
             date = manifest.getMainAttributes().getValue("Build-Date");
-        } catch (IOException | URISyntaxException e) {
-            // just ignore... (in tests) we'll hit SecurityException if this logic is wrong (for real)
+        } else {
+            // not running from a jar (unit tests, IDE)
+            shortHash = "Unknown";
+            date = "Unknown";
         }
 
         CURRENT = new Build(shortHash, date);
+    }
+
+    /** Return manifest of elasticsearch.jar, or null if not running from a jar */
+    @SuppressForbidden(reason = "needs JarFile to read the manifest")
+    static Manifest getManifest() {
+        URL url = Build.class.getProtectionDomain().getCodeSource().getLocation();
+        if (url.getPath().endsWith(".jar")) {
+            try (JarFile jar = new JarFile(PathUtils.get(url.toURI()).toString())) {
+                return jar.getManifest();
+            } catch (URISyntaxException | IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            return null;
+        }
     }
 
     private String shortHash;

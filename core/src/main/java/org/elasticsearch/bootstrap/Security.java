@@ -20,12 +20,17 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.SecureSM;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.http.netty.NettyHttpServerTransport;
 import org.elasticsearch.plugins.PluginInfo;
+import org.elasticsearch.transport.netty.NettyTransport;
 
 import java.io.*;
+import java.net.SocketPermission;
 import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.AccessMode;
@@ -184,9 +189,18 @@ final class Security {
         }
     }
 
-    /** returns dynamic Permissions to configured paths */
+    /** returns dynamic Permissions to configured paths and bind ports */
     static Permissions createPermissions(Environment environment) throws IOException {
         Permissions policy = new Permissions();
+        addFilePermissions(policy, environment);
+        addBindPermissions(policy, environment.settings());
+        return policy;
+    }
+    
+    /**
+     * Adds access to all configurable paths.
+     */
+    static void addFilePermissions(Permissions policy, Environment environment) {
         // read-only dirs
         addPath(policy, "path.home", environment.binFile(), "read,readlink");
         addPath(policy, "path.home", environment.libFile(), "read,readlink");
@@ -212,7 +226,36 @@ final class Security {
             // we just need permission to remove the file if its elsewhere.
             policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
-        return policy;
+    }
+    
+    static void addBindPermissions(Permissions policy, Settings settings) throws IOException {
+        // http is simple
+        String httpRange = settings.get("http.netty.port", 
+                               settings.get("http.port", 
+                                       NettyHttpServerTransport.DEFAULT_PORT_RANGE));
+        policy.add(new SocketPermission("localhost:" + httpRange, "listen,resolve"));
+        // transport is waaaay overengineered
+        Map<String, Settings> profiles = settings.getGroups("transport.profiles", true);
+        if (!profiles.containsKey(NettyTransport.DEFAULT_PROFILE)) {
+            profiles = new HashMap<>(profiles);
+            profiles.put(NettyTransport.DEFAULT_PROFILE, Settings.EMPTY);
+        }
+
+        // loop through all profiles and add permissions for each one, if its valid.
+        // (otherwise NettyTransport is lenient and ignores it)
+        for (Map.Entry<String, Settings> entry : profiles.entrySet()) {
+            Settings profileSettings = entry.getValue();
+            String name = entry.getKey();
+            String transportRange = profileSettings.get("port", 
+                                        settings.get("transport.tcp.port", 
+                                                NettyTransport.DEFAULT_PORT_RANGE));
+
+            // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
+            boolean valid = NettyTransport.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
+            if (valid) {
+                policy.add(new SocketPermission("localhost:" + transportRange, "listen,resolve"));
+            }
+        }
     }
     
     /**

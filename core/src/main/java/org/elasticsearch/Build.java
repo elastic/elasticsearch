@@ -20,35 +20,57 @@
 package org.elasticsearch;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.jar.JarFile;
+import java.net.URISyntaxException;
+import java.net.URL;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
  */
-@SuppressForbidden(reason = "needs JarFile to read the manifest")
 public class Build {
 
     public static final Build CURRENT;
 
     static {
-        String shortHash = "Unknown";
-        String date = "Unknown";
+        final String shortHash;
+        final String date;
 
-        String path = Build.class.getProtectionDomain().getCodeSource().getLocation().getPath();
-        try {
-            JarFile jar = new JarFile(path);
-            Manifest manifest = jar.getManifest();
-            shortHash = manifest.getMainAttributes().getValue("Change");
-            date = manifest.getMainAttributes().getValue("Build-Date");
-        } catch (IOException e) {
-            // just ignore...
+        Path path = getElasticsearchCodebase();
+        if (path.toString().endsWith(".jar")) {
+            try (JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
+                Manifest manifest = jar.getManifest();
+                shortHash = manifest.getMainAttributes().getValue("Change");
+                date = manifest.getMainAttributes().getValue("Build-Date");
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        } else {
+            // not running from a jar (unit tests, IDE)
+            shortHash = "Unknown";
+            date = "Unknown";
         }
 
         CURRENT = new Build(shortHash, date);
+    }
+
+    /**
+     * Returns path to elasticsearch codebase path
+     */
+    @SuppressForbidden(reason = "looks up path of elasticsearch.jar directly")
+    static Path getElasticsearchCodebase() {
+        URL url = Build.class.getProtectionDomain().getCodeSource().getLocation();
+        try {
+            return PathUtils.get(url.toURI());
+        } catch (URISyntaxException bogus) {
+            throw new RuntimeException(bogus);
+        }
     }
 
     private String shortHash;

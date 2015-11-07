@@ -1083,14 +1083,16 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             this.versionType = delete.versionType();
         }
 
+        /** utility for testing */
         public Delete(Term uid) {
-            this.uid = uid;
+            this(uid, 0, 0, VersionType.EXTERNAL);
         }
 
-        public Delete(Term uid, long version, VersionType versionType) {
+        public Delete(Term uid, long seqNo, long version, VersionType versionType) {
             this.uid = uid;
             this.version = version;
             this.versionType = versionType;
+            this.seqNo = seqNo;
         }
 
         @Override

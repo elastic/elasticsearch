@@ -34,6 +34,8 @@ import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterInfoService;
@@ -41,6 +43,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
@@ -781,7 +784,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         assertHitCount(response, 1);
     }
 
-    public void testFailIfIndexNotPresentInRecoverFromStore() throws IOException {
+    public void testFailIfIndexNotPresentInRecoverFromStore() throws Throwable {
         createIndex("test");
         ensureGreen();
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
@@ -831,7 +834,12 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         newShard.updateRoutingEntry(routing, true);
         SearchResponse response = client().prepareSearch().get();
         assertHitCount(response, 0);
-        client().prepareIndex("test", "test", "0").setSource("{}").setRefresh(true).get();
+        // we can't issue this request through a client because of the inconsistencies we created with the cluster state
+        // doing it directly instead
+        IndexRequest request = client().prepareIndex("test", "test", "0").setSource("{}").request();
+        request.process(MetaData.builder().put(test.getMetaData(), false).build(), null, false, "test");
+        TransportIndexAction.executeIndexRequestOnPrimary(request, newShard, null);
+        newShard.refresh("test");
         assertHitCount(client().prepareSearch().get(), 1);
     }
 

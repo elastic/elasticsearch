@@ -1077,10 +1077,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
 
         public Delete(Engine.Delete delete) {
-            this(delete.uid());
-            this.seqNo = delete.seqNo();
-            this.version = delete.version();
-            this.versionType = delete.versionType();
+            this(delete.uid(), delete.seqNo(), delete.version(), delete.versionType());
         }
 
         /** utility for testing */

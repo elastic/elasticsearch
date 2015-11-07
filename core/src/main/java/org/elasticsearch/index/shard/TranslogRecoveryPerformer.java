@@ -142,7 +142,7 @@ public class TranslogRecoveryPerformer {
                         logger.trace("[translog] recover [delete] op of [{}][{}]", uid.type(), uid.id());
                     }
                     Engine.Delete engineDelete = IndexShard.prepareDelete(uid.type(), uid.id(), delete.uid(), delete.seqNo(),
-                            delete.version(), delete.versionType(), Engine.Operation.Origin.RECOVERY);
+                            delete.version(), delete.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
                     engine.delete(engineDelete);
                     break;
                 default:

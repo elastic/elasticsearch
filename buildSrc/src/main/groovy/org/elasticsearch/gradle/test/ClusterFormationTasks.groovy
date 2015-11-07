@@ -99,9 +99,10 @@ class ClusterFormationTasks {
 
         // install plugins
         for (Map.Entry<String, FileCollection> plugin : config.plugins.entrySet()) {
-            String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase() }
-            String taskName = "${task.name}#install${camelName.capitalize()}"
-            // delay reading the file location until execution time
+            // replace every dash followed by a character with just the uppercase character
+            String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
+            String taskName = "${task.name}#install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}"
+            // delay reading the file location until execution time by wrapping in a closure within a GString
             String file = "${ -> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString() }"
             Object[] args = [new File(home, 'bin/plugin'), 'install', file]
             setup = configureExecTask(taskName, project, setup, cwd, args)
@@ -172,9 +173,12 @@ class ClusterFormationTasks {
         if (config.plugins.isEmpty()) {
             return setup
         }
+        // collect the files for plugins into a list, but wrap each in a closure to delay
+        // looking for the filename until execution time
+        List files = config.plugins.values().collect { plugin -> return { plugin.singleFile } }
         return project.tasks.create(name: name, type: Copy, dependsOn: setup) {
             into pluginsTmpDir
-            from(*config.plugins.values().collect { plugin -> return { plugin.singleFile } })
+            from(*files) // spread the list into varargs
         }
     }
 
@@ -273,6 +277,7 @@ class ClusterFormationTasks {
     static Task configureCheckPreviousTask(String name, Project project, Object depends, File pidFile) {
         return project.tasks.create(name: name, type: Exec, dependsOn: depends) {
             onlyIf { pidFile.exists() }
+            // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
             commandLine new File(System.getenv('JAVA_HOME'), 'bin/jps'), '-l'
             standardOutput = new ByteArrayOutputStream()
@@ -296,6 +301,7 @@ class ClusterFormationTasks {
     static Task configureStopTask(String name, Project project, Object depends, File pidFile) {
         return project.tasks.create(name: name, type: Exec, dependsOn: depends) {
             onlyIf { pidFile.exists() }
+            // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
             doFirst {
                 logger.info("Shutting down external node with pid ${pid}")

@@ -41,9 +41,9 @@ esplugin {
   classname 'org.elasticsearch.plugin.mapper.attachments.MapperAttachmentsPlugin'
 }
 
-project.group = 'org.elasticsearch'
-project.version = ElasticsearchProperties.version
-project.ext.luceneVersion = ElasticsearchProperties.luceneVersion
+group = 'org.elasticsearch.plugin'
+version = ElasticsearchProperties.version
+ext.luceneVersion = ElasticsearchProperties.luceneVersion
 repositories {
   mavenCentral()
   maven {

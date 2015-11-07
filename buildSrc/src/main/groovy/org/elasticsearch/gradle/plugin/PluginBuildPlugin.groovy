@@ -49,7 +49,7 @@ class PluginBuildPlugin extends BuildPlugin {
             project.integTest.configure {
                 dependsOn project.bundlePlugin
                 cluster {
-                    plugin 'installPlugin', project.bundlePlugin.outputs.files
+                    plugin project.name, project.bundlePlugin.outputs.files
                 }
             }
         }

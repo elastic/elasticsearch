@@ -1,7 +1,7 @@
 [[elasticsearch-reference]]
 = Elasticsearch Reference
 
-:version:   2.0.0-rc1
+:version:   2.0.0
 :branch:    2.0
 :major-version: 2.x
 :jdk:       1.8.0_25

@@ -1,3 +1,4 @@
+[[breaking_20_snapshot_and_restore_changes]]
 === Snapshot and Restore changes
 
 ==== File-system repositories must be whitelisted

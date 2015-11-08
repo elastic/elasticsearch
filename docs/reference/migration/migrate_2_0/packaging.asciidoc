@@ -9,7 +9,7 @@ configured, e.g. `path.data`, `path.scripts`, `path.repo`.  A configured path
 may itself be a symbolic link, but no symlinks under that path will be
 followed (with the exception of `path.scripts`, which does follow symlinks).
 
-==== Running `/bin/elasticsearch`
+==== Running `bin/elasticsearch`
 
 The command line parameter parsing has been rewritten to deal properly with
 spaces in parameters. All config settings can still be specified on the
@@ -20,10 +20,10 @@ For instance:
 
 [source,sh]
 -----------
-/bin/elasticsearch -d -p /tmp/foo.pid --http.cors.enabled=true --http.cors.allow-origin='*'
+bin/elasticsearch -d -p /tmp/foo.pid --http.cors.enabled=true --http.cors.allow-origin='*'
 -----------
 
-For a list of static parameters, run `/bin/elasticsearch -h`
+For a list of static parameters, run `bin/elasticsearch -h`
 
 ==== `-f` removed
 

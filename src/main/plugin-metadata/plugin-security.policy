@@ -17,8 +17,12 @@
  * under the License.
  */
 
+// NOTE: when modifying this file, look at restrictions in TikaImpl too
 grant {
-  // TODO: fix tika not to actually install bouncy castle like this
+  // needed to apply additional sandboxing to tika parsing
+  permission java.security.SecurityPermission "createAccessControlContext";
+
+  // TODO: fix PDFBox not to actually install bouncy castle like this
   permission java.security.SecurityPermission "putProviderProperty.BC";
   permission java.security.SecurityPermission "insertProvider";
   // TODO: fix POI XWPF to not do this: https://bz.apache.org/bugzilla/show_bug.cgi?id=58597

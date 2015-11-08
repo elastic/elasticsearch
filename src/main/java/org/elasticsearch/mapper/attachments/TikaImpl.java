@@ -29,15 +29,6 @@ final class TikaImpl {
         new org.apache.tika.parser.odf.OpenDocumentParser(),
         new org.apache.tika.parser.iwork.IWorkPackageParser(),
         new org.apache.tika.parser.xml.DcXMLParser(),
-        // images:
-        new org.apache.tika.parser.image.BPGParser(),
-        new org.apache.tika.parser.image.ImageParser(),
-        new org.apache.tika.parser.image.TiffParser(),
-        new org.apache.tika.parser.image.WebPParser(),
-        new org.apache.tika.parser.jpeg.JpegParser(),
-        // compression / packaging:
-        new org.apache.tika.parser.pkg.CompressorParser(),
-        new org.apache.tika.parser.pkg.PackageParser(),
     };
     
     /** autodetector based on this subset */

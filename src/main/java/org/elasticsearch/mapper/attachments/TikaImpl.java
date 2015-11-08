@@ -1,7 +1,5 @@
 package org.elasticsearch.mapper.attachments;
 
-import java.io.ByteArrayInputStream;
-
 /*
  * Licensed to Elasticsearch under one or more contributor
  * license agreements. See the NOTICE file distributed with
@@ -21,6 +19,7 @@ import java.io.ByteArrayInputStream;
  * under the License.
  */
 
+import java.io.ByteArrayInputStream;
 import java.io.FilePermission;
 import java.io.IOException;
 import java.lang.reflect.ReflectPermission;

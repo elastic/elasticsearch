@@ -42,29 +42,28 @@ class PluginPropertiesTask extends Copy {
         }
         dependsOn(copyPluginPropertiesTemplate)
         extension = project.extensions.create('esplugin', PluginPropertiesExtension, project)
-        project.clean {
-            delete generatedResourcesDir
-        }
+        project.clean.delete(generatedResourcesDir)
         project.afterEvaluate {
             // check require properties are set
+            if (extension.name == null) {
+                throw new InvalidUserDataException('name is a required setting for esplugin')
+            }
             if (extension.description == null) {
                 throw new InvalidUserDataException('description is a required setting for esplugin')
             }
             if (extension.jvm && extension.classname == null) {
                 throw new InvalidUserDataException('classname is a required setting for esplugin with jvm=true')
             }
-            configure {
-                doFirst {
-                    if (extension.jvm && extension.isolated == false) {
-                        String warning = "WARNING: Disabling plugin isolation in ${project.name} is deprecated and will be removed in the future"
-                        logger.warn("${'=' * warning.length()}\n${warning}\n${'=' * warning.length()}")
-                    }
+            doFirst {
+                if (extension.jvm && extension.isolated == false) {
+                    String warning = "WARNING: Disabling plugin isolation in ${project.path} is deprecated and will be removed in the future"
+                    logger.warn("${'=' * warning.length()}\n${warning}\n${'=' * warning.length()}")
                 }
-                // configure property substitution
-                from templateFile
-                into generatedResourcesDir
-                expand(generateSubstitutions())
             }
+            // configure property substitution
+            from(templateFile)
+            into(generatedResourcesDir)
+            expand(generateSubstitutions())
         }
     }
 

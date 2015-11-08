@@ -223,7 +223,6 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         request.version(version);
         request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
         request.seqNo(operation.seqNo());
-        request.primaryTerm(indexShard.routingEntry().primaryTerm());
 
         assert request.versionType().validateVersionForWrites(request.version());
 

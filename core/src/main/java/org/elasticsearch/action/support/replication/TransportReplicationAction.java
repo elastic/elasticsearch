@@ -573,6 +573,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 indexShardReference = getIndexShardOperationsCounter(primary.shardId(), primary.primaryTerm());
                 PrimaryOperationRequest por = new PrimaryOperationRequest(primary.id(), internalRequest.concreteIndex(), internalRequest.request());
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(observer.observedState(), por);
+                primaryResponse.v2().primaryTerm(primary.primaryTerm());
                 logger.trace("operation completed on primary [{}]", primary);
                 replicationPhase = new ReplicationPhase(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener, indexShardReference, shardFailedTimeout);
             } catch (Throwable e) {

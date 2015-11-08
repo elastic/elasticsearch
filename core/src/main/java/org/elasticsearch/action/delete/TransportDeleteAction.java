@@ -143,7 +143,6 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
         // update the request with the version so it will go to the replicas
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         request.version(delete.version());
-        request.primaryTerm(indexShard.routingEntry().primaryTerm());
         request.seqNo(delete.seqNo());
 
         assert request.versionType().validateVersionForWrites(request.version());

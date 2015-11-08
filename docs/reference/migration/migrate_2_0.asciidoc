@@ -20,6 +20,26 @@ We have provided the https://github.com/elastic/elasticsearch-migration[Elastics
 to help you detect any issues that you may have when upgrading to
 Elasticsearch 2.0. Please install and run the plugin *before* upgrading.
 
+[float]
+=== Also see
+
+* <<breaking_20_removed_features>>
+* <<breaking_20_network_changes>>
+* <<breaking_20_multiple_literal_data_path_literal_striping>>
+* <<breaking_20_mapping_changes>>
+* <<breaking_20_crud_and_routing_changes>>
+* <<breaking_20_query_dsl_changes>>
+* <<breaking_20_search_changes>>
+* <<breaking_20_aggregation_changes>>
+* <<breaking_20_parent_child_changes>>
+* <<breaking_20_scripting_changes>>
+* <<breaking_20_index_api_changes>>
+* <<breaking_20_snapshot_and_restore_changes>>
+* <<breaking_20_plugin_and_packaging_changes>>
+* <<breaking_20_setting_changes>>
+* <<breaking_20_stats_info_and_literal_cat_literal_changes>>
+* <<breaking_20_java_api_changes>>
+
 include::migrate_2_0/removals.asciidoc[]
 
 include::migrate_2_0/network.asciidoc[]

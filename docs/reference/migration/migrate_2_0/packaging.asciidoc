@@ -1,3 +1,4 @@
+[[breaking_20_plugin_and_packaging_changes]]
 === Plugin and packaging changes
 
 ==== Symbolic links and paths

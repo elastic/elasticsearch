@@ -4,6 +4,14 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 2.1.
 
+* <<breaking_21_search_changes>>
+* <<breaking_21_update_changes>>
+* <<breaking_21_removed_features>>
+* <<breaking_21_more_like_this>>
+* <<breaking_21_nested_sorting>>
+* <<breaking_21_index_apis>>
+
+[[breaking_21_search_changes]]
 === Search changes
 
 ==== `search_type=scan` deprecated
@@ -36,6 +44,7 @@ search. It's safest to leave this value as it is an use the scroll api for any
 deep scrolling but this setting is dynamic so it can raised or lowered as
 needed.
 
+[[breaking_21_update_changes]]
 === Update changes
 
 ==== Updates now `detect_noop` by default
@@ -46,6 +55,7 @@ source unless you explicitly set `"detect_noop": false`. `detect_noop` was
 always computationally cheap compared to the expense of the update which can be
 thought of as a delete operation followed by an index operation.
 
+[[breaking_21_removed_features]]
 === Removed features
 
 ==== `indices.fielddata.cache.expire`
@@ -53,21 +63,24 @@ thought of as a delete operation followed by an index operation.
 The experimental feature `indices.fielddata.cache.expire` has been removed.
 For indices that have this setting configured, this config will be ignored.
 
+[[breaking_21_more_like_this]]
 === More Like This
 
-The MoreLikeThisQueryBuilder#ignoreLike methods have been deprecating in favor
-to using the unlike methods.
+The MoreLikeThisQueryBuilder#ignoreLike methods have been deprecated in favor
+of using the unlike methods.
 
-MoreLikeThisBuilder#addItem has been deprecated in favor to using
+MoreLikeThisBuilder#addItem has been deprecated in favor of using
 MoreLikeThisBuilder#addLikeItem.
 
+[[breaking_21_nested_sorting]]
 === Nested sorting
 
 If sorting on field inside a nested object then the `nested_path` should be specified.
 Before there was an attempt to resolve the nested path automatically, but that was sometimes incorrect.
 To avoid confusion the `nested_path` should always be specified.
 
-=== Deprecations
+[[breaking_21_index_apis]]
+=== Index APIs
 
 ==== Optimize API
 

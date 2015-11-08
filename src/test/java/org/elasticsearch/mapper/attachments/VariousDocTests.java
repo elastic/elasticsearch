@@ -109,7 +109,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
     void assertException(String filename, String expectedMessage) throws Exception {
         try (InputStream is = VariousDocTests.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
             byte bytes[] = IOUtils.toByteArray(is);
-            AttachmentMapper.parseWithTika(bytes, new Metadata(), -1);
+            TikaImpl.parse(bytes, new Metadata(), -1);
             fail("expected exception");
         } catch (Exception e) {
             if (e.getMessage() != null && e.getMessage().contains(expectedMessage)) {
@@ -124,7 +124,7 @@ public class VariousDocTests extends AttachmentUnitTestCase {
     protected void assertParseable(String filename) throws Exception {
         try (InputStream is = VariousDocTests.class.getResourceAsStream("/org/elasticsearch/index/mapper/attachment/test/sample-files/" + filename)) {
             byte bytes[] = IOUtils.toByteArray(is);
-            String parsedContent = AttachmentMapper.parseWithTika(bytes, new Metadata(), -1);  
+            String parsedContent = TikaImpl.parse(bytes, new Metadata(), -1);  
             assertThat(parsedContent, not(isEmptyOrNullString()));
             logger.debug("extracted content: {}", parsedContent);
         }

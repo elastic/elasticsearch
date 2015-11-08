@@ -677,6 +677,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node2")))
                 .build();
+        logger.debug("reroute and check that nothing has changed");
         RoutingAllocation.Result reroute = strategy.reroute(clusterState);
         assertFalse(reroute.changed());
         routingTable = reroute.routingTable();
@@ -690,7 +691,7 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(1));
             assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(UNASSIGNED));
         }
-
+        logger.debug("now set hasFetches to true and reroute we should now see exactly one relocating shard");
         hasFetches.set(false);
         reroute = strategy.reroute(clusterState);
         assertTrue(reroute.changed());

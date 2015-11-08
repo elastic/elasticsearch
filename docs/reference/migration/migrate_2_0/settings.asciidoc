@@ -1,3 +1,4 @@
+[[breaking_20_setting_changes]]
 === Setting changes
 
 ==== Command line flags

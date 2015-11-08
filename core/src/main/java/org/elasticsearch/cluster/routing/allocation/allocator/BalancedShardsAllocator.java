@@ -118,7 +118,8 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
 
     @Override
     public boolean allocateUnassigned(RoutingAllocation allocation) {
-        return rebalance(allocation);
+        final Balancer balancer = new Balancer(logger, allocation, weightFunction, threshold);
+        return balancer.allocateUnassigned();
     }
 
     @Override
@@ -314,6 +315,15 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
         }
 
         /**
+         * Allocates all possible unassigned shards
+         * @return <code>true</code> if the current configuration has been
+         *         changed, otherwise <code>false</code>
+         */
+        final boolean allocateUnassigned() {
+            return balance(true);
+        }
+
+        /**
          * Balances the nodes on the cluster model according to the weight
          * function. The configured threshold is the minimum delta between the
          * weight of the maximum node and the minimum node according to the
@@ -328,16 +338,24 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
          *         changed, otherwise <code>false</code>
          */
         public boolean balance() {
+            return balance(false);
+        }
+
+        private boolean balance(boolean onlyAssign) {
             if (this.nodes.isEmpty()) {
                 /* with no nodes this is pointless */
                 return false;
             }
             if (logger.isTraceEnabled()) {
-                logger.trace("Start balancing cluster");
+                if (onlyAssign) {
+                    logger.trace("Start balancing cluster");
+                } else {
+                    logger.trace("Start assigning unassigned shards");
+                }
             }
             final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned().transactionBegin();
             boolean changed = initialize(routingNodes, unassigned);
-            if (!changed && allocation.deciders().canRebalance(allocation).type() == Type.YES) {
+            if (onlyAssign == false && changed == false && allocation.deciders().canRebalance(allocation).type() == Type.YES) {
                 NodeSorter sorter = newNodeSorter();
                 if (nodes.size() > 1) { /* skip if we only have one node */
                     for (String index : buildWeightOrderedIndidces(Operation.BALANCE, sorter)) {

@@ -27,11 +27,13 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
@@ -627,21 +629,26 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
     }
 
     public void testRebalanceWhileShardFetching() {
-        final AtomicInteger numFetch = new AtomicInteger(1);
+        final AtomicBoolean hasFetches = new AtomicBoolean(true);
         AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new NoopGatewayAllocator() {
             @Override
-            public int getNumberOfInFlightFetch() {
-                return numFetch.get();
+            public boolean allocateUnassigned(RoutingAllocation allocation) {
+                if (hasFetches.get()) {
+                    allocation.setHasPendingAsyncFetch();
+                }
+                return super.allocateUnassigned(allocation);
             }
         });
 
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT).put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_id", "node1,node2")).numberOfShards(2).numberOfReplicas(0))
                 .build();
 
         RoutingTable routingTable = RoutingTable.builder()
                 .addAsNew(metaData.index("test"))
+                .addAsNew(metaData.index("test1"))
                 .build();
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
@@ -670,14 +677,24 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node2")))
                 .build();
-
         RoutingAllocation.Result reroute = strategy.reroute(clusterState);
         assertFalse(reroute.changed());
-        numFetch.set(0);
+        routingTable = reroute.routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
+        }
+        for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
+            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(UNASSIGNED));
+        }
+
+        hasFetches.set(false);
         reroute = strategy.reroute(clusterState);
         assertTrue(reroute.changed());
         routingTable = reroute.routingTable();
-        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         int numStarted = 0;
         int numRelocating = 0;
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -688,6 +705,10 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
             } else if (routingTable.index("test").shard(i).primaryShard().state() == RELOCATING) {
                 numRelocating++;
             }
+        }
+        for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
+            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(UNASSIGNED));
         }
         assertEquals(numStarted, 1);
         assertEquals(numRelocating, 1);

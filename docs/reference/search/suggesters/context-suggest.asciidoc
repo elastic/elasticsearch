@@ -227,8 +227,8 @@ A `geo` context allows you to associate one or more geo points or geohashes with
 at index time. At query time, suggestions can be filtered and boosted if they are within
 a certain distance of a specified geo location.
 
-Internally, geo points are encoded as geohashes with specified precision. See <<geohashes>> for
-more details.
+Internally, geo points are encoded as geohashes with the specified precision.
+See <<geohash>> for more background details.
 
 [float]
 ===== Geo Mapping

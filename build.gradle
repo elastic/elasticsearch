@@ -18,6 +18,7 @@
  */
 
 import org.elasticsearch.gradle.ElasticsearchProperties
+import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 
 buildscript {
   repositories {
@@ -61,18 +62,28 @@ repositories {
 }
 
 dependencies {
-  compile('org.apache.tika:tika-parsers:1.11') {
-    // TODO: is all of edu.ucar incompatibile with apache2 license? if so, we can exclude the group?
-    // Not Apache2 License compatible
-    exclude group: 'edu.ucar', module: 'netcdf'
-    exclude group: 'edu.ucar', module: 'cdm'
-    exclude group: 'edu.ucar', module: 'httpservices'
-    exclude group: 'edu.ucar', module: 'grib'
-    exclude group: 'edu.ucar', module: 'netcdf4'
-    exclude group: 'com.uwyn', module: 'jhighlight'
-    // ES core already has these
-    exclude group: 'commons-logging', module: 'commons-logging-api'
+  // mandatory for tika
+  compile('org.apache.tika:tika-core:1.11')
+  compile('org.apache.tika:tika-parsers:1.11') { 
+    transitive = false
   }
+  compile('commons-io:commons-io:2.4')
+  
+  // character set detection
+  compile('com.googlecode.juniversalchardet:juniversalchardet:1.0.3')
+
+  // external parser libraries
+  // HTML
+  compile('org.ccil.cowan.tagsoup:tagsoup:1.2.1')
+  // Adobe PDF
+  compile('org.apache.pdfbox:pdfbox:1.8.10')
+  compile('org.bouncycastle:bcmail-jdk15on:1.52')
+  // OpenOffice
+  compile('org.apache.poi:poi-ooxml:3.13')
+  // MS Office
+  compile('org.apache.poi:poi-scratchpad:3.13')
+  // Apple iWork
+  compile('org.apache.commons:commons-compress:1.10')
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-deprecation,-rawtypes'
@@ -81,3 +92,9 @@ forbiddenPatterns {
   exclude '**/*.docx'
   exclude '**/*.pdf'
 }
+
+// fix ES build so this is not needed
+Task dependencyLicensesTask = DependencyLicensesTask.configure(project) {
+  dependencies = project.configurations.runtime - project.configurations.provided
+}
+project.precommit.dependsOn(dependencyLicensesTask)

@@ -25,6 +25,7 @@ import org.apache.tika.Tika;
 import org.apache.tika.exception.TikaException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
+import org.apache.tika.parser.Parser;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
@@ -484,7 +485,7 @@ public class AttachmentMapper extends FieldMapper {
 
         String parsedContent;
         try {
-            parsedContent = parseWithTika(content, metadata, indexedChars);
+            parsedContent = TikaImpl.parse(content, metadata, indexedChars);
         } catch (Throwable e) {
             // #18: we could ignore errors when Tika does not parse data
             if (!ignoreErrors) {
@@ -601,40 +602,6 @@ public class AttachmentMapper extends FieldMapper {
 //        multiFields.parse(this, context);
 
         return null;
-    }
-
-    // singleton
-    private static final Tika TIKA_INSTANCE = new Tika();
-
-    /**
-     * parses with tika, throwing any exception hit while parsing the document
-     */
-    // only package private for testing!
-    static String parseWithTika(final byte content[], final Metadata metadata, final int limit) throws TikaException, IOException {
-        // check that its not unprivileged code like a script
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-
-        try {
-            return AccessController.doPrivileged(new PrivilegedExceptionAction<String>() {
-                @Override
-                public String run() throws TikaException, IOException {
-                    return TIKA_INSTANCE.parseToString(StreamInput.wrap(content), metadata, limit);
-                }
-            });
-        } catch (PrivilegedActionException e) {
-            // checked exception from tika: unbox it
-            Throwable cause = e.getCause();
-            if (cause instanceof TikaException) {
-                throw (TikaException) cause;
-            } else if (cause instanceof IOException) {
-                throw (IOException) cause;
-            } else {
-                throw new AssertionError(cause);
-            }
-        }
     }
 
     @Override

@@ -21,15 +21,10 @@ package org.elasticsearch.mapper.attachments;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
-import org.apache.tika.Tika;
-import org.apache.tika.exception.TikaException;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
-import org.apache.tika.parser.Parser;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -38,9 +33,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.*;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.*;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.*;

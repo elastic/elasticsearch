@@ -1,3 +1,4 @@
+[[breaking_20_aggregation_changes]]
 === Aggregation changes
 
 ==== Min doc count defaults to zero

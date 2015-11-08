@@ -4,6 +4,18 @@
 This section discusses the changes that you need to be aware of when migrating
 your application to Elasticsearch 3.0.
 
+* <<breaking_30_search_changes>>
+* <<breaking_30_rest_api_changes>>
+* <<breaking_30_parent_child_changes>>
+* <<breaking_30_settings_changes>>
+* <<breaking_30_mapping_changes>>
+* <<breaking_30_plugins>>
+* <<breaking_30_java_api_changes>>
+* <<breaking_30_cache_concurrency>>
+* <<breaking_30_non_loopback>>
+* <<breaking_30_thread_pool>>
+
+[[breaking_30_search_changes]]
 === Search changes
 
 ==== `search_type=count` removed
@@ -13,6 +25,7 @@ In order to get the same benefits, you just need to set the value of the `size`
 parameter to `0`.
 
 For instance, the following request:
+
 [source,sh]
 ---------------
 GET /my_index/_search?search_type=count
@@ -28,6 +41,7 @@ GET /my_index/_search?search_type=count
 ---------------
 
 can be replaced with:
+
 [source,sh]
 ---------------
 GET /my_index/_search
@@ -63,6 +77,7 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+[[breaking_30_rest_api_changes]]
 === REST API changes
 
 ==== search exists api removed
@@ -121,6 +136,7 @@ Removed support for the deprecated top level `filter` in the search api, replace
 
 Removed support for the undocumented `query_binary` and `filter_binary` sections of a search request.
 
+[[breaking_30_parent_child_changes]]
 === Parent/Child changes
 
 The `children` aggregation, parent child inner hits and `has_child` and `has_parent` queries will not work on indices
@@ -147,7 +163,9 @@ When `max_children` was set to `0` on the `has_child` query then there was no up
 are allowed to match. This has changed and `0` now really means to zero child documents are allowed. If no upper limit
 is needed then the `max_children` option shouldn't be defined at all on the `has_child` query.
 
-=== Settings changes ===
+
+[[breaking_30_settings_changes]]
+=== Settings changes
 
 ==== Analysis settings
 
@@ -162,13 +180,15 @@ Previously, there were three settings for the ping timeout: `discovery.zen.initi
 the only setting key for the ping timeout is now `discovery.zen.ping_timeout`. The default value for
 ping timeouts remains at three seconds.
 
-=== Mapping changes ===
+[[breaking_30_mapping_changes]]
+=== Mapping changes
 
 ==== Transform removed
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
 
-=== Plugins
+[[breaking_30_plugins]]
+=== Plugin changes
 
 Plugins implementing custom queries need to implement the `fromXContent(QueryParseContext)` method in their
 `QueryParser` subclass rather than `parse`. This method will take care of parsing the query from `XContent` format
@@ -191,14 +211,14 @@ function that it supports and it's able to parse. The function object can then t
 function through the new `toFunction(QueryShardContext)` method, which returns a lucene function to be executed
 on the data node.
 
-==== Cloud AWS plugin
+==== Cloud AWS plugin changes
 
 Cloud AWS plugin has been split in two plugins:
 
 * {plugins}/discovery-ec2.html[Discovery EC2 plugin]
 * {plugins}/repository-s3.html[Repository S3 plugin]
 
-==== Cloud Azure plugin
+==== Cloud Azure plugin changes
 
 Cloud Azure plugin has been split in three plugins:
 
@@ -206,11 +226,12 @@ Cloud Azure plugin has been split in three plugins:
 * {plugins}/repository-azure.html[Repository Azure plugin]
 * {plugins}/store-smb.html[Store SMB plugin]
 
-==== Cloud GCE plugin
+==== Cloud GCE plugin changes
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
 
-=== Java-API
+[[breaking_30_java_api_changes]]
+=== Java API changes
 
 ==== Count api has been removed
 
@@ -218,15 +239,17 @@ The deprecated count api has been removed from the Java api, use the search api 
 
 The following call
 
-```
+[source,java]
+-----
 client.prepareCount(indices).setQuery(query).get();
-```
+-----
 
 can be replaced with
 
-```
+[source,java]
+-----
 client.prepareSearch(indices).setSource(new SearchSourceBuilder().size(0).query(query)).get();
-```
+-----
 
 ==== BoostingQueryBuilder
 
@@ -352,8 +375,8 @@ settings at construction time.
 ==== NotQueryBuilder
 
 The NotQueryBuilder which was deprecated in 2.1.0 is removed. As a replacement use BoolQueryBuilder
-with added mustNot() clause. So instead of using `new NotQueryBuilder(filter)` now use 
-`new BoolQueryBuilder().mustNot(filter)`. 
+with added mustNot() clause. So instead of using `new NotQueryBuilder(filter)` now use
+`new BoolQueryBuilder().mustNot(filter)`.
 
 ==== TermsQueryBuilder
 
@@ -383,18 +406,21 @@ For simplicity, only one way of adding the ids to the existing list (empty by de
 error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
 to index a document only if it doesn't already exist.
 
+[[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed
 
 Two cache concurrency level settings `indices.requests.cache.concurrency_level` and
 `indices.fielddata.cache.concurrency_level` because they no longer apply to the cache implementation used for the
 request cache and the field data cache.
 
+[[breaking_30_non_loopback]]
 === Remove bind option of `non_loopback`
 
 This setting would arbitrarily pick the first interface not marked as loopback. Instead, specify by address
 scope (e.g. `_local_,_site_` for all loopback and private network addresses) or by explicit interface names,
 hostnames, or addresses.
 
+[[breaking_30_thread_pool]]
 === Forbid changing of thread pool types
 
 Previously, <<modules-threadpool,thread pool types>> could be dynamically adjusted. The thread pool type effectively

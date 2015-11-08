@@ -1,3 +1,4 @@
+[[breaking_20_mapping_changes]]
 === Mapping changes
 
 A number of changes have been made to mappings to remove ambiguity and to

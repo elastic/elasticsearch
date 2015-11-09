@@ -70,8 +70,8 @@ The modules in this section are:
     
 <<modules-tribe,Tribe nodes>>::
 
-    A tribe node joins one ore more clusters and act as a federated 
-    client accross them.
+    A tribe node joins one or more clusters and acts as a federated 
+    client across them.
 --
 
 

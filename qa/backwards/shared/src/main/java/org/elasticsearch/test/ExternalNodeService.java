@@ -384,15 +384,16 @@ public class ExternalNodeService {
             Future<Matcher> f = readLines.submit(new Callable<Matcher>() {
                 @Override
                 public Matcher call() throws IOException {
+                    ESLogger unformattedLogger = ESLoggerFactory.getLogger("test.external");
                     reader.mark(1024 * 1024);
                     String line;
                     while ((line = reader.readLine()) != null) {
                         Matcher m = compiled.matcher(line);
                         if (m.matches()) {
-                            logger.debug("Elasticsearch logged {}", line);
+                            unformattedLogger.debug(line);
                             return m;
                         } else {
-                            logger.trace("Elasticsearch logged {}", line);
+                            unformattedLogger.trace(line);
                         }
                     }
                     return null;

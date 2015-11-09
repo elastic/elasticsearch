@@ -245,10 +245,10 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
             if (fieldType != null) {
                 analyzerObj = context.getSearchAnalyzer(fieldType);
             } else {
-                analyzerObj = context.mapperService().searchAnalyzer();
+                analyzerObj = context.getMapperService().searchAnalyzer();
             }
         } else {
-            analyzerObj = context.mapperService().analysisService().analyzer(analyzer);
+            analyzerObj = context.getMapperService().analysisService().analyzer(analyzer);
             if (analyzerObj == null) {
                 throw new QueryShardException(context, "[common] analyzer [" + analyzer + "] not found");
             }

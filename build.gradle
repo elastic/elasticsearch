@@ -97,6 +97,9 @@ allprojects {
       randomizedrunner:   '2.2.0',
       httpclient:         '4.3.6'
     ]
+
+    // for eclipse hacks...
+    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 }
 
@@ -135,13 +138,9 @@ subprojects {
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
           substitute module("org.elasticsearch:elasticsearch:${version}") with project("${projectsPrefix}:core")
-          // so that eclipse doesn't have circular references
-          // the downside is, if you hack on test-framework, you have to gradle install
-          // the first prop detects eclipse itself, the second detects eclipse from commandline
-          if (System.getProperty("eclipse.launcher") == null && gradle.startParameter.taskNames.contains('eclipse') == false) {
-            substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
-          }
+          substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
           substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project("${projectsPrefix}:distribution:zip")
+          substitute module("org.elasticsearch.distribution.tar:elasticsearch:${version}") with project("${projectsPrefix}:distribution:tar")
         }
       }
     }
@@ -153,7 +152,7 @@ allprojects {
   apply plugin: 'idea'
 }
 
-if (hasProperty('projectsPrefix') == false) {
+if (projectsPrefix.isEmpty()) {
   idea {
     project {
       languageLevel = sourceCompatibility
@@ -193,4 +192,10 @@ allprojects {
   tasks.eclipse.dependsOn(copyEclipseSettings)
 }
 
+// add buildSrc itself as a groovy project
+task buildSrcEclipse(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['cleanEclipse', 'eclipse']
+}
+tasks.eclipse.dependsOn(buildSrcEclipse)
 

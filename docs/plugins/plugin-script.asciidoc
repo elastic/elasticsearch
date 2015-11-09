@@ -101,7 +101,7 @@ For instance, to install a plugin from your local file system, you could run:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install file:/path/to/plugin.zip
+sudo bin/plugin install file:///path/to/plugin.zip
 -----------------------------------
 
 [[listing-removing]]
@@ -229,7 +229,7 @@ example:
 
 [source,yaml]
 --------------------------------------------------
-plugin.mandatory: mapper-attachments,lang-groovy
+plugin.mandatory: mapper-attachments,lang-python
 --------------------------------------------------
 
 For safety reasons, a node will not start if it is missing a mandatory plugin.

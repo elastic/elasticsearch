@@ -61,8 +61,8 @@ public class NestedInnerQueryParseSupport {
     private ObjectMapper parentObjectMapper;
 
     public NestedInnerQueryParseSupport(XContentParser parser, SearchContext searchContext) {
-        parseContext = searchContext.queryParserService().getShardContext().parseContext();
-        shardContext = searchContext.queryParserService().getShardContext();
+        shardContext = searchContext.indexShard().getQueryShardContext();
+        parseContext = shardContext.parseContext();
         shardContext.reset(parser);
 
     }

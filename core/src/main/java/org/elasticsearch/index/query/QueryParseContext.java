@@ -22,7 +22,6 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 
@@ -76,17 +75,6 @@ public class QueryParseContext {
                     String fieldName = parser.currentName();
                     if ("query".equals(fieldName)) {
                         queryBuilder = parseInnerQueryBuilder();
-                    } else if ("query_binary".equals(fieldName) || "queryBinary".equals(fieldName)) {
-                        byte[] querySource = parser.binaryValue();
-                        XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource);
-                        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
-                        queryParseContext.reset(qSourceParser);
-                        try {
-                            queryParseContext.parseFieldMatcher(parseFieldMatcher);
-                            queryBuilder = queryParseContext.parseInnerQueryBuilder();
-                        } finally {
-                            queryParseContext.reset(null);
-                        }
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "request does not support [" + parser.currentName() + "]");
                     }

@@ -20,67 +20,58 @@
 package org.elasticsearch.script.groovy;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptException;
-import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.test.ESTestCase;
 
 import java.nio.file.Path;
-import java.util.Collection;
+import java.util.AbstractMap;
 import java.util.Collections;
-import java.util.Locale;
-
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.CoreMatchers.equalTo;
-import static org.hamcrest.CoreMatchers.instanceOf;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Tests for the Groovy security permissions
  */
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-// TODO: refactor into unit test, or, proper REST test
-public class GroovySecurityTests extends ESIntegTestCase {
+public class GroovySecurityTests extends ESTestCase {
+
+    private GroovyScriptEngineService se;
+
+    static {
+        // ensure we load all the timezones in the parent classloader with all permissions
+        // relates to https://github.com/elastic/elasticsearch/issues/14524
+        org.joda.time.DateTimeZone.getDefault();
+    }
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        se = new GroovyScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
+        // otherwise will exit your VM and other bad stuff
         assumeTrue("test requires security manager to be enabled", System.getSecurityManager() != null);
     }
 
     @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
+    public void tearDown() throws Exception {
+        se.close();
+        super.tearDown();
     }
 
     public void testEvilGroovyScripts() throws Exception {
-        int nodes = randomIntBetween(1, 3);
-        Settings nodeSettings = Settings.builder()
-                .put("script.inline", true)
-                .put("script.indexed", true)
-                .build();
-        internalCluster().startNodesAsync(nodes, nodeSettings).get();
-        client().admin().cluster().prepareHealth().setWaitForNodes(nodes + "").get();
-
-        client().prepareIndex("test", "doc", "1").setSource("foo", 5, "bar", "baz").setRefresh(true).get();
-
         // Plain test
         assertSuccess("");
-        // numeric field access
+        // field access
         assertSuccess("def foo = doc['foo'].value; if (foo == null) { return 5; }");
-        // string field access
-        assertSuccess("def bar = doc['bar'].value; if (bar == null) { return 5; }");
         // List
         assertSuccess("def list = [doc['foo'].value, 3, 4]; def v = list.get(1); list.add(10)");
         // Ranges
         assertSuccess("def range = 1..doc['foo'].value; def v = range.get(0)");
         // Maps
         assertSuccess("def v = doc['foo'].value; def m = [:]; m.put(\"value\", v)");
+        // serialization to json (this is best effort considering the unsafe etc at play)
+        assertSuccess("def x = 5; groovy.json.JsonOutput.toJson(x)");
         // Times
         assertSuccess("def t = Instant.now().getMillis()");
         // GroovyCollections
@@ -119,36 +110,28 @@ public class GroovySecurityTests extends ESIntegTestCase {
         }
     }
 
-    private void assertSuccess(String script) {
-        logger.info("--> script: " + script);
-        SearchResponse resp = client()
-                .prepareSearch("test")
-                .setSource(
-                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(
-                                SortBuilders.scriptSort(new Script(script + "; doc['foo'].value + 2", ScriptType.INLINE, "groovy", null),
-                                        "number"))).get();
-        assertNoFailures(resp);
-        assertEquals(1, resp.getHits().getTotalHits());
-        assertThat(resp.getHits().getAt(0).getSortValues(), equalTo(new Object[]{7.0}));
+    /** runs a script */
+    private void doTest(String script) {
+        Map<String, Object> vars = new HashMap<String, Object>();
+        // we add a "mock document" containing a single field "foo" that returns 4 (abusing a jdk class with a getValue() method)
+        vars.put("doc", Collections.singletonMap("foo", new AbstractMap.SimpleEntry<Object,Integer>(null, 4)));
+        se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(script)), vars).run();
     }
 
+    /** asserts that a script runs without exception */
+    private void assertSuccess(String script) {
+        doTest(script);
+    }
+
+    /** asserts that a script triggers securityexception */
     private void assertFailure(String script) {
-        logger.info("--> script: " + script);
-        SearchResponse resp = client()
-                .prepareSearch("test")
-                .setSource(
-                        new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).sort(
-                                SortBuilders.scriptSort(new Script(script + "; doc['foo'].value + 2", ScriptType.INLINE, "groovy", null),
-                                        "number"))).get();
-        assertEquals(0, resp.getHits().getTotalHits());
-        ShardSearchFailure fails[] = resp.getShardFailures();
-        // TODO: GroovyScriptExecutionException needs work:
-        // fix it to preserve cause so we don't do this flaky string-check stuff
-        for (ShardSearchFailure fail : fails) {
-            assertThat(fail.getCause(), instanceOf(ScriptException.class));
-            assertTrue("unexpected exception" + fail.getCause(),
-                       // different casing, depending on jvm impl...
-                       fail.getCause().toString().toLowerCase(Locale.ROOT).contains("[access denied"));
+        try {
+            doTest(script);
+            fail("did not get expected exception");
+        } catch (ScriptException expected) {
+            Throwable cause = expected.getCause();
+            assertNotNull(cause);
+            assertTrue("unexpected exception: " + cause, cause instanceof SecurityException);
         }
     }
 }

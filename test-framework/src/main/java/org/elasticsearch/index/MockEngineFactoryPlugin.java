@@ -18,12 +18,12 @@
  */
 package org.elasticsearch.index;
 
+import org.apache.lucene.index.AssertingDirectoryReader;
+import org.apache.lucene.index.FilterDirectoryReader;
+import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.engine.MockEngineFactory;
-import org.elasticsearch.test.engine.MockEngineSupportModule;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -38,11 +38,27 @@ public class MockEngineFactoryPlugin extends Plugin {
     public String description() {
         return "a mock engine factory for testing";
     }
+
+    private Class<? extends FilterDirectoryReader> readerWrapper = AssertingDirectoryReader.class;
+
     @Override
-    public Collection<Module> indexModules(Settings indexSettings) {
-        return Collections.<Module>singletonList(new MockEngineSupportModule());
+    public void onIndexModule(IndexModule module) {
+        module.engineFactory.set(new MockEngineFactory(readerWrapper));
     }
-    public void onModule(IndexModule module) {
-        module.engineFactoryImpl = MockEngineFactory.class;
+
+    @Override
+    public Collection<Module> nodeModules() {
+        return Collections.singleton(new MockEngineReaderModule());
+    }
+
+    public class MockEngineReaderModule extends AbstractModule {
+
+        public void setReaderClass(Class<? extends FilterDirectoryReader> readerWrapper) {
+            MockEngineFactoryPlugin.this.readerWrapper = readerWrapper;
+        }
+
+        @Override
+        protected void configure() {
+        }
     }
 }

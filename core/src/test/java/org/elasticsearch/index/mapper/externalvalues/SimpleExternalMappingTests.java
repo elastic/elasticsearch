@@ -19,11 +19,16 @@
 
 package org.elasticsearch.index.mapper.externalvalues;
 
+import org.apache.lucene.util.GeoUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -32,11 +37,13 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     public void testExternalValues() throws Exception {
-        MapperService mapperService = createIndex("test").mapperService();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        MapperService mapperService = createIndex("test", settings).mapperService();
         mapperService.documentMapperParser().putRootTypeParser(ExternalMetadataMapper.CONTENT_TYPE,
                 new ExternalMetadataMapper.TypeParser());
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
+        mapperService.documentMapperParser().putTypeParser(ExternalMapperPlugin.EXTERNAL,
+                new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
@@ -58,7 +65,12 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
+        if (version.onOrBefore(Version.CURRENT)) {
+            assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        } else {
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
+        }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
@@ -70,14 +82,16 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifield() throws Exception {
-        MapperService mapperService = createIndex("test").mapperService();
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        MapperService mapperService = createIndex("test", settings).mapperService();
+        mapperService.documentMapperParser().putTypeParser(ExternalMapperPlugin.EXTERNAL,
+                new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
-                    .field("type", RegisterExternalTypes.EXTERNAL)
+                    .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
                             .field("type", "string")
@@ -105,7 +119,12 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
+        if (version.onOrBefore(Version.CURRENT)) {
+            assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        } else {
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
+        }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 
@@ -117,23 +136,25 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
-        MapperService mapperService = createIndex("test").mapperService();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        MapperService mapperService = createIndex("test", settings).mapperService();
 
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL_BIS,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL_BIS, "bar"));
+        mapperService.documentMapperParser().putTypeParser(ExternalMapperPlugin.EXTERNAL,
+                new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
+        mapperService.documentMapperParser().putTypeParser(ExternalMapperPlugin.EXTERNAL_BIS,
+                new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL_BIS, "bar"));
 
         DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
-                    .field("type", RegisterExternalTypes.EXTERNAL)
+                    .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
                             .field("type", "string")
                             .startObject("fields")
                                 .startObject("generated")
-                                    .field("type", RegisterExternalTypes.EXTERNAL_BIS)
+                                    .field("type", ExternalMapperPlugin.EXTERNAL_BIS)
                                 .endObject()
                                 .startObject("raw")
                                     .field("type", "string")
@@ -158,7 +179,12 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
+        if (version.onOrBefore(Version.CURRENT)) {
+            assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
+        } else {
+            assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
+        }
 
         assertThat(doc.rootDoc().getField("field.shape"), notNullValue());
 

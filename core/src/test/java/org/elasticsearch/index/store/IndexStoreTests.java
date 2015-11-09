@@ -84,8 +84,10 @@ public class IndexStoreTests extends ESTestCase {
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             if (Constants.WINDOWS) {
                 assertTrue(directory.toString(), directory instanceof MMapDirectory || directory instanceof SimpleFSDirectory);
-            } else {
+            } else if (Constants.JRE_IS_64BIT) {
                 assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
+            } else {
+                assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
             }
         }
     }

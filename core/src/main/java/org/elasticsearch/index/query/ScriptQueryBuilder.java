@@ -69,7 +69,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.scriptService(), context.lookup());
+        return new ScriptQuery(script, context.getScriptService(), context.lookup());
     }
 
     static class ScriptQuery extends Query {

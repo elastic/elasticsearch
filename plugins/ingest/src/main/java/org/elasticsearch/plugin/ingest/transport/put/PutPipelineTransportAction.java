@@ -59,7 +59,7 @@ public class PutPipelineTransportAction extends HandledTransportAction<PutPipeli
             return;
         }
 
-        IndexRequest indexRequest = new IndexRequest();
+        IndexRequest indexRequest = new IndexRequest(request);
         indexRequest.index(PipelineStore.INDEX);
         indexRequest.type(PipelineStore.TYPE);
         indexRequest.id(request.id());

@@ -102,7 +102,7 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     protected Query doToQuery(QueryShardContext context) throws IOException {
         BytesReference querySource = context.executeQueryTemplate(template, SearchContext.current());
         try (XContentParser qSourceParser = XContentFactory.xContent(querySource).createParser(querySource)) {
-            final QueryShardContext contextCopy = new QueryShardContext(context.indexQueryParserService());
+            final QueryShardContext contextCopy = new QueryShardContext(context);
             contextCopy.reset(qSourceParser);
             QueryBuilder result = contextCopy.parseContext().parseInnerQueryBuilder();
             context.combineNamedQueries(contextCopy);

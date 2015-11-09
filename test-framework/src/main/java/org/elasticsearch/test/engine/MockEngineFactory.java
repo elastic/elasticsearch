@@ -33,16 +33,10 @@ import static java.lang.annotation.ElementType.PARAMETER;
 import static java.lang.annotation.RetentionPolicy.RUNTIME;
 
 public final class MockEngineFactory implements EngineFactory {
-    @BindingAnnotation
-    @Target({FIELD, PARAMETER})
-    @Retention(RUNTIME)
-    public @interface MockReaderType {
-    }
 
-    private Class<? extends FilterDirectoryReader> wrapper;
+    private final Class<? extends FilterDirectoryReader> wrapper;
 
-    @Inject
-    public MockEngineFactory(@MockReaderType Class wrapper) {
+    public MockEngineFactory(Class<? extends FilterDirectoryReader> wrapper) {
         this.wrapper = wrapper;
     }
 

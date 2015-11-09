@@ -78,7 +78,7 @@ public class PluginManagerUnitTests extends ESTestCase {
 
         if (supportStagingUrls) {
             String expectedStagingURL = String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
-                    Version.CURRENT.number(), Build.CURRENT.hashShort(), pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
+                    Version.CURRENT.number(), Build.CURRENT.shortHash(), pluginName, Version.CURRENT.number(), pluginName, Version.CURRENT.number());
             assertThat(iterator.next().toExternalForm(), is(expectedStagingURL));
         }
 
@@ -103,7 +103,7 @@ public class PluginManagerUnitTests extends ESTestCase {
 
         if (supportStagingUrls) {
             String expectedStagingUrl = String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip",
-                    Version.CURRENT.number(), Build.CURRENT.hashShort(), randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
+                    Version.CURRENT.number(), Build.CURRENT.shortHash(), randomPluginName, Version.CURRENT.number(), randomPluginName, Version.CURRENT.number());
             assertThat(iterator.next().toExternalForm(), is(expectedStagingUrl));
         }
 

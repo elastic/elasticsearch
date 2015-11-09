@@ -59,6 +59,11 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException('Gradle 2.6 or above is required to build elasticsearch')
             }
 
+            // enforce Java version
+            if (!JavaVersion.current().isJava8Compatible()) {
+                throw new GradleException('Java 8 or above is required to build Elasticsearch')
+            }
+
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
@@ -111,6 +116,7 @@ class BuildPlugin implements Plugin<Project> {
             File heapdumpDir = new File(project.buildDir, 'heapdump')
             heapdumpDir.mkdirs()
             jvmArg '-XX:HeapDumpPath=' + heapdumpDir
+            argLine System.getProperty('tests.jvm.argline')
 
             // we use './temp' since this is per JVM and tests are forbidden from writing to CWD
             systemProperty 'java.io.tmpdir', './temp'

@@ -58,7 +58,8 @@ public final class MockIndexEventListener {
             return "a mock index listener for testing only";
         }
 
-        public void onModule(IndexModule module) {
+        @Override
+        public void onIndexModule(IndexModule module) {
             module.addIndexEventListener(listener);
         }
 

@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.engine.FlushNotAllowedEngineException;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
@@ -40,7 +41,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.*;
 import java.util.concurrent.ScheduledFuture;
 
-public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> {
+public class IndexingMemoryController extends AbstractLifecycleComponent<IndexingMemoryController> implements IndexEventListener {
 
     /** How much heap (% or bytes) we will share across all actively indexing shards on this node (default: 10%). */
     public static final String INDEX_BUFFER_SIZE_SETTING = "indices.memory.index_buffer_size";
@@ -72,9 +73,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     /** Sets a ceiling on the per-shard translog buffer size (default: 64 KB). */
     public static final String MAX_SHARD_TRANSLOG_BUFFER_SIZE_SETTING = "indices.memory.max_shard_translog_buffer_size";
 
-    /** If we see no indexing operations after this much time for a given shard, we consider that shard inactive (default: 5 minutes). */
-    public static final String SHARD_INACTIVE_TIME_SETTING = "indices.memory.shard_inactive_time";
-
     /** How frequently we check shards to find inactive ones (default: 30 seconds). */
     public static final String SHARD_INACTIVE_INTERVAL_TIME_SETTING = "indices.memory.interval";
 
@@ -95,7 +93,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     private final ByteSizeValue minShardTranslogBufferSize;
     private final ByteSizeValue maxShardTranslogBufferSize;
 
-    private final TimeValue inactiveTime;
     private final TimeValue interval;
 
     private volatile ScheduledFuture scheduler;
@@ -159,17 +156,15 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         this.minShardTranslogBufferSize = this.settings.getAsBytesSize(MIN_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, new ByteSizeValue(2, ByteSizeUnit.KB));
         this.maxShardTranslogBufferSize = this.settings.getAsBytesSize(MAX_SHARD_TRANSLOG_BUFFER_SIZE_SETTING, new ByteSizeValue(64, ByteSizeUnit.KB));
 
-        this.inactiveTime = this.settings.getAsTime(SHARD_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5));
         // we need to have this relatively small to move a shard from inactive to active fast (enough)
         this.interval = this.settings.getAsTime(SHARD_INACTIVE_INTERVAL_TIME_SETTING, TimeValue.timeValueSeconds(30));
 
         this.statusChecker = new ShardsIndicesStatusChecker();
 
-        logger.debug("using indexing buffer size [{}], with {} [{}], {} [{}], {} [{}], {} [{}]",
+        logger.debug("using indexing buffer size [{}], with {} [{}], {} [{}], {} [{}]",
                 this.indexingBuffer,
                 MIN_SHARD_INDEX_BUFFER_SIZE_SETTING, this.minShardIndexBufferSize,
                 MAX_SHARD_INDEX_BUFFER_SIZE_SETTING, this.maxShardIndexBufferSize,
-                SHARD_INACTIVE_TIME_SETTING, this.inactiveTime,
                 SHARD_INACTIVE_INTERVAL_TIME_SETTING, this.interval);
     }
 
@@ -303,7 +298,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
                 // Was the shard active last time we checked?
                 Boolean wasActive = shardWasActive.get(shardId);
-
                 if (wasActive == null) {
                     // First time we are seeing this shard
                     shardWasActive.put(shardId, isActive);
@@ -315,12 +309,10 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
                         changes.add(ShardStatusChangeType.BECAME_ACTIVE);
                         logger.debug("marking shard {} as active indexing wise", shardId);
                         shardWasActive.put(shardId, true);
-                    } else if (checkIdle(shardId, inactiveTime.nanos()) == Boolean.TRUE) {
+                    } else if (checkIdle(shardId) == Boolean.TRUE) {
                         // Make shard inactive now
                         changes.add(ShardStatusChangeType.BECAME_INACTIVE);
-                        logger.debug("marking shard {} as inactive (inactive_time[{}]) indexing wise",
-                                     shardId,
-                                     inactiveTime);
+
                         shardWasActive.put(shardId, false);
                     }
                 }
@@ -397,12 +389,18 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
 
     /** ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.  returns Boolean.TRUE if
      *  it did deactive, Boolean.FALSE if it did not, and null if the shard is unknown */
-    protected Boolean checkIdle(ShardId shardId, long inactiveTimeNS) {
-        String ignoreReason = null;
+    protected Boolean checkIdle(ShardId shardId) {
+        String ignoreReason; // eclipse compiler does not know it is really final
         final IndexShard shard = getShard(shardId);
         if (shard != null) {
             try {
-                return shard.checkIdle(inactiveTimeNS);
+                if (shard.checkIdle()) {
+                    logger.debug("marking shard {} as inactive (inactive_time[{}]) indexing wise",
+                            shardId,
+                            shard.getInactiveTime());
+                    return Boolean.TRUE;
+                }
+                return Boolean.FALSE;
             } catch (EngineClosedException e) {
                 // ignore
                 ignoreReason = "EngineClosedException";
@@ -423,7 +421,11 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         ADDED, DELETED, BECAME_ACTIVE, BECAME_INACTIVE
     }
 
-    public TimeValue getInactiveTime() {
-        return inactiveTime;
+    @Override
+    public void onShardActive(IndexShard indexShard) {
+        // At least one shard used to be inactive ie. a new write operation just showed up.
+        // We try to fix the shards indexing buffer immediately. We could do this async instead, but cost should
+        // be low, and it's rare this happens.
+        forceCheck();
     }
 }

@@ -355,7 +355,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
         try {
             clone = (ObjectMapper) super.clone();
         } catch (CloneNotSupportedException e) {
-            throw new RuntimeException();
+            throw new RuntimeException(e);
         }
         return clone;
     }

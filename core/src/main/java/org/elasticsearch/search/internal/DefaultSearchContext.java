@@ -35,14 +35,12 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.*;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -193,7 +191,7 @@ public class DefaultSearchContext extends SearchContext {
         }
 
         // initialize the filtering alias based on the provided filters
-        aliasFilter = indexService.aliasFilter(request.filteringAliases());
+        aliasFilter = indexService.aliasFilter(indexShard.getQueryShardContext(), request.filteringAliases());
 
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
@@ -431,11 +429,6 @@ public class DefaultSearchContext extends SearchContext {
     }
 
     @Override
-    public IndexQueryParserService queryParserService() {
-        return indexService.queryParserService();
-    }
-
-    @Override
     public SimilarityService similarityService() {
         return indexService.similarityService();
     }
@@ -457,7 +450,7 @@ public class DefaultSearchContext extends SearchContext {
 
     @Override
     public BitsetFilterCache bitsetFilterCache() {
-        return indexService.bitsetFilterCache();
+        return indexService.cache().bitsetFilterCache();
     }
 
     @Override

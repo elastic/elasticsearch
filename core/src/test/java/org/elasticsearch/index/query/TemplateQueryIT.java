@@ -307,7 +307,7 @@ public class TemplateQueryIT extends ESIntegTestCase {
                                     templateParams)).get();
             fail("Expected SearchPhaseExecutionException");
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.getCause().getMessage(), containsString("Illegal index script format"));
+            assertThat(e.toString(), containsString("Illegal index script format"));
         }
     }
 

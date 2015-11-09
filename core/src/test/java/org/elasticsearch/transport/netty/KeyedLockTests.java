@@ -112,7 +112,7 @@ public class KeyedLockTests extends ESTestCase {
             try {
                 startLatch.await();
             } catch (InterruptedException e) {
-                throw new RuntimeException();
+                throw new RuntimeException(e);
             }
             int numRuns = scaledRandomIntBetween(5000, 50000);
             for (int i = 0; i < numRuns; i++) {

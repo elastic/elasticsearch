@@ -179,7 +179,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(mappingMetaData, not(nullValue()));
         Map<String, Object> mappingSource = mappingMetaData.sourceAsMap();
         Map aField = ((Map) XContentMapValues.extractValue("properties.a", mappingSource));
-        assertThat(aField.size(), equalTo(7));
+        assertThat(aField.size(), equalTo(6));
         assertThat(aField.get("type").toString(), equalTo("completion"));
         assertThat(aField.get("fields"), notNullValue());
 

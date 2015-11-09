@@ -115,7 +115,7 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
             if (types.length == 0) {
                 typesForQuery = context.queryTypes();
             } else if (types.length == 1 && MetaData.ALL.equals(types[0])) {
-                typesForQuery = context.mapperService().types();
+                typesForQuery = context.getMapperService().types();
             } else {
                 typesForQuery = new HashSet<>();
                 Collections.addAll(typesForQuery, types);

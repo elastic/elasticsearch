@@ -44,6 +44,7 @@ A number of plugins have been contributed by our community:
 
 * https://github.com/hadashiA/elasticsearch-flavor[Elasticsearch Flavor Plugin] using
   http://mahout.apache.org/[Mahout] Collaboration filtering (by hadashiA)
+* https://github.com/jurgc11/es-change-feed-plugin[WebSocket Change Feed Plugin] (by ForgeRock/Chris Clifton)
 
 These community plugins appear to have been abandoned:
 

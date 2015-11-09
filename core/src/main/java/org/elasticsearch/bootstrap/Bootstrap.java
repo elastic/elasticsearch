@@ -235,7 +235,7 @@ final class Bootstrap {
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
 
         if (CliTool.ExitStatus.OK != status) {
-            System.exit(status.status());
+            exit(status.status());
         }
 
         INSTANCE = new Bootstrap();
@@ -343,7 +343,12 @@ final class Bootstrap {
         if (confFileSetting != null && confFileSetting.isEmpty() == false) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
             logger.info("{} is no longer supported. elasticsearch.yml must be placed in the config directory and cannot be renamed.", settingName);
-            System.exit(1);
+            exit(1);
         }
+    }
+
+    @SuppressForbidden(reason = "Allowed to exit explicitly in bootstrap phase")
+    private static void exit(int status) {
+        System.exit(status);
     }
 }

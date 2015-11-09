@@ -111,7 +111,7 @@ public class ShadowEngineTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        CodecService codecService = new CodecService(INDEX_SETTINGS, null);
+        CodecService codecService = new CodecService(null, logger);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -229,7 +229,7 @@ public class ShadowEngineTests extends ESTestCase {
         TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, IndexSettingsModule.newIndexSettings(shardId.index(), indexSettings, Collections.EMPTY_LIST), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, IndexSettingsModule.newIndexSettings(shardId.index(), indexSettings, Collections.EMPTY_LIST)), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
-                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(INDEX_SETTINGS, null), new Engine.EventListener() {
+                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(null, logger), new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
@@ -919,7 +919,7 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(INDEX_SETTINGS, null);
+        CodecService codecService = new CodecService(null, logger);
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
     }
 

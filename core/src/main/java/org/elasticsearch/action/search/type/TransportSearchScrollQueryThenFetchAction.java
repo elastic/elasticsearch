@@ -123,7 +123,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
 
         public void start() {
             if (scrollId.getContext().length == 0) {
-                listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", null));
+                listener.onFailure(new SearchPhaseExecutionException("query", "no nodes to search on", ShardSearchFailure.EMPTY_ARRAY));
                 return;
             }
             final AtomicInteger counter = new AtomicInteger(scrollId.getContext().length);
@@ -143,7 +143,7 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
                         try {
                             executeFetchPhase();
                         } catch (Throwable e) {
-                            listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, null));
+                            listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, ShardSearchFailure.EMPTY_ARRAY));
                             return;
                         }
                     }
@@ -181,12 +181,12 @@ public class TransportSearchScrollQueryThenFetchAction extends AbstractComponent
             successfulOps.decrementAndGet();
             if (counter.decrementAndGet() == 0) {
                 if (successfulOps.get() == 0) {
-                    listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", buildShardFailures()));
+                    listener.onFailure(new SearchPhaseExecutionException("query", "all shards failed", t, buildShardFailures()));
                 } else {
                     try {
                         executeFetchPhase();
                     } catch (Throwable e) {
-                        listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, null));
+                        listener.onFailure(new SearchPhaseExecutionException("query", "Fetch failed", e, ShardSearchFailure.EMPTY_ARRAY));
                     }
                 }
             }

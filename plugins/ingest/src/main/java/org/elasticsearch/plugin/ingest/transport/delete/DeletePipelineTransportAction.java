@@ -26,16 +26,11 @@ import org.elasticsearch.action.delete.TransportDeleteAction;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
-
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
 
 public class DeletePipelineTransportAction extends HandledTransportAction<DeletePipelineRequest, DeletePipelineResponse> {
 
@@ -49,7 +44,7 @@ public class DeletePipelineTransportAction extends HandledTransportAction<Delete
 
     @Override
     protected void doExecute(DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest();
+        DeleteRequest deleteRequest = new DeleteRequest(request);
         deleteRequest.index(PipelineStore.INDEX);
         deleteRequest.type(PipelineStore.TYPE);
         deleteRequest.id(request.id());

@@ -20,6 +20,7 @@ package org.elasticsearch.search.suggest;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.ExtensionPoint;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.suggest.completion.CompletionSuggester;
 import org.elasticsearch.search.suggest.phrase.PhraseSuggester;
@@ -43,13 +44,13 @@ public final class Suggesters extends ExtensionPoint.ClassMap<Suggester> {
     }
 
     @Inject
-    public Suggesters(Map<String, Suggester> suggesters, ScriptService scriptService) {
-        this(addBuildIns(suggesters, scriptService));
+    public Suggesters(Map<String, Suggester> suggesters, ScriptService scriptService, IndicesService indexServices) {
+        this(addBuildIns(suggesters, scriptService, indexServices));
     }
 
-    private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters, ScriptService scriptService) {
+    private static Map<String, Suggester> addBuildIns(Map<String, Suggester> suggesters, ScriptService scriptService, IndicesService indexServices) {
         final Map<String, Suggester> map = new HashMap<>();
-        map.put("phrase", new PhraseSuggester(scriptService));
+        map.put("phrase", new PhraseSuggester(scriptService, indexServices));
         map.put("term", new TermSuggester());
         map.put("completion", new CompletionSuggester());
         map.putAll(suggesters);

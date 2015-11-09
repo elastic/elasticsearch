@@ -130,7 +130,7 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
             return null;
         }
         innerQuery.setBoost(boost);
-        DocumentMapper parentDocMapper = context.mapperService().documentMapper(type);
+        DocumentMapper parentDocMapper = context.getMapperService().documentMapper(type);
         if (parentDocMapper == null) {
             throw new QueryShardException(context, "[has_parent] query configured 'parent_type' [" + type
                     + "] is not a valid type");
@@ -142,10 +142,10 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new IllegalStateException("start object expected but was: [" + token + "]");
                 }
-                InnerHitsSubSearchContext innerHits = context.indexQueryParserService().getInnerHitsQueryParserHelper().parse(parser);
+                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
                 if (innerHits != null) {
                     ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
-                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.mapperService(), parentDocMapper);
+                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.getMapperService(), parentDocMapper);
                     String name = innerHits.getName() != null ? innerHits.getName() : type;
                     context.addInnerHits(name, parentChildInnerHits);
                 }
@@ -155,10 +155,10 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         Set<String> parentTypes = new HashSet<>(5);
         parentTypes.add(parentDocMapper.type());
         ParentChildIndexFieldData parentChildIndexFieldData = null;
-        for (DocumentMapper documentMapper : context.mapperService().docMappers(false)) {
+        for (DocumentMapper documentMapper : context.getMapperService().docMappers(false)) {
             ParentFieldMapper parentFieldMapper = documentMapper.parentFieldMapper();
             if (parentFieldMapper.active()) {
-                DocumentMapper parentTypeDocumentMapper = context.mapperService().documentMapper(parentFieldMapper.type());
+                DocumentMapper parentTypeDocumentMapper = context.getMapperService().documentMapper(parentFieldMapper.type());
                 parentChildIndexFieldData = context.getForField(parentFieldMapper.fieldType());
                 if (parentTypeDocumentMapper == null) {
                     // Only add this, if this parentFieldMapper (also a parent)  isn't a child of another parent.
@@ -172,14 +172,14 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
 
         Query parentTypeQuery = null;
         if (parentTypes.size() == 1) {
-            DocumentMapper documentMapper = context.mapperService().documentMapper(parentTypes.iterator().next());
+            DocumentMapper documentMapper = context.getMapperService().documentMapper(parentTypes.iterator().next());
             if (documentMapper != null) {
                 parentTypeQuery = documentMapper.typeFilter();
             }
         } else {
             BooleanQuery.Builder parentsFilter = new BooleanQuery.Builder();
             for (String parentTypeStr : parentTypes) {
-                DocumentMapper documentMapper = context.mapperService().documentMapper(parentTypeStr);
+                DocumentMapper documentMapper = context.getMapperService().documentMapper(parentTypeStr);
                 if (documentMapper != null) {
                     parentsFilter.add(documentMapper.typeFilter(), BooleanClause.Occur.SHOULD);
                 }

@@ -36,11 +36,19 @@ buildscript {
 allprojects {
   project.ext {
     // this is common configuration for distributions, but we also add it here for the license check to use
-    deps = project("${projectsPrefix}:core").configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+    dependencyFiles = project("${projectsPrefix}:core").configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
   }
 }
 
 subprojects {
+  /*****************************************************************************
+   *                            Rest test config                               *
+   *****************************************************************************/
+  apply plugin: 'elasticsearch.rest-test'
+  integTest {
+    includePackaged true
+  }
+
   /*****************************************************************************
    *                              Maven config                                 *
    *****************************************************************************/
@@ -50,8 +58,8 @@ subprojects {
   // we must create our own install task, because it is only added when the java plugin is added
   task install(type: Upload, description: "Installs the 'archives' artifacts into the local Maven repository.", group: 'Upload') {
     configuration = configurations.archives
-    MavenRepositoryHandlerConvention repositoriesHandler = (MavenRepositoryHandlerConvention)getRepositories().getConvention().getPlugin(MavenRepositoryHandlerConvention);
-    repositoriesHandler.mavenInstaller();
+    MavenRepositoryHandlerConvention repositoriesHandler = (MavenRepositoryHandlerConvention)getRepositories().getConvention().getPlugin(MavenRepositoryHandlerConvention)
+    repositoriesHandler.mavenInstaller()
   }
 
   // TODO: the map needs to be an input of the tasks, so that when it changes, the task will re-run...
@@ -81,7 +89,7 @@ subprojects {
     libFiles = copySpec {
       into 'lib'
       from project("${projectsPrefix}:core").jar
-      from deps
+      from dependencyFiles
     }
 
     configFiles = copySpec {
@@ -151,7 +159,7 @@ buildDeb.dependsOn createEmptyDir
 /*****************************************************************************
  *                         Deb and rpm configuration                         *
  *****************************************************************************/
-configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
+configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
   apply plugin: 'nebula.ospackage-base'
   ospackage {
     packageName = 'elasticsearch'
@@ -173,29 +181,17 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
     }
     directory('/etc/elasticsearch/scripts')
   }
-  if (project.name == 'deb') {
-    task buildDeb(type: Deb) {
-      dependsOn deps
-    }
-    artifacts {
-      archives buildDeb
-    }
-  } else if (project.name == 'rpm') {
-    task buildRpm(type: Rpm) {
-      dependsOn deps
-    }
-    artifacts {
-      archives buildRpm
-    }
-  }
+  
+  // TODO: re-enable tests when we have real rpm and deb distros!
+  integTest.enabled = false
 }
 
 // TODO: dependency checks should really be when building the jar itself, which would remove the need
 // for this hackery and instead we can do this inside the BuildPlugin
 task check(group: 'Verification', description: 'Runs all checks.') {} // dummy task!
 DependencyLicensesTask.configure(project) {
-  dependsOn = [deps]
-  dependencies = deps
+  dependsOn = [dependencyFiles]
+  dependencies = dependencyFiles
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /jackson-.*/, to: 'jackson'
 }

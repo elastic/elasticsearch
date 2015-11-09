@@ -27,7 +27,7 @@ import org.junit.Before;
 public class GeoPointFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new GeoPointFieldMapper.GeoPointFieldType();
+        return new BaseGeoPointFieldMapper.GeoPointFieldType();
     }
 
     @Before
@@ -35,13 +35,13 @@ public class GeoPointFieldTypeTests extends FieldTypeTestCase {
         addModifier(new Modifier("geohash", false, true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoPointFieldMapper.GeoPointFieldType)ft).setGeohashEnabled(new StringFieldMapper.StringFieldType(), 1, true);
+                ((BaseGeoPointFieldMapper.GeoPointFieldType)ft).setGeoHashEnabled(new StringFieldMapper.StringFieldType(), 1, true);
             }
         });
         addModifier(new Modifier("lat_lon", false, true) {
             @Override
             public void modify(MappedFieldType ft) {
-                ((GeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType());
+                ((BaseGeoPointFieldMapper.GeoPointFieldType)ft).setLatLonEnabled(new DoubleFieldMapper.DoubleFieldType(), new DoubleFieldMapper.DoubleFieldType());
             }
         });
     }

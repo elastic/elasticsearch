@@ -187,7 +187,6 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                      * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
                      */
                     changed = true;
-                    allocation.setHasPendingAsyncFetch();
                     unassignedIterator.removeAndIgnore();
                 }
             }

@@ -86,9 +86,9 @@ public class ShardsAllocators extends AbstractComponent implements ShardsAllocat
              */
             return allocator.rebalance(allocation);
         } else {
-            logger.debug("skip rebalance more that on shard/store fetch operations is still in-flight");
+            logger.debug("skipping rebalance due to in-flight shard/store fetches");
+            return false;
         }
-        return false;
     }
 
     @Override

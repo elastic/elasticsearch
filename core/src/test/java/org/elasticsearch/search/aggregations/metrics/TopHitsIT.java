@@ -533,6 +533,7 @@ public class TopHitsIT extends ESIntegTestCase {
                                             .highlighter(new HighlightBuilder().field("text"))
                                             .setExplain(true)
                                             .addFieldDataField("field1")
+                                            .addField("text")
                                             .addScriptField("script", new Script("5", ScriptService.ScriptType.INLINE, MockScriptEngine.NAME, Collections.emptyMap()))
                                             .setFetchSource("text", null)
                                             .setVersion(true)
@@ -567,6 +568,9 @@ public class TopHitsIT extends ESIntegTestCase {
 
             SearchHitField field = hit.field("field1");
             assertThat(field.getValue().toString(), equalTo("5"));
+
+            field = hit.field("text");
+            assertThat(field.getValue().toString(), equalTo("some text to entertain"));
 
             field = hit.field("script");
             assertThat(field.getValue().toString(), equalTo("5"));

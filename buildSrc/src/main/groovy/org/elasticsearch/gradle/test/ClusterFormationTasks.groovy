@@ -279,7 +279,7 @@ class ClusterFormationTasks {
             onlyIf { pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
-            commandLine new File(System.getenv('JAVA_HOME'), 'bin/jps'), '-l'
+            commandLine new File(System.getProperty('java.home'), 'bin/jps'), '-l'
             standardOutput = new ByteArrayOutputStream()
             doLast {
                 String out = standardOutput.toString()

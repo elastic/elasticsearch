@@ -163,9 +163,14 @@ public class CompositeTestCluster extends TestCluster {
             nodeSettings = Settings.builder().put(nodeSettings).put("path.data", externalNode.dataPath().toString()).build();
             String s = cluster.startNode(nodeSettings);
             logger.debug("Waiting for node named [{}]", s);
-            ExternalNode.waitForNode(existingClient, s);
-            logger.debug("Waiting for [{}] nodes", size());
-            assertNoTimeout(existingClient.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size())).get());
+            try {
+                ExternalNode.waitForNode(existingClient, s);
+                logger.debug("Waiting for [{}] nodes", size());
+                assertNoTimeout(existingClient.admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(size())).get());
+            } catch (AssertionError e) {
+                externalNode.errorLogNodeLog();
+                throw e;
+            }
             // Rebuild the client, potentially using the new list of nodes
             client = new ExternalClient();
             return true;

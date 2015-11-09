@@ -143,12 +143,7 @@ final class ExternalNode implements Closeable {
                 logger.info("external node {} found, version [{}], build {}", nodeInfo.getNode(), nodeInfo.getVersion(), nodeInfo.getBuild());
             } else {
                 logger.error("Node [{}] didn't join the cluster.", nodeName);
-                try (BufferedReader log = Files.newBufferedReader(logPath().resolve(clusterName + ".log"), StandardCharsets.UTF_8)) {
-                    String line;
-                    while ((line = log.readLine()) != null) {
-                        logger.error(line);
-                    }
-                }
+                errorLogNodeLog();
                 throw new IllegalStateException("Node [" + nodeName + "] didn't join the cluster.");
             }
             success = true;
@@ -254,5 +249,16 @@ final class ExternalNode implements Closeable {
             throw new IllegalStateException("Node has not started yet");
         }
         return nodeInfo.getNode().getName();
+    }
+
+    public void errorLogNodeLog() {
+        try (BufferedReader log = Files.newBufferedReader(logPath().resolve(clusterName + ".log"), StandardCharsets.UTF_8)) {
+            String line;
+            while ((line = log.readLine()) != null) {
+                logger.error(line);
+            }
+        } catch (IOException e) {
+            logger.error("IOException trying to read node's log!", e);
+        }
     }
 }

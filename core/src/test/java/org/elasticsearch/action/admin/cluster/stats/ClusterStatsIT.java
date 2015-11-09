@@ -170,4 +170,17 @@ public class ClusterStatsIT extends ESIntegTestCase {
         ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(7));
     }
+
+    public void testClusterStatus() throws Exception {
+        // stop all other nodes
+        internalCluster().ensureAtMostNumDataNodes(0);
+
+        internalCluster().startNode(Settings.builder().put("gateway.recover_after_nodes", 2).build());
+        ClusterStatsResponse response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
+
+        internalCluster().ensureAtLeastNumDataNodes(3);
+        response = client().admin().cluster().prepareClusterStats().get();
+        assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+    }
 }

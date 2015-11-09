@@ -57,6 +57,10 @@ sudo bin/plugin install analysis-icu
 
 Community-provided plugins can be installed as before.
 
+==== Plugins require descriptor file
+
+All plugins are now required to have a https://github.com/elastic/elasticsearch/blob/2.0/dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties[plugin-descriptor.properties]  file.  If a node has a plugin installed which lacks this file, it will be unable to start.
+
 ==== Repository naming structure changes
 
 Elasticsearch 2.0 changes the way the repository URLs are referenced. Instead

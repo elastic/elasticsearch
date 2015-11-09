@@ -55,4 +55,5 @@ compileJava.options.compilerArgs << '-Xlint:-cast,-deprecation,-rawtypes'
 forbiddenPatterns {
   exclude '**/*.docx'
   exclude '**/*.pdf'
+  exclude '**/*.epub'
 }

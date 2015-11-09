@@ -27,6 +27,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -129,6 +130,10 @@ final class ExternalNode implements Closeable {
         this.externalNodeSettings = externaNodeSettingsBuilder.put(REQUIRED_SETTINGS).build();
         for (Map.Entry<String, String> entry : externalNodeSettings.getAsMap().entrySet()) {
             args.append(" -Des.").append(entry.getKey()).append('=').append(entry.getValue());
+        }
+        if (externalNodeSettings.get("transport.tcp.port") == null) {
+            throw new IllegalArgumentException(
+                "Settings didn't contains tcp port range which can cause tests to interfere with each other.");
         }
 
         args.append(" -D").append(UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS).append('=').append(unicastHosts);
@@ -252,10 +257,11 @@ final class ExternalNode implements Closeable {
     }
 
     public void errorLogNodeLog() {
+        ESLogger unformattedLogger = ESLoggerFactory.getLogger("test.external");
         try (BufferedReader log = Files.newBufferedReader(logPath().resolve(clusterName + ".log"), StandardCharsets.UTF_8)) {
             String line;
             while ((line = log.readLine()) != null) {
-                logger.error(line);
+                unformattedLogger.error("[{}] {}", nodeName, line);
             }
         } catch (IOException e) {
             logger.error("IOException trying to read node's log!", e);

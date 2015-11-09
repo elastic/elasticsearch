@@ -42,4 +42,17 @@
             <scope>compile</scope>
         </dependency>
     </dependencies>
+
+    <build>
+        <testResources>
+            <testResource>
+                <directory>src/test/resources</directory>
+            </testResource>
+            <!-- shared test resources like log4j.properties -->
+            <testResource>
+                <directory>${elasticsearch.tools.directory}/shared-test-resources</directory>
+                <filtering>false</filtering>
+            </testResource>
+        </testResources>
+    </build>
 </project>

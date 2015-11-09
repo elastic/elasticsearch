@@ -51,10 +51,6 @@
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-remote-resources-plugin</artifactId>
-            </plugin>
-            <plugin>
-                <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-dependency-plugin</artifactId>
                 <executions>
                     <execution>
@@ -114,7 +110,7 @@
                         </configuration>
                     </execution>
                     <execution>
-                        <id>sttop-external-node-service</id>
+                        <id>stop-external-node-service</id>
                         <goals>
                             <goal>java</goal>
                         </goals>

@@ -96,6 +96,14 @@ public class VariousDocTests extends AttachmentUnitTestCase {
         assertParseable("text-in-english.txt");
         testMapper("text-in-english.txt", false);
     }
+    
+    /**
+     * Test for .epub
+     */
+    public void testEpubDocument() throws Exception {
+        assertParseable("testEPUB.epub");
+        testMapper("testEPUB.epub", false);
+    }
 
     /**
      * Test for ASCIIDOC

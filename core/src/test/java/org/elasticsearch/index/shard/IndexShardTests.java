@@ -60,7 +60,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexServicesProvider;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
@@ -337,12 +337,9 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         IndicesService indicesService = getInstanceFromNode(IndicesService.class);
         Boolean result = indicesService.indexService("test").getShardOrNull(0).checkIdle(0);
         assertEquals(Boolean.TRUE, result);
-        assertBusy(new Runnable() { // should be very very quick
-            @Override
-            public void run() {
-                IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
-                assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
-            }
+        assertBusy(() -> {
+            IndexStats indexStats = client().admin().indices().prepareStats("test").clear().get().getIndex("test");
+            assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         });
         IndexStats indexStats = client().admin().indices().prepareStats("test").get().getIndex("test");
         assertNotNull(indexStats.getShards()[0].getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
@@ -1014,9 +1011,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
     private final IndexShard reinitWithWrapper(IndexService indexService, IndexShard shard, IndexSearcherWrapper wrapper) throws IOException {
         ShardRouting routing = new ShardRouting(shard.routingEntry());
         shard.close("simon says", true);
-        IndexServicesProvider indexServices = indexService.getIndexServices();
-        IndexServicesProvider newProvider = new IndexServicesProvider(indexServices.getIndexEventListener(), indexServices.getThreadPool(), indexServices.getMapperService(), indexServices.getQueryParserService(), indexServices.getIndexCache(), indexServices.getIndicesQueryCache(), indexServices.getCodecService(), indexServices.getTermVectorsService(), indexServices.getIndexFieldDataService(), indexServices.getWarmer(), indexServices.getSimilarityService(), indexServices.getFactory(), indexServices.getBigArrays(), indexServices.getIndexingMemoryController());
-        IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(), shard.store(), wrapper, newProvider);
+        NodeServicesProvider indexServices = indexService.getIndexServices();
+        IndexShard newShard = new IndexShard(shard.shardId(), indexService.getIndexSettings(), shard.shardPath(), shard.store(), indexService.cache(), indexService.mapperService(), indexService.similarityService(), indexService.fieldData(), shard.getEngineFactory(), indexService.getIndexEventListener(), wrapper, indexServices);
         ShardRoutingHelper.reinit(routing);
         newShard.updateRoutingEntry(routing, false);
         DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);

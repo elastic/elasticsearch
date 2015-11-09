@@ -43,7 +43,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
                 .startObject("properties")
-                    .startObject("field").field("type", RegisterExternalTypes.EXTERNAL).endObject()
+                    .startObject("field").field("type", ExternalMapperPlugin.EXTERNAL).endObject()
                 .endObject()
             .endObject().endObject()).execute().get();
         ensureYellow("test-idx");
@@ -85,7 +85,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         prepareCreate("test-idx").addMapping("doc",
                 XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
                 .startObject("f")
-                    .field("type", RegisterExternalTypes.EXTERNAL_UPPER)
+                    .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
                         .startObject("f")
                             .field("type", "string")

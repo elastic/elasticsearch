@@ -76,7 +76,7 @@ public class TypeQueryBuilder extends AbstractQueryBuilder<TypeQueryBuilder> {
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query filter;
         //LUCENE 4 UPGRADE document mapper should use bytesref as well?
-        DocumentMapper documentMapper = context.mapperService().documentMapper(type.utf8ToString());
+        DocumentMapper documentMapper = context.getMapperService().documentMapper(type.utf8ToString());
         if (documentMapper == null) {
             filter = new TermQuery(new Term(TypeFieldMapper.NAME, type));
         } else {

@@ -22,7 +22,7 @@ package org.elasticsearch.search.highlight;
 import org.apache.lucene.search.vectorhighlight.SimpleBoundaryScanner;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.internal.SearchContext;
@@ -66,13 +66,13 @@ public class HighlighterParseElement implements SearchParseElement {
     @Override
     public void parse(XContentParser parser, SearchContext context) throws Exception {
         try {
-            context.highlight(parse(parser, context.queryParserService()));
+            context.highlight(parse(parser, context.indexShard().getQueryShardContext()));
         } catch (IllegalArgumentException ex) {
             throw new SearchParseException(context, "Error while trying to parse Highlighter element in request", parser.getTokenLocation());
         }
     }
 
-    public SearchContextHighlight parse(XContentParser parser, IndexQueryParserService queryParserService) throws IOException {
+    public SearchContextHighlight parse(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         XContentParser.Token token;
         String topLevelFieldName = null;
         final List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = new ArrayList<>();
@@ -111,7 +111,7 @@ public class HighlighterParseElement implements SearchParseElement {
                                     }
                                     highlightFieldName = parser.currentName();
                                 } else if (token == XContentParser.Token.START_OBJECT) {
-                                    fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, queryParserService)));
+                                    fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, queryShardContext)));
                                 }
                             }
                         } else {
@@ -167,11 +167,11 @@ public class HighlighterParseElement implements SearchParseElement {
                         if (token == XContentParser.Token.FIELD_NAME) {
                             highlightFieldName = parser.currentName();
                         } else if (token == XContentParser.Token.START_OBJECT) {
-                            fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, queryParserService)));
+                            fieldsOptions.add(Tuple.tuple(highlightFieldName, parseFields(parser, queryShardContext)));
                         }
                     }
                 } else if ("highlight_query".equals(topLevelFieldName) || "highlightQuery".equals(topLevelFieldName)) {
-                    globalOptionsBuilder.highlightQuery(queryParserService.parse(parser).query());
+                    globalOptionsBuilder.highlightQuery(queryShardContext.parse(parser).query());
                 }
             }
         }
@@ -189,7 +189,7 @@ public class HighlighterParseElement implements SearchParseElement {
         return new SearchContextHighlight(fields);
     }
 
-    protected SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, IndexQueryParserService queryParserService) throws IOException {
+    protected SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         XContentParser.Token token;
 
         final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();
@@ -252,7 +252,7 @@ public class HighlighterParseElement implements SearchParseElement {
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if ("highlight_query".equals(fieldName) || "highlightQuery".equals(fieldName)) {
-                    fieldOptionsBuilder.highlightQuery(queryParserService.parse(parser).query());
+                    fieldOptionsBuilder.highlightQuery(queryShardContext.parse(parser).query());
                 } else if ("options".equals(fieldName)) {
                     fieldOptionsBuilder.options(parser.map());
                 }

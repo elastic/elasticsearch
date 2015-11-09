@@ -212,7 +212,7 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new IllegalStateException("start object expected but was: [" + token + "]");
                 }
-                InnerHitsSubSearchContext innerHits = context.indexQueryParserService().getInnerHitsQueryParserHelper().parse(parser);
+                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
                 if (innerHits != null) {
                     ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
 

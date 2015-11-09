@@ -86,7 +86,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             nodes.add(node);
             pendingJoins.add(joinNodeAsync(node));
         }
-        nodeJoinController.stopAccumulatingJoins();
+        nodeJoinController.stopAccumulatingJoins("test");
         for (int i = randomInt(5); i > 0; i--) {
             DiscoveryNode node = newNode(nodeId++);
             nodes.add(node);
@@ -119,7 +119,7 @@ public class NodeJoinControllerTests extends ESTestCase {
             pendingJoins.add(future);
             assertThat(future.isDone(), equalTo(false));
         }
-        nodeJoinController.stopAccumulatingJoins();
+        nodeJoinController.stopAccumulatingJoins("test");
         for (Future<Void> future : pendingJoins) {
             try {
                 future.get();
@@ -284,7 +284,7 @@ public class NodeJoinControllerTests extends ESTestCase {
 
         logger.debug("--> testing accumulation stopped");
         nodeJoinController.startAccumulatingJoins();
-        nodeJoinController.stopAccumulatingJoins();
+        nodeJoinController.stopAccumulatingJoins("test");
 
     }
 

@@ -66,6 +66,19 @@ public class GeoUtils {
     /** Earth ellipsoid polar distance in meters */
     public static final double EARTH_POLAR_DISTANCE = Math.PI * EARTH_SEMI_MINOR_AXIS;
 
+    /** Returns the maximum distance/radius from the point 'center' before overlapping */
+    public static double maxRadialDistance(GeoPoint center) {
+        return SloppyMath.haversin(center.lat(), center.lon(), center.lat(), (180.0 + center.lon()) % 360)*1000.0;
+    }
+
+    /** Returns the minimum between the provided distance 'initialRadius' and the
+     * maximum distance/radius from the point 'center' before overlapping
+     **/
+    public static double maxRadialDistance(GeoPoint center, double initialRadius) {
+        final double maxRadius = maxRadialDistance(center);
+        return Math.min(initialRadius, maxRadius);
+    }
+
     /** Returns true if latitude is actually a valid latitude value.*/
     public static boolean isValidLatitude(double latitude) {
         if (Double.isNaN(latitude) || Double.isInfinite(latitude) || latitude < GeoUtils.MIN_LAT || latitude > GeoUtils.MAX_LAT) {

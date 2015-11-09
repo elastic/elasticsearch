@@ -23,7 +23,6 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
@@ -44,6 +43,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -54,7 +55,7 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  */
-public class IndexFieldDataService extends AbstractIndexComponent {
+public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
 
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
@@ -157,7 +158,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
 
 
-    @Inject
     public IndexFieldDataService(IndexSettings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
                                  CircuitBreakerService circuitBreakerService, MapperService mapperService) {
         super(indexSettings);
@@ -260,4 +260,8 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         this.listener = listener;
     }
 
+    @Override
+    public void close() throws IOException {
+        clear();
+    }
 }

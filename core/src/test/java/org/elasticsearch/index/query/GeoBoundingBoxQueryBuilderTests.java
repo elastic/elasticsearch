@@ -22,14 +22,14 @@ package org.elasticsearch.index.query;
 import com.spatial4j.core.io.GeohashUtils;
 import com.spatial4j.core.shape.Rectangle;
 
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.NumericRangeQuery;
-import org.apache.lucene.search.Query;
+import org.apache.lucene.search.*;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
@@ -423,11 +423,21 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     private void assertGeoBoundingBoxQuery(String query) throws IOException {
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
-        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
-        assertThat(filter.topLeft().lat(), closeTo(40, 0.00001));
-        assertThat(filter.topLeft().lon(), closeTo(-70, 0.00001));
-        assertThat(filter.bottomRight().lat(), closeTo(30, 0.00001));
-        assertThat(filter.bottomRight().lon(), closeTo(-80, 0.00001));
+        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
+        if (queryShardContext().indexVersionCreated().onOrBefore(Version.CURRENT)) {
+            InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
+            assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
+            assertThat(filter.topLeft().lat(), closeTo(40, 1E-5));
+            assertThat(filter.topLeft().lon(), closeTo(-70, 1E-5));
+            assertThat(filter.bottomRight().lat(), closeTo(30, 1E-5));
+            assertThat(filter.bottomRight().lon(), closeTo(-80, 1E-5));
+        } else {
+            GeoPointInBBoxQuery q = (GeoPointInBBoxQuery) parsedQuery;
+            assertThat(q.getField(), equalTo(GEO_POINT_FIELD_NAME));
+            assertThat(q.getMaxLat(), closeTo(40, 1E-5));
+            assertThat(q.getMinLon(), closeTo(-70, 1E-5));
+            assertThat(q.getMinLat(), closeTo(30, 1E-5));
+            assertThat(q.getMaxLon(), closeTo(-80, 1E-5));
+        }
     }
 }

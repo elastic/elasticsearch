@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliToolConfig;
 import org.elasticsearch.common.cli.Terminal;
@@ -65,6 +66,11 @@ public class PluginManagerCliParser extends CliTool {
         // configure but do not read the logging conf file
         LogConfigurator.configure(env.settings(), false);
         int status = new PluginManagerCliParser().execute(args).status();
+        exit(status);
+    }
+
+    @SuppressForbidden(reason = "Allowed to exit explicitly from #main()")
+    private static void exit(int status) {
         System.exit(status);
     }
 

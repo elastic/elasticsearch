@@ -26,6 +26,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
@@ -33,6 +34,7 @@ import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.support.RestResponseListener;
 import org.elasticsearch.rest.action.support.RestTable;
 import org.elasticsearch.snapshots.SnapshotInfo;
+import org.elasticsearch.snapshots.SnapshotState;
 import org.joda.time.format.DateTimeFormat;
 import org.joda.time.format.DateTimeFormatter;
 
@@ -80,6 +82,7 @@ public class RestSnapshotAction extends AbstractCatAction {
                 .addCell("start_time", "alias:sti,startTime;desc:start time in HH:MM:SS")
                 .addCell("end_epoch", "alias:ete,endEpoch;desc:end time in seconds since 1970-01-01 00:00:00")
                 .addCell("end_time", "alias:eti,endTime;desc:end time in HH:MM:SS")
+                .addCell("duration", "alias:dur,duration;text-align:right;desc:duration")
                 .addCell("indices", "alias:i,indices;text-align:right;desc:number of indices")
                 .addCell("successful_shards", "alias:ss,successful_shards;text-align:right;desc:number of successful shards")
                 .addCell("failed_shards", "alias:fs,failed_shards;text-align:right;desc:number of failed shards")
@@ -101,6 +104,13 @@ public class RestSnapshotAction extends AbstractCatAction {
             table.addCell(dateFormat.print(snapshotStatus.startTime()));
             table.addCell(TimeUnit.SECONDS.convert(snapshotStatus.endTime(), TimeUnit.MILLISECONDS));
             table.addCell(dateFormat.print(snapshotStatus.endTime()));
+            final long durationMillis;
+            if (snapshotStatus.state() == SnapshotState.IN_PROGRESS) {
+                durationMillis = System.currentTimeMillis() - snapshotStatus.startTime();
+            } else {
+                durationMillis = snapshotStatus.endTime() - snapshotStatus.startTime();
+            }
+            table.addCell(TimeValue.timeValueMillis(durationMillis));
             table.addCell(snapshotStatus.indices().size());
             table.addCell(snapshotStatus.successfulShards());
             table.addCell(snapshotStatus.failedShards());

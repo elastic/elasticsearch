@@ -25,7 +25,7 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
     static final String FAILURE_MARKER = " <<< FAILURES!"
 
     /** Status names column. */
-    static EnumMap<TestStatus, String> statusNames;
+    static EnumMap<? extends TestStatus, String> statusNames;
     static {
         statusNames = new EnumMap<>(TestStatus.class);
         for (TestStatus s : TestStatus.values()) {

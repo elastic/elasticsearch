@@ -22,11 +22,9 @@ package org.elasticsearch.index.search;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -39,7 +37,6 @@ import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 
 public class MultiMatchQueryTests extends ESSingleNodeTestCase {
 
-    private IndexQueryParserService queryParser;
     private IndexService indexService;
 
     @Before
@@ -64,11 +61,10 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "}";
         mapperService.merge("person", new CompressedXContent(mapping), true, false);
         this.indexService = indexService;
-        queryParser = indexService.queryParserService();
     }
 
     public void testCrossFieldMultiMatchQuery() throws IOException {
-        QueryShardContext queryShardContext = new QueryShardContext(queryParser);
+        QueryShardContext queryShardContext = indexService.getShard(0).getQueryShardContext();
         queryShardContext.setAllowUnmappedFields(true);
         Query parsedQuery = multiMatchQuery("banon").field("name.first", 2).field("name.last", 3).field("foobar").type(MultiMatchQueryBuilder.Type.CROSS_FIELDS).toQuery(queryShardContext);
         try (Engine.Searcher searcher = indexService.getShard(0).acquireSearcher("test")) {

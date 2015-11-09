@@ -20,20 +20,14 @@
 package org.elasticsearch.index;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.IndexCache;
-import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
 import org.elasticsearch.index.engine.EngineFactory;
-import org.elasticsearch.index.engine.InternalEngineFactory;
-import org.elasticsearch.index.fielddata.IndexFieldDataService;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
 import org.elasticsearch.index.similarity.BM25SimilarityProvider;
@@ -41,7 +35,7 @@ import org.elasticsearch.index.similarity.SimilarityProvider;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.IndexStoreConfig;
-import org.elasticsearch.indices.IndicesWarmer;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 
 import java.io.IOException;
@@ -61,7 +55,7 @@ import java.util.function.Consumer;
  *      <li>Settings update listener - Custom settings update listener can be registered via {@link #addIndexSettingsListener(Consumer)}</li>
  * </ul>
  */
-public final class IndexModule extends AbstractModule {
+public final class IndexModule {
 
     public static final String STORE_TYPE = "index.store.type";
     public static final String SIMILARITY_SETTINGS_PREFIX = "index.similarity";
@@ -72,10 +66,9 @@ public final class IndexModule extends AbstractModule {
     public static final String QUERY_CACHE_EVERYTHING = "index.queries.cache.everything";
     private final IndexSettings indexSettings;
     private final IndexStoreConfig indexStoreConfig;
-    private final IndicesQueryCache indicesQueryCache;
     private final AnalysisRegistry analysisRegistry;
     // pkg private so tests can mock
-    Class<? extends EngineFactory> engineFactoryImpl = InternalEngineFactory.class;
+    final SetOnce<EngineFactory> engineFactory = new SetOnce<>();
     private SetOnce<IndexSearcherWrapperFactory> indexSearcherWrapper = new SetOnce<>();
     private final Set<Consumer<Settings>> settingsConsumers = new HashSet<>();
     private final Set<IndexEventListener> indexEventListeners = new HashSet<>();
@@ -83,14 +76,11 @@ public final class IndexModule extends AbstractModule {
     private final Map<String, BiFunction<String, Settings, SimilarityProvider>> similarities = new HashMap<>();
     private final Map<String, BiFunction<IndexSettings, IndexStoreConfig, IndexStore>> storeTypes = new HashMap<>();
     private final Map<String, BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> queryCaches = new HashMap<>();
-    private IndicesWarmer indicesWarmer;
 
 
-    public IndexModule(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig, IndicesQueryCache indicesQueryCache, IndicesWarmer warmer, AnalysisRegistry analysisRegistry) {
+    public IndexModule(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig, AnalysisRegistry analysisRegistry) {
         this.indexStoreConfig = indexStoreConfig;
         this.indexSettings = indexSettings;
-        this.indicesQueryCache = indicesQueryCache;
-        this.indicesWarmer = warmer;
         this.analysisRegistry = analysisRegistry;
         registerQueryCache(INDEX_QUERY_CACHE, IndexQueryCache::new);
         registerQueryCache(NONE_QUERY_CACHE, (a, b) -> new NoneQueryCache(a));
@@ -220,50 +210,6 @@ public final class IndexModule extends AbstractModule {
         return false;
     }
 
-    @Override
-    protected void configure() {
-        try {
-            bind(AnalysisService.class).toInstance(analysisRegistry.build(indexSettings));
-        } catch (IOException e) {
-            throw new ElasticsearchException("can't create analysis service", e);
-        }
-        bind(EngineFactory.class).to(engineFactoryImpl).asEagerSingleton();
-        bind(IndexSearcherWrapperFactory.class).toInstance(indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get());
-        bind(IndexEventListener.class).toInstance(freeze());
-        bind(IndexService.class).asEagerSingleton();
-        bind(IndexServicesProvider.class).asEagerSingleton();
-        bind(MapperService.class).asEagerSingleton();
-        bind(IndexFieldDataService.class).asEagerSingleton();
-        final IndexSettings settings = new IndexSettings(indexSettings.getIndexMetaData(), indexSettings.getNodeSettings(), settingsConsumers);
-        bind(IndexSettings.class).toInstance(settings);
-
-        final String storeType = settings.getSettings().get(STORE_TYPE);
-        final IndexStore store;
-        if (storeType == null || isBuiltinType(storeType)) {
-            store = new IndexStore(settings, indexStoreConfig);
-        } else {
-            BiFunction<IndexSettings, IndexStoreConfig, IndexStore> factory = storeTypes.get(storeType);
-            if (factory == null) {
-                throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
-            }
-            store = factory.apply(settings, indexStoreConfig);
-            if (store == null) {
-                throw new IllegalStateException("store must not be null");
-            }
-        }
-
-        final String queryCacheType = settings.getSettings().get(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE);
-        BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, indicesWarmer);
-        QueryCache queryCache = queryCacheProvider.apply(settings, indicesQueryCache);
-        IndexCache indexCache = new IndexCache(settings, queryCache, bitsetFilterCache);
-        bind(QueryCache.class).toInstance(queryCache);
-        bind(IndexCache.class).toInstance(indexCache);
-        bind(BitsetFilterCache.class).toInstance(bitsetFilterCache);
-        bind(IndexStore.class).toInstance(store);
-        bind(SimilarityService.class).toInstance(new SimilarityService(settings, similarities));
-    }
-
     public enum Type {
         NIOFS,
         MMAPFS,
@@ -290,5 +236,30 @@ public final class IndexModule extends AbstractModule {
          * Returns a new IndexSearcherWrapper. This method is called once per index per node
          */
         IndexSearcherWrapper newWrapper(final IndexService indexService);
+    }
+
+    public IndexService newIndexService(NodeEnvironment environment, IndexService.ShardStoreDeleter shardStoreDeleter, NodeServicesProvider servicesProvider) throws IOException {
+        final IndexSettings settings = indexSettings.newWithListener(settingsConsumers);
+        IndexSearcherWrapperFactory searcherWrapperFactory = indexSearcherWrapper.get() == null ? (shard) -> null : indexSearcherWrapper.get();
+        IndexEventListener eventListener = freeze();
+        final String storeType = settings.getSettings().get(STORE_TYPE);
+        final IndexStore store;
+        if (storeType == null || isBuiltinType(storeType)) {
+            store = new IndexStore(settings, indexStoreConfig);
+        } else {
+            BiFunction<IndexSettings, IndexStoreConfig, IndexStore> factory = storeTypes.get(storeType);
+            if (factory == null) {
+                throw new IllegalArgumentException("Unknown store type [" + storeType + "]");
+            }
+            store = factory.apply(settings, indexStoreConfig);
+            if (store == null) {
+                throw new IllegalStateException("store must not be null");
+            }
+        }
+        final String queryCacheType = settings.getSettings().get(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE);
+        final BiFunction<IndexSettings, IndicesQueryCache, QueryCache> queryCacheProvider = queryCaches.get(queryCacheType);
+        final QueryCache queryCache = queryCacheProvider.apply(settings, servicesProvider.getIndicesQueryCache());
+        return new IndexService(settings, environment, new SimilarityService(settings, similarities), shardStoreDeleter, analysisRegistry, engineFactory.get(),
+                servicesProvider, queryCache, store, eventListener, searcherWrapperFactory);
     }
 }

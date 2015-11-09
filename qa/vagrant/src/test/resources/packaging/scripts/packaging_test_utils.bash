@@ -417,9 +417,7 @@ run_elasticsearch_tests() {
     }' | grep \"count\"\ :\ 1
 
     curl -s -XGET 'http://localhost:9200/library/book/_search/template?pretty' -d '{
-      "template": {
-        "file": "is_guide"
-      }
+      "file": "is_guide"
     }' | grep \"total\"\ :\ 1
 
     curl -s -XDELETE 'http://localhost:9200/_all'

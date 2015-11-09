@@ -1,3 +1,4 @@
+[[breaking_20_parent_child_changes]]
 === Parent/Child changes
 
 Parent/child has been rewritten completely to reduce memory usage and to
@@ -37,7 +38,6 @@ for the child type, but cannot be added before the child type.
 ==== `top_children` query removed
 
 The `top_children` query has been removed in favour of the `has_child` query.
-It wasn't always faster than the `has_child` query and the was usually
+It wasn't always faster than the `has_child` query and the results were usually
 inaccurate. The total hits and any aggregations in the same search request
 would be incorrect if `top_children` was used.
-

@@ -1,3 +1,4 @@
+[[breaking_20_plugin_and_packaging_changes]]
 === Plugin and packaging changes
 
 ==== Symbolic links and paths
@@ -8,7 +9,7 @@ configured, e.g. `path.data`, `path.scripts`, `path.repo`.  A configured path
 may itself be a symbolic link, but no symlinks under that path will be
 followed (with the exception of `path.scripts`, which does follow symlinks).
 
-==== Running `/bin/elasticsearch`
+==== Running `bin/elasticsearch`
 
 The command line parameter parsing has been rewritten to deal properly with
 spaces in parameters. All config settings can still be specified on the
@@ -19,10 +20,10 @@ For instance:
 
 [source,sh]
 -----------
-/bin/elasticsearch -d -p /tmp/foo.pid --http.cors.enabled=true --http.cors.allow-origin='*'
+bin/elasticsearch -d -p /tmp/foo.pid --http.cors.enabled=true --http.cors.allow-origin='*'
 -----------
 
-For a list of static parameters, run `/bin/elasticsearch -h`
+For a list of static parameters, run `bin/elasticsearch -h`
 
 ==== `-f` removed
 
@@ -55,6 +56,10 @@ sudo bin/plugin install analysis-icu
 ---------------
 
 Community-provided plugins can be installed as before.
+
+==== Plugins require descriptor file
+
+All plugins are now required to have a https://github.com/elastic/elasticsearch/blob/2.0/dev-tools/src/main/resources/plugin-metadata/plugin-descriptor.properties[plugin-descriptor.properties]  file.  If a node has a plugin installed which lacks this file, it will be unable to start.
 
 ==== Repository naming structure changes
 

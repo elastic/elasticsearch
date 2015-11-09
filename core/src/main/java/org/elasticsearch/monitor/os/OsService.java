@@ -24,6 +24,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 
 /**
  *
@@ -45,6 +46,8 @@ public class OsService extends AbstractComponent {
 
         this.info = probe.osInfo();
         this.info.refreshInterval = refreshInterval.millis();
+        this.info.allocatedProcessors = EsExecutors.boundedNumberOfProcessors(settings);
+
         osStatsCache = new OsStatsCache(refreshInterval, probe.osStats());
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);
     }

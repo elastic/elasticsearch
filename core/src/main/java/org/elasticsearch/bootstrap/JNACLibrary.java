@@ -20,6 +20,7 @@
 package org.elasticsearch.bootstrap;
 
 import com.sun.jna.Native;
+import com.sun.jna.NativeLong;
 import com.sun.jna.Structure;
 
 import org.apache.lucene.util.Constants;
@@ -55,8 +56,8 @@ final class JNACLibrary {
     
     /** corresponds to struct rlimit */
     public static final class Rlimit extends Structure implements Structure.ByReference {
-        public long rlim_cur = 0;
-        public long rlim_max = 0;
+        public NativeLong rlim_cur = new NativeLong(0);
+        public NativeLong rlim_max = new NativeLong(0);
         
         @Override
         protected List<String> getFieldOrder() {

@@ -18,6 +18,10 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.gradle.internal.jvm.Jvm
+
+import java.nio.file.Paths
+
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.ElasticsearchProperties
 import org.gradle.api.DefaultTask
@@ -279,7 +283,11 @@ class ClusterFormationTasks {
             onlyIf { pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
-            commandLine new File(System.getenv('JAVA_HOME'), 'bin/jps'), '-l'
+            File jps = Paths.get(Jvm.current().javaHome.toString(), "bin/jps").toFile()
+            if (!jps.exists()) {
+                throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
+            }
+            commandLine jps, '-l'
             standardOutput = new ByteArrayOutputStream()
             doLast {
                 String out = standardOutput.toString()

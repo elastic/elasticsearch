@@ -40,7 +40,7 @@ added with the corresponding format.
 
 The default value for `dynamic_date_formats` is:
 
-&#91; <<strict-date-time,`"strict_date_optional_time"`>>,`"yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"`]
+&#91; <<strict-date-time,`"strict_date_optional_time"`>>,`"yyyy/MM/dd HH:mm:ss||yyyy/MM/dd"`]
 
 For example:
 
@@ -57,7 +57,7 @@ GET my_index/_mapping <1>
 // AUTOSENSE
 <1> The `create_date` field has been added as a <<date,`date`>>
     field with the <<mapping-date-format,`format`>>: +
-    `"yyyy/MM/dd HH:mm:ss Z||yyyy/MM/dd Z"`.
+    `"yyyy/MM/dd HH:mm:ss||yyyy/MM/dd"`.
 
 ===== Disabling date detection
 

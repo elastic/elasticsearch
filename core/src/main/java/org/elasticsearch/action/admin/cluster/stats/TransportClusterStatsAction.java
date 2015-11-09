@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RoutingTableValidation;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -42,6 +43,7 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.service.NodeService;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -133,6 +135,14 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
                         }
                         break;
                 }
+            }
+
+            RoutingTableValidation validation = clusterService.state().routingTable().validate(clusterService.state().metaData());
+
+            if (!validation.failures().isEmpty()) {
+                clusterStatus = ClusterHealthStatus.RED;
+            } else if (clusterService.state().blocks().hasGlobalBlock(RestStatus.SERVICE_UNAVAILABLE)) {
+                clusterStatus = ClusterHealthStatus.RED;
             }
         }
 

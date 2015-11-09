@@ -16,8 +16,9 @@ import org.elasticsearch.license.plugin.core.Licensee.Status;
  */
 public class ShieldLicenseState {
 
-    // if we start disabled then we can emit false disabled messages and block legitimate requests...
-    protected volatile Status status = new Status(OperationMode.TRIAL, LicenseState.ENABLED);
+    // we initialize the licensee status to enabled with trial operation mode to ensure no
+    // legitimate requests are blocked before initial license plugin notification
+    protected volatile Status status = Status.ENABLED;
 
     /**
      * @return true if the license allows for security features to be enabled (authc, authz, ip filter, audit, etc)

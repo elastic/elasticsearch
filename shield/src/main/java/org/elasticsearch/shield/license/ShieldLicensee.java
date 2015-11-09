@@ -10,7 +10,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.core.License;
-import org.elasticsearch.license.core.License.OperationMode;
 import org.elasticsearch.license.plugin.core.*;
 import org.elasticsearch.shield.ShieldPlugin;
 
@@ -25,14 +24,14 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
     @Inject
     public ShieldLicensee(Settings settings, LicenseeRegistry clientService, ShieldLicenseState shieldLicenseState) {
         super(settings, ShieldPlugin.NAME, clientService);
-        add(new Listener() {
-            @Override
-            public void onChange(Status status) {
-                shieldLicenseState.updateStatus(status);
-            }
-        });
         this.shieldLicenseState = shieldLicenseState;
         this.isTribeNode = settings.getGroups("tribe", true).isEmpty() == false;
+    }
+
+    @Override
+    public void onChange(Status status) {
+        super.onChange(status);
+        shieldLicenseState.updateStatus(status);
     }
 
     @Override
@@ -74,12 +73,11 @@ public class ShieldLicensee extends AbstractLicenseeComponent<ShieldLicensee> im
     }
 
     @Override
-    protected void doStart() throws ElasticsearchException {;
-        if (isTribeNode) {
-            //TODO currently we disable licensing on tribe node. remove this once es core supports merging cluster
-            this.status = new Status(OperationMode.TRIAL, LicenseState.ENABLED);
-            shieldLicenseState.updateStatus(status);
-        } else {
+    protected void doStart() throws ElasticsearchException {
+        // we rely on the initial licensee state to be enabled with trial operation mode
+        // to ensure no operation is blocked due to not registering the licensee on a
+        // tribe node
+        if (!isTribeNode) {
             super.doStart();
         }
     }

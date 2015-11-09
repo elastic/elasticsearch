@@ -136,4 +136,3 @@ if (isEclipse == false || project.path == "${projectsPrefix}:core-tests") {
   Task copyRestSpec = RestSpecHack.configureTask(project, true)
   integTest.dependsOn copyRestSpec
 }
-

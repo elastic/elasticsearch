@@ -195,3 +195,5 @@ DependencyLicensesTask.configure(project) {
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /jackson-.*/, to: 'jackson'
 }
+
+task run(type:org.elasticsearch.gradle.test.RunTask){}

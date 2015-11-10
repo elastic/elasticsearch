@@ -286,12 +286,14 @@ class ClusterFormationTasks {
             onlyIf { pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
-            File jps = getJpsExecutableByName("jps")
-            if (!jps.exists()) {
+            File jps
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 jps = getJpsExecutableByName("jps.exe")
-                if (!jps.exists()) {
-                    throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
-                }
+            } else {
+                jps = getJpsExecutableByName("jps")
+            }
+            if (!jps.exists()) {
+                throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
             }
             commandLine jps, '-l'
             standardOutput = new ByteArrayOutputStream()

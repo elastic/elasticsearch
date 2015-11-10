@@ -462,7 +462,7 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Engine.Index prepareIndexOnReplica(SourceToParse source, long seqNo, long version, VersionType versionType) {
         try {
-            if (shardRouting.primary()) {
+            if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
             }
             return prepareIndex(docMapper(source.type()), source, seqNo, version, versionType, Engine.Operation.Origin.REPLICA);

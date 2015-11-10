@@ -192,6 +192,15 @@ public final class ShardRouting implements Streamable, ToXContent {
     }
 
     /**
+     * Returns <code>true</code> if this shard is a relocation target for another shard (i.e., was created with {@link #buildTargetRelocatingShard()}
+     *
+     */
+    public boolean isRelocationTarget() {
+        return state == ShardRoutingState.INITIALIZING && relocatingNodeId != null;
+    }
+
+
+    /**
      * Returns <code>true</code> iff this shard is assigned to a node ie. not
      * {@link ShardRoutingState#UNASSIGNED unassigned}. Otherwise <code>false</code>
      */

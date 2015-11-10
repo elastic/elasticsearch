@@ -17,8 +17,6 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.ElasticsearchProperties
-
 esplugin {
   name 'mapper-attachments'
   description 'The mapper attachments plugin adds the attachment type to Elasticsearch using Apache Tika.'

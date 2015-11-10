@@ -23,7 +23,7 @@ import org.gradle.internal.jvm.Jvm
 import java.nio.file.Paths
 
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.ElasticsearchProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -56,7 +56,7 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro) {
-        String elasticsearchVersion = ElasticsearchProperties.version
+        String elasticsearchVersion = VersionProperties.elasticsearch
         String packaging = distro == 'tar' ? 'tar.gz' : distro
         project.configurations {
             elasticsearchDistro
@@ -336,7 +336,7 @@ class ClusterFormationTasks {
         switch (distro) {
             case 'zip':
             case 'tar':
-                path = "elasticsearch-${ElasticsearchProperties.version}"
+                path = "elasticsearch-${VersionProperties.elasticsearch}"
                 break;
             default:
                 throw new InvalidUserDataException("Unknown distribution: ${distro}")

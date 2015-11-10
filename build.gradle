@@ -114,7 +114,7 @@ subprojects {
   configurations {
     all {
       resolutionStrategy {
-        //failOnVersionConflict()
+        failOnVersionConflict()
 
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")

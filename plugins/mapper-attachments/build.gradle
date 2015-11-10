@@ -18,34 +18,48 @@
  */
 
 esplugin {
-  name 'mapper-attachments'
   description 'The mapper attachments plugin adds the attachment type to Elasticsearch using Apache Tika.'
   classname 'org.elasticsearch.mapper.attachments.MapperAttachmentsPlugin'
 }
 
+versions << [
+  'tika': '1.11',
+  'pdfbox': '1.8.10',
+  'bouncycastle': '1.52',
+  'poi': '3.13'
+]
+
 dependencies {
   // mandatory for tika
-  compile('org.apache.tika:tika-core:1.11')
-  compile('org.apache.tika:tika-parsers:1.11') { 
-    transitive = false
-  }
-  compile('commons-io:commons-io:2.4')
+  compile "org.apache.tika:tika-core:${versions.tika}"
+  compile "org.apache.tika:tika-parsers:${versions.tika}"
+  compile 'commons-io:commons-io:2.4'
   
   // character set detection
-  compile('com.googlecode.juniversalchardet:juniversalchardet:1.0.3')
+  compile 'com.googlecode.juniversalchardet:juniversalchardet:1.0.3'
 
   // external parser libraries
   // HTML
-  compile('org.ccil.cowan.tagsoup:tagsoup:1.2.1')
+  compile 'org.ccil.cowan.tagsoup:tagsoup:1.2.1'
   // Adobe PDF
-  compile('org.apache.pdfbox:pdfbox:1.8.10')
-  compile('org.bouncycastle:bcmail-jdk15on:1.52')
+  compile "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
+  compile "org.apache.pdfbox:fontbox:${versions.pdfbox}"
+  compile "org.apache.pdfbox:jempbox:${versions.pdfbox}"
+  compile 'commons-logging:commons-logging:1.1.3'
+  compile "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
+  compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
+  compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"
   // OpenOffice
-  compile('org.apache.poi:poi-ooxml:3.13')
+  compile "org.apache.poi:poi-ooxml:${versions.poi}"
+  compile "org.apache.poi:poi:${versions.poi}"
+  compile "org.apache.poi:poi-ooxml-schemas:${versions.poi}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile 'org.apache.xmlbeans:xmlbeans:2.6.0'
+  compile 'stax:stax-api:1.0.1'
   // MS Office
-  compile('org.apache.poi:poi-scratchpad:3.13')
+  compile "org.apache.poi:poi-scratchpad:${versions.poi}"
   // Apple iWork
-  compile('org.apache.commons:commons-compress:1.10')
+  compile 'org.apache.commons:commons-compress:1.10'
 }
 
 compileJava.options.compilerArgs << '-Xlint:-cast,-deprecation,-rawtypes'

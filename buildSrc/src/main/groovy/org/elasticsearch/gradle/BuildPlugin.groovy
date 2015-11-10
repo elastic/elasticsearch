@@ -19,6 +19,7 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.GradleException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
@@ -28,7 +29,6 @@ import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.util.GradleVersion
-import org.gradle.util.VersionNumber
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
@@ -48,6 +48,7 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
 
+        configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
         configureJarManifest(project)
@@ -80,6 +81,23 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
+    /** Makes dependencies non-transitive by default */
+    static void configureConfigurations(Project project) {
+
+        // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
+        project.configurations.compile.dependencies.all { dep ->
+            if (!(dep instanceof ProjectDependency) && dep.getGroup() != 'org.elasticsearch') {
+                dep.transitive = false
+            }
+        }
+        project.configurations.testCompile.dependencies.all { dep ->
+            if (!(dep instanceof ProjectDependency) && dep.getGroup() != 'org.elasticsearch') {
+                dep.transitive = false
+            }
+        }
+    }
+
+    /** Adds repositores used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
         repos.mavenCentral()

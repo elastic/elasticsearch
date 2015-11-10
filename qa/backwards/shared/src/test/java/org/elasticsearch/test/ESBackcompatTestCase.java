@@ -84,9 +84,6 @@ import static org.hamcrest.Matchers.is;
  */
 // the transportClientRatio is tricky here since we don't fully control the cluster nodes
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 0, maxNumDataNodes = 2, scope = ESIntegTestCase.Scope.SUITE, numClientNodes = 0, transportClientRatio = 0.0)
-@ReproduceInfoPrinter.Properties({ ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY,
-        ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY_VERSION, ESBackcompatTestCase.TESTS_BACKWARDS_COMPATIBILITY_PATH,
-        ESBackcompatTestCase.TESTS_COMPATIBILITY })
 public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     /**
      * Key used to set the path for the elasticsearch executable used to run backwards compatibility tests from

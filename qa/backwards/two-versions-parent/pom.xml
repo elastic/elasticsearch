@@ -135,7 +135,7 @@
                         <id>integ-tests</id>
                         <configuration>
                             <!-- Paranoia around external clusters interfering with eachother -->
-                            <parallelism>1</parallelism>
+                            <!-- <parallelism>1</parallelism> -->
                             <testClassesDirectory>../shared/target/test-classes</testClassesDirectory>
                         </configuration>
                     </execution>

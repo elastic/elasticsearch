@@ -908,7 +908,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }
         };
@@ -947,7 +947,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }
         };
@@ -990,8 +990,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
                 throw new RuntimeException("boom");
             }
 
-            @Override
-            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }
         };

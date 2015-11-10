@@ -67,7 +67,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }
 
@@ -76,7 +76,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         final AtomicInteger count = new AtomicInteger();
         final AtomicInteger outerCount = new AtomicInteger();
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
-            final Engine.Searcher wrap =  wrapper.wrap(ENGINE_CONFIG, engineSearcher);
+            final Engine.Searcher wrap =  wrapper.wrap(engineSearcher);
             assertEquals(1, wrap.reader().getRefCount());
             ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), reader -> {
                 if (reader == open) {
@@ -118,13 +118,13 @@ public class IndexSearcherWrapperTests extends ESTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 return searcher;
             }
         };
         final ConcurrentHashMap<Object, TopDocs> cache = new ConcurrentHashMap<>();
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
-            try (final Engine.Searcher wrap = wrapper.wrap(ENGINE_CONFIG, engineSearcher)) {
+            try (final Engine.Searcher wrap = wrapper.wrap(engineSearcher)) {
                 ElasticsearchDirectoryReader.addReaderCloseListener(wrap.getDirectoryReader(), reader -> {
                     cache.remove(reader.getCoreCacheKey());
                 });
@@ -154,7 +154,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         searcher.setSimilarity(iwc.getSimilarity());
         IndexSearcherWrapper wrapper = new IndexSearcherWrapper();
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
-            final Engine.Searcher wrap = wrapper.wrap(ENGINE_CONFIG, engineSearcher);
+            final Engine.Searcher wrap = wrapper.wrap(engineSearcher);
             assertSame(wrap, engineSearcher);
         }
         IOUtils.close(open, writer, dir);
@@ -180,7 +180,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         };
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
             try {
-                wrapper.wrap(ENGINE_CONFIG, engineSearcher);
+                wrapper.wrap(engineSearcher);
                 fail("reader must delegate cache key");
             } catch (IllegalStateException ex) {
                 // all is well
@@ -194,7 +194,7 @@ public class IndexSearcherWrapperTests extends ESTestCase {
         };
         try (Engine.Searcher engineSearcher = new Engine.Searcher("foo", searcher)) {
             try {
-                wrapper.wrap(ENGINE_CONFIG, engineSearcher);
+                wrapper.wrap(engineSearcher);
                 fail("reader must delegate cache key");
             } catch (IllegalStateException ex) {
                 // all is well

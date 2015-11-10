@@ -20,7 +20,6 @@
 package org.elasticsearch.ingest.processor.mutate;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
@@ -39,23 +38,16 @@ public final class MutateProcessor implements Processor {
     private final Map<String, String> rename;
     private final Map<String, String> convert;
     private final Map<String, String> split;
-    private final Map<String, Tuple<Pattern, String>> gsub;
+    private final List<GsubExpression> gsub;
     private final Map<String, String> join;
     private final List<String> remove;
     private final List<String> trim;
     private final List<String> uppercase;
     private final List<String> lowercase;
 
-    public MutateProcessor(Map<String, Object> update,
-                           Map<String, String> rename,
-                           Map<String, String> convert,
-                           Map<String, String> split,
-                           Map<String, Tuple<Pattern, String>> gsub,
-                           Map<String, String> join,
-                           List<String> remove,
-                           List<String> trim,
-                           List<String> uppercase,
-                           List<String> lowercase) {
+    public MutateProcessor(Map<String, Object> update, Map<String, String> rename, Map<String, String> convert,
+                           Map<String, String> split, List<GsubExpression> gsub, Map<String, String> join,
+                           List<String> remove, List<String> trim, List<String> uppercase, List<String> lowercase) {
         this.update = update;
         this.rename = rename;
         this.convert = convert;
@@ -68,43 +60,43 @@ public final class MutateProcessor implements Processor {
         this.lowercase = lowercase;
     }
 
-    public Map<String, Object> getUpdate() {
+    Map<String, Object> getUpdate() {
         return update;
     }
 
-    public Map<String, String> getRename() {
+    Map<String, String> getRename() {
         return rename;
     }
 
-    public Map<String, String> getConvert() {
+    Map<String, String> getConvert() {
         return convert;
     }
 
-    public Map<String, String> getSplit() {
+    Map<String, String> getSplit() {
         return split;
     }
 
-    public Map<String, Tuple<Pattern, String>> getGsub() {
+    List<GsubExpression> getGsub() {
         return gsub;
     }
 
-    public Map<String, String> getJoin() {
+    Map<String, String> getJoin() {
         return join;
     }
 
-    public List<String> getRemove() {
+    List<String> getRemove() {
         return remove;
     }
 
-    public List<String> getTrim() {
+    List<String> getTrim() {
         return trim;
     }
 
-    public List<String> getUppercase() {
+    List<String> getUppercase() {
         return uppercase;
     }
 
-    public List<String> getLowercase() {
+    List<String> getLowercase() {
         return lowercase;
     }
 
@@ -213,16 +205,14 @@ public final class MutateProcessor implements Processor {
     }
 
     private void doGsub(Data data) {
-        for (Map.Entry<String, Tuple<Pattern, String>> entry : gsub.entrySet()) {
-            String fieldName = entry.getKey();
-            Tuple<Pattern, String> matchAndReplace = entry.getValue();
-            String oldVal = data.getProperty(fieldName);
+        for (GsubExpression gsubExpression : gsub) {
+            String oldVal = data.getProperty(gsubExpression.getFieldName());
             if (oldVal == null) {
-                throw new IllegalArgumentException("Field \"" + fieldName + "\" is null, cannot match pattern.");
+                throw new IllegalArgumentException("Field \"" + gsubExpression.getFieldName() + "\" is null, cannot match pattern.");
             }
-            Matcher matcher = matchAndReplace.v1().matcher(oldVal);
-            String newVal = matcher.replaceAll(matchAndReplace.v2());
-            data.addField(entry.getKey(), newVal);
+            Matcher matcher = gsubExpression.getPattern().matcher(oldVal);
+            String newVal = matcher.replaceAll(gsubExpression.getReplacement());
+            data.addField(gsubExpression.getFieldName(), newVal);
         }
     }
 
@@ -285,28 +275,28 @@ public final class MutateProcessor implements Processor {
     public static final class Factory implements Processor.Factory<MutateProcessor> {
         @Override
         public MutateProcessor create(Map<String, Object> config) throws IOException {
-            Map<String, Object> update = ConfigurationUtils.readOptionalObjectMap(config, "update");
-            Map<String, String> rename = ConfigurationUtils.readOptionalStringMap(config, "rename");
-            Map<String, String> convert = ConfigurationUtils.readOptionalStringMap(config, "convert");
-            Map<String, String> split = ConfigurationUtils.readOptionalStringMap(config, "split");
-            Map<String, List<String>> gsubConfig = ConfigurationUtils.readOptionalStringListMap(config, "gsub");
-            Map<String, String> join = ConfigurationUtils.readOptionalStringMap(config, "join");
+            Map<String, Object> update = ConfigurationUtils.readOptionalMap(config, "update");
+            Map<String, String> rename = ConfigurationUtils.readOptionalMap(config, "rename");
+            Map<String, String> convert = ConfigurationUtils.readOptionalMap(config, "convert");
+            Map<String, String> split = ConfigurationUtils.readOptionalMap(config, "split");
+            Map<String, List<String>> gsubConfig = ConfigurationUtils.readOptionalMap(config, "gsub");
+            Map<String, String> join = ConfigurationUtils.readOptionalMap(config, "join");
             List<String> remove = ConfigurationUtils.readOptionalStringList(config, "remove");
             List<String> trim = ConfigurationUtils.readOptionalStringList(config, "trim");
             List<String> uppercase = ConfigurationUtils.readOptionalStringList(config, "uppercase");
             List<String> lowercase = ConfigurationUtils.readOptionalStringList(config, "lowercase");
 
             // pre-compile regex patterns
-            Map<String, Tuple<Pattern, String>> gsub = null;
+            List<GsubExpression> gsubExpressions = null;
             if (gsubConfig != null) {
-                gsub = new HashMap<>();
+                gsubExpressions = new ArrayList<>();
                 for (Map.Entry<String, List<String>> entry : gsubConfig.entrySet()) {
                     List<String> searchAndReplace = entry.getValue();
                     if (searchAndReplace.size() != 2) {
-                        throw new IllegalArgumentException("Invalid search and replace values (" + Arrays.toString(searchAndReplace.toArray()) + ") for field: " + entry.getKey());
+                        throw new IllegalArgumentException("Invalid search and replace values " + searchAndReplace + " for field: " + entry.getKey());
                     }
                     Pattern searchPattern = Pattern.compile(searchAndReplace.get(0));
-                    gsub.put(entry.getKey(), new Tuple<>(searchPattern, searchAndReplace.get(1)));
+                    gsubExpressions.add(new GsubExpression(entry.getKey(), searchPattern, searchAndReplace.get(1)));
                 }
             }
 
@@ -315,7 +305,7 @@ public final class MutateProcessor implements Processor {
                     (rename == null) ? null : Collections.unmodifiableMap(rename),
                     (convert == null) ? null : Collections.unmodifiableMap(convert),
                     (split == null) ? null : Collections.unmodifiableMap(split),
-                    (gsub == null) ? null : Collections.unmodifiableMap(gsub),
+                    (gsubExpressions == null) ? null : Collections.unmodifiableList(gsubExpressions),
                     (join == null) ? null : Collections.unmodifiableMap(join),
                     (remove == null) ? null : Collections.unmodifiableList(remove),
                     (trim == null) ? null : Collections.unmodifiableList(trim),

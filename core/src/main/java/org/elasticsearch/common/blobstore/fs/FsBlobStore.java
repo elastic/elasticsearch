@@ -88,15 +88,13 @@ public class FsBlobStore extends AbstractComponent implements BlobStore {
     }
 
     private Path buildPath(BlobPath path) {
-        String[] paths = path.toArray();
-        if (paths.length == 0) {
+        if (path.isEmpty()) {
             return path();
-        }
-        Path blobPath = this.path.resolve(paths[0]);
-        if (paths.length > 1) {
-            for (int i = 1; i < paths.length; i++) {
-                blobPath = blobPath.resolve(paths[i]);
-            }
+        } 
+        String[] paths = path.toArray();
+        Path blobPath = path();
+        for (String pathPart : paths) {
+            blobPath = blobPath.resolve(pathPart);
         }
         return blobPath;
     }

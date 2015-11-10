@@ -24,7 +24,7 @@ apply plugin: 'com.bmuschko.nexus'
 dependencies {
   compile "org.elasticsearch:elasticsearch:${version}"
   compile "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
-  compile(group: 'junit', name: 'junit', version: '4.11') {
+  compile("junit:junit:${versions.junit}") {
     exclude group: 'org.hamcrest', module: 'hamcrest-core'
   }
   compile("org.apache.lucene:lucene-test-framework:${versions.lucene}") {

@@ -24,6 +24,7 @@ import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.util.VersionNumber
@@ -36,6 +37,7 @@ class BuildPlugin implements Plugin<Project> {
     @Override
     void apply(Project project) {
         globalBuildInfo(project)
+        configureRepositories(project)
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
@@ -45,6 +47,7 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
 
+        project.ext.versions = VersionProperties.versions
         configureCompile(project)
         configureJarManifest(project)
         configureTest(project)
@@ -75,6 +78,24 @@ class BuildPlugin implements Plugin<Project> {
         }
     }
 
+    static void configureRepositories(Project project) {
+        RepositoryHandler repos = project.repositories
+        repos.mavenCentral()
+        repos.maven {
+            name 'sonatype-snapshots'
+            url 'http://oss.sonatype.org/content/repositories/snapshots/'
+        }
+        String luceneVersion = VersionProperties.lucene
+        if (luceneVersion.contains('-snapshot')) {
+            // extract the revision number from the version with a regex matcher
+            String revision = (luceneVersion =~ /\w+-snapshot-(\d+)/)[0][1]
+            repos.maven {
+                name 'lucene-snapshots'
+                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            }
+        }
+    }
+
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
         project.afterEvaluate {
@@ -91,8 +112,8 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(Jar) { Jar jarTask ->
                 manifest {
-                    attributes('X-Compile-Elasticsearch-Version': ElasticsearchProperties.version,
-                               'X-Compile-Lucene-Version': ElasticsearchProperties.luceneVersion)
+                    attributes('X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
+                               'X-Compile-Lucene-Version': VersionProperties.lucene)
                 }
             }
         }

@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.plugin
 
-import org.elasticsearch.gradle.ElasticsearchProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
@@ -72,7 +72,7 @@ class PluginPropertiesTask extends Copy {
             'name': extension.name,
             'description': extension.description,
             'version': extension.version,
-            'elasticsearchVersion': ElasticsearchProperties.version,
+            'elasticsearchVersion': VersionProperties.elasticsearch,
             'javaVersion': project.targetCompatibility as String,
             'jvm': extension.jvm as String,
             'site': extension.site as String,

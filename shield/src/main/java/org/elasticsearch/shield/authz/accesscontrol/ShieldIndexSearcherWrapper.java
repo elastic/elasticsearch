@@ -131,7 +131,7 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
     }
 
     @Override
-    protected IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+    protected IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
         if (shieldLicenseState.documentAndFieldLevelSecurityEnabled() == false) {
             return searcher;
         }
@@ -185,9 +185,9 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
                     }
                 }
             };
-            indexSearcher.setQueryCache(engineConfig.getQueryCache());
-            indexSearcher.setQueryCachingPolicy(engineConfig.getQueryCachingPolicy());
-            indexSearcher.setSimilarity(engineConfig.getSimilarity());
+            indexSearcher.setQueryCache(indexSearcher.getQueryCache());
+            indexSearcher.setQueryCachingPolicy(indexSearcher.getQueryCachingPolicy());
+            indexSearcher.setSimilarity(indexSearcher.getSimilarity(true));
             return indexSearcher;
         }
         return searcher;

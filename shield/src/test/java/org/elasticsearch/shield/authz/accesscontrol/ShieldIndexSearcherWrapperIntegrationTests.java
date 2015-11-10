@@ -67,8 +67,6 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
 
     public void testDLS() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
-        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, null, null, null, null, null, QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
-
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.docMappers(anyBoolean())).thenReturn(Collections.emptyList());
         when(mapperService.simpleMatchToIndexNames(anyString())).then(new Answer<Collection<String>>() {
@@ -153,7 +151,7 @@ public class ShieldIndexSearcherWrapperIntegrationTests extends ESTestCase {
             ParsedQuery parsedQuery = new ParsedQuery(new TermQuery(new Term("field", values[i])));
             when(queryShardContext.parse(any(BytesReference.class))).thenReturn(parsedQuery);
             DirectoryReader wrappedDirectoryReader = wrapper.wrap(directoryReader);
-            IndexSearcher indexSearcher = wrapper.wrap(engineConfig, new IndexSearcher(wrappedDirectoryReader));
+            IndexSearcher indexSearcher = wrapper.wrap(new IndexSearcher(wrappedDirectoryReader));
 
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);

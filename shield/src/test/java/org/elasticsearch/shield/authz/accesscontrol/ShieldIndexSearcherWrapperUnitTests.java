@@ -126,10 +126,8 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testWrapSearcherWhenFeatureDisabled() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
-        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
-
         IndexSearcher indexSearcher = new IndexSearcher(esIn);
-        IndexSearcher result = shieldIndexSearcherWrapper.wrap(engineConfig, indexSearcher);
+        IndexSearcher result = shieldIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, sameInstance(indexSearcher));
     }
 
@@ -226,8 +224,6 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
 
     public void testDelegateSimilarity() throws Exception {
         ShardId shardId = new ShardId("_index", 0);
-        EngineConfig engineConfig = new EngineConfig(shardId, null, null, Settings.EMPTY, null, null, null, null, null, null, new BM25Similarity(), null, null, null, new NoneQueryCache(IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.EMPTY_LIST)), QueryCachingPolicy.ALWAYS_CACHE, null, TimeValue.timeValueMinutes(5)); // can't mock...
-
         IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_index"), Settings.EMPTY, Collections.emptyList());
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new IndicesWarmer(settings.getSettings(), null), new BitsetFilterCache.Listener() {
             @Override
@@ -242,9 +238,9 @@ public class ShieldIndexSearcherWrapperUnitTests extends ESTestCase {
         });
         DirectoryReader directoryReader = DocumentSubsetReader.wrap(esIn, bitsetFilterCache, new MatchAllDocsQuery());
         IndexSearcher indexSearcher = new IndexSearcher(directoryReader);
-        IndexSearcher result = shieldIndexSearcherWrapper.wrap(engineConfig, indexSearcher);
+        IndexSearcher result = shieldIndexSearcherWrapper.wrap(indexSearcher);
         assertThat(result, not(sameInstance(indexSearcher)));
-        assertThat(result.getSimilarity(true), sameInstance(engineConfig.getSimilarity()));
+        assertThat(result.getSimilarity(true), sameInstance(indexSearcher.getSimilarity(true)));
         bitsetFilterCache.close();
     }
 

@@ -340,6 +340,8 @@ public class TransportReplicationActionTests extends ESTestCase {
         final ShardIterator shardIt = shardRoutingTable.shardsIt();
         final ShardId shardId = shardIt.shardId();
         final Request request = new Request();
+        final long primaryTerm = randomInt(200);
+        request.primaryTerm(primaryTerm);
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         logger.debug("expecting [{}] assigned replicas, [{}] total shards. using state: \n{}", assignedReplicas, totalShards, clusterService.state().prettyPrint());
@@ -409,6 +411,25 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
         // all replicas have responded so the counter should be decreased again
         assertIndexShardCounter(1);
+
+        // assert that nothing in the replica logic changes the primary term of the operation
+        assertThat(request.primaryTerm(), equalTo(primaryTerm));
+    }
+
+    public void testSeqNoIsSetOnPrimary() {
+        final String index = "test";
+        final ShardId shardId = new ShardId(index, 0);
+        // we use one replica to check the primary term was set on the operation and sent to the replica
+        clusterService.setState(state(index, true,
+                ShardRoutingState.STARTED, randomFrom(ShardRoutingState.INITIALIZING, ShardRoutingState.STARTED)));
+        logger.debug("--> using initial state:\n{}", clusterService.state().prettyPrint());
+        Request request = new Request(shardId);
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+        TransportReplicationAction<Request, Request, Response>.PrimaryPhase primaryPhase = action.new PrimaryPhase(request, listener);
+        primaryPhase.doRun();
+        CapturingTransport.CapturedRequest[] requestsToReplicas = transport.capturedRequests();
+        assertThat(requestsToReplicas, arrayWithSize(1));
+        assertThat(((Request) requestsToReplicas[0].request).primaryTerm(), equalTo(clusterService.state().getMetaData().index(index).primaryTerm(0)));
     }
 
     public void testCounterOnPrimary() throws InterruptedException, ExecutionException, IOException {

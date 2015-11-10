@@ -342,6 +342,11 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             // expected
         }
 
+        // but you can increment with a newer one..
+        indexShard.incrementOperationCounter(primaryTerm + 1 + randomInt(20));
+
+
+        indexShard.decrementOperationCounter();
         indexShard.decrementOperationCounter();
         indexShard.decrementOperationCounter();
         assertEquals(0, indexShard.getOperationsCount());

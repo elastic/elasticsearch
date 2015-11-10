@@ -24,12 +24,13 @@ import org.elasticsearch.test.StreamsUtils;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.hamcrest.Matchers.startsWith;
 
 public class GeoIpProcessorFactoryTests extends ESTestCase {
@@ -50,22 +51,23 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         factory.setConfigDirectory(configDir);
 
         Map<String, Object> config = new HashMap<>();
-        config.put("ip_field", "_field");
+        config.put("source_field", "_field");
 
         GeoIpProcessor processor = factory.create(config);
-        assertThat(processor.getIpField(), equalTo("_field"));
+        assertThat(processor.getSourceField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-City"));
+        assertThat(processor.getFields(), sameInstance(GeoIpProcessor.Factory.DEFAULT_FIELDS));
     }
 
     public void testBuild_targetField() throws Exception {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
         factory.setConfigDirectory(configDir);
         Map<String, Object> config = new HashMap<>();
-        config.put("ip_field", "_field");
+        config.put("source_field", "_field");
         config.put("target_field", "_field");
         GeoIpProcessor processor = factory.create(config);
-        assertThat(processor.getIpField(), equalTo("_field"));
+        assertThat(processor.getSourceField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
     }
 
@@ -73,10 +75,10 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
         factory.setConfigDirectory(configDir);
         Map<String, Object> config = new HashMap<>();
-        config.put("ip_field", "_field");
+        config.put("source_field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
         GeoIpProcessor processor = factory.create(config);
-        assertThat(processor.getIpField(), equalTo("_field"));
+        assertThat(processor.getSourceField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("geoip"));
         assertThat(processor.getDbReader().getMetadata().getDatabaseType(), equalTo("GeoLite2-Country"));
     }
@@ -86,12 +88,55 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         factory.setConfigDirectory(configDir);
 
         Map<String, Object> config = new HashMap<>();
-        config.put("ip_field", "_field");
+        config.put("source_field", "_field");
         config.put("database_file", "does-not-exist.mmdb");
         try {
             factory.create(config);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), startsWith("database file [does-not-exist.mmdb] doesn't exist in"));
+        }
+    }
+
+    public void testBuild_fields() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
+        factory.setConfigDirectory(configDir);
+
+        Set<GeoIpProcessor.Field> fields = EnumSet.noneOf(GeoIpProcessor.Field.class);
+        List<String> fieldNames = new ArrayList<>();
+        int numFields = scaledRandomIntBetween(1, GeoIpProcessor.Field.values().length);
+        for (int i = 0; i < numFields; i++) {
+            GeoIpProcessor.Field field = GeoIpProcessor.Field.values()[i];
+            fields.add(field);
+            fieldNames.add(field.name().toLowerCase(Locale.ROOT));
+        }
+        Map<String, Object> config = new HashMap<>();
+        config.put("source_field", "_field");
+        config.put("fields", fieldNames);
+        GeoIpProcessor processor = factory.create(config);
+        assertThat(processor.getSourceField(), equalTo("_field"));
+        assertThat(processor.getFields(), equalTo(fields));
+    }
+
+    public void testBuild_illegalFieldOption() throws Exception {
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
+        factory.setConfigDirectory(configDir);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("source_field", "_field");
+        config.put("fields", Collections.singletonList("invalid"));
+        try {
+            factory.create(config);
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("illegal field option [invalid]. valid values are [[IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME, REGION_NAME, CITY_NAME, TIMEZONE, LATITUDE, LONGITUDE, LOCATION]]"));
+        }
+
+        config = new HashMap<>();
+        config.put("source_field", "_field");
+        config.put("fields", "invalid");
+        try {
+            factory.create(config);
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("property [fields] isn't a list, but of type [java.lang.String]"));
         }
     }
 }

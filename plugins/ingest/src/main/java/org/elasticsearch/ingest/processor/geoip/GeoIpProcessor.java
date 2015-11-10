@@ -21,11 +21,9 @@ package org.elasticsearch.ingest.processor.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
 import com.maxmind.geoip2.exception.AddressNotFoundException;
-import com.maxmind.geoip2.exception.GeoIp2Exception;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.*;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.Data;
@@ -40,29 +38,30 @@ import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
+import static org.elasticsearch.ingest.processor.ConfigurationUtils.readStringList;
 import static org.elasticsearch.ingest.processor.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor implements Processor {
 
     public static final String TYPE = "geoip";
 
-    private final String ipField;
+    private final String sourceField;
     private final String targetField;
     private final DatabaseReader dbReader;
+    private final Set<Field> fields;
 
-    GeoIpProcessor(String ipField, DatabaseReader dbReader, String targetField) throws IOException {
-        this.ipField = ipField;
+    GeoIpProcessor(String sourceField, DatabaseReader dbReader, String targetField, Set<Field> fields) throws IOException {
+        this.sourceField = sourceField;
         this.targetField = targetField;
         this.dbReader = dbReader;
+        this.fields = fields;
     }
 
     @Override
     public void execute(Data data) {
-        String ip = data.getProperty(ipField);
+        String ip = data.getProperty(sourceField);
         final InetAddress ipAddress;
         try {
             ipAddress = InetAddress.getByName(ip);
@@ -92,8 +91,8 @@ public final class GeoIpProcessor implements Processor {
         data.addField(targetField, geoData);
     }
 
-    String getIpField() {
-        return ipField;
+    String getSourceField() {
+        return sourceField;
     }
 
     String getTargetField() {
@@ -102,6 +101,10 @@ public final class GeoIpProcessor implements Processor {
 
     DatabaseReader getDbReader() {
         return dbReader;
+    }
+
+    Set<Field> getFields() {
+        return fields;
     }
 
     private Map<String, Object> retrieveCityGeoData(InetAddress ipAddress) {
@@ -125,18 +128,42 @@ public final class GeoIpProcessor implements Processor {
         Continent continent = response.getContinent();
         Subdivision subdivision = response.getMostSpecificSubdivision();
 
-        Map<String, Object> geoData = new HashMap<String, Object>();
-        geoData.put("ip", NetworkAddress.formatAddress(ipAddress));
-        geoData.put("country_iso_code", country.getIsoCode());
-        geoData.put("country_name", country.getName());
-        geoData.put("continent_name", continent.getName());
-        geoData.put("region_name", subdivision.getName());
-        geoData.put("city_name", city.getName());
-        geoData.put("timezone", location.getTimeZone());
-        geoData.put("latitude", location.getLatitude());
-        geoData.put("longitude", location.getLongitude());
-        if (location.getLatitude() != null && location.getLongitude() != null) {
-            geoData.put("location", new double[]{location.getLongitude(), location.getLatitude()});
+        Map<String, Object> geoData = new HashMap<>();
+        for (Field field : fields) {
+            switch (field) {
+                case IP:
+                    geoData.put("ip", NetworkAddress.formatAddress(ipAddress));
+                    break;
+                case COUNTRY_ISO_CODE:
+                    geoData.put("country_iso_code", country.getIsoCode());
+                    break;
+                case COUNTRY_NAME:
+                    geoData.put("country_name", country.getName());
+                    break;
+                case CONTINENT_NAME:
+                    geoData.put("continent_name", continent.getName());
+                    break;
+                case REGION_NAME:
+                    geoData.put("region_name", subdivision.getName());
+                    break;
+                case CITY_NAME:
+                    geoData.put("city_name", city.getName());
+                    break;
+                case TIMEZONE:
+                    geoData.put("timezone", location.getTimeZone());
+                    break;
+                case LATITUDE:
+                    geoData.put("latitude", location.getLatitude());
+                    break;
+                case LONGITUDE:
+                    geoData.put("longitude", location.getLongitude());
+                    break;
+                case LOCATION:
+                    if (location.getLatitude() != null && location.getLongitude() != null) {
+                        geoData.put("location", new double[]{location.getLongitude(), location.getLatitude()});
+                    }
+                    break;
+            }
         }
         return geoData;
     }
@@ -159,29 +186,59 @@ public final class GeoIpProcessor implements Processor {
         Country country = response.getCountry();
         Continent continent = response.getContinent();
 
-        Map<String, Object> geoData = new HashMap<String, Object>();
-        geoData.put("ip", NetworkAddress.formatAddress(ipAddress));
-        geoData.put("country_iso_code", country.getIsoCode());
-        geoData.put("country_name", country.getName());
-        geoData.put("continent_name", continent.getName());
+        Map<String, Object> geoData = new HashMap<>();
+        for (Field field : fields) {
+            switch (field) {
+                case IP:
+                    geoData.put("ip", NetworkAddress.formatAddress(ipAddress));
+                    break;
+                case COUNTRY_ISO_CODE:
+                    geoData.put("country_iso_code", country.getIsoCode());
+                    break;
+                case COUNTRY_NAME:
+                    geoData.put("country_name", country.getName());
+                    break;
+                case CONTINENT_NAME:
+                    geoData.put("continent_name", continent.getName());
+                    break;
+            }
+        }
         return geoData;
     }
 
     public static class Factory implements Processor.Factory<GeoIpProcessor> {
 
+        static final Set<Field> DEFAULT_FIELDS = EnumSet.of(
+                Field.CONTINENT_NAME, Field.COUNTRY_ISO_CODE, Field.REGION_NAME, Field.CITY_NAME, Field.LOCATION
+        );
+
         private Path geoIpConfigDirectory;
         private final DatabaseReaderService databaseReaderService = new DatabaseReaderService();
 
         public GeoIpProcessor create(Map<String, Object> config) throws IOException {
-            String ipField = readStringProperty(config, "ip_field");
+            String ipField = readStringProperty(config, "source_field");
             String targetField = readStringProperty(config, "target_field", "geoip");
             String databaseFile = readStringProperty(config, "database_file", "GeoLite2-City.mmdb");
+            final Set<Field> fields;
+            if (config.containsKey("fields")) {
+                fields = EnumSet.noneOf(Field.class);
+                List<String> fieldNames = readStringList(config, "fields");
+                for (String fieldName : fieldNames) {
+                    try {
+                        fields.add(Field.parse(fieldName));
+                    } catch (Exception e) {
+                        throw new IllegalArgumentException("illegal field option [" + fieldName +"]. valid values are [" + Arrays.toString(Field.values()) +"]", e);
+                    }
+                }
+            } else {
+                fields = DEFAULT_FIELDS;
+            }
 
             Path databasePath = geoIpConfigDirectory.resolve(databaseFile);
             if (Files.exists(databasePath) && Files.isRegularFile(databasePath)) {
                 try (InputStream database = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
                     DatabaseReader databaseReader = databaseReaderService.getOrCreateDatabaseReader(databaseFile, database);
-                    return new GeoIpProcessor(ipField, databaseReader, targetField);
+                    return new GeoIpProcessor(ipField, databaseReader, targetField, fields);
                 }
             } else {
                 throw new IllegalArgumentException("database file [" + databaseFile + "] doesn't exist in [" + geoIpConfigDirectory + "]");
@@ -206,6 +263,24 @@ public final class GeoIpProcessor implements Processor {
 
         public AddressNotFoundRuntimeException(Throwable cause) {
             super(cause);
+        }
+    }
+
+    public enum Field {
+
+        IP,
+        COUNTRY_ISO_CODE,
+        COUNTRY_NAME,
+        CONTINENT_NAME,
+        REGION_NAME,
+        CITY_NAME,
+        TIMEZONE,
+        LATITUDE,
+        LONGITUDE,
+        LOCATION;
+
+        public static Field parse(String value) {
+            return valueOf(value.toUpperCase(Locale.ROOT));
         }
     }
 

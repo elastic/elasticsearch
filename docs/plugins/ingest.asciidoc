@@ -309,18 +309,19 @@ is located at `$ES_HOME/config/ingest/geoip` and holds the shipped databases too
 .Geoip options
 [options="header"]
 |======
-| Name                   | Required  | Default             | Description
-| `ip_field`             | yes       | -                   | The field to get the ip address from for the geographical lookup.
-| `target_field`         | no        | geoip               | The field that will hold the geographical information looked up from the Maxmind database.
-| `database_file`        | no        | GeoLite2-City.mmdb  | The database filename in the geoip config directory. The ingest plugin ships with the GeoLite2-City.mmdb and GeoLite2-Country.mmdb files.
+| Name                   | Required  | Default                                                                            | Description
+| `source_field`         | yes       | -                                                                                  | The field to get the ip address or hostname from for the geographical lookup.
+| `target_field`         | no        | geoip                                                                              | The field that will hold the geographical information looked up from the Maxmind database.
+| `database_file`        | no        | GeoLite2-City.mmdb                                                                 | The database filename in the geoip config directory. The ingest plugin ships with the GeoLite2-City.mmdb and GeoLite2-Country.mmdb files.
+| `fields`               | no        | [`continent_name`, `country_iso_code`, `region_name`, `city_name`, `location`] <1> | Controls what properties are added to the `target_field` based on the geoip lookup.
 |======
 
-If the GeoLite2 City database is used then the following fields will be added under the `target_field`: `ip`,
+<1> Depends on what is available in `database_field`:
+* If the GeoLite2 City database is used then the following fields may be added under the `target_field`: `ip`,
 `country_iso_code`, `country_name`, `continent_name`, `region_name`, `city_name`, `timezone`, `latitude`, `longitude`
-and `location`.
-
-If the GeoLite2 Country database is used then the following fields will be added under the `target_field`: `ip`,
-`country_iso_code`, `country_name` and `continent_name`.
+and `location`. The fields actually added depend on what has been found and which fields were configured in `fields`.
+* If the GeoLite2 Country database is used then the following fields may be added under the `target_field`: `ip`,
+`country_iso_code`, `country_name` and `continent_name`.The fields actually added depend on what has been found and which fields were configured in `fields`.
 
 An example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
 
@@ -331,7 +332,7 @@ An example that uses the default city database and adds the geographical informa
   "processors" : [
     {
       "geoip" : {
-        "ip_field" : "ip"
+        "source_field" : "ip"
       }
     }
   ]
@@ -347,7 +348,7 @@ An example that uses the default country database and add the geographical infor
   "processors" : [
     {
       "geoip" : {
-        "ip_field" : "ip",
+        "source_field" : "ip",
         "target_field" : "geo",
         "database_file" : "GeoLite2-Country.mmdb"
       }

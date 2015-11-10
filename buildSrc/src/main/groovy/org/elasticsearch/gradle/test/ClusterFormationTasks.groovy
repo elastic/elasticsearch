@@ -105,7 +105,7 @@ class ClusterFormationTasks {
         for (Map.Entry<String, FileCollection> plugin : config.plugins.entrySet()) {
             // replace every dash followed by a character with just the uppercase character
             String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
-            String taskName = "${task.name}#install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}"
+            String taskName = "${task.name}#install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}Plugin"
             // delay reading the file location until execution time by wrapping in a closure within a GString
             String file = "${ -> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString() }"
             Object[] args = [new File(home, 'bin/plugin'), 'install', file]
@@ -177,12 +177,10 @@ class ClusterFormationTasks {
         if (config.plugins.isEmpty()) {
             return setup
         }
-        // collect the files for plugins into a list, but wrap each in a closure to delay
-        // looking for the filename until execution time
-        List files = config.plugins.values().collect { plugin -> return { plugin.singleFile } }
+
         return project.tasks.create(name: name, type: Copy, dependsOn: setup) {
             into pluginsTmpDir
-            from(*files) // spread the list into varargs
+            from(config.plugins.values())
         }
     }
 

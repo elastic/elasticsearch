@@ -27,6 +27,7 @@ import org.gradle.api.Task
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.util.GradleVersion
 import org.gradle.util.VersionNumber
 
 /**
@@ -56,17 +57,6 @@ class BuildPlugin implements Plugin<Project> {
 
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
-            // enforce gradle version
-            VersionNumber gradleVersion = VersionNumber.parse(project.gradle.gradleVersion)
-            if (gradleVersion.major < 2 || gradleVersion.major == 2 && gradleVersion.minor < 6) {
-                throw new GradleException('Gradle 2.6 or above is required to build elasticsearch')
-            }
-
-            // enforce Java version
-            if (!JavaVersion.current().isJava8Compatible()) {
-                throw new GradleException('Java 8 or above is required to build Elasticsearch')
-            }
-
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
@@ -74,6 +64,18 @@ class BuildPlugin implements Plugin<Project> {
             println "  Gradle Version : ${project.gradle.gradleVersion}"
             println "  JDK Version    : ${System.getProperty('java.runtime.version')} (${System.getProperty('java.vendor')})"
             println "  OS Info        : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
+
+            // enforce gradle version
+            GradleVersion minGradle = GradleVersion.version('2.8')
+            if (GradleVersion.current() < minGradle) {
+                throw new GradleException("${minGradle} or above is required to build elasticsearch")
+            }
+
+            // enforce Java version
+            if (!JavaVersion.current().isJava8Compatible()) {
+                throw new GradleException('Java 8 or above is required to build Elasticsearch')
+            }
+
             project.rootProject.ext.buildChecksDone = true
         }
     }

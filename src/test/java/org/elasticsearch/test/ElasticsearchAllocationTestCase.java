@@ -26,6 +26,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
+import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.GatewayAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -55,6 +57,12 @@ public abstract class ElasticsearchAllocationTestCase extends ElasticsearchTestC
 
     public static AllocationService createAllocationService(Settings settings) {
         return createAllocationService(settings, getRandom());
+    }
+
+    public static AllocationService createAllocationService(Settings settings, GatewayAllocator allocator) {
+        return new AllocationService(settings,
+                randomAllocationDeciders(settings, new NodeSettingsService(ImmutableSettings.Builder.EMPTY_SETTINGS), getRandom()),
+                new ShardsAllocators(settings, allocator, new BalancedShardsAllocator(settings)), ClusterInfoService.EMPTY);
     }
 
     public static AllocationService createAllocationService(Settings settings, Random random) {

@@ -186,6 +186,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeLocalGatewayStartedShards> shardState = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
             if (shardState.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard started state", shard);
+                allocation.setHasPendingAsyncFetch();
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue;
@@ -422,6 +423,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetch.fetchData(nodes, metaData, allocation.getIgnoreNodes(shard.shardId()));
             if (shardStores.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
+                allocation.setHasPendingAsyncFetch();
                 unassignedIterator.remove();
                 routingNodes.ignoredUnassigned().add(shard);
                 continue; // still fetching

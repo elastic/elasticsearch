@@ -93,7 +93,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
                 .issuer("test")
                 .maxNodes(Integer.MAX_VALUE)
                 .signature("_signature")
-                .type("basic")
+                .type("trial")
                 .uid(String.valueOf(RandomizedTest.systemPropertyAsInt(SysGlobals.CHILDVM_SYSPROP_JVM_ID, 0)) + System.identityHashCode(AbstractCollectorTestCase.class))
                 .build();
     }

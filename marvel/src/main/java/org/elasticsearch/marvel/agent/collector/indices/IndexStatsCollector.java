@@ -10,18 +10,18 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.SecuredClient;
 
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  * Collector for indices statistics.
@@ -37,7 +37,7 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     private final Client client;
 
     @Inject
-    public IndexStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,  MarvelLicensee marvelLicensee,
+    public IndexStatsCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee,
                                SecuredClient client) {
         super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.client = client;
@@ -51,17 +51,24 @@ public class IndexStatsCollector extends AbstractCollector<IndexStatsCollector> 
     @Override
     protected Collection<MarvelDoc> doCollect() throws Exception {
         List<MarvelDoc> results = new ArrayList<>(1);
+        try {
+            IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
+                    .setRefresh(true)
+                    .setIndices(marvelSettings.indices())
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .get(marvelSettings.indexStatsTimeout());
 
-        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
-                .setRefresh(true)
-                .setIndices(marvelSettings.indices())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .get(marvelSettings.indexStatsTimeout());
-
-        long timestamp = System.currentTimeMillis();
-        String clusterUUID = clusterUUID();
-        for (IndexStats indexStats : indicesStats.getIndices().values()) {
-            results.add(new IndexStatsMarvelDoc(clusterUUID, TYPE, timestamp, indexStats));
+            long timestamp = System.currentTimeMillis();
+            String clusterUUID = clusterUUID();
+            for (IndexStats indexStats : indicesStats.getIndices().values()) {
+                results.add(new IndexStatsMarvelDoc(clusterUUID, TYPE, timestamp, indexStats));
+            }
+        } catch (IndexNotFoundException e) {
+            if (MarvelShieldIntegration.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {
+                logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
+            } else {
+                throw e;
+            }
         }
         return Collections.unmodifiableCollection(results);
     }

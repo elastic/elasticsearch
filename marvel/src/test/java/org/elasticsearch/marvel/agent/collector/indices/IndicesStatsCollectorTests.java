@@ -6,8 +6,10 @@
 package org.elasticsearch.marvel.agent.collector.indices;
 
 import org.elasticsearch.action.admin.indices.stats.IndexStats;
+import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.metadata.MetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
@@ -17,15 +19,15 @@ import org.elasticsearch.marvel.license.MarvelLicensee;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.*;
 
+
 @ClusterScope(numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
-public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
+public class IndicesStatsCollectorTests extends AbstractCollectorTestCase {
 
     @Override
     protected int numberOfReplicas() {
@@ -37,7 +39,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         waitForNoBlocksOnNode(node);
 
         try {
-            assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
+            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(shieldEnabled ? 0 : 1));
         } catch (IndexNotFoundException e) {
             fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
         }
@@ -48,7 +50,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         waitForNoBlocksOnNode(node);
 
         try {
-            assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
+            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(shieldEnabled ? 0 : 1));
         } catch (IndexNotFoundException e) {
             fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
         }
@@ -59,13 +61,13 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         waitForNoBlocksOnNode(node);
 
         try {
-            assertThat(newIndexStatsCollector(node).doCollect(), hasSize(0));
+            assertThat(newIndicesStatsCollector(node).doCollect(), hasSize(1));
         } catch (IndexNotFoundException e) {
             fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
         }
     }
 
-    public void testIndexStatsCollectorOneIndex() throws Exception {
+    public void testIndicesStatsCollectorOneIndex() throws Exception {
         final String node = internalCluster().startNode();
         waitForNoBlocksOnNode(node);
 
@@ -83,31 +85,22 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
 
         assertHitCount(client().prepareSearch().setSize(0).get(), nbDocs);
 
-        Collection<MarvelDoc> results = newIndexStatsCollector().doCollect();
+        Collection<MarvelDoc> results = newIndicesStatsCollector().doCollect();
         assertThat(results, hasSize(1));
 
         MarvelDoc marvelDoc = results.iterator().next();
-        assertNotNull(marvelDoc);
-        assertThat(marvelDoc, instanceOf(IndexStatsMarvelDoc.class));
+        assertThat(marvelDoc, instanceOf(IndicesStatsMarvelDoc.class));
 
-        IndexStatsMarvelDoc indexStatsMarvelDoc = (IndexStatsMarvelDoc) marvelDoc;
-        assertThat(indexStatsMarvelDoc.clusterUUID(), equalTo(client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID()));
-        assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
-        assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
+        IndicesStatsMarvelDoc indicesStatsMarvelDoc = (IndicesStatsMarvelDoc) marvelDoc;
+        IndicesStatsResponse indicesStats = indicesStatsMarvelDoc.getIndicesStats();
+        assertNotNull(indicesStats);
+        assertThat(indicesStats.getIndices().keySet(), hasSize(1));
 
-        IndexStats indexStats = indexStatsMarvelDoc.getIndexStats();
-        assertNotNull(indexStats);
-
-        assertThat(indexStats.getIndex(), equalTo(indexName));
-        assertThat(indexStats.getPrimaries().getDocs().getCount(), equalTo((long) nbDocs));
-        assertNotNull(indexStats.getTotal().getStore());
-        assertThat(indexStats.getTotal().getStore().getSizeInBytes(), greaterThan(0L));
-        assertThat(indexStats.getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
-        assertNotNull(indexStats.getTotal().getIndexing());
-        assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
+        IndexStats indexStats = indicesStats.getIndex(indexName);
+        assertThat(indexStats.getShards(), arrayWithSize(getNumShards(indexName).totalNumShards));
     }
 
-    public void testIndexStatsCollectorMultipleIndices() throws Exception {
+    public void testIndicesStatsCollectorMultipleIndices() throws Exception {
         final String node = internalCluster().startNode();
         waitForNoBlocksOnNode(node);
 
@@ -133,45 +126,19 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
             assertHitCount(client().prepareSearch(indexPrefix + i).setSize(0).get(), docsPerIndex[i]);
         }
 
-        String clusterUUID = client().admin().cluster().prepareState().setMetaData(true).get().getState().metaData().clusterUUID();
+        Collection<MarvelDoc> results = newIndicesStatsCollector().doCollect();
+        assertThat(results, hasSize(1));
 
-        Collection<MarvelDoc> results = newIndexStatsCollector().doCollect();
-        assertThat(results, hasSize(nbIndices));
+        MarvelDoc marvelDoc = results.iterator().next();
+        assertThat(marvelDoc, instanceOf(IndicesStatsMarvelDoc.class));
 
-        for (int i = 0; i < nbIndices; i++) {
-            String indexName = indexPrefix + i;
-            boolean found = false;
-
-            Iterator<MarvelDoc> it = results.iterator();
-            while (!found && it.hasNext()) {
-                MarvelDoc marvelDoc = it.next();
-                assertThat(marvelDoc, instanceOf(IndexStatsMarvelDoc.class));
-
-                IndexStatsMarvelDoc indexStatsMarvelDoc = (IndexStatsMarvelDoc) marvelDoc;
-                IndexStats indexStats = indexStatsMarvelDoc.getIndexStats();
-                assertNotNull(indexStats);
-
-                if (indexStats.getIndex().equals(indexPrefix + i)) {
-                    assertThat(indexStatsMarvelDoc.clusterUUID(), equalTo(clusterUUID));
-                    assertThat(indexStatsMarvelDoc.timestamp(), greaterThan(0L));
-                    assertThat(indexStatsMarvelDoc.type(), equalTo(IndexStatsCollector.TYPE));
-
-                    assertThat(indexStats.getIndex(), equalTo(indexName));
-                    assertNotNull(indexStats.getTotal().getDocs());
-                    assertThat(indexStats.getPrimaries().getDocs().getCount(), equalTo((long) docsPerIndex[i]));
-                    assertNotNull(indexStats.getTotal().getStore());
-                    assertThat(indexStats.getTotal().getStore().getSizeInBytes(), greaterThanOrEqualTo(0L));
-                    assertThat(indexStats.getTotal().getStore().getThrottleTime().millis(), equalTo(0L));
-                    assertNotNull(indexStats.getTotal().getIndexing());
-                    assertThat(indexStats.getTotal().getIndexing().getTotal().getThrottleTimeInMillis(), equalTo(0L));
-                    found = true;
-                }
-            }
-            assertThat("could not find collected stats for index [" + indexPrefix + i + "]", found, is(true));
-        }
+        IndicesStatsMarvelDoc indicesStatsMarvelDoc = (IndicesStatsMarvelDoc) marvelDoc;
+        IndicesStatsResponse indicesStats = indicesStatsMarvelDoc.getIndicesStats();
+        assertNotNull(indicesStats);
+        assertThat(indicesStats.getIndices().keySet(), hasSize(nbIndices));
     }
 
-    public void testIndexStatsCollectorWithLicensing() throws Exception {
+    public void testIndicesStatsCollectorWithLicensing() throws Exception {
         List<String> nodesIds = internalCluster().startNodesAsync(randomIntBetween(2, 5)).get();
         waitForNoBlocksOnNodes();
 
@@ -187,7 +154,7 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
 
             for (String node : nodesIds) {
                 logger.debug("--> creating a new instance of the collector");
-                IndexStatsCollector collector = newIndexStatsCollector(node);
+                IndicesStatsCollector collector = newIndicesStatsCollector(node);
                 assertNotNull(collector);
 
                 logger.debug("--> enabling license and checks that the collector can collect data if node is master");
@@ -220,14 +187,16 @@ public class IndexStatsCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    private IndexStatsCollector newIndexStatsCollector() {
+    private IndicesStatsCollector newIndicesStatsCollector() {
         // This collector runs on master node only
-        return newIndexStatsCollector(internalCluster().getMasterName());
+        return newIndicesStatsCollector(internalCluster().getMasterName());
     }
 
-    private IndexStatsCollector newIndexStatsCollector(String nodeId) {
-        assertNotNull(nodeId);
-        return new IndexStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
+    private IndicesStatsCollector newIndicesStatsCollector(String nodeId) {
+        if (!Strings.hasText(nodeId)) {
+            nodeId = randomFrom(internalCluster().getNodeNames());
+        }
+        return new IndicesStatsCollector(internalCluster().getInstance(Settings.class, nodeId),
                 internalCluster().getInstance(ClusterService.class, nodeId),
                 internalCluster().getInstance(MarvelSettings.class, nodeId),
                 internalCluster().getInstance(MarvelLicensee.class, nodeId),

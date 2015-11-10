@@ -9,15 +9,19 @@ import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.SecuredClient;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -36,7 +40,7 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
     private final Client client;
 
     @Inject
-    public IndexRecoveryCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings,  MarvelLicensee marvelLicensee,
+    public IndexRecoveryCollector(Settings settings, ClusterService clusterService, MarvelSettings marvelSettings, MarvelLicensee marvelLicensee,
                                   SecuredClient client) {
         super(settings, NAME, clusterService, marvelSettings, marvelLicensee);
         this.client = client;
@@ -50,15 +54,22 @@ public class IndexRecoveryCollector extends AbstractCollector<IndexRecoveryColle
     @Override
     protected Collection<MarvelDoc> doCollect() throws Exception {
         List<MarvelDoc> results = new ArrayList<>(1);
+        try {
+            RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
+                    .setIndices(marvelSettings.indices())
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .setActiveOnly(marvelSettings.recoveryActiveOnly())
+                    .get(marvelSettings.recoveryTimeout());
 
-        RecoveryResponse recoveryResponse = client.admin().indices().prepareRecoveries()
-                .setIndices(marvelSettings.indices())
-                .setIndicesOptions(IndicesOptions.lenientExpandOpen())
-                .setActiveOnly(marvelSettings.recoveryActiveOnly())
-                .get(marvelSettings.recoveryTimeout());
-
-        if (recoveryResponse.hasRecoveries()) {
-            results.add(new IndexRecoveryMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), recoveryResponse));
+            if (recoveryResponse.hasRecoveries()) {
+                results.add(new IndexRecoveryMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), recoveryResponse));
+            }
+        } catch (IndexNotFoundException e) {
+            if (MarvelShieldIntegration.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {
+                logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
+            } else {
+                throw e;
+            }
         }
         return Collections.unmodifiableCollection(results);
     }

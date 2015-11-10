@@ -7,8 +7,10 @@ package org.elasticsearch.marvel.agent.collector.indices;
 
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.marvel.agent.collector.AbstractCollectorTestCase;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
@@ -25,16 +27,11 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
+
     private final boolean activeOnly = false;
     private final String indexName = "test";
 
@@ -118,10 +115,12 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         }
     }
 
-    public void testIndexRecoveryCollectorWithLicensing() {
+    public void testIndexRecoveryCollectorWithLicensing() throws Exception {
+        List<String> nodesIds = internalCluster().startNodesAsync(randomIntBetween(2, 5)).get();
+        waitForNoBlocksOnNodes();
+
         try {
-            String[] nodes = internalCluster().getNodeNames();
-            for (String node : nodes) {
+            for (String node : nodesIds) {
                 logger.debug("--> creating a new instance of the collector");
                 IndexRecoveryCollector collector = newIndexRecoveryCollector(node);
                 assertNotNull(collector);
@@ -153,6 +152,39 @@ public class IndexRecoveryCollectorTests extends AbstractCollectorTestCase {
         } finally {
             // Ensure license is enabled before finishing the test
             enableLicense();
+        }
+    }
+
+    public void testEmptyCluster() throws Exception {
+        final String node = internalCluster().startNode(settingsBuilder().put(MarvelSettings.INDICES, Strings.EMPTY_ARRAY));
+        waitForNoBlocksOnNode(node);
+
+        try {
+            assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
+        } catch (IndexNotFoundException e) {
+            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
+        }
+    }
+
+    public void testEmptyClusterAllIndices() throws Exception {
+        final String node = internalCluster().startNode(settingsBuilder().put(MarvelSettings.INDICES, MetaData.ALL));
+        waitForNoBlocksOnNode(node);
+
+        try {
+            assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
+        } catch (IndexNotFoundException e) {
+            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
+        }
+    }
+
+    public void testEmptyClusterMissingIndex() throws Exception {
+        final String node = internalCluster().startNode(settingsBuilder().put(MarvelSettings.INDICES, "unknown"));
+        waitForNoBlocksOnNode(node);
+
+        try {
+            assertThat(newIndexRecoveryCollector(node).doCollect(), hasSize(0));
+        } catch (IndexNotFoundException e) {
+            fail("IndexNotFoundException has been thrown but it should have been swallowed by the collector");
         }
     }
 

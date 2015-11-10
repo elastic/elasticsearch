@@ -6,16 +6,21 @@
 package org.elasticsearch.marvel.agent.collector.indices;
 
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
+import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.SecuredClient;
 
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 
@@ -45,11 +50,20 @@ public class IndicesStatsCollector extends AbstractCollector<IndicesStatsCollect
 
     @Override
     protected Collection<MarvelDoc> doCollect() throws Exception {
-        IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
-                .setRefresh(true)
-                .get(marvelSettings.indicesStatsTimeout());
+        try {
+            IndicesStatsResponse indicesStats = client.admin().indices().prepareStats()
+                    .setIndices(marvelSettings.indices())
+                    .setIndicesOptions(IndicesOptions.lenientExpandOpen())
+                    .setRefresh(true)
+                    .get(marvelSettings.indicesStatsTimeout());
 
-        MarvelDoc result = new IndicesStatsMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), indicesStats);
-        return Collections.singletonList(result);
+            return Collections.singletonList(new IndicesStatsMarvelDoc(clusterUUID(), TYPE, System.currentTimeMillis(), indicesStats));
+        } catch (IndexNotFoundException e) {
+            if (MarvelShieldIntegration.enabled(settings) && IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices()))) {
+                logger.debug("collector [{}] - unable to collect data for missing index [{}]", name(), e.getIndex());
+                return Collections.emptyList();
+            }
+            throw e;
+        }
     }
 }

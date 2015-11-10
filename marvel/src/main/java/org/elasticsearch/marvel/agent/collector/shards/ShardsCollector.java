@@ -7,18 +7,19 @@ package org.elasticsearch.marvel.agent.collector.shards;
 
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.marvel.agent.collector.AbstractCollector;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.MarvelLicensee;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -72,7 +73,7 @@ public class ShardsCollector extends AbstractCollector<ShardsCollector> {
 
     private boolean match(String indexName) {
         String[] indices = marvelSettings.indices();
-        return CollectionUtils.isEmpty(indices) || Regex.simpleMatch(indices, indexName);
+        return IndexNameExpressionResolver.isAllIndices(Arrays.asList(marvelSettings.indices())) || Regex.simpleMatch(indices, indexName);
     }
 
     /**

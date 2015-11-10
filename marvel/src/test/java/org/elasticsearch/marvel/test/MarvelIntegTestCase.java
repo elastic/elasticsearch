@@ -51,10 +51,13 @@ import static org.hamcrest.Matchers.*;
  */
 public abstract class MarvelIntegTestCase extends ESIntegTestCase {
 
-    protected Boolean shieldEnabled = enableShield();
+    protected static Boolean shieldEnabled;
 
     @Override
     protected TestCluster buildTestCluster(Scope scope, long seed) throws IOException {
+        if (shieldEnabled == null) {
+            shieldEnabled = enableShield();
+        }
         logger.info("--> shield {}", shieldEnabled ? "enabled" : "disabled");
         return super.buildTestCluster(scope, seed);
     }
@@ -105,7 +108,9 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
      * Override and returns {@code false} to force running without shield
      */
     protected boolean enableShield() {
-        return randomBoolean();
+        boolean r = randomBoolean();
+        logger.info("--> shield is{}", r);
+        return r;
     }
 
     protected void stopCollection() {

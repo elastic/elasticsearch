@@ -221,6 +221,7 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
         }
 
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
+        final boolean indexCreatedBeforeV2_2 = context.indexVersionCreated().before(Version.V_2_2_0);
         // validation was not available prior to 2.x, so to support bwc
         // percolation queries we only ignore_malformed on 2.x created indexes
         if (!indexCreatedBeforeV2_0 && !GeoValidationMethod.isIgnoreMalformed(validationMethod)) {
@@ -237,15 +238,17 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             GeoUtils.normalizePoint(point, true, true);
         }
 
-        Double fromValue = null;
-        Double toValue = null;
+        Double fromValue;
+        Double toValue;
         if (from != null) {
             if (from instanceof Number) {
                 fromValue = unit.toMeters(((Number) from).doubleValue());
             } else {
                 fromValue = DistanceUnit.parse((String) from, unit, DistanceUnit.DEFAULT);
             }
-            fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
+            if (indexCreatedBeforeV2_2 == true) {
+                fromValue = geoDistance.normalize(fromValue, DistanceUnit.DEFAULT);
+            }
         } else {
             fromValue = new Double(0);
         }
@@ -256,13 +259,14 @@ public class GeoDistanceRangeQueryBuilder extends AbstractQueryBuilder<GeoDistan
             } else {
                 toValue = DistanceUnit.parse((String) to, unit, DistanceUnit.DEFAULT);
             }
-            toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
+            if (indexCreatedBeforeV2_2 == true) {
+                toValue = geoDistance.normalize(toValue, DistanceUnit.DEFAULT);
+            }
         } else {
             toValue = GeoUtils.maxRadialDistance(point);
         }
 
-        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
-        if (context.indexVersionCreated().onOrBefore(Version.CURRENT)) {
+        if (indexCreatedBeforeV2_2 == true) {
             GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
             IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
             return new GeoDistanceRangeQuery(point, fromValue, toValue, includeLower, includeUpper, geoDistance, geoFieldType,

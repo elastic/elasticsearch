@@ -65,8 +65,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
@@ -119,8 +118,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));
@@ -179,8 +177,7 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("field.bool").stringValue(), is("T"));
 
         assertThat(doc.rootDoc().getField("field.point"), notNullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getField("field.point").stringValue(), is("42.0,51.0"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().getField("field.point").stringValue()), is(GeoUtils.mortonHash(51.0, 42.0)));

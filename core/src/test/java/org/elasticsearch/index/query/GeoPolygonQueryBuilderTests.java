@@ -59,8 +59,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     @Override
     protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Version version = context.indexVersionCreated();
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertLegacyQuery(queryBuilder, query);
         } else {
             assertGeoPointQuery(queryBuilder, query);
@@ -300,8 +299,7 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
         QueryShardContext context = createShardContext();
         Version version = context.indexVersionCreated();
         Query parsedQuery = parseQuery(query).toQuery(context);
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             GeoPolygonQuery filter = (GeoPolygonQuery) parsedQuery;
             assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(filter.points().length, equalTo(4));

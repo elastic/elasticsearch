@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.suggest.completion.context;
 
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.GeoHashUtils;
@@ -193,7 +194,11 @@ public class GeoContextMapping extends ContextMapping {
                 }
             } else {
                 for (IndexableField field : fields) {
-                    spare.resetFromString(field.stringValue());
+                    if (field instanceof StringField) {
+                        spare.resetFromString(field.stringValue());
+                    } else {
+                        spare.resetFromIndexHash(Long.parseLong(field.stringValue()));
+                    }
                     geohashes.add(spare.geohash());
                 }
             }

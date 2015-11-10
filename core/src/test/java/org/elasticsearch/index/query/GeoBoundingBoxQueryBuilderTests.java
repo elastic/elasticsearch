@@ -267,10 +267,14 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     @Override
     protected void doAssertLuceneQuery(GeoBoundingBoxQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
-        if (queryBuilder.type() == GeoExecType.INDEXED) {
-            assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
+        if (context.indexVersionCreated().before(Version.V_2_2_0)) {
+            if (queryBuilder.type() == GeoExecType.INDEXED) {
+                assertTrue("Found no indexed geo query.", query instanceof ConstantScoreQuery);
+            } else {
+                assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
+            }
         } else {
-            assertTrue("Found no indexed geo query.", query instanceof InMemoryGeoBoundingBoxQuery);
+            assertTrue("Found no indexed geo query.", query instanceof GeoPointInBBoxQuery);
         }
     }
 
@@ -423,8 +427,7 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
 
     private void assertGeoBoundingBoxQuery(String query) throws IOException {
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
-        if (queryShardContext().indexVersionCreated().onOrBefore(Version.CURRENT)) {
+        if (queryShardContext().indexVersionCreated().before(Version.V_2_2_0)) {
             InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) parsedQuery;
             assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(filter.topLeft().lat(), closeTo(40, 1E-5));

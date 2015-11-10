@@ -310,8 +310,8 @@ public class GeoUtils {
     public static void normalizePoint(double[] lonLat, boolean normLon, boolean normLat) {
         assert lonLat != null && lonLat.length == 2;
 
-        normLat = normLat && (lonLat[1] > 90 || lonLat[1] <= -90);
-        normLon = normLon && (lonLat[0] > 180 || lonLat[0] <= -180);
+        normLat = normLat && (lonLat[1] > 90 || lonLat[1] < -90);
+        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180);
 
         if (normLat) {
             lonLat[1] = centeredModulus(lonLat[1], 360);

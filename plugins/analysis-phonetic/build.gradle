@@ -24,7 +24,7 @@ esplugin {
 
 dependencies {
   compile "org.apache.lucene:lucene-analyzers-phonetic:${versions.lucene}"
-  compile 'commons-codec:commons-codec:1.10'
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
 }
 
 dependencyLicenses {

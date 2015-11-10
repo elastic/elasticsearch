@@ -45,7 +45,7 @@ dependencies {
   compile "org.apache.pdfbox:pdfbox:${versions.pdfbox}"
   compile "org.apache.pdfbox:fontbox:${versions.pdfbox}"
   compile "org.apache.pdfbox:jempbox:${versions.pdfbox}"
-  compile 'commons-logging:commons-logging:1.1.3'
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
   compile "org.bouncycastle:bcmail-jdk15on:${versions.bouncycastle}"
   compile "org.bouncycastle:bcprov-jdk15on:${versions.bouncycastle}"
   compile "org.bouncycastle:bcpkix-jdk15on:${versions.bouncycastle}"

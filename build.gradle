@@ -1,29 +1,11 @@
-import org.elasticsearch.gradle.ElasticsearchProperties
-
 allprojects {
   apply plugin: 'idea'
   apply plugin: 'eclipse'
 }
 
 subprojects {
-  project.group = 'org.elasticsearch'
-  project.version = ElasticsearchProperties.version
-  project.ext.luceneVersion = ElasticsearchProperties.luceneVersion
-  repositories {
-    mavenCentral()
-    maven {
-      name 'sonatype-snapshots'
-      url 'http://oss.sonatype.org/content/repositories/snapshots/'
-    }
-    if (luceneVersion.contains('-snapshot')) {
-      String revision = (luceneVersion =~ /\d\.\d\.\d-snapshot-(\d+)/)[0][1]
-      maven {
-        name 'lucene-snapshots'
-        url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
-      }
-    }
-  }
-
+  group = 'org.elasticsearch'
+  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
 }
 
 if (hasProperty('projectsPrefix') == false) {

@@ -64,3 +64,9 @@ extraArchive {
   javadoc = false
   tests = false
 }
+
+eclipse {
+  classpath {
+    defaultOutputDir = new File(file('build'), 'eclipse')
+  }
+}

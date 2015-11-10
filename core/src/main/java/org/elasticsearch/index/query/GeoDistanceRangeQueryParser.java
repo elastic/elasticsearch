@@ -77,6 +77,7 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
         GeoDistance geoDistance = GeoDistance.DEFAULT;
         String optimizeBbox = "memory";
         final boolean indexCreatedBeforeV2_0 = parseContext.indexVersionCreated().before(Version.V_2_0_0);
+        final boolean indexCreatedBeforeV2_2 = parseContext.indexVersionCreated().before(Version.V_2_2_0);
         boolean coerce = false;
         boolean ignoreMalformed = false;
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -187,15 +188,17 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
             GeoUtils.normalizePoint(point, coerce, coerce);
         }
 
-        Double from = null;
-        Double to = null;
+        Double from;
+        Double to;
         if (vFrom != null) {
             if (vFrom instanceof Number) {
                 from = unit.toMeters(((Number) vFrom).doubleValue());
             } else {
                 from = DistanceUnit.parse((String) vFrom, unit, DistanceUnit.DEFAULT);
             }
-            from = geoDistance.normalize(from, DistanceUnit.DEFAULT);
+            if (indexCreatedBeforeV2_2 == true) {
+                from = geoDistance.normalize(from, DistanceUnit.DEFAULT);
+            }
         } else {
             from = new Double(0);
         }
@@ -205,7 +208,9 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
             } else {
                 to = DistanceUnit.parse((String) vTo, unit, DistanceUnit.DEFAULT);
             }
-            to = geoDistance.normalize(to, DistanceUnit.DEFAULT);
+            if (indexCreatedBeforeV2_2 == true) {
+                to = geoDistance.normalize(to, DistanceUnit.DEFAULT);
+            }
         } else {
             to = GeoUtils.maxRadialDistance(point);
         }
@@ -232,8 +237,7 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
         }
 
         final Query query;
-        // norelease move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
-        if (parseContext.indexVersionCreated().onOrBefore(Version.V_2_2_0)) {
+        if (indexCreatedBeforeV2_2 == true) {
             query = new GeoDistanceRangeQuery(point, from, to, includeLower, includeUpper, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         } else {
             query = new GeoPointDistanceRangeQuery(indexFieldData.getFieldNames().indexName(), point.lon(), point.lat(),

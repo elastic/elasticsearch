@@ -86,7 +86,7 @@ public abstract class AbstractGeoPointDVIndexFieldData extends DocValuesIndexFie
             // Ignore breaker
             return new GeoPointDVIndexFieldData(index, fieldType.names(), fieldType.fieldDataType(),
                     // norelease cut over to .before(Version.V_2_2_0) once GeoPointFieldV2 is completely merged
-                    Version.indexCreated(indexSettings).onOrBefore(Version.CURRENT));
+                    Version.indexCreated(indexSettings).before(Version.V_2_2_0));
         }
     }
 }

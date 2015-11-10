@@ -45,7 +45,6 @@ import org.junit.Test;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
 import java.util.Locale;
 
 import static org.elasticsearch.client.Requests.indexRequest;
@@ -581,8 +580,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
         XContentBuilder mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
                 .endObject().startObject("date").field("type", "date").endObject().startObject("num").field("type", "double")
                 .endObject().startObject("geo").field("type", "geo_point");
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             mapping.field("coerce", true);
         }
         mapping.endObject().endObject().endObject().endObject();

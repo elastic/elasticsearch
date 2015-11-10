@@ -203,8 +203,7 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         @Override
         public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder;
-            // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-            if (parserContext.indexVersionCreated().onOrBefore(Version.CURRENT)) {
+            if (parserContext.indexVersionCreated().before(Version.V_2_2_0)) {
                 builder = new GeoPointFieldMapperLegacy.Builder(name);
             } else {
                 builder = new GeoPointFieldMapper.Builder(name);

@@ -50,7 +50,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -82,13 +81,15 @@ public class GeoDistanceTests extends ESIntegTestCase {
     }
 
     @Test
-    public void simpleDistanceTests() throws Exception {
+    public void testSimpleDistance() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
-                .endObject().endObject();
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -261,14 +262,11 @@ public class GeoDistanceTests extends ESIntegTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .field("ignore_malformed", true);
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
-            xContentBuilder.field("coerce", true);
+                .startObject("properties").startObject("locations").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true).field("coerce", true);
         }
-        xContentBuilder.startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject()
-                .endObject().endObject().endObject();
+        xContentBuilder.field("ignore_malformed", true).endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -403,9 +401,11 @@ public class GeoDistanceTests extends ESIntegTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject().endObject()
-                .endObject().endObject();
+                .startObject("properties").startObject("locations").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -456,8 +456,11 @@ public class GeoDistanceTests extends ESIntegTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
-                .endObject().endObject();
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -529,6 +532,8 @@ public class GeoDistanceTests extends ESIntegTestCase {
 
     @Test
     public void testDistanceSortingNestedFields() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company")
                 .startObject("properties")
                 .startObject("name").field("type", "string").endObject()
@@ -536,15 +541,16 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .field("type", "nested")
                 .startObject("properties")
                 .startObject("name").field("type", "string").endObject()
-                .startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .startObject("fielddata").field("format", randomNumericFieldDataFormat()).endObject().endObject()
+                .startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject()
                 .endObject()
                 .endObject()
                 .endObject()
                 .endObject().endObject();
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         assertAcked(prepareCreate("companies").setSettings(settings).addMapping("company", xContentBuilder));
         ensureGreen();
 
@@ -695,6 +701,8 @@ public class GeoDistanceTests extends ESIntegTestCase {
      */
     @Test
     public void testGeoDistanceFilter() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         double lat = 40.720611;
         double lon = -73.998776;
 
@@ -703,24 +711,18 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .startObject("location")
                 .startObject("properties")
                 .startObject("pin")
-                .field("type", "geo_point")
-                .field("geohash", true)
-                .field("geohash_precision", 24)
-                .field("lat_lon", true)
-                .startObject("fielddata")
-                .field("format", randomNumericFieldDataFormat())
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
+                .field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            mapping.field("lat_lon", true);
+        }
+        mapping.endObject().endObject().endObject().endObject();
 
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                 .field("pin", GeoHashUtils.stringEncode(lon, lat))
                 .endObject();
 
-        assertAcked(prepareCreate("locations").addMapping("location", mapping));
+        assertAcked(prepareCreate("locations").setSettings(settings).addMapping("location", mapping));
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource(source).execute().actionGet();
         refresh();
         client().prepareGet("locations", "location", "1").execute().actionGet();
@@ -747,11 +749,17 @@ public class GeoDistanceTests extends ESIntegTestCase {
     public void testDuelOptimizations() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point,lat_lon=true"));
+        if (version.before(Version.V_2_2_0)) {
+            assertAcked(prepareCreate("index").setSettings(settings)
+                    .addMapping("type", "location", "type=geo_point,lat_lon=true"));
+        } else {
+            assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
+        }
         final int numDocs = scaledRandomIntBetween(3000, 10000);
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            docs.add(client().prepareIndex("index", "type").setSource(jsonBuilder().startObject().startObject("location").field("lat", randomLat()).field("lon", randomLon()).endObject().endObject()));
+            docs.add(client().prepareIndex("index", "type").setSource(jsonBuilder().startObject().startObject("location")
+                    .field("lat", randomLat()).field("lon", randomLon()).endObject().endObject()));
         }
         indexRandom(true, docs);
         ensureSearchable();

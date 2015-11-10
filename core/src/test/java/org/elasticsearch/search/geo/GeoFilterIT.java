@@ -40,12 +40,12 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.GeohashCellQuery;
@@ -366,27 +366,28 @@ public class GeoFilterIT extends ESIntegTestCase {
     @Test
     public void bulktest() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-
-        String mapping = XContentFactory.jsonBuilder()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("country")
                 .startObject("properties")
                 .startObject("pin")
-                .field("type", "geo_point")
-                .field("lat_lon", true)
-                .field("store", true)
+                .field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.field("store", true)
                 .endObject()
                 .startObject("location")
                 .field("type", "geo_shape")
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
-                .string();
+                .endObject();
 
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
-        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        client().admin().indices().prepareCreate("countries").setSettings(settings).addMapping("country", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("countries").setSettings(settings)
+                .addMapping("country", xContentBuilder.string()).execute().actionGet();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null).execute().actionGet();
 
         for (BulkItemResponse item : bulk.getItems()) {
@@ -426,8 +427,7 @@ public class GeoFilterIT extends ESIntegTestCase {
         GeoPoint point = new GeoPoint();
         for (SearchHit hit : distance.getHits()) {
             String name = hit.getId();
-            // norelease cut over to .before(Version.V_2_2_0) once geopointv2 is fully merged
-            if (version.onOrBefore(Version.CURRENT)) {
+            if (version.before(Version.V_2_2_0)) {
                 point.resetFromString(hit.fields().get("pin").getValue().toString());
             } else {
                 final long hash = hit.fields().get("pin").getValue();

@@ -43,13 +43,15 @@ import static org.hamcrest.Matchers.equalTo;
 public class GeoBoundingBoxIT extends ESIntegTestCase {
 
     @Test
-    public void simpleBoundingBoxTest() throws Exception {
+    public void testSimpleBoundingBoxTest() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .endObject().endObject().endObject().endObject();
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -116,13 +118,15 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
     }
 
     @Test
-    public void limitsBoundingBoxTest() throws Exception {
+    public void testLimitsBoundingBox() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .endObject().endObject().endObject().endObject();
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -222,12 +226,15 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
     }
 
     @Test
-    public void limit2BoundingBoxTest() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+    public void testLimit2BoundingBox() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .endObject().endObject().endObject().endObject();
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
@@ -275,12 +282,15 @@ public class GeoBoundingBoxIT extends ESIntegTestCase {
     }
 
     @Test
-    public void completeLonRangeTest() throws Exception {
-        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+    public void testCompleteLonRange() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
-                .endObject().endObject();
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 

@@ -2606,8 +2606,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     }
 
     private void assertGeoDistanceRangeQuery(IndexQueryParserService queryParser, Query query, double lat, double lon, double distance, DistanceUnit distanceUnit) throws IOException {
-        // norelease cut over to .before(Version.V_2_2_0) once geopointv2 is fully merged
-        if (queryParser.getIndexCreatedVersion().onOrBefore(Version.CURRENT)) {
+        if (queryParser.getIndexCreatedVersion().before(Version.V_2_2_0)) {
             assertThat(query, instanceOf(GeoDistanceRangeQuery.class));
             GeoDistanceRangeQuery q = (GeoDistanceRangeQuery) query;
             assertThat(q.fieldName(), equalTo("location"));
@@ -2626,8 +2625,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     }
 
     private void assertGeoBBoxQuery(IndexQueryParserService queryParser,  Query query, double maxLat, double minLon, double minLat, double maxLon) {
-        // norelease cut over to .before(Version.V_2_2_0) once geopointv2 is fully merged
-        if (queryParser.getIndexCreatedVersion().onOrBefore(Version.CURRENT)) {
+        if (queryParser.getIndexCreatedVersion().before(Version.V_2_2_0)) {
             assertThat(query, instanceOf(InMemoryGeoBoundingBoxQuery.class));
             InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) query;
             assertThat(filter.fieldName(), equalTo("location"));
@@ -2647,8 +2645,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
     }
 
     private void assertGeoPolygonQuery(IndexQueryParserService queryParser, Query query) {
-        // norelease cut over to .before(Version.V_2_2_0) once geopointv2 is fully merged
-        if (queryParser.getIndexCreatedVersion().onOrBefore(Version.CURRENT)) {
+        if (queryParser.getIndexCreatedVersion().before(Version.V_2_2_0)) {
             assertThat(query, instanceOf(GeoPolygonQuery.class));
             GeoPolygonQuery filter = (GeoPolygonQuery) query;
             assertThat(filter.fieldName(), equalTo("location"));

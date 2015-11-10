@@ -22,6 +22,7 @@ package org.elasticsearch.search.suggest.context;
 import com.carrotsearch.hppc.IntHashSet;
 import org.apache.lucene.analysis.PrefixAnalyzer.PrefixTokenFilter;
 import org.apache.lucene.analysis.TokenStream;
+import org.apache.lucene.document.StringField;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.GeoHashUtils;
@@ -653,7 +654,11 @@ public class GeolocationContextMapping extends ContextMapping {
                         geohashes = new ArrayList<>(fields.length);
                         GeoPoint spare = new GeoPoint();
                         for (IndexableField field : fields) {
-                            spare.resetFromString(field.stringValue());
+                            if (field instanceof StringField) {
+                                spare.resetFromString(field.stringValue());
+                            } else {
+                                spare.resetFromIndexHash(Long.parseLong(field.stringValue()));
+                            }
                             geohashes.add(spare.geohash());
                         }
                     }

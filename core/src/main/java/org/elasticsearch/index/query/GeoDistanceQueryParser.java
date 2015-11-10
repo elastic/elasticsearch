@@ -174,8 +174,7 @@ public class GeoDistanceQueryParser implements QueryParser {
 
         IndexGeoPointFieldData indexFieldData = parseContext.getForField(fieldType);
         final Query query;
-        // norelease move to .before(Version.V_2_2_0) once GeoPointField V2 is fully merged
-        if (parseContext.indexVersionCreated().onOrBefore(Version.V_2_2_0)) {
+        if (parseContext.indexVersionCreated().before(Version.V_2_2_0)) {
             query = new GeoDistanceRangeQuery(point, null, distance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         } else {
             distance = GeoUtils.maxRadialDistance(point, distance);

@@ -29,6 +29,7 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -84,14 +85,14 @@ final class ExternalNode implements Closeable {
         this.nodeServiceClient = nodeServiceClient;
     }
 
-    synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal, String unicastHosts) throws IOException, InterruptedException {
+    synchronized ExternalNode start(Client localNode, Settings defaultSettings, String nodeName, String clusterName, int nodeOrdinal) throws IOException, InterruptedException {
         ExternalNode externalNode = new ExternalNode(version, clusterName, random.nextLong(), nodeServiceClient, nodeConfigurationSource);
         Settings settings = Settings.builder().put(defaultSettings).put(nodeConfigurationSource.nodeSettings(nodeOrdinal)).build();
-        externalNode.startInternal(localNode, settings, nodeName, clusterName, unicastHosts);
+        externalNode.startInternal(localNode, settings, nodeName, clusterName);
         return externalNode;
     }
 
-    synchronized void startInternal(Client client, Settings settings, String nodeName, String clusterName, String unicastHosts) throws IOException, InterruptedException {
+    synchronized void startInternal(Client client, Settings settings, String nodeName, String clusterName) throws IOException, InterruptedException {
         if (running()) {
             throw new IllegalStateException("Already started");
         }
@@ -131,12 +132,20 @@ final class ExternalNode implements Closeable {
         for (Map.Entry<String, String> entry : externalNodeSettings.getAsMap().entrySet()) {
             args.append(" -Des.").append(entry.getKey()).append('=').append(entry.getValue());
         }
-        if (externalNodeSettings.get("transport.tcp.port") == null) {
+        String tcpPortSetting = externalNodeSettings.get("transport.tcp.port");
+        if (tcpPortSetting == null) {
             throw new IllegalArgumentException(
                 "Settings didn't contains tcp port range which can cause tests to interfere with each other.");
+        } else {
+            if (tcpPortSetting.matches("[23]\\d\\d\\d\\d-[23]\\d\\d\\d\\d") == false) {
+                throw new IllegalArgumentException(
+                        LoggerMessageFormat.format("Trying to run an external node with a port range not reserved for external nodes [{}].",
+                                new Object[] { tcpPortSetting }));
+            }
         }
-
-        args.append(" -D").append(UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS).append('=').append(unicastHosts);
+        if (externalNodeSettings.get(UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS) == null) {
+            throw new IllegalArgumentException("Without unicast hosts the external cluster isn't likely to work!");
+        }
 
         boolean success = false;
         try {

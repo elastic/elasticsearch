@@ -55,4 +55,36 @@
             </testResource>
         </testResources>
     </build>
+
+    <profiles>
+        <profile>
+            <id>kill</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.codehaus.mojo</groupId>
+                        <artifactId>exec-maven-plugin</artifactId>
+                        <version>1.4.0</version>
+                        <executions>
+                            <execution>
+                                <id>kill-all-backwards-nodes</id>
+                                <goals>
+                                    <goal>java</goal>
+                                </goals>
+                                <phase>test</phase>
+                                <configuration>
+                                    <mainClass>org.elasticsearch.test.ExternalNodeService</mainClass>
+                                    <arguments>
+                                        <argument>kill</argument>
+                                    </arguments>
+                                    <!-- Use the test scop to pick up log4j configuration -->
+                                    <classpathScope>test</classpathScope>
+                                </configuration>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

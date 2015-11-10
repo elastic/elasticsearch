@@ -19,7 +19,7 @@
 
 // Default security policy file.
 // On startup, BootStrap reads environment and adds additional permissions
-// for configured paths to these.
+// for configured paths and network binding to these.
 
 //// System code permissions:
 //// These permissions apply to the JDK itself:
@@ -38,7 +38,7 @@ grant codeBase "${codebase.securesm-1.0.jar}" {
 //// Very special jar permissions:
 //// These are dangerous permissions that we don't want to grant to everything.
 
-grant codeBase "${codebase.lucene-core-5.4.0-snapshot-1711508.jar}" {
+grant codeBase "${codebase.lucene-core-5.4.0-snapshot-1712973.jar}" {
   // needed to allow MMapDirectory's "unmap hack"
   permission java.lang.RuntimePermission "accessClassInPackage.sun.misc";
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
@@ -53,7 +53,7 @@ grant {
   permission org.elasticsearch.SpecialPermission;
 
   // Allow connecting to the internet anywhere
-  permission java.net.SocketPermission "*", "accept,listen,connect,resolve";
+  permission java.net.SocketPermission "*", "accept,connect,resolve";
 
   // Allow read/write to all system properties
   permission java.util.PropertyPermission "*", "read,write";
@@ -87,9 +87,6 @@ grant {
   // needed for jimfs and NewPathForShardsTests
   // otherwise can be provided only to test libraries
   permission java.lang.RuntimePermission "fileSystemProvider";
-
-  // needed by plugin manager to set unix permissions
-  permission java.lang.RuntimePermission "accessUserInformation";
 
   // needed by jvminfo for monitoring the jvm
   permission java.lang.management.ManagementPermission "monitor";

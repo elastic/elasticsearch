@@ -22,6 +22,8 @@ package org.elasticsearch.nodesinfo;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -29,8 +31,7 @@ import org.elasticsearch.test.ESIntegTestCase.Scope;
 import java.util.List;
 
 import static org.elasticsearch.client.Requests.nodesInfoRequest;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -80,5 +81,37 @@ public class SimpleNodesInfoIT extends ESIntegTestCase {
         response = client().admin().cluster().nodesInfo(nodesInfoRequest(server2NodeId)).actionGet();
         assertThat(response.getNodes().length, is(1));
         assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
+    }
+
+    public void testAllocatedProcessors() throws Exception {
+        List<String> nodesIds = internalCluster().
+                startNodesAsync(
+                        Settings.builder().put(EsExecutors.PROCESSORS, 3).build(),
+                        Settings.builder().put(EsExecutors.PROCESSORS, 6).build()
+                ).get();
+
+        final String node_1 = nodesIds.get(0);
+        final String node_2 = nodesIds.get(1);
+
+        ClusterHealthResponse clusterHealth = client().admin().cluster().prepareHealth().setWaitForGreenStatus().setWaitForNodes("2").get();
+        logger.info("--> done cluster_health, status " + clusterHealth.getStatus());
+
+        String server1NodeId = internalCluster().getInstance(ClusterService.class, node_1).state().nodes().localNodeId();
+        String server2NodeId = internalCluster().getInstance(ClusterService.class, node_2).state().nodes().localNodeId();
+        logger.info("--> started nodes: " + server1NodeId + " and " + server2NodeId);
+
+        NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();
+
+        assertThat(response.getNodes().length, is(2));
+        assertThat(response.getNodesMap().get(server1NodeId), notNullValue());
+        assertThat(response.getNodesMap().get(server2NodeId), notNullValue());
+
+        assertThat(response.getNodesMap().get(server1NodeId).getOs().getAvailableProcessors(),
+                equalTo(Runtime.getRuntime().availableProcessors()));
+        assertThat(response.getNodesMap().get(server2NodeId).getOs().getAvailableProcessors(),
+                equalTo(Runtime.getRuntime().availableProcessors()));
+
+        assertThat(response.getNodesMap().get(server1NodeId).getOs().getAllocatedProcessors(), equalTo(3));
+        assertThat(response.getNodesMap().get(server2NodeId).getOs().getAllocatedProcessors(), equalTo(6));
     }
 }

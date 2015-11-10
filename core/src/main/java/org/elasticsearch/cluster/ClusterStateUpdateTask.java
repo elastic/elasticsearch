@@ -51,7 +51,7 @@ abstract public class ClusterStateUpdateTask {
      * called when the task was rejected because the local node is no longer master
      */
     public void onNoLongerMaster(String source) {
-        onFailure(source, new EsRejectedExecutionException("no longer master. source: [" + source + "]"));
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
     }
 
     /**

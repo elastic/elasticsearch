@@ -13,6 +13,7 @@
                     start_time        .+   \n
                     end_epoch         .+   \n
                     end_time          .+   \n
+                    duration          .+   \n
                     indices           .+   \n
                     successful_shards .+   \n
                     failed_shards     .+   \n
@@ -74,6 +75,6 @@
 
   - match:
       $body: |
-               /^   snap1\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
-                    snap2\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
+               /^   snap1\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
+                    snap2\s+ SUCCESS\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \d+\s+ \d\d\:\d\d\:\d\d\s+ \S+\s+ 2\s+ 2\s+ 0\s+ 2\s*\n
                $/

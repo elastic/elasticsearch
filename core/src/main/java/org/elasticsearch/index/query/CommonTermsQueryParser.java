@@ -39,7 +39,7 @@ public class CommonTermsQueryParser implements QueryParser<CommonTermsQueryBuild
         XContentParser parser = parseContext.parser();
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new ParsingException(parser.getTokenLocation(), "[common] query malformed, no field");
+            throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query malformed, no field");
         }
         String fieldName = parser.currentName();
         Object text = null;
@@ -70,13 +70,16 @@ public class CommonTermsQueryParser implements QueryParser<CommonTermsQueryBuild
                                 } else if ("high_freq".equals(innerFieldName) || "highFreq".equals(innerFieldName)) {
                                     highFreqMinimumShouldMatch = parser.text();
                                 } else {
-                                    throw new ParsingException(parser.getTokenLocation(), "[common] query does not support [" + innerFieldName
+                                    throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query does not support [" + innerFieldName
                                             + "] for [" + currentFieldName + "]");
                                 }
+                            } else {
+                                throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] unexpected token type [" + token
+                                        + "] after [" + innerFieldName + "]");
                             }
                         }
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[common] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                     }
                 } else if (token.isValue()) {
                     if ("query".equals(currentFieldName)) {
@@ -98,7 +101,7 @@ public class CommonTermsQueryParser implements QueryParser<CommonTermsQueryBuild
                     } else if ("_name".equals(currentFieldName)) {
                         queryName = parser.text();
                     } else {
-                        throw new ParsingException(parser.getTokenLocation(), "[common] query does not support [" + currentFieldName + "]");
+                        throw new ParsingException(parser.getTokenLocation(), "[" + CommonTermsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                     }
                 }
             }

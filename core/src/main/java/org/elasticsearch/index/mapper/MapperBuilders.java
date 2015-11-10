@@ -21,9 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.*;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
@@ -90,10 +88,6 @@ public final class MapperBuilders {
 
     public static DoubleFieldMapper.Builder doubleField(String name) {
         return new DoubleFieldMapper.Builder(name);
-    }
-
-    public static GeoPointFieldMapper.Builder geoPointField(String name) {
-        return new GeoPointFieldMapper.Builder(name);
     }
 
     public static GeoShapeFieldMapper.Builder geoShapeField(String name) {

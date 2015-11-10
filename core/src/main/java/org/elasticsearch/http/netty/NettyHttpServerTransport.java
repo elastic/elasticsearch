@@ -81,6 +81,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
 
     public static final boolean DEFAULT_SETTING_PIPELINING = true;
     public static final int DEFAULT_SETTING_PIPELINING_MAX_EVENTS = 10000;
+    public static final String DEFAULT_PORT_RANGE = "9200-9300";
 
     protected final NetworkService networkService;
     protected final BigArrays bigArrays;
@@ -157,7 +158,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
         this.maxCompositeBufferComponents = settings.getAsInt("http.netty.max_composite_buffer_components", -1);
         this.workerCount = settings.getAsInt("http.netty.worker_count", EsExecutors.boundedNumberOfProcessors(settings) * 2);
         this.blockingServer = settings.getAsBoolean("http.netty.http.blocking_server", settings.getAsBoolean(TCP_BLOCKING_SERVER, settings.getAsBoolean(TCP_BLOCKING, false)));
-        this.port = settings.get("http.netty.port", settings.get("http.port", "9200-9300"));
+        this.port = settings.get("http.netty.port", settings.get("http.port", DEFAULT_PORT_RANGE));
         this.bindHosts = settings.getAsArray("http.netty.bind_host", settings.getAsArray("http.bind_host", settings.getAsArray("http.host", null)));
         this.publishHosts = settings.getAsArray("http.netty.publish_host", settings.getAsArray("http.publish_host", settings.getAsArray("http.host", null)));
         this.publishPort = settings.getAsInt("http.netty.publish_port", settings.getAsInt("http.publish_port", 0));
@@ -257,16 +258,28 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             boundAddresses.add(bindAddress(address));
         }
 
-        InetSocketTransportAddress boundAddress = boundAddresses.get(0);
-        InetSocketAddress publishAddress;
-        if (0 == publishPort) {
-            publishPort = boundAddress.getPort();
-        }
+        final InetAddress publishInetAddress;
         try {
-            publishAddress = new InetSocketAddress(networkService.resolvePublishHostAddresses(publishHosts), publishPort);
+            publishInetAddress = networkService.resolvePublishHostAddresses(publishHosts);
         } catch (Exception e) {
             throw new BindTransportException("Failed to resolve publish address", e);
         }
+
+        if (0 == publishPort) {
+            for (InetSocketTransportAddress boundAddress : boundAddresses) {
+                InetAddress boundInetAddress = boundAddress.address().getAddress();
+                if (boundInetAddress.isAnyLocalAddress() || boundInetAddress.equals(publishInetAddress)) {
+                    publishPort = boundAddress.getPort();
+                    break;
+                }
+            }
+        }
+
+        if (0 == publishPort) {
+            throw new BindHttpException("Publish address [" + publishInetAddress + "] does not match any of the bound addresses [" + boundAddresses + "]");
+        }
+
+        final InetSocketAddress publishAddress = new InetSocketAddress(publishInetAddress, publishPort);;
         this.boundAddress = new BoundTransportAddress(boundAddresses.toArray(new TransportAddress[boundAddresses.size()]), new InetSocketTransportAddress(publishAddress));
     }
     

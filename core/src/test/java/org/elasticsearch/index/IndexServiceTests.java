@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.InvalidAliasNameException;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -73,6 +74,7 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testFilteringAliases() throws Exception {
         IndexService indexService = newIndexService();
+        IndexShard shard = indexService.getShard(0);
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
         add(indexService, "all", null);
@@ -81,41 +83,44 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertThat(indexService.getMetaData().getAliases().containsKey("dogs"), equalTo(true));
         assertThat(indexService.getMetaData().getAliases().containsKey("turtles"), equalTo(false));
 
-        assertThat(indexService.aliasFilter("cats").toString(), equalTo("animal:cat"));
-        assertThat(indexService.aliasFilter("cats", "dogs").toString(), equalTo("animal:cat animal:dog"));
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "cats").toString(), equalTo("animal:cat"));
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "cats", "dogs").toString(), equalTo("animal:cat animal:dog"));
 
         // Non-filtering alias should turn off all filters because filters are ORed
-        assertThat(indexService.aliasFilter("all"), nullValue());
-        assertThat(indexService.aliasFilter("cats", "all"), nullValue());
-        assertThat(indexService.aliasFilter("all", "cats"), nullValue());
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "all"), nullValue());
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "cats", "all"), nullValue());
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "all", "cats"), nullValue());
 
         add(indexService, "cats", filter(termQuery("animal", "feline")));
         add(indexService, "dogs", filter(termQuery("animal", "canine")));
-        assertThat(indexService.aliasFilter("dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
     }
 
     public void testAliasFilters() throws Exception {
         IndexService indexService = newIndexService();
+        IndexShard shard = indexService.getShard(0);
+
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
 
-        assertThat(indexService.aliasFilter(), nullValue());
-        assertThat(indexService.aliasFilter("dogs").toString(), equalTo("animal:dog"));
-        assertThat(indexService.aliasFilter("dogs", "cats").toString(), equalTo("animal:dog animal:cat"));
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext()), nullValue());
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "dogs").toString(), equalTo("animal:dog"));
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:dog animal:cat"));
 
         add(indexService, "cats", filter(termQuery("animal", "feline")));
         add(indexService, "dogs", filter(termQuery("animal", "canine")));
 
-        assertThat(indexService.aliasFilter("dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
+        assertThat(indexService.aliasFilter(shard.getQueryShardContext(), "dogs", "cats").toString(), equalTo("animal:canine animal:feline"));
     }
 
     public void testRemovedAliasFilter() throws Exception {
         IndexService indexService = newIndexService();
+        IndexShard shard = indexService.getShard(0);
 
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         remove(indexService, "cats");
         try {
-            indexService.aliasFilter("cats");
+            indexService.aliasFilter(shard.getQueryShardContext(), "cats");
             fail("Expected InvalidAliasNameException");
         } catch (InvalidAliasNameException e) {
             assertThat(e.getMessage(), containsString("Invalid alias name [cats]"));
@@ -124,11 +129,13 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
 
     public void testUnknownAliasFilter() throws Exception {
         IndexService indexService = newIndexService();
+        IndexShard shard = indexService.getShard(0);
+
         add(indexService, "cats", filter(termQuery("animal", "cat")));
         add(indexService, "dogs", filter(termQuery("animal", "dog")));
 
         try {
-            indexService.aliasFilter("unknown");
+            indexService.aliasFilter(shard.getQueryShardContext(), "unknown");
             fail();
         } catch (InvalidAliasNameException e) {
             // all is well

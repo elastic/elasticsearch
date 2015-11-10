@@ -43,7 +43,7 @@ public class CountDownTests extends ESTestCase {
                     try {
                         latch.await();
                     } catch (InterruptedException e) {
-                        throw new RuntimeException();
+                        throw new RuntimeException(e);
                     }
                     while (true) {
                         if(frequently()) {

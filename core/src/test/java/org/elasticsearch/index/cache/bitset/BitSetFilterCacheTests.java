@@ -93,7 +93,17 @@ public class BitSetFilterCacheTests extends ESTestCase {
         IndexReader reader = DirectoryReader.open(writer, false);
         IndexSearcher searcher = new IndexSearcher(reader);
 
-        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, warmer);
+        BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, warmer, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
         BitSetProducer filter = cache.getBitSetProducer(new TermQuery(new Term("field", "value")));
         assertThat(matchCount(filter, reader), equalTo(3));
 
@@ -136,8 +146,7 @@ public class BitSetFilterCacheTests extends ESTestCase {
         final AtomicInteger onCacheCalls = new AtomicInteger();
         final AtomicInteger onRemoveCalls = new AtomicInteger();
 
-        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, warmer);
-        cache.setListener(new BitsetFilterCache.Listener() {
+        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, warmer, new BitsetFilterCache.Listener() {
             @Override
             public void onCache(ShardId shardId, Accountable accountable) {
                 onCacheCalls.incrementAndGet();
@@ -174,35 +183,12 @@ public class BitSetFilterCacheTests extends ESTestCase {
         assertEquals(0, stats.get());
     }
 
-    public void testSetListenerTwice() {
-        final BitsetFilterCache cache = new BitsetFilterCache(INDEX_SETTINGS, warmer);
-        cache.setListener(new BitsetFilterCache.Listener() {
-
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        });
+    public void testSetNullListener() {
         try {
-            cache.setListener(new BitsetFilterCache.Listener() {
-
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {
-
-                }
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {
-
-                }
-            });
-            fail("can't set it twice");
-        } catch (IllegalStateException ex) {
+            new BitsetFilterCache(INDEX_SETTINGS, warmer, null);
+            fail("listener can't be null");
+        } catch (IllegalArgumentException ex) {
+            assertEquals("listener must not be null", ex.getMessage());
             // all is well
         }
     }

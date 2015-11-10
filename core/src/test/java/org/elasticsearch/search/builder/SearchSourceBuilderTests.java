@@ -20,6 +20,8 @@
 package org.elasticsearch.search.builder;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.ModulesBuilder;
@@ -31,9 +33,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
 import org.elasticsearch.index.query.EmptyQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -292,13 +292,17 @@ public class SearchSourceBuilderTests extends ESTestCase {
     }
 
     public void testFromXContent() throws IOException {
-        SearchSourceBuilder testBuilder = createSearchSourceBuilder();
-        String builderAsString = testBuilder.toString();
-        assertParseSearchSource(testBuilder, builderAsString);
+        SearchSourceBuilder testSearchSourceBuilder = createSearchSourceBuilder();
+        XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        testSearchSourceBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        assertParseSearchSource(testSearchSourceBuilder, builder.bytes());
     }
 
-    private void assertParseSearchSource(SearchSourceBuilder testBuilder, String builderAsString) throws IOException {
-        XContentParser parser = XContentFactory.xContent(builderAsString).createParser(builderAsString);
+    private void assertParseSearchSource(SearchSourceBuilder testBuilder, BytesReference searchSourceAsBytes) throws IOException {
+        XContentParser parser = XContentFactory.xContent(searchSourceAsBytes).createParser(searchSourceAsBytes);
         QueryParseContext parseContext = createParseContext(parser);
         parseContext.reset(parser);
         if (randomBoolean()) {
@@ -418,6 +422,6 @@ public class SearchSourceBuilderTests extends ESTestCase {
         SearchSourceBuilder builder = new SearchSourceBuilder();
         builder.postFilter(EmptyQueryBuilder.PROTOTYPE);
         String query = "{ \"post_filter\": {} }";
-        assertParseSearchSource(builder, query);
+        assertParseSearchSource(builder, new BytesArray(query));
     }
 }

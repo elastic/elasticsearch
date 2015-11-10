@@ -301,6 +301,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
     public static class OsStats implements ToXContent, Streamable {
 
         int availableProcessors;
+        int allocatedProcessors;
         long availableMemory;
         final ObjectIntHashMap<String> names;
 
@@ -310,6 +311,8 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
         public void addNodeInfo(NodeInfo nodeInfo) {
             availableProcessors += nodeInfo.getOs().getAvailableProcessors();
+            allocatedProcessors += nodeInfo.getOs().getAllocatedProcessors();
+
             if (nodeInfo.getOs().getName() != null) {
                 names.addTo(nodeInfo.getOs().getName(), 1);
             }
@@ -319,6 +322,10 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             return availableProcessors;
         }
 
+        public int getAllocatedProcessors() {
+            return allocatedProcessors;
+        }
+
         public ByteSizeValue getAvailableMemory() {
             return new ByteSizeValue(availableMemory);
         }
@@ -326,6 +333,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         @Override
         public void readFrom(StreamInput in) throws IOException {
             availableProcessors = in.readVInt();
+            allocatedProcessors = in.readVInt();
             availableMemory = in.readLong();
             int size = in.readVInt();
             names.clear();
@@ -337,6 +345,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVInt(availableProcessors);
+            out.writeVInt(allocatedProcessors);
             out.writeLong(availableMemory);
             out.writeVInt(names.size());
             for (ObjectIntCursor<String> name : names) {
@@ -353,6 +362,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
 
         static final class Fields {
             static final XContentBuilderString AVAILABLE_PROCESSORS = new XContentBuilderString("available_processors");
+            static final XContentBuilderString ALLOCATED_PROCESSORS = new XContentBuilderString("allocated_processors");
             static final XContentBuilderString NAME = new XContentBuilderString("name");
             static final XContentBuilderString NAMES = new XContentBuilderString("names");
             static final XContentBuilderString MEM = new XContentBuilderString("mem");
@@ -364,6 +374,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.field(Fields.AVAILABLE_PROCESSORS, availableProcessors);
+            builder.field(Fields.ALLOCATED_PROCESSORS, allocatedProcessors);
             builder.startObject(Fields.MEM);
             builder.byteSizeField(Fields.TOTAL_IN_BYTES, Fields.TOTAL, availableMemory);
             builder.endObject();

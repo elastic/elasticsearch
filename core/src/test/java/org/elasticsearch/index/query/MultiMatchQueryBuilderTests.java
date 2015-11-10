@@ -21,14 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.all.AllTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.index.search.MatchQuery;
@@ -127,7 +120,7 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
     @Override
     protected void doAssertLuceneQuery(MultiMatchQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         // we rely on integration tests for deeper checks here
-        assertThat(query, either(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
+        assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(TermQuery.class)).or(instanceOf(AllTermQuery.class))
                 .or(instanceOf(BooleanQuery.class)).or(instanceOf(DisjunctionMaxQuery.class))
                 .or(instanceOf(FuzzyQuery.class)).or(instanceOf(MultiPhrasePrefixQuery.class))
                 .or(instanceOf(MatchAllDocsQuery.class)).or(instanceOf(ExtendedCommonTermsQuery.class))
@@ -164,26 +157,22 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         }
     }
 
-    @Override
-    protected void assertBoost(MultiMatchQueryBuilder queryBuilder, Query query) throws IOException {
-        //we delegate boost checks to specific boost tests below
-    }
-
     public void testToQueryBoost() throws IOException {
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         MultiMatchQueryBuilder multiMatchQueryBuilder = new MultiMatchQueryBuilder("test");
-        multiMatchQueryBuilder.field(STRING_FIELD_NAME, 5);
+        multiMatchQueryBuilder.field(STRING_FIELD_NAME, 5f);
         Query query = multiMatchQueryBuilder.toQuery(shardContext);
-        assertThat(query, instanceOf(TermQuery.class));
-        assertThat(query.getBoost(), equalTo(5f));
+        assertTermOrBoostQuery(query, STRING_FIELD_NAME, "test", 5f);
 
         multiMatchQueryBuilder = new MultiMatchQueryBuilder("test");
-        multiMatchQueryBuilder.field(STRING_FIELD_NAME, 5);
-        multiMatchQueryBuilder.boost(2);
+        multiMatchQueryBuilder.field(STRING_FIELD_NAME, 5f);
+        multiMatchQueryBuilder.boost(2f);
         query = multiMatchQueryBuilder.toQuery(shardContext);
-        assertThat(query, instanceOf(TermQuery.class));
-        assertThat(query.getBoost(), equalTo(10f));
+        assertThat(query, instanceOf(BoostQuery.class));
+        BoostQuery boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), equalTo(2f));
+        assertTermOrBoostQuery(boostQuery.getQuery(), STRING_FIELD_NAME, "test", 5f);
     }
 
     public void testToQueryMultipleTermsBooleanQuery() throws Exception {
@@ -212,7 +201,9 @@ public class MultiMatchQueryBuilderTests extends AbstractQueryTestCase<MultiMatc
         assertThat(query, instanceOf(DisjunctionMaxQuery.class));
         DisjunctionMaxQuery disMaxQuery = (DisjunctionMaxQuery) query;
         List<Query> disjuncts = disMaxQuery.getDisjuncts();
+        assertThat(disjuncts.get(0), instanceOf(TermQuery.class));
         assertThat(((TermQuery) disjuncts.get(0)).getTerm(), equalTo(new Term(STRING_FIELD_NAME, "test")));
+        assertThat(disjuncts.get(1), instanceOf(TermQuery.class));
         assertThat(((TermQuery) disjuncts.get(1)).getTerm(), equalTo(new Term(STRING_FIELD_NAME_2, "test")));
     }
 

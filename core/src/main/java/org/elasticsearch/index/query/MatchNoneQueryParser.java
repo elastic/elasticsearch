@@ -51,6 +51,8 @@ public class MatchNoneQueryParser implements QueryParser<MatchNoneQueryBuilder> 
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "["+MatchNoneQueryBuilder.NAME+"] query does not support [" + currentFieldName + "]");
                 }
+            } else {
+                throw new ParsingException(parser.getTokenLocation(), "[" + MatchNoneQueryBuilder.NAME + "] unknown token [" + token + "] after [" + currentFieldName + "]");
             }
         }
 

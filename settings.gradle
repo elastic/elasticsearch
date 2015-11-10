@@ -1,6 +1,6 @@
 rootProject.name = 'elasticsearch'
 
-String[] projects = [
+List projects = [
   'rest-api-spec',
   'core',
   'distribution:zip',
@@ -22,6 +22,7 @@ String[] projects = [
   'plugins:lang-groovy',
   'plugins:lang-javascript',
   'plugins:lang-python',
+  'plugins:mapper-attachments',
   'plugins:mapper-murmur3',
   'plugins:mapper-size',
   'plugins:repository-azure',
@@ -29,14 +30,25 @@ String[] projects = [
   'plugins:jvm-example',
   'plugins:site-example',
   'plugins:store-smb',
+  'qa:evil-tests',
   'qa:smoke-test-client',
-  'qa:smoke-test-plugins'
+  'qa:smoke-test-plugins',
+  'qa:vagrant',
 ]
 
-if (hasProperty('elasticsearch.projectsPrefix')) {
-  String prefix = getProperty('elasticsearch.projectsPrefix')
-  projects = projects.collect { "${prefix}:${it}" }
+boolean isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
+if (isEclipse) {
+  // eclipse cannot handle an intermediate dependency between main and test, so we must create separate projects
+  // for core-src and core-tests
+  projects << 'core-tests'
 }
 
-include projects
+include projects.toArray(new String[0])
+
+if (isEclipse) {
+  project(":core").projectDir = new File(rootProject.projectDir, 'core/src/main')
+  project(":core").buildFileName = 'eclipse-build.gradle'
+  project(":core-tests").projectDir = new File(rootProject.projectDir, 'core/src/test')
+  project(":core-tests").buildFileName = 'eclipse-build.gradle'
+}
 

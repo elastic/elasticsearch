@@ -63,14 +63,13 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             try {
                 Query q = createBooleanQuery(entry.getKey(), text, super.getDefaultOperator());
                 if (q != null) {
-                    q.setBoost(entry.getValue());
-                    bq.add(q, BooleanClause.Occur.SHOULD);
+                    bq.add(wrapWithBoost(q, entry.getValue()), BooleanClause.Occur.SHOULD);
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return simplify(bq.build());
+        return super.simplify(bq.build());
     }
 
     /**
@@ -86,14 +85,13 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
         bq.setDisableCoord(true);
         for (Map.Entry<String,Float> entry : weights.entrySet()) {
             try {
-                Query q = new FuzzyQuery(new Term(entry.getKey(), text), fuzziness);
-                q.setBoost(entry.getValue());
-                bq.add(q, BooleanClause.Occur.SHOULD);
+                Query query = new FuzzyQuery(new Term(entry.getKey(), text), fuzziness);
+                bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return simplify(bq.build());
+        return super.simplify(bq.build());
     }
 
     @Override
@@ -104,14 +102,13 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             try {
                 Query q = createPhraseQuery(entry.getKey(), text, slop);
                 if (q != null) {
-                    q.setBoost(entry.getValue());
-                    bq.add(q, BooleanClause.Occur.SHOULD);
+                    bq.add(wrapWithBoost(q, entry.getValue()), BooleanClause.Occur.SHOULD);
                 }
             } catch (RuntimeException e) {
                 rethrowUnlessLenient(e);
             }
         }
-        return simplify(bq.build());
+        return super.simplify(bq.build());
     }
 
     /**
@@ -129,30 +126,25 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             try {
                 if (settings.analyzeWildcard()) {
                     Query analyzedQuery = newPossiblyAnalyzedQuery(entry.getKey(), text);
-                    analyzedQuery.setBoost(entry.getValue());
-                    bq.add(analyzedQuery, BooleanClause.Occur.SHOULD);
+                    if (analyzedQuery != null) {
+                        bq.add(wrapWithBoost(analyzedQuery, entry.getValue()), BooleanClause.Occur.SHOULD);
+                    }
                 } else {
-                    PrefixQuery prefix = new PrefixQuery(new Term(entry.getKey(), text));
-                    prefix.setBoost(entry.getValue());
-                    bq.add(prefix, BooleanClause.Occur.SHOULD);
+                    Query query = new PrefixQuery(new Term(entry.getKey(), text));
+                    bq.add(wrapWithBoost(query, entry.getValue()), BooleanClause.Occur.SHOULD);
                 }
             } catch (RuntimeException e) {
                 return rethrowUnlessLenient(e);
             }
         }
-        return simplify(bq.build());
+        return super.simplify(bq.build());
     }
 
-    /**
-     * Override of lucenes SimpleQueryParser that doesn't simplify for the 1-clause case.
-     */
-    @Override
-    protected Query simplify(BooleanQuery bq) {
-      if (bq.clauses().isEmpty()) {
-        return null;
-      } else {
-        return bq;
-      }
+    private static Query wrapWithBoost(Query query, float boost) {
+        if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
+            return new BoostQuery(query, boost);
+        }
+        return query;
     }
 
     /**
@@ -307,7 +299,7 @@ public class SimpleQueryParser extends org.apache.lucene.queryparser.simple.Simp
             // For further reasoning see
             // https://issues.apache.org/jira/browse/LUCENE-4021
             return (Objects.equals(locale.toLanguageTag(), other.locale.toLanguageTag())
-                    && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms)
+                    && Objects.equals(lowercaseExpandedTerms, other.lowercaseExpandedTerms) 
                     && Objects.equals(lenient, other.lenient)
                     && Objects.equals(analyzeWildcard, other.analyzeWildcard));
         }

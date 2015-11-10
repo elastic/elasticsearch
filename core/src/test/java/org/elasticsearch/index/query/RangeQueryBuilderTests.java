@@ -58,7 +58,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 query.to(new DateTime(System.currentTimeMillis() + randomIntBetween(0, 1000000), DateTimeZone.UTC).toString());
                 // Create timestamp option only then we have a date mapper,
                 // otherwise we could trigger exception.
-                if (createShardContext().mapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
+                if (createShardContext().getMapperService().smartNameFieldType(DATE_FIELD_NAME) != null) {
                     if (randomBoolean()) {
                         query.timeZone(randomTimeZone());
                     }

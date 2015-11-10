@@ -806,4 +806,17 @@ public class IndexNameExpressionResolver extends AbstractComponent {
         }
     }
 
+    /**
+     * Returns <code>true</code> iff the given expression resolves to the given index name otherwise <code>false</code>
+     */
+    public final boolean matchesIndex(String indexName, String expression, ClusterState state) {
+        final String[] concreteIndices = concreteIndices(state, IndicesOptions.lenientExpandOpen(), expression);
+        for (String index : concreteIndices) {
+            if (Regex.simpleMatch(index, indexName)) {
+                return true;
+            }
+        }
+        return indexName.equals(expression);
+    }
+
 }

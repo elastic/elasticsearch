@@ -289,6 +289,44 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         }
     }
 
+    // simulate the master being removed from the cluster but before a new master is elected
+    // as such, the shards assigned to the master will still show up in the cluster state as assigned to a node but
+    // that node will not be in the local cluster state on any node that has detected the master as failing
+    // in this case, such a shard should be treated as unassigned
+    public void testRequestsAreNotSentToFailedMaster() {
+        Request request = new Request(new String[]{TEST_INDEX});
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
+        DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
+        builder.remove(masterNode.id());
+
+        clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
+
+        action.new AsyncAction(request, listener).start();
+
+        Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
+
+        // the master should not be in the list of nodes that requests were sent to
+        ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
+        Set<String> set = new HashSet<>();
+        for (ShardRouting shard : shardIt.asUnordered()) {
+            if (shard.currentNodeId() != masterNode.id()) {
+                set.add(shard.currentNodeId());
+            }
+        }
+
+        // check a request was sent to the right number of nodes
+        assertEquals(set.size(), capturedRequests.size());
+
+        // check requests were sent to the right nodes
+        assertEquals(set, capturedRequests.keySet());
+        for (Map.Entry<String, List<CapturingTransport.CapturedRequest>> entry : capturedRequests.entrySet()) {
+            // check one request was sent to each non-master node
+            assertEquals(1, entry.getValue().size());
+        }
+    }
+
     public void testOperationExecution() throws Exception {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<ShardRouting> shards = new HashSet<>();
@@ -340,6 +378,18 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Request request = new Request(new String[]{TEST_INDEX});
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
+        // simulate removing the master
+        final boolean simulateFailedMasterNode = rarely();
+        DiscoveryNode failedMasterNode = null;
+        if (simulateFailedMasterNode) {
+            failedMasterNode = clusterService.state().nodes().masterNode();
+            DiscoveryNodes.Builder builder = DiscoveryNodes.builder(clusterService.state().getNodes());
+            builder.remove(failedMasterNode.id());
+            builder.masterNodeId(null);
+
+            clusterService.setState(ClusterState.builder(clusterService.state()).nodes(builder));
+        }
+
         action.new AsyncAction(request, listener).start();
         Map<String, List<CapturingTransport.CapturedRequest>> capturedRequests = transport.capturedRequestsByTargetNode();
         transport.clear();
@@ -381,6 +431,9 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
                 TransportBroadcastByNodeAction.NodeResponse nodeResponse = action.new NodeResponse(entry.getKey(), shards.size(), shardResults, exceptions);
                 transport.handleResponse(requestId, nodeResponse);
             }
+        }
+        if (simulateFailedMasterNode) {
+            totalShards += map.get(failedMasterNode.id()).size();
         }
 
         Response response = listener.get();

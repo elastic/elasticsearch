@@ -43,7 +43,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        MapperService mapperService = queryParserService().mapperService;
+        MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
                 STRING_FIELD_NAME, "type=string",
                 INT_FIELD_NAME, "type=integer",
@@ -57,8 +57,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     protected void setSearchContext(String[] types) {
-        final MapperService mapperService = queryParserService().mapperService;
-        final IndexFieldDataService fieldData = queryParserService().fieldDataService;
+        final MapperService mapperService = queryShardContext().getMapperService();
+        final IndexFieldDataService fieldData = indexFieldDataService();
         TestSearchContext testSearchContext = new TestSearchContext() {
             private InnerHitsContext context;
 

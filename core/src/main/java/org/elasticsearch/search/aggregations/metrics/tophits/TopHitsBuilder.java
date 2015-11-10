@@ -89,6 +89,14 @@ public class TopHitsBuilder extends AbstractAggregationBuilder {
     }
 
     /**
+     * Adds a field to loaded and returned.
+     */
+    public TopHitsBuilder addField(String field) {
+        sourceBuilder().field(field);
+        return this;
+    }
+
+    /**
      * Sets no fields to be loaded, resulting in only id and type to be returned per field.
      */
     public TopHitsBuilder setNoFields() {

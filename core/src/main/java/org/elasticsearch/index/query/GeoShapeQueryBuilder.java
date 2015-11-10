@@ -115,8 +115,6 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
     private GeoShapeQueryBuilder(String fieldName, ShapeBuilder shape, String indexedShapeId, String indexedShapeType) throws IOException {
         this(fieldName, new BytesArray(new byte[1]), indexedShapeId, indexedShapeType);
         if (shape != null) {
-            XContentBuilder builder = XContentFactory.jsonBuilder();
-            shape.toXContent(builder, EMPTY_PARAMS);
             this.shapeBytes = shape.buildAsBytes(XContentType.JSON);
             if (this.shapeBytes.length() == 0) {
                 throw new IllegalArgumentException("shape must not be empty");

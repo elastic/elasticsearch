@@ -66,7 +66,7 @@ public class SignificantTermsParametersParser extends AbstractTermsParametersPar
             if (significanceHeuristicParser != null) {
                 significanceHeuristic = significanceHeuristicParser.parse(parser, context.parseFieldMatcher(), context);
             } else if (context.parseFieldMatcher().match(currentFieldName, BACKGROUND_FILTER)) {
-                filter = context.queryParserService().parseInnerFilter(parser).query();
+                filter = context.indexShard().getQueryShardContext().parseInnerFilter(parser).query();
             } else {
                 throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
                         + currentFieldName + "].", parser.getTokenLocation());

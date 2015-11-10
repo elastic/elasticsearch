@@ -215,9 +215,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         if (innerQuery == null) {
             return null;
         }
-        innerQuery.setBoost(boost);
-
-        DocumentMapper childDocMapper = context.mapperService().documentMapper(type);
+        DocumentMapper childDocMapper = context.getMapperService().documentMapper(type);
         if (childDocMapper == null) {
             throw new QueryShardException(context, "[" + NAME + "] no mapping found for type [" + type + "]");
         }
@@ -231,10 +229,10 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
                 if (token != XContentParser.Token.START_OBJECT) {
                     throw new IllegalStateException("start object expected but was: [" + token + "]");
                 }
-                InnerHitsSubSearchContext innerHits = context.indexQueryParserService().getInnerHitsQueryParserHelper().parse(parser);
+                InnerHitsSubSearchContext innerHits = context.getInnerHitsContext(parser);
                 if (innerHits != null) {
                     ParsedQuery parsedQuery = new ParsedQuery(innerQuery, context.copyNamedQueries());
-                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.mapperService(), childDocMapper);
+                    InnerHitsContext.ParentChildInnerHits parentChildInnerHits = new InnerHitsContext.ParentChildInnerHits(innerHits.getSubSearchContext(), parsedQuery, null, context.getMapperService(), childDocMapper);
                     String name = innerHits.getName() != null ? innerHits.getName() : type;
                     context.addInnerHits(name, parentChildInnerHits);
                 }
@@ -242,7 +240,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
         }
 
         String parentType = parentFieldMapper.type();
-        DocumentMapper parentDocMapper = context.mapperService().documentMapper(parentType);
+        DocumentMapper parentDocMapper = context.getMapperService().documentMapper(parentType);
         if (parentDocMapper == null) {
             throw new QueryShardException(context, "[" + NAME + "] Type [" + type + "] points to a non existent parent type ["
                     + parentType + "]");
@@ -286,8 +284,9 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public Query rewrite(IndexReader reader) throws IOException {
-            if (getBoost() != 1.0F) {
-                return super.rewrite(reader);
+            Query rewritten = super.rewrite(reader);
+            if (rewritten != this) {
+                return rewritten;
             }
             if (reader instanceof DirectoryReader) {
                 String joinField = ParentFieldMapper.joinField(parentType);
@@ -310,8 +309,6 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
             if (!super.equals(o)) return false;
 
             LateParsingQuery that = (LateParsingQuery) o;
@@ -326,14 +323,7 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
 
         @Override
         public int hashCode() {
-            int result = super.hashCode();
-            result = 31 * result + toQuery.hashCode();
-            result = 31 * result + innerQuery.hashCode();
-            result = 31 * result + minChildren;
-            result = 31 * result + maxChildren;
-            result = 31 * result + parentType.hashCode();
-            result = 31 * result + scoreMode.hashCode();
-            return result;
+            return Objects.hash(super.hashCode(), toQuery, innerQuery, minChildren, maxChildren, parentType, scoreMode);
         }
 
         @Override

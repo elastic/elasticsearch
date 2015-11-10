@@ -64,8 +64,9 @@ public final class AllTermQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
-        if (getBoost() != 1f) {
-            return super.rewrite(reader);
+        Query rewritten = super.rewrite(reader);
+        if (rewritten != this) {
+            return rewritten;
         }
         boolean fieldExists = false;
         boolean hasPayloads = false;
@@ -80,14 +81,10 @@ public final class AllTermQuery extends Query {
             }
         }
         if (fieldExists == false) {
-            Query rewritten = new MatchNoDocsQuery();
-            rewritten.setBoost(getBoost());
-            return rewritten;
+            return new MatchNoDocsQuery();
         }
         if (hasPayloads == false) {
-            TermQuery rewritten = new TermQuery(term);
-            rewritten.setBoost(getBoost());
-            return rewritten;
+            return new TermQuery(term);
         }
         return this;
     }

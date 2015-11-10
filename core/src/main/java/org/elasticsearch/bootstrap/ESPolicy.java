@@ -25,6 +25,7 @@ import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
+import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Map;
@@ -87,6 +88,21 @@ final class ESPolicy extends Policy {
         }
         // otherwise defer to template + dynamic file permissions
         return template.implies(domain, permission) || dynamic.implies(permission);
+    }
+
+    @Override
+    public PermissionCollection getPermissions(CodeSource codesource) {
+        // code should not rely on this method, or at least use it correctly:
+        // https://bugs.openjdk.java.net/browse/JDK-8014008
+        // return them a new empty permissions object so jvisualvm etc work
+        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+            if ("sun.rmi.server.LoaderHandler".equals(element.getClassName()) &&
+                    "loadClass".equals(element.getMethodName())) {
+                return new Permissions();
+            }
+        }
+        // return UNSUPPORTED_EMPTY_COLLECTION since it is safe.
+        return super.getPermissions(codesource);
     }
 
     /**

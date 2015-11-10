@@ -23,14 +23,13 @@ import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.collect.Tuple;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.AbstractIndexComponent;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.BytesBinaryDVIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DisabledIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.DocValuesIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.GeoPointBinaryDVIndexFieldData;
-import org.elasticsearch.index.fielddata.plain.GeoPointDoubleArrayIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.AbstractGeoPointDVIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.GeoPointArrayIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.IndexIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
@@ -44,6 +43,8 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 
+import java.io.Closeable;
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -54,7 +55,7 @@ import static java.util.Collections.unmodifiableMap;
 
 /**
  */
-public class IndexFieldDataService extends AbstractIndexComponent {
+public class IndexFieldDataService extends AbstractIndexComponent implements Closeable {
 
     public static final String FIELDDATA_CACHE_KEY = "index.fielddata.cache";
     public static final String FIELDDATA_CACHE_VALUE_NODE = "node";
@@ -84,7 +85,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         buildersByTypeBuilder.put("short", MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("int", MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("long", MISSING_DOC_VALUES_BUILDER);
-        buildersByTypeBuilder.put("geo_point", new GeoPointDoubleArrayIndexFieldData.Builder());
+        buildersByTypeBuilder.put("geo_point",  new GeoPointArrayIndexFieldData.Builder());
         buildersByTypeBuilder.put(ParentFieldMapper.NAME, new ParentChildIndexFieldData.Builder());
         buildersByTypeBuilder.put(IndexFieldMapper.NAME, new IndexIndexFieldData.Builder());
         buildersByTypeBuilder.put("binary", new DisabledIndexFieldData.Builder());
@@ -100,7 +101,7 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put("short", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.SHORT))
                 .put("int", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.INT))
                 .put("long", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
-                .put("geo_point", new GeoPointBinaryDVIndexFieldData.Builder())
+                .put("geo_point", new AbstractGeoPointDVIndexFieldData.Builder())
                 .put("binary", new BytesBinaryDVIndexFieldData.Builder())
                 .put(BooleanFieldMapper.CONTENT_TYPE, new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BOOLEAN))
                 .immutableMap();
@@ -128,8 +129,8 @@ public class IndexFieldDataService extends AbstractIndexComponent {
                 .put(Tuple.tuple("long", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.LONG))
                 .put(Tuple.tuple("long", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
-                .put(Tuple.tuple("geo_point", ARRAY_FORMAT), new GeoPointDoubleArrayIndexFieldData.Builder())
-                .put(Tuple.tuple("geo_point", DOC_VALUES_FORMAT), new GeoPointBinaryDVIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", ARRAY_FORMAT), new GeoPointArrayIndexFieldData.Builder())
+                .put(Tuple.tuple("geo_point", DOC_VALUES_FORMAT), new AbstractGeoPointDVIndexFieldData.Builder())
                 .put(Tuple.tuple("geo_point", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
                 .put(Tuple.tuple("binary", DOC_VALUES_FORMAT), new BytesBinaryDVIndexFieldData.Builder())
@@ -157,7 +158,6 @@ public class IndexFieldDataService extends AbstractIndexComponent {
     private volatile IndexFieldDataCache.Listener listener = DEFAULT_NOOP_LISTENER;
 
 
-    @Inject
     public IndexFieldDataService(IndexSettings indexSettings, IndicesFieldDataCache indicesFieldDataCache,
                                  CircuitBreakerService circuitBreakerService, MapperService mapperService) {
         super(indexSettings);
@@ -260,4 +260,8 @@ public class IndexFieldDataService extends AbstractIndexComponent {
         this.listener = listener;
     }
 
+    @Override
+    public void close() throws IOException {
+        clear();
+    }
 }

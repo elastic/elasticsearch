@@ -44,7 +44,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentTypeListener;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
@@ -69,7 +68,6 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     public final String MAP_UNMAPPED_FIELDS_AS_STRING = "index.percolator.map_unmapped_fields_as_string";
 
     // This is a shard level service, but these below are index level service:
-    private final IndexQueryParserService queryParserService;
     private final MapperService mapperService;
     private final IndexFieldDataService indexFieldDataService;
 
@@ -79,18 +77,20 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
     private final RealTimePercolatorOperationListener realTimePercolatorOperationListener = new RealTimePercolatorOperationListener();
     private final PercolateTypeListener percolateTypeListener = new PercolateTypeListener();
     private final AtomicBoolean realTimePercolatorEnabled = new AtomicBoolean(false);
+    private final QueryShardContext queryShardContext;
     private boolean mapUnmappedFieldsAsString;
     private final MeanMetric percolateMetric = new MeanMetric();
     private final CounterMetric currentMetric = new CounterMetric();
     private final CounterMetric numberOfQueries = new CounterMetric();
 
-    public PercolatorQueriesRegistry(ShardId shardId, IndexSettings indexSettings,  IndexQueryParserService queryParserService,
+    public PercolatorQueriesRegistry(ShardId shardId, IndexSettings indexSettings,
                                      ShardIndexingService indexingService, MapperService mapperService,
+                                     QueryShardContext queryShardContext,
                                      IndexFieldDataService indexFieldDataService) {
         super(shardId, indexSettings);
-        this.queryParserService = queryParserService;
         this.mapperService = mapperService;
         this.indexingService = indexingService;
+        this.queryShardContext = queryShardContext;
         this.indexFieldDataService = indexFieldDataService;
         this.mapUnmappedFieldsAsString = this.indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
         mapperService.addTypeListener(percolateTypeListener);
@@ -179,7 +179,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         if (type != null) {
             previousTypes = QueryShardContext.setTypesWithPrevious(type);
         }
-        QueryShardContext context = queryParserService.getShardContext();
+        QueryShardContext context = new QueryShardContext(queryShardContext);
         try {
             context.reset(parser);
             // This means that fields in the query need to exist in the mapping prior to registering this query
@@ -196,7 +196,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
             // as an analyzed string.
             context.setAllowUnmappedFields(false);
             context.setMapUnmappedFieldAsString(mapUnmappedFieldsAsString);
-            return queryParserService.parseInnerQuery(context);
+            return context.parseInnerQuery();
         } catch (IOException e) {
             throw new ParsingException(parser.getTokenLocation(), "Failed to parse", e);
         } finally {

@@ -20,10 +20,16 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
+import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.Accountable;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -38,6 +44,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -53,29 +60,29 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.cache.query.none.NoneQueryCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParserMapper;
 import org.elasticsearch.index.query.support.QueryParsers;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.*;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.mustache.MustacheScriptEngineService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESTestCase;
@@ -99,9 +106,7 @@ import java.lang.reflect.Proxy;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -122,10 +127,17 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
     private static Injector injector;
-    private static IndexQueryParserService queryParserService;
+    private static IndicesQueriesRegistry indicesQueriesRegistry;
+    private static QueryShardContext queryShardContext;
+    private static IndexFieldDataService indexFieldDataService;
 
-    protected static IndexQueryParserService queryParserService() {
-        return queryParserService;
+
+    protected static QueryShardContext queryShardContext() {
+        return queryShardContext;
+    }
+
+    protected static IndexFieldDataService indexFieldDataService() {
+        return indexFieldDataService;
     }
 
     private static Index index;
@@ -155,6 +167,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Settings settings = Settings.settingsBuilder()
                 .put("name", AbstractQueryTestCase.class.toString())
                 .put("path.home", createTempDir())
+                .put(ScriptService.SCRIPT_AUTO_RELOAD_ENABLED_SETTING, false)
                 .build();
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
@@ -214,16 +227,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 new AbstractModule() {
                     @Override
                     protected void configure() {
-                        try {
-                            bind(AnalysisService.class).toInstance(new AnalysisRegistry(null, new Environment(settings)).build(idxSettings));
-                        } catch (IOException e) {
-                            throw new ElasticsearchException(e);
-                        }
-                        SimilarityService service = new SimilarityService(idxSettings, Collections.emptyMap());
-                        bind(SimilarityService.class).toInstance(service);
-                        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null));
-                        bind(BitsetFilterCache.class).toInstance(bitsetFilterCache);
-                        bind(IndexCache.class).toInstance(new IndexCache(idxSettings, new NoneQueryCache(idxSettings), bitsetFilterCache));
                         bind(Client.class).toInstance(proxy);
                         Multibinder.newSetBinder(binder(), ScoreFunctionParser.class);
                         bind(ScoreFunctionParserMapper.class).asEagerSingleton();
@@ -233,9 +236,24 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     }
                 }
         ).createInjector();
-        queryParserService = injector.getInstance(IndexQueryParserService.class);
+        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
+        ScriptService scriptService = injector.getInstance(ScriptService.class);
+        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService);
+        indexFieldDataService = new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null), new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
 
-        MapperService mapperService = queryParserService.mapperService;
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
+        indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
+        queryShardContext = new QueryShardContext(idxSettings, proxy, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
         for (int i = 0; i < currentTypes.length; i++) {
@@ -264,10 +282,12 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         terminate(injector.getInstance(ThreadPool.class));
         injector = null;
         index = null;
-        queryParserService = null;
+        queryShardContext = null;
         currentTypes = null;
         namedWriteableRegistry = null;
         randomTypes = null;
+        indicesQueriesRegistry = null;
+        indexFieldDataService = null;
     }
 
     @Before
@@ -316,11 +336,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
-            assertParsedQuery(testQuery.toString(), testQuery);
+            XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
+            assertParsedQuery(builder.bytes(), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
-                assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue());
+                String queryAsString = alternateVersion.getKey();
+                assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue());
             }
         }
+    }
+
+    protected static XContentBuilder toXContent(QueryBuilder<?> query, XContentType contentType) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        query.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder;
     }
 
     /**
@@ -336,13 +367,36 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             testQuery = createTestQueryBuilder();
         } while (testQuery.toString().contains(marker));
         testQuery.queryName(marker); // to find root query to add additional bogus field there
-        String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker +  "\", \"bogusField\" : \"someValue\"");
+        String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker + "\", \"bogusField\" : \"someValue\"");
         try {
             parseQuery(queryAsString);
             fail("ParsingException expected.");
         } catch (ParsingException e) {
             // we'd like to see the offending field name here
             assertThat(e.getMessage(), containsString("bogusField"));
+        }
+     }
+
+     /**
+     * Test that adding additional object into otherwise correct query string
+     * should always trigger some kind of Parsing Exception.
+     */
+    public void testUnknownObjectException() throws IOException {
+        String validQuery = createTestQueryBuilder().toString();
+        assertThat(validQuery, containsString("{"));
+        for (int insertionPosition = 0; insertionPosition < validQuery.length(); insertionPosition++) {
+            if (validQuery.charAt(insertionPosition) == '{') {
+                String testQuery = validQuery.substring(0, insertionPosition) + "{ \"newField\" : " + validQuery.substring(insertionPosition) + "}";
+                try {
+                    parseQuery(testQuery);
+                    fail("some parsing exception expected for query: " + testQuery);
+                } catch (ParsingException | ScriptParseException | ElasticsearchParseException e) {
+                    // different kinds of exception wordings depending on location
+                    // of mutation, so no simple asserts possible here
+                } catch (JsonParseException e) {
+                    // mutation produced invalid json
+                }
+            }
         }
     }
 
@@ -368,6 +422,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
+    /**
+     * Parses the query provided as bytes argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
+     */
+    protected final void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder<?> expectedQuery) throws IOException {
+        assertParsedQuery(queryAsBytes, expectedQuery, ParseFieldMatcher.STRICT);
+    }
+
+    protected final void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder<?> expectedQuery, ParseFieldMatcher matcher) throws IOException {
+        QueryBuilder<?> newQuery = parseQuery(queryAsBytes, matcher);
+        assertNotSame(newQuery, expectedQuery);
+        assertEquals(expectedQuery, newQuery);
+        assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
+    }
+
     protected final QueryBuilder<?> parseQuery(String queryAsString) throws IOException {
         return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
@@ -377,12 +445,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return parseQuery(parser, matcher);
     }
 
-    protected final QueryBuilder<?> parseQuery(BytesReference query) throws IOException {
-        XContentParser parser = XContentFactory.xContent(query).createParser(query);
-        return parseQuery(parser, ParseFieldMatcher.STRICT);
+    protected final QueryBuilder<?> parseQuery(BytesReference queryAsBytes) throws IOException {
+        return parseQuery(queryAsBytes, ParseFieldMatcher.STRICT);
     }
 
-    protected final QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
+    protected final QueryBuilder<?> parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
+        XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(queryAsBytes);
+        return parseQuery(parser, matcher);
+    }
+
+    private QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);
@@ -458,18 +530,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertThat(namedQuery, equalTo(query));
         }
         if (query != null) {
-            assertBoost(queryBuilder, query);
+            if (queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(SpanBoostQuery.class)));
+                if (query instanceof SpanBoostQuery) {
+                    SpanBoostQuery spanBoostQuery = (SpanBoostQuery) query;
+                    assertThat(spanBoostQuery.getBoost(), equalTo(queryBuilder.boost()));
+                    query = spanBoostQuery.getQuery();
+                } else {
+                    BoostQuery boostQuery = (BoostQuery) query;
+                    assertThat(boostQuery.getBoost(), equalTo(queryBuilder.boost()));
+                    query = boostQuery.getQuery();
+                }
+            }
         }
         doAssertLuceneQuery(queryBuilder, query, context);
-    }
-
-    /**
-     * Allows to override boost assertions for queries that don't have the default behaviour
-     */
-    protected void assertBoost(QB queryBuilder, Query query) throws IOException {
-        // workaround https://bugs.openjdk.java.net/browse/JDK-8056984
-        float boost = queryBuilder.boost();
-        assertThat(query.getBoost(), equalTo(boost));
     }
 
     /**
@@ -477,6 +551,23 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Contains the query specific checks to be implemented by subclasses.
      */
     protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
+
+    protected static void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
+        if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
+            assertThat(query, instanceOf(BoostQuery.class));
+            BoostQuery boostQuery = (BoostQuery) query;
+            assertThat(boostQuery.getBoost(), equalTo(fieldBoost));
+            query = boostQuery.getQuery();
+        }
+        assertTermQuery(query, field, value);
+    }
+
+    protected static void assertTermQuery(Query query, String field, String value) {
+        assertThat(query, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) query;
+        assertThat(termQuery.getTerm().field(), equalTo(field));
+        assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(value.toLowerCase(Locale.ROOT)));
+    }
 
     /**
      * Test serialization and deserialization of the test query.
@@ -497,7 +588,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             testQuery.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 QueryBuilder<?> prototype = queryParser(testQuery.getName()).getBuilderPrototype();
-                QueryBuilder<?> deserializedQuery = prototype.readFrom(in);
+                QueryBuilder deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testQuery);
                 assertEquals(deserializedQuery.hashCode(), testQuery.hashCode());
                 assertNotSame(deserializedQuery, testQuery);
@@ -542,7 +633,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     }
 
     private QueryParser<?> queryParser(String queryId) {
-        return queryParserService.indicesQueriesRegistry().queryParsers().get(queryId);
+        return indicesQueriesRegistry.queryParsers().get(queryId);
     }
 
     //we use the streaming infra to create a copy of the query provided as argument
@@ -562,7 +653,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryShardContext} based on the base test index and queryParserService
      */
     protected static QueryShardContext createShardContext() {
-        QueryShardContext queryCreationContext = new QueryShardContext(queryParserService);
+        QueryShardContext queryCreationContext = new QueryShardContext(queryShardContext);
         queryCreationContext.reset();
         queryCreationContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         return queryCreationContext;
@@ -572,7 +663,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * @return a new {@link QueryParseContext} based on the base test index and queryParserService
      */
     protected static QueryParseContext createParseContext() {
-        QueryParseContext queryParseContext = new QueryParseContext(queryParserService.indicesQueriesRegistry());
+        QueryParseContext queryParseContext = new QueryParseContext(indicesQueriesRegistry);
         queryParseContext.reset(null);
         queryParseContext.parseFieldMatcher(ParseFieldMatcher.STRICT);
         return queryParseContext;

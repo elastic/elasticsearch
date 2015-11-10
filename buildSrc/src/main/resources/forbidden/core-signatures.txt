@@ -87,3 +87,6 @@ java.util.concurrent.Future#cancel(boolean)
 @defaultMessage Don't try reading from paths that are not configured in Environment, resolve from Environment instead
 org.elasticsearch.common.io.PathUtils#get(java.lang.String, java.lang.String[])
 org.elasticsearch.common.io.PathUtils#get(java.net.URI)
+
+@defaultMessage Don't use deprecated Query#setBoost, wrap the query into a BoostQuery instead
+org.apache.lucene.search.Query#setBoost(float)

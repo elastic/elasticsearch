@@ -37,7 +37,7 @@ public class GeoEncodingTests extends ESTestCase {
             final double lat = randomDouble() * 180 - 90;
             final double lon = randomDouble() * 360 - 180;
             final Distance precision = new Distance(1+(randomDouble() * 9), randomFrom(Arrays.asList(DistanceUnit.MILLIMETERS, DistanceUnit.METERS, DistanceUnit.KILOMETERS)));
-            final GeoPointFieldMapper.Encoding encoding = GeoPointFieldMapper.Encoding.of(precision);
+            final GeoPointFieldMapperLegacy.Encoding encoding = GeoPointFieldMapperLegacy.Encoding.of(precision);
             assertThat(encoding.precision().convert(DistanceUnit.METERS).value, lessThanOrEqualTo(precision.convert(DistanceUnit.METERS).value));
             final GeoPoint geoPoint = encoding.decode(encoding.encodeCoordinate(lat), encoding.encodeCoordinate(lon), new GeoPoint());
             final double error = GeoDistance.PLANE.calculate(lat, lon, geoPoint.lat(), geoPoint.lon(), DistanceUnit.METERS);

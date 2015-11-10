@@ -1,3 +1,4 @@
+[[breaking_20_multiple_literal_data_path_literal_striping]]
 === Multiple `data.path` striping
 
 Previously, if the `data.path` setting listed multiple data paths, then a

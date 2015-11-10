@@ -148,7 +148,7 @@ public class InternalEngineTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
 
-        CodecService codecService = new CodecService(INDEX_SETTINGS, null);
+        CodecService codecService = new CodecService(null, logger);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -264,7 +264,7 @@ public class InternalEngineTests extends ESTestCase {
 
         EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, INDEX_SETTINGS), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
-                iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(INDEX_SETTINGS, null), new Engine.EventListener() {
+                iwc.getAnalyzer(), iwc.getSimilarity(), new CodecService(null, logger), new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
@@ -1576,7 +1576,7 @@ public class InternalEngineTests extends ESTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(INDEX_SETTINGS, null);
+        CodecService codecService = new CodecService(null, logger);
         LiveIndexWriterConfig currentIndexWriterConfig = engine.getCurrentIndexWriterConfig();
 
         assertEquals(engine.config().getCodec().getName(), codecService.codec(codecName).getName());
@@ -1972,7 +1972,7 @@ public class InternalEngineTests extends ESTestCase {
 
         EngineConfig brokenConfig = new EngineConfig(shardId, threadPool, config.getIndexingService(), config.getIndexSettings()
                 , null, store, createSnapshotDeletionPolicy(), newMergePolicy(), config.getMergeSchedulerConfig(),
-                config.getAnalyzer(), config.getSimilarity(), new CodecService(INDEX_SETTINGS, null), config.getEventListener()
+                config.getAnalyzer(), config.getSimilarity(), new CodecService(null, logger), config.getEventListener()
         , config.getTranslogRecoveryPerformer(), IndexSearcher.getDefaultQueryCache(), IndexSearcher.getDefaultQueryCachingPolicy(), translogConfig, TimeValue.timeValueMinutes(5));
 
         try {

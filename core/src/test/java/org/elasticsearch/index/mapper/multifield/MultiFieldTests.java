@@ -21,6 +21,9 @@ package org.elasticsearch.index.mapper.multifield;
 
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.util.GeoUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
@@ -38,8 +41,9 @@ import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.util.Arrays;
 import java.util.Collections;
@@ -251,8 +255,12 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     }
 
     public void testConvertMultiFieldGeoPoint() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
+        boolean indexCreatedBefore22 = version.onOrBefore(Version.CURRENT);
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-geo_point.json");
-        DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         assertThat(docMapper.mappers().getMapper("a"), notNullValue());
         assertThat(docMapper.mappers().getMapper("a"), instanceOf(StringFieldMapper.class));
@@ -261,10 +269,13 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         assertThat(docMapper.mappers().getMapper("a").fieldType().tokenized(), equalTo(false));
 
         assertThat(docMapper.mappers().getMapper("a.b"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(GeoPointFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("a.b"), instanceOf(BaseGeoPointFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("a.b").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("a.b").fieldType().stored(), equalTo(false));
+        final boolean stored = indexCreatedBefore22 == false;
+        assertThat(docMapper.mappers().getMapper("a.b").fieldType().stored(), equalTo(stored));
         assertThat(docMapper.mappers().getMapper("a.b").fieldType().tokenized(), equalTo(false));
+        final boolean hasDocValues = indexCreatedBefore22 == false;
+        assertThat(docMapper.mappers().getMapper("a.b").fieldType().hasDocValues(), equalTo(hasDocValues));
 
         BytesReference json = jsonBuilder().startObject()
                 .field("a", "-1,-1")
@@ -281,15 +292,20 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         f = doc.getField("a.b");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("a.b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
-        assertThat(f.fieldType().stored(), equalTo(false));
+        if (indexCreatedBefore22 == true) {
+            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        } else {
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+        }
+        assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         assertThat(docMapper.mappers().getMapper("b"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("b"), instanceOf(GeoPointFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("b"), instanceOf(BaseGeoPointFieldMapper.class));
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("b").fieldType().indexOptions());
-        assertThat(docMapper.mappers().getMapper("b").fieldType().stored(), equalTo(false));
+        assertThat(docMapper.mappers().getMapper("b").fieldType().stored(), equalTo(stored));
         assertThat(docMapper.mappers().getMapper("b").fieldType().tokenized(), equalTo(false));
+        assertThat(docMapper.mappers().getMapper("b").fieldType().hasDocValues(), equalTo(hasDocValues));
 
         assertThat(docMapper.mappers().getMapper("b.a"), notNullValue());
         assertThat(docMapper.mappers().getMapper("b.a"), instanceOf(StringFieldMapper.class));
@@ -305,8 +321,12 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         f = doc.getField("b");
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
-        assertThat(f.fieldType().stored(), equalTo(false));
+        if (indexCreatedBefore22 == true) {
+            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        } else {
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+        }
+        assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");
@@ -324,15 +344,23 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
         f = doc.getFields("b")[0];
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
-        assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
-        assertThat(f.fieldType().stored(), equalTo(false));
+        if (indexCreatedBefore22 == true) {
+            assertThat(f.stringValue(), equalTo("-1.0,-1.0"));
+        } else {
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-1.0, -1.0)));
+        }
+        assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getFields("b")[1];
         assertThat(f, notNullValue());
         assertThat(f.name(), equalTo("b"));
-        assertThat(f.stringValue(), equalTo("-2.0,-2.0"));
-        assertThat(f.fieldType().stored(), equalTo(false));
+        if (indexCreatedBefore22 == true) {
+            assertThat(f.stringValue(), equalTo("-2.0,-2.0"));
+        } else {
+            assertThat(Long.parseLong(f.stringValue()), equalTo(GeoUtils.mortonHash(-2.0, -2.0)));
+        }
+        assertThat(f.fieldType().stored(), equalTo(stored));
         assertNotSame(IndexOptions.NONE, f.fieldType().indexOptions());
 
         f = doc.getField("b.a");

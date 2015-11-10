@@ -214,7 +214,7 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
                     Thread.sleep(timeout);
                 } catch (InterruptedException e1) {
                     Thread.currentThread().interrupt();
-                    throw new RuntimeException();
+                    throw new RuntimeException(e1);
                 }
             }
 

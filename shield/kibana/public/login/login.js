@@ -1,6 +1,6 @@
 require('plugins/security/login/login.less');
 
-const kibanaLogoUrl = require('ui/images/kibana-transparent-white.svg');
+const kibanaLogoUrl = require('plugins/security/login/kibana-transparent-white.svg');
 
 require('ui/chrome')
   .setVisible(false)

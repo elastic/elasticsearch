@@ -25,6 +25,7 @@ import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
 import org.elasticsearch.ingest.processor.grok.GrokProcessor;
+import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
 import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 
@@ -46,6 +47,7 @@ public class IngestModule extends AbstractModule {
         addProcessor(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory());
         addProcessor(GrokProcessor.TYPE, new GrokProcessor.Factory());
         addProcessor(DateProcessor.TYPE, new DateProcessor.Factory());
+        addProcessor(MutateProcessor.TYPE, new MutateProcessor.Factory());
 
         MapBinder<String, Processor.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Factory.class);
         for (Map.Entry<String, Processor.Factory> entry : processors.entrySet()) {

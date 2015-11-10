@@ -54,6 +54,36 @@ public final class Data {
         return (T) XContentMapValues.extractValue(path, document);
     }
 
+    public boolean containsProperty(String path) {
+        boolean containsProperty = false;
+        String[] pathElements = Strings.splitStringToArray(path, '.');
+        if (pathElements.length == 0) {
+            return false;
+        }
+
+        Map<String, Object> inner = document;
+
+        for (int i = 0; i < pathElements.length; i++) {
+            if (inner == null) {
+                containsProperty = false;
+                break;
+            }
+            if (i == pathElements.length - 1) {
+                containsProperty = inner.containsKey(pathElements[i]);
+                break;
+            }
+
+            Object obj = inner.get(pathElements[i]);
+            if (obj instanceof Map) {
+                inner = (Map<String, Object>) obj;
+            } else {
+                inner = null;
+            }
+        }
+
+        return containsProperty;
+    }
+
     /**
      * add `value` to path in document. If path does not exist,
      * nested hashmaps will be put in as parent key values until

@@ -119,7 +119,7 @@ public class URLBlobStore extends AbstractComponent implements BlobStore {
      * @return Base URL + path
      */
     private URL buildPath(BlobPath path) throws MalformedURLException {
-        if (path.isEmpty) {
+        if (path.isEmpty()) {
             return path();
         }
         String[] paths = path.toArray();

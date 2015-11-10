@@ -27,13 +27,16 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
+import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.test.ESAllocationTestCase;
+import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -623,5 +626,94 @@ public class ClusterRebalanceRoutingTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         assertThat(routingNodes.node("node3").isEmpty(), equalTo(true));
+    }
+
+    public void testRebalanceWhileShardFetching() {
+        final AtomicBoolean hasFetches = new AtomicBoolean(true);
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+                ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build(), new NoopGatewayAllocator() {
+            @Override
+            public boolean allocateUnassigned(RoutingAllocation allocation) {
+                if (hasFetches.get()) {
+                    allocation.setHasPendingAsyncFetch();
+                }
+                return super.allocateUnassigned(allocation);
+            }
+        });
+
+        MetaData metaData = MetaData.builder()
+                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT)).numberOfShards(2).numberOfReplicas(0))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT).put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_id", "node1,node2")).numberOfShards(2).numberOfReplicas(0))
+                .build();
+
+        // we use a second index here (test1) that never gets assigned otherwise allocateUnassinged is never called if we don't have unassigned shards.
+        RoutingTable routingTable = RoutingTable.builder()
+                .addAsNew(metaData.index("test"))
+                .addAsNew(metaData.index("test1"))
+                .build();
+
+        ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).metaData(metaData).routingTable(routingTable).build();
+
+        logger.info("start two nodes");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
+        routingTable = strategy.reroute(clusterState).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(INITIALIZING));
+        }
+
+        logger.debug("start all the primary shards for test");
+        RoutingNodes routingNodes = clusterState.getRoutingNodes();
+        routingTable = strategy.applyStartedShards(clusterState, routingNodes.shardsWithState("test", INITIALIZING)).routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
+        }
+
+        logger.debug("now, start 1 more node, check that rebalancing will not happen since we have shard sync going on");
+        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
+                .put(newNode("node2")))
+                .build();
+        logger.debug("reroute and check that nothing has changed");
+        RoutingAllocation.Result reroute = strategy.reroute(clusterState);
+        assertFalse(reroute.changed());
+        routingTable = reroute.routingTable();
+        clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
+
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test").shard(i).primaryShard().state(), equalTo(STARTED));
+        }
+        for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
+            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(UNASSIGNED));
+        }
+        logger.debug("now set hasFetches to true and reroute we should now see exactly one relocating shard");
+        hasFetches.set(false);
+        reroute = strategy.reroute(clusterState);
+        assertTrue(reroute.changed());
+        routingTable = reroute.routingTable();
+        int numStarted = 0;
+        int numRelocating = 0;
+        for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
+
+            assertThat(routingTable.index("test").shard(i).shards().size(), equalTo(1));
+            if (routingTable.index("test").shard(i).primaryShard().state() == STARTED) {
+                numStarted++;
+            } else if (routingTable.index("test").shard(i).primaryShard().state() == RELOCATING) {
+                numRelocating++;
+            }
+        }
+        for (int i = 0; i < routingTable.index("test1").shards().size(); i++) {
+            assertThat(routingTable.index("test1").shard(i).shards().size(), equalTo(1));
+            assertThat(routingTable.index("test1").shard(i).primaryShard().state(), equalTo(UNASSIGNED));
+        }
+        assertEquals(numStarted, 1);
+        assertEquals(numRelocating, 1);
+
     }
 }

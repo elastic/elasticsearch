@@ -480,7 +480,7 @@ public class IndexWithShadowReplicasIT extends ESIntegTestCase {
         final AtomicBoolean keepFailing = new AtomicBoolean(true);
 
         MockTransportService mockTransportService = ((MockTransportService) internalCluster().getInstance(TransportService.class, node1));
-        mockTransportService.addDelegate(internalCluster().getInstance(Discovery.class, node3).localNode(),
+        mockTransportService.addDelegate(internalCluster().getInstance(TransportService.class, node3),
                 new MockTransportService.DelegateTransport(mockTransportService.original()) {
 
                     @Override

@@ -186,9 +186,6 @@
               "type": "string",
               "index": "not_analyzed"
             },
-            "nodes": {
-              "enabled": false
-            },
             "shards": {
               "type": "object"
             }
@@ -198,6 +195,25 @@
     },
     "cluster_info": {
       "enabled": false
+    },
+    "node": {
+      "enabled": false
+    },
+    "nodes": {
+      "properties": {
+        "state_uuid": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "node": {
+          "properties": {
+            "id": {
+              "type": "string",
+              "index": "not_analyzed"
+            }
+          }
+        }
+      }
     },
     "node_stats": {
       "properties": {

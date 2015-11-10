@@ -5,15 +5,6 @@
     "status": "yellow",
     "version": 14,
     "state_uuid": "lj0hNoO9QaeNa1eR2ukktQ",
-    "master_node": "__node_id__",
-    "nodes": {
-      "__node_id__": {
-        "name": "Box",
-        "transport_address": "inet[/127.0.0.1:9300]",
-        "attributes": {
-          "local": "true"
-        }
-      }
-    }
+    "master_node": "__node_id__"
   }
 }

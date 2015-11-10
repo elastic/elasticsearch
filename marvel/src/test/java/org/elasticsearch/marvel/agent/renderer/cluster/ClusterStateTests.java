@@ -10,6 +10,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStateCollector;
+import org.elasticsearch.marvel.agent.renderer.AbstractRenderer;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -23,6 +24,8 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.core.Is.is;
 
 @ClusterScope(scope = Scope.TEST)
 public class ClusterStateTests extends MarvelIntegTestCase {
@@ -88,5 +91,81 @@ public class ClusterStateTests extends MarvelIntegTestCase {
         assertHitCount(client().prepareSearch().setSize(0)
                 .setTypes(ClusterStateCollector.TYPE)
                 .setQuery(QueryBuilders.matchQuery("cluster_state.nodes." + nodes.masterNodeId() + ".name", nodes.masterNode().name())).get(), 0L);
+    }
+
+    public void testClusterStateNodes() throws Exception {
+        final long nbNodes = internalCluster().size();
+
+        logger.debug("--> waiting for documents to be collected");
+        awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateCollector.NODES_TYPE);
+
+        logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.NODES_TYPE);
+        SearchResponse response = client().prepareSearch().setTypes(ClusterStateCollector.NODES_TYPE).get();
+        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
+
+        logger.debug("--> checking that every document contains the expected fields");
+        String[] filters = {
+                AbstractRenderer.Fields.CLUSTER_UUID.underscore().toString(),
+                AbstractRenderer.Fields.TIMESTAMP.underscore().toString(),
+                ClusterStateNodeRenderer.Fields.STATE_UUID.underscore().toString(),
+                ClusterStateNodeRenderer.Fields.NODE.underscore().toString(),
+                ClusterStateNodeRenderer.Fields.NODE.underscore().toString() + "." + ClusterStateNodeRenderer.Fields.ID.underscore().toString(),
+        };
+
+        for (SearchHit searchHit : response.getHits().getHits()) {
+            Map<String, Object> fields = searchHit.sourceAsMap();
+
+            for (String filter : filters) {
+                assertContains(filter, fields);
+            }
+        }
+
+        logger.debug("--> cluster state nodes successfully collected");
+    }
+
+    public void testClusterStateNode() throws Exception {
+        final long nbNodes = internalCluster().size();
+
+        logger.debug("--> waiting for documents to be collected");
+        awaitMarvelDocsCount(greaterThanOrEqualTo(nbNodes), ClusterStateCollector.NODE_TYPE);
+
+        logger.debug("--> searching for marvel documents of type [{}]", ClusterStateCollector.NODE_TYPE);
+        SearchResponse response = client().prepareSearch().setTypes(ClusterStateCollector.NODE_TYPE).get();
+        assertThat(response.getHits().getTotalHits(), greaterThanOrEqualTo(nbNodes));
+
+        logger.debug("--> checking that every document contains the expected fields");
+        String[] filters = {
+                AbstractRenderer.Fields.CLUSTER_UUID.underscore().toString(),
+                AbstractRenderer.Fields.TIMESTAMP.underscore().toString(),
+                DiscoveryNodeRenderer.Fields.NODE.underscore().toString(),
+                DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." + DiscoveryNodeRenderer.Fields.ID.underscore().toString(),
+                DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." + DiscoveryNodeRenderer.Fields.NAME.underscore().toString(),
+                DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." + DiscoveryNodeRenderer.Fields.ATTRIBUTES.underscore().toString(),
+                DiscoveryNodeRenderer.Fields.NODE.underscore().toString() + "." + DiscoveryNodeRenderer.Fields.TRANSPORT_ADDRESS.underscore().toString(),
+        };
+
+        for (SearchHit searchHit : response.getHits().getHits()) {
+            Map<String, Object> fields = searchHit.sourceAsMap();
+
+            for (String filter : filters) {
+                assertContains(filter, fields);
+            }
+        }
+
+        for (final String nodeName : internalCluster().getNodeNames()) {
+            final String nodeId = internalCluster().clusterService(nodeName).localNode().getId();
+
+            logger.debug("--> getting marvel document for node id [{}]", nodeId);
+            assertThat(client().prepareGet(MarvelSettings.MARVEL_DATA_INDEX_NAME, ClusterStateCollector.NODE_TYPE, nodeId).get().isExists(), is(true));
+
+            // checks that document is not indexed
+            assertHitCount(client().prepareSearch().setSize(0)
+                    .setTypes(ClusterStateCollector.NODE_TYPE)
+                    .setQuery(QueryBuilders.boolQuery()
+                            .should(QueryBuilders.matchQuery("node.id", nodeId))
+                            .should(QueryBuilders.matchQuery("node.name", nodeName))).get(), 0);
+        }
+
+        logger.debug("--> cluster state node successfully collected");
     }
 }

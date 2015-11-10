@@ -9,6 +9,7 @@ package org.elasticsearch.marvel.agent.collector.node;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.cluster.ClusterService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -61,7 +62,7 @@ public class NodeStatsCollector extends AbstractCollector<NodeStatsCollector> {
         // for nodes that can hold data. Client nodes can collect nodes stats because
         // elasticsearch correctly handles the nodes stats for client nodes.
         return super.shouldCollect()
-                && (clusterService.localNode().isDataNode() == false || nodeEnvironment.hasNodeFile());
+                && (DiscoveryNode.nodeRequiresLocalStorage(settings) == false || nodeEnvironment.hasNodeFile());
     }
 
     @Override

@@ -48,14 +48,13 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        Index index = new Index("_name");
-        Settings settings = Settings.EMPTY;
+        IndexSettings indexSettings = createIndexSettings();
         CircuitBreakerService circuitBreakerService = new NoneCircuitBreakerService();
         MappedFieldType.Names names = new MappedFieldType.Names("_field");
         FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
         indexFieldDataCache = new DummyAccountingFieldDataCache();
-        sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(),indexFieldDataCache,  names, circuitBreakerService, fieldDataType);
-        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(createIndexSettings(), names, fieldDataType, indexFieldDataCache, circuitBreakerService);
+        sortedSetDVOrdinalsIndexFieldData = new SortedSetDVOrdinalsIndexFieldData(indexSettings,indexFieldDataCache,  names, circuitBreakerService, fieldDataType);
+        pagedBytesIndexFieldData = new PagedBytesIndexFieldData(indexSettings, names, fieldDataType, indexFieldDataCache, circuitBreakerService);
 
         dir = newDirectory();
         IndexWriterConfig iwc = new IndexWriterConfig(null);
@@ -73,7 +72,7 @@ public class FieldDataCacheWithFieldSubsetReaderTests extends ESTestCase {
             }
         }
         iw.close();
-        ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId(index, 0));
+        ir = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(dir), new ShardId(indexSettings.getIndex(), 0));
     }
 
     @After

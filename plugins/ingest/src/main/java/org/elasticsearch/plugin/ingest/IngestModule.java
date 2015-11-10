@@ -26,7 +26,6 @@ import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
 import org.elasticsearch.ingest.processor.grok.GrokProcessor;
 import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
-import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 
 import java.util.HashMap;
@@ -43,7 +42,6 @@ public class IngestModule extends AbstractModule {
         binder().bind(PipelineStore.class).asEagerSingleton();
         binder().bind(PipelineStoreClient.class).asEagerSingleton();
 
-        addProcessor(SimpleProcessor.TYPE, new SimpleProcessor.Factory());
         addProcessor(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory());
         addProcessor(GrokProcessor.TYPE, new GrokProcessor.Factory());
         addProcessor(DateProcessor.TYPE, new DateProcessor.Factory());

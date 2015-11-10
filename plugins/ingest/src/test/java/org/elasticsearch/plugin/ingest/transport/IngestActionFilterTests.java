@@ -29,7 +29,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.ingest.processor.simple.SimpleProcessor;
+import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 import org.elasticsearch.plugin.ingest.PipelineStore;
@@ -40,6 +41,8 @@ import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Matchers.any;
@@ -164,7 +167,14 @@ public class IngestActionFilterTests extends ESTestCase {
                         .build()
         );
         PipelineStore store = mock(PipelineStore.class);
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(new SimpleProcessor("field1", "value1", "field2", "value2"))));
+
+        Map<String, Object> mutateConfig = new HashMap<>();
+        Map<String, Object> update = new HashMap<>();
+        update.put("field2", "value2");
+        mutateConfig.put("update", update);
+
+        Processor mutateProcessor = (new MutateProcessor.Factory()).create(mutateConfig);
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(mutateProcessor)));
         executionService = new PipelineExecutionService(store, threadPool);
         filter = new IngestActionFilter(Settings.EMPTY, executionService);
 

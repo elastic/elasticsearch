@@ -12,11 +12,10 @@
             "description": "_description",
             "processors": [
               {
-                "simple" : {
-                  "path" : "field1",
-                  "expected_value" : "_value",
-                  "add_field" : "field2",
-                  "add_field_value" : "_value"
+                "mutate" : {
+                  "update" : {
+                    "field2": "_value"
+                  }
                 }
               }
             ]

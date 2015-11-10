@@ -519,7 +519,7 @@ public class InternalEngineTests extends ESTestCase {
             }
 
             @Override
-            public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+            public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
                 counter.incrementAndGet();
                 return searcher;
             }
@@ -530,7 +530,7 @@ public class InternalEngineTests extends ESTestCase {
         engine.close();
 
         engine = new InternalEngine(engine.config(), false);
-        Engine.Searcher searcher = wrapper.wrap(engine.config(), engine.acquireSearcher("test"));
+        Engine.Searcher searcher = wrapper.wrap(engine.acquireSearcher("test"));
         assertThat(counter.get(), equalTo(2));
         searcher.close();
         IOUtils.close(store, engine);

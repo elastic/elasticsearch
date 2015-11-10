@@ -286,9 +286,12 @@ class ClusterFormationTasks {
             onlyIf { pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
-            File jps = Paths.get(Jvm.current().javaHome.toString(), "bin/jps").toFile()
+            File jps = getJpsExecutableByName("jps")
             if (!jps.exists()) {
-                throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
+                jps = getJpsExecutableByName("jps.exe")
+                if (!jps.exists()) {
+                    throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
+                }
             }
             commandLine jps, '-l'
             standardOutput = new ByteArrayOutputStream()
@@ -306,6 +309,10 @@ class ClusterFormationTasks {
                 }
             }
         }
+    }
+
+    private static File getJpsExecutableByName(String jpsExecutableName) {
+        return Paths.get(Jvm.current().javaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */

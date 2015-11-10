@@ -207,7 +207,7 @@ public class ClusterInfoServiceIT extends ESIntegTestCase {
         final Set<String> blockedActions = newHashSet(NodesStatsAction.NAME, NodesStatsAction.NAME + "[n]", IndicesStatsAction.NAME, IndicesStatsAction.NAME + "[n]");
         // drop all outgoing stats requests to force a timeout.
         for (DiscoveryNode node : internalTestCluster.clusterService().state().getNodes()) {
-            mockTransportService.addDelegate(node, new MockTransportService.DelegateTransport(mockTransportService.original()) {
+            mockTransportService.addDelegate(internalTestCluster.getInstance(TransportService.class, node.getName()), new MockTransportService.DelegateTransport(mockTransportService.original()) {
                 @Override
                 public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request,
                                         TransportRequestOptions options) throws IOException, TransportException {

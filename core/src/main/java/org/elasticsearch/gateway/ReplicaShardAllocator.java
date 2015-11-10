@@ -139,6 +139,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
             AsyncShardFetch.FetchResult<TransportNodesListShardStoreMetaData.NodeStoreFilesMetaData> shardStores = fetchData(shard, allocation);
             if (shardStores.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
+                allocation.setHasPendingAsyncFetch();
                 unassignedIterator.removeAndIgnore();
                 continue; // still fetching
             }

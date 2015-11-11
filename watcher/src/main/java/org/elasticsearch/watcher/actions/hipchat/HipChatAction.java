@@ -7,6 +7,7 @@ package org.elasticsearch.watcher.actions.hipchat;
 
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -16,7 +17,6 @@ import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage;
 import org.elasticsearch.watcher.actions.hipchat.service.SentMessages;
 import org.elasticsearch.watcher.support.text.TextTemplate;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**

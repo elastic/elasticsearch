@@ -31,6 +31,7 @@ import java.nio.channels.FileChannel;
 import java.nio.file.Files;
 import java.nio.file.OpenOption;
 import java.nio.file.Path;
+import java.util.Objects;
 
 /**
  */
@@ -90,4 +91,21 @@ class Checkpoint {
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+
+        Checkpoint that = (Checkpoint) o;
+
+        if (offset != that.offset) return false;
+        if (numOps != that.numOps) return false;
+        return generation == that.generation;
+
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(offset, numOps, generation);
+    }
 }

@@ -19,10 +19,14 @@
 package org.elasticsearch.search.aggregations.metrics.stats.extended;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.SortedNumericDoubleValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -31,19 +35,24 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
  */
 public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue {
+
+    public static final ParseField SIGMA_FIELD = new ParseField("sigma");
 
     final ValuesSource.Numeric valuesSource;
     final ValueFormatter formatter;
@@ -190,12 +199,18 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        private final double sigma;
+        private double sigma = 2.0;
 
-        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> valuesSourceInput, double sigma) {
-            super(name, InternalExtendedStats.TYPE.name(), valuesSourceInput);
+        public Factory(String name) {
+            super(name, InternalExtendedStats.TYPE.name(), ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        }
 
+        public void sigma(double sigma) {
             this.sigma = sigma;
+        }
+
+        public double sigma() {
+            return sigma;
         }
 
         @Override
@@ -211,6 +226,36 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
                 throws IOException {
             return new ExtendedStatsAggregator(name, valuesSource, config.formatter(), aggregationContext, parent, sigma,
                     pipelineAggregators, metaData);
+        }
+
+        @Override
+        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, StreamInput in) throws IOException {
+            ExtendedStatsAggregator.Factory factory = new ExtendedStatsAggregator.Factory(name);
+            factory.sigma = in.readDouble();
+            return factory;
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            out.writeDouble(sigma);
+        }
+
+        @Override
+        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(SIGMA_FIELD.getPreferredName(), sigma);
+            return builder;
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return Objects.hash(sigma);
+        }
+
+        @Override
+        protected boolean innerEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.equals(sigma, other.sigma);
         }
     }
 }

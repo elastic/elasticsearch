@@ -39,6 +39,8 @@ import java.util.concurrent.TimeUnit;
 public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryService> {
 
     public static final String SETTING_INITIAL_STATE_TIMEOUT = "discovery.initial_state_timeout";
+    public static final String SETTING_DISCOVERY_SEED = "discovery.id.seed";
+
 
     private static class InitialStateListener implements InitialStateDiscoveryListener {
 
@@ -130,7 +132,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     public static String generateNodeId(Settings settings) {
-        String seed = settings.get("discovery.id.seed");
+        String seed = settings.get(DiscoveryService.SETTING_DISCOVERY_SEED);
         if (seed != null) {
             return Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
         }

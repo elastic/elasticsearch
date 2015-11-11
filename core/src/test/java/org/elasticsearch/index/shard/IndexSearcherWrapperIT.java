@@ -42,9 +42,12 @@ import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.FieldMaskingReader;
 
 import java.io.IOException;
 import java.util.*;
+
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, randomDynamicTemplates = false)
 public class IndexSearcherWrapperIT extends ESIntegTestCase {
@@ -131,6 +134,7 @@ public class IndexSearcherWrapperIT extends ESIntegTestCase {
         MappedFieldType foo = shard.mapperService().indexName("foo");
         IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
         FieldDataStats before = shard.fieldData().stats("foo");
+        assertThat(before.getMemorySizeInBytes(), equalTo(0l));
         FieldDataStats after = null;
         try (Engine.Searcher searcher = shard.acquireSearcher("test")) {
             assertTrue(searcher.reader() instanceof FieldMaskingReader);
@@ -138,7 +142,8 @@ public class IndexSearcherWrapperIT extends ESIntegTestCase {
             IndexFieldData indexFieldData = ifd.loadGlobal(searcher.getDirectoryReader());
             after = shard.fieldData().stats("foo");
             assertEquals(after.getEvictions(), before.getEvictions());
-            assertTrue(indexFieldData.toString(), after.getMemorySizeInBytes() > before.getMemorySizeInBytes());
+            // If a field doesn't exist an empty IndexFieldData is returned and that isn't cached:
+            assertThat(after.getMemorySizeInBytes(), equalTo(0l));
         }
         assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
         assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), after.getMemorySizeInBytes());
@@ -147,28 +152,4 @@ public class IndexSearcherWrapperIT extends ESIntegTestCase {
         assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), before.getMemorySizeInBytes());
     }
 
-    private static class FieldMaskingReader extends FilterDirectoryReader {
-
-        private final String field;
-        public FieldMaskingReader(final String field, DirectoryReader in) throws IOException {
-            super(in, new SubReaderWrapper() {
-                @Override
-                public LeafReader wrap(LeafReader reader) {
-                    return new FieldFilterLeafReader(reader, Collections.singleton(field), true);
-                }
-            });
-            this.field = field;
-
-        }
-
-        @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldMaskingReader(field, in);
-        }
-
-        @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
-        }
-    }
 }

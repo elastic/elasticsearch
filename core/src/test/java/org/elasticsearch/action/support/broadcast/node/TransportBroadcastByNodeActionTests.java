@@ -310,7 +310,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt.asUnordered()) {
-            if (shard.currentNodeId() != masterNode.id()) {
+            if (!shard.currentNodeId().equals(masterNode.id())) {
                 set.add(shard.currentNodeId());
             }
         }

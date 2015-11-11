@@ -38,12 +38,15 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
@@ -52,7 +55,7 @@ import org.junit.Test;
 import java.util.Arrays;
 import java.util.Map;
 
-import static org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.*;
 
 /**
@@ -548,7 +551,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     public void testBackwardCompatible() throws Exception {
 
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0,
-                                         Version.V_1_7_1)).build();
+                Version.V_1_7_1)).build();
 
         DocumentMapperParser parser = createIndex("backward_compatible_index", settings).mapperService().documentMapperParser();
 
@@ -561,5 +564,60 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         parser.parse(mapping);
 
         assertThat(parser.parse(mapping).mapping().toString(), containsString("\"position_increment_gap\":10"));
+    }
+
+    /**
+     * Test backward compatibility when a search_analyzer is specified without
+     * an index_analyzer
+     */
+    public void testBackwardCompatibleSearchAnalyzerMigration() throws Exception {
+
+        Settings settings = Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.V_1_7_1))
+                .build();
+
+        DocumentMapperParser parser = createIndex("backward_compatible_index", settings).mapperService().documentMapperParser();
+
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties").startObject("field1")
+                .field("type", "string").field("search_analyzer", "keyword").endObject().endObject().endObject().endObject().string();
+        parser.parse(mapping);
+
+        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"search_analyzer\":\"keyword\""));
+        assertThat(parser.parse(mapping).mapping().toString(), containsString("\"analyzer\":\"default\""));
+        assertThat(parser.parse(mapping).mapping(), notNullValue());
+        assertThat(parser.parse(mapping).mapping().root(), notNullValue());
+        Mapper mapper = parser.parse(mapping).mapping().root().getMapper("field1");
+        assertThat(mapper, notNullValue());
+        assertThat(mapper, instanceOf(StringFieldMapper.class));
+        StringFieldMapper stringMapper = (StringFieldMapper) mapper;
+        MappedFieldType fieldType = stringMapper.fieldType();
+        assertThat(fieldType, notNullValue());
+        assertThat(fieldType.indexAnalyzer(), notNullValue());
+        assertThat(fieldType.indexAnalyzer().name(), equalTo("default"));
+        assertThat(fieldType.searchAnalyzer().name(), equalTo("keyword"));
+    }
+
+    /**
+     * Test for indexes created on or after 2.0 an index analyzer must be
+     * specified when declaring a search analyzer
+     */
+    public void testSearchAnalyzer() throws Exception {
+
+        try {
+            Settings settings = Settings
+                    .settingsBuilder()
+                    .put(IndexMetaData.SETTING_VERSION_CREATED,
+                            VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT)).build();
+
+            DocumentMapperParser parser = createIndex("index", settings).mapperService().documentMapperParser();
+
+            String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
+                    .startObject("field1").field("type", "string").field("search_analyzer", "keyword").endObject().endObject().endObject()
+                    .endObject().string();
+            parser.parse(mapping);
+            fail("Expected a MapperParsingException");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), equalTo("analyzer on field [field1] must be set when search_analyzer is set"));
+        }
     }
 }

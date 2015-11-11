@@ -23,9 +23,8 @@ esplugin {
 }
 
 dependencies {
-  compile('com.microsoft.azure:azure-storage:2.0.0') {
-    exclude group: 'org.slf4j', module: 'slf4j-api'
-  }
+  compile 'com.microsoft.azure:azure-storage:2.0.0'
+  compile 'org.apache.commons:commons-lang3:3.3.2'
 }
 
 dependencyLicenses {

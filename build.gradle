@@ -31,6 +31,9 @@ buildscript {
 
 // common maven publishing configuration
 subprojects {
+  group = 'org.elasticsearch'
+  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+
   plugins.withType(NexusPlugin).whenPluginAdded {
     modifyPom {
       project {
@@ -91,34 +94,12 @@ allprojects {
     sourceCompatibility = JavaVersion.VERSION_1_8
     targetCompatibility = sourceCompatibility
 
-    // dependency versions that are used in more than one place
-    versions = [
-      lucene:             "${luceneVersion}",
-      randomizedrunner:   '2.2.0',
-      httpclient:         '4.3.6'
-    ]
-
     // for eclipse hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 }
 
 subprojects {
-  repositories {
-    mavenCentral()
-    maven {
-      name 'sonatype-snapshots'
-      url 'http://oss.sonatype.org/content/repositories/snapshots/'
-    }
-    if (versions.lucene.contains('-snapshot')) {
-      String revision = (luceneVersion =~ /\d\.\d\.\d-snapshot-(\d+)/)[0][1]
-      maven {
-        name 'lucene-snapshots'
-        url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
-      }
-    }
-  }
-
   // include license and notice in jars
   gradle.projectsEvaluated {
     tasks.withType(Jar) {
@@ -133,7 +114,7 @@ subprojects {
   configurations {
     all {
       resolutionStrategy {
-        //failOnVersionConflict()
+        failOnVersionConflict()
 
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
@@ -198,4 +179,6 @@ task buildSrcEclipse(type: GradleBuild) {
   tasks = ['cleanEclipse', 'eclipse']
 }
 tasks.eclipse.dependsOn(buildSrcEclipse)
+
+task run(dependsOn: ':distribution:run')
 

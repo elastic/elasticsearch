@@ -111,11 +111,6 @@ public class TemplateQueryBuilder extends AbstractQueryBuilder<TemplateQueryBuil
     }
 
     @Override
-    protected void setFinalBoost(Query query) {
-        //no-op this query doesn't support boost
-    }
-
-    @Override
     protected TemplateQueryBuilder doReadFrom(StreamInput in) throws IOException {
         TemplateQueryBuilder templateQueryBuilder = new TemplateQueryBuilder(Template.readTemplate(in));
         return templateQueryBuilder;

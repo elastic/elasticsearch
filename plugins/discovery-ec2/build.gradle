@@ -22,9 +22,19 @@ esplugin {
   classname 'org.elasticsearch.plugin.discovery.ec2.Ec2DiscoveryPlugin'
 }
 
+versions << [
+  'aws': '1.10.33'
+]
+
 dependencies {
-  compile 'com.amazonaws:aws-java-sdk-ec2:1.10.19'
+  compile "com.amazonaws:aws-java-sdk-ec2:${versions.aws}"
+  compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile 'com.fasterxml.jackson.core:jackson-databind:2.5.3'
+  compile 'com.fasterxml.jackson.core:jackson-annotations:2.5.0'
 }
 
 dependencyLicenses {

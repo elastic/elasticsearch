@@ -18,8 +18,12 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.gradle.internal.jvm.Jvm
+
+import java.nio.file.Paths
+
 import org.apache.tools.ant.taskdefs.condition.Os
-import org.elasticsearch.gradle.ElasticsearchProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.DefaultTask
 import org.gradle.api.GradleException
 import org.gradle.api.InvalidUserDataException
@@ -52,7 +56,7 @@ class ClusterFormationTasks {
 
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro) {
-        String elasticsearchVersion = ElasticsearchProperties.version
+        String elasticsearchVersion = VersionProperties.elasticsearch
         String packaging = distro == 'tar' ? 'tar.gz' : distro
         project.configurations {
             elasticsearchDistro
@@ -101,7 +105,7 @@ class ClusterFormationTasks {
         for (Map.Entry<String, FileCollection> plugin : config.plugins.entrySet()) {
             // replace every dash followed by a character with just the uppercase character
             String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
-            String taskName = "${task.name}#install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}"
+            String taskName = "${task.name}#install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}Plugin"
             // delay reading the file location until execution time by wrapping in a closure within a GString
             String file = "${ -> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString() }"
             Object[] args = [new File(home, 'bin/plugin'), 'install', file]
@@ -173,12 +177,10 @@ class ClusterFormationTasks {
         if (config.plugins.isEmpty()) {
             return setup
         }
-        // collect the files for plugins into a list, but wrap each in a closure to delay
-        // looking for the filename until execution time
-        List files = config.plugins.values().collect { plugin -> return { plugin.singleFile } }
+
         return project.tasks.create(name: name, type: Copy, dependsOn: setup) {
             into pluginsTmpDir
-            from(*files) // spread the list into varargs
+            from(config.plugins.values())
         }
     }
 
@@ -244,17 +246,22 @@ class ClusterFormationTasks {
             // elasticsearch.bat is spawned as it has no daemon mode
             return project.tasks.create(name: name, type: DefaultTask, dependsOn: setup) << {
                 // Fall back to Ant exec task as Gradle Exec task does not support spawning yet
-                ant.exec(executable: 'cmd', spawn: true, dir: cwd) {
+                ant.exec(executable: 'cmd', spawn: config.daemonize, dir: cwd) {
                     esEnv.each { key, value -> env(key: key, value: value) }
                     (['/C', 'call', esScript] + esProps).each { arg(value: it) }
                 }
                 esPostStartActions(ant, logger)
             }
         } else {
+            List esExecutable = [esScript]
+            if(config.daemonize) {
+                esExecutable.add("-d")
+            }
+
             return project.tasks.create(name: name, type: Exec, dependsOn: setup) {
                 workingDir cwd
                 executable 'sh'
-                args esScript, '-d' // daemonize!
+                args esExecutable
                 args esProps
                 environment esEnv
                 errorOutput = new ByteArrayOutputStream()
@@ -279,7 +286,16 @@ class ClusterFormationTasks {
             onlyIf { pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
-            commandLine new File(System.getenv('JAVA_HOME'), 'bin/jps'), '-l'
+            File jps
+            if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                jps = getJpsExecutableByName("jps.exe")
+            } else {
+                jps = getJpsExecutableByName("jps")
+            }
+            if (!jps.exists()) {
+                throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
+            }
+            commandLine jps, '-l'
             standardOutput = new ByteArrayOutputStream()
             doLast {
                 String out = standardOutput.toString()
@@ -295,6 +311,10 @@ class ClusterFormationTasks {
                 }
             }
         }
+    }
+
+    private static File getJpsExecutableByName(String jpsExecutableName) {
+        return Paths.get(Jvm.current().javaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
@@ -325,7 +345,7 @@ class ClusterFormationTasks {
         switch (distro) {
             case 'zip':
             case 'tar':
-                path = "elasticsearch-${ElasticsearchProperties.version}"
+                path = "elasticsearch-${VersionProperties.elasticsearch}"
                 break;
             default:
                 throw new InvalidUserDataException("Unknown distribution: ${distro}")

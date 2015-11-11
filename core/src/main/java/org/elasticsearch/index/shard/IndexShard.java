@@ -727,7 +727,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         final Engine.Searcher searcher = engine.acquireSearcher(source);
         boolean success = false;
         try {
-            final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(engineConfig, searcher);
+            final Engine.Searcher wrappedSearcher = searcherWrapper == null ? searcher : searcherWrapper.wrap(searcher);
             assert wrappedSearcher != null;
             success = true;
             return wrappedSearcher;

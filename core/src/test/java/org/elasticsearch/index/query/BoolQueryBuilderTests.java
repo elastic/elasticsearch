@@ -20,12 +20,15 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.*;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentType;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.util.*;
 
-import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.*;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
@@ -174,7 +177,8 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
 
     // https://github.com/elasticsearch/elasticsearch/issues/7240
     public void testEmptyBooleanQuery() throws Exception {
-        String query = jsonBuilder().startObject().startObject("bool").endObject().endObject().string();
+        XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+        BytesReference query = contentBuilder.startObject().startObject("bool").endObject().endObject().bytes();
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
         assertThat(parsedQuery, Matchers.instanceOf(MatchAllDocsQuery.class));
     }

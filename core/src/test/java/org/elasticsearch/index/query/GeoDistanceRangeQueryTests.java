@@ -21,6 +21,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.GeoPointDistanceRangeQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.SloppyMath;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.geo.GeoDistance;
@@ -148,7 +149,11 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             if (queryBuilder.geoDistance() != null) {
                 fromValue = queryBuilder.geoDistance().normalize(fromValue, DistanceUnit.DEFAULT);
             }
-            assertThat(geoQuery.minInclusiveDistance(), closeTo(fromValue, Math.abs(fromValue) / 1000));
+            double fromSlop = Math.abs(fromValue) / 1000;
+            if (queryBuilder.includeLower() == false) {
+                fromSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(fromValue) + 1L));
+            }
+            assertThat(geoQuery.minInclusiveDistance(), closeTo(fromValue, fromSlop));
         }
         if (queryBuilder.to() != null && queryBuilder.to() instanceof Number) {
             double toValue = ((Number) queryBuilder.to()).doubleValue();
@@ -158,7 +163,11 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             if (queryBuilder.geoDistance() != null) {
                 toValue = queryBuilder.geoDistance().normalize(toValue, DistanceUnit.DEFAULT);
             }
-            assertThat(geoQuery.maxInclusiveDistance(), closeTo(toValue, Math.abs(toValue) / 1000));
+            double toSlop = Math.abs(toValue) / 1000;
+            if (queryBuilder.includeUpper() == false) {
+                toSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(toValue) + 1L));
+            }
+            assertThat(geoQuery.maxInclusiveDistance(), closeTo(toValue, toSlop));
         }
     }
 

@@ -27,25 +27,23 @@ apply plugin: 'nebula.optional-base'
 
 archivesBaseName = 'elasticsearch'
 
-versions << [
-  jackson:  '2.6.2',
-  log4j:    '1.2.17',
-  slf4j:    '1.6.2'
-]
-
 dependencies {
 
   // lucene
   compile "org.apache.lucene:lucene-core:${versions.lucene}"
-  compile "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
   compile "org.apache.lucene:lucene-analyzers-common:${versions.lucene}"
-  compile "org.apache.lucene:lucene-queries:${versions.lucene}"
-  compile "org.apache.lucene:lucene-memory:${versions.lucene}"
+  compile "org.apache.lucene:lucene-backward-codecs:${versions.lucene}"
+  compile "org.apache.lucene:lucene-grouping:${versions.lucene}"
   compile "org.apache.lucene:lucene-highlighter:${versions.lucene}"
-  compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
-  compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
   compile "org.apache.lucene:lucene-join:${versions.lucene}"
+  compile "org.apache.lucene:lucene-memory:${versions.lucene}"
+  compile "org.apache.lucene:lucene-misc:${versions.lucene}"
+  compile "org.apache.lucene:lucene-queries:${versions.lucene}"
+  compile "org.apache.lucene:lucene-queryparser:${versions.lucene}"
+  compile "org.apache.lucene:lucene-sandbox:${versions.lucene}"
   compile "org.apache.lucene:lucene-spatial:${versions.lucene}"
+  compile "org.apache.lucene:lucene-spatial3d:${versions.lucene}"
+  compile "org.apache.lucene:lucene-suggest:${versions.lucene}"
 
   compile 'org.elasticsearch:securesm:1.0'
 
@@ -62,10 +60,10 @@ dependencies {
   // json and yaml
   compile "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
-  compile(group: 'com.fasterxml.jackson.dataformat', name: 'jackson-dataformat-yaml', version: versions.jackson) {
-    exclude group: 'com.fasterxml.jackson.core', module: 'jackson-databind'
-  }
+  compile "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
   compile "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
+  compile "org.yaml:snakeyaml:1.15" // used by jackson yaml
+
   // network stack
   compile 'io.netty:netty:3.10.5.Final'
   // compression of transport protocol
@@ -76,18 +74,18 @@ dependencies {
   compile 'org.hdrhistogram:HdrHistogram:2.1.6'
 
   // lucene spatial
-  compile 'com.spatial4j:spatial4j:0.5', optional
-  compile 'com.vividsolutions:jts:1.13', optional
+  compile "com.spatial4j:spatial4j:${versions.spatial4j}", optional
+  compile "com.vividsolutions:jts:${versions.jts}", optional
 
   // templating
-  compile 'com.github.spullara.mustache.java:compiler:0.9.1', optional
+  compile "com.github.spullara.mustache.java:compiler:${versions.mustache}", optional
 
   // logging
   compile "log4j:log4j:${versions.log4j}", optional
   compile "log4j:apache-log4j-extras:${versions.log4j}", optional
   compile "org.slf4j:slf4j-api:${versions.slf4j}", optional
 
-  compile 'net.java.dev.jna:jna:4.1.0', optional
+  compile "net.java.dev.jna:jna:${versions.jna}", optional
 
   if (isEclipse == false || project.path == "${projectsPrefix}:core-tests") {
     testCompile("org.elasticsearch:test-framework:${version}") {
@@ -136,4 +134,3 @@ if (isEclipse == false || project.path == "${projectsPrefix}:core-tests") {
   Task copyRestSpec = RestSpecHack.configureTask(project, true)
   integTest.dependsOn copyRestSpec
 }
-

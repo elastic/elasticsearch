@@ -65,6 +65,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
             AsyncShardFetch.FetchResult<TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> shardState = fetchData(shard, allocation);
             if (shardState.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard started state", shard);
+                allocation.setHasPendingAsyncFetch();
                 unassignedIterator.removeAndIgnore();
                 continue;
             }

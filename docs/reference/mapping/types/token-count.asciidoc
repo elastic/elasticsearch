@@ -75,8 +75,9 @@ The following parameters are accepted by `token_count` fields:
 
 <<doc-values,`doc_values`>>::
 
-    Can the field value be used for sorting, aggregations, or scripting?
-    Accepts `true` (default) or `false`.
+    Should the field be stored on disk in a column-stride fashion, so that it
+    can later be used for sorting, aggregations, or scripting? Accepts `true`
+    (default) or `false`.
 
 <<mapping-index,`index`>>::
 

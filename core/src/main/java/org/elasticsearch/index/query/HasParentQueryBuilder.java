@@ -129,7 +129,6 @@ public class HasParentQueryBuilder extends AbstractQueryBuilder<HasParentQueryBu
         if (innerQuery == null) {
             return null;
         }
-        innerQuery.setBoost(boost);
         DocumentMapper parentDocMapper = context.getMapperService().documentMapper(type);
         if (parentDocMapper == null) {
             throw new QueryShardException(context, "[has_parent] query configured 'parent_type' [" + type

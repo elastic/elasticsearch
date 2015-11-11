@@ -82,6 +82,7 @@ public class PluginManager {
             "lang-groovy",
             "lang-javascript",
             "lang-python",
+            "mapper-attachments",
             "mapper-murmur3",
             "mapper-size",
             "repository-azure",

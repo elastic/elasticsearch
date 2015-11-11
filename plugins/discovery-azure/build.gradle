@@ -22,14 +22,33 @@ esplugin {
   classname 'org.elasticsearch.plugin.discovery.azure.AzureDiscoveryPlugin'
 }
 
+versions << [
+  'azure': '0.7.0',
+  'jersey': '1.13'
+]
+
 dependencies {
-  compile('com.microsoft.azure:azure-management-compute:0.7.0') {
-    exclude group: 'stax', module: 'stax-api'
-  }
-  compile('com.microsoft.azure:azure-management:0.7.0') {
-    exclude group: 'stax', module: 'stax-api'
-  }
+  compile "com.microsoft.azure:azure-management-compute:${versions.azure}"
+  compile "com.microsoft.azure:azure-management:${versions.azure}"
+  compile "com.microsoft.azure:azure-core:${versions.azure}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile 'javax.mail:mail:1.4.5'
+  compile 'javax.activation:activation:1.1'
+  compile 'javax.inject:javax.inject:1'
+  compile "com.sun.jersey:jersey-client:${versions.jersey}"
+  compile "com.sun.jersey:jersey-core:${versions.jersey}"
+  compile "com.sun.jersey:jersey-json:${versions.jersey}"
+  compile 'org.codehaus.jettison:jettison:1.1' 
+  compile 'com.sun.xml.bind:jaxb-impl:2.2.3-1'
+  compile 'javax.xml.bind:jaxb-api:2.2.2'
+  compile 'javax.xml.stream:stax-api:1.0-2'
+  compile 'org.codehaus.jackson:jackson-core-asl:1.9.2'
+  compile 'org.codehaus.jackson:jackson-mapper-asl:1.9.2'
+  compile 'org.codehaus.jackson:jackson-jaxrs:1.9.2'
+  compile 'org.codehaus.jackson:jackson-xc:1.9.2'  
 }
 
 dependencyLicenses {

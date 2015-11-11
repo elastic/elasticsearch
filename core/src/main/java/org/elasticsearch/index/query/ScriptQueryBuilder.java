@@ -104,10 +104,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = super.hashCode();
-            result = prime * result + Objects.hashCode(script);
-            return result;
+            return Objects.hash(super.hashCode(), script);
         }
 
         @Override

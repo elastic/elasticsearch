@@ -20,13 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.queries.ExtendedCommonTermsQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.FuzzyQuery;
-import org.apache.lucene.search.MatchAllDocsQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -50,12 +44,12 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         if (fieldName.equals(DATE_FIELD_NAME)) {
             assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         }
-        Object value = "";
+        Object value;
         if (fieldName.equals(STRING_FIELD_NAME)) {
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
-                builder.append(randomAsciiOfLengthBetween(1, 10) + " ");
+                builder.append(randomAsciiOfLengthBetween(1, 10)).append(" ");
             }
             value = builder.toString().trim();
         } else {
@@ -139,8 +133,6 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
                 queryValue = queryValue.toLowerCase(Locale.ROOT);
             }
             Query expectedTermQuery = fieldType.termQuery(queryValue, context);
-            // the real query will have boost applied, so we set it to our expeced as well
-            expectedTermQuery.setBoost(queryBuilder.boost());
             assertEquals(expectedTermQuery, query);
         }
 
@@ -174,7 +166,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
             // depending on analyzer being set or not we can have term lowercased along the way, so to simplify test we just
             // compare lowercased terms here
             String originalTermLc = queryBuilder.value().toString().toLowerCase(Locale.ROOT);
-            String actualTermLc = fuzzyQuery.getTerm().text().toString().toLowerCase(Locale.ROOT);
+            String actualTermLc = fuzzyQuery.getTerm().text().toLowerCase(Locale.ROOT);
             assertThat(actualTermLc, equalTo(originalTermLc));
             assertThat(queryBuilder.prefixLength(), equalTo(fuzzyQuery.getPrefixLength()));
             assertThat(queryBuilder.fuzzyTranspositions(), equalTo(fuzzyQuery.getTranspositions()));

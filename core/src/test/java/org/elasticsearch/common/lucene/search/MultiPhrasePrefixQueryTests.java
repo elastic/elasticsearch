@@ -27,6 +27,7 @@ import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.RAMDirectory;
@@ -34,6 +35,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MultiPhrasePrefixQueryTests extends ESTestCase {
     public void testSimple() throws Exception {
@@ -78,6 +80,8 @@ public class MultiPhrasePrefixQueryTests extends ESTestCase {
         multiPhrasePrefixQuery.add(new Term[]{new Term("field", "aaa"), new Term("field", "bb")});
         multiPhrasePrefixQuery.setBoost(randomFloat());
         Query query = multiPhrasePrefixQuery.rewrite(reader);
-        assertThat(query.getBoost(), equalTo(multiPhrasePrefixQuery.getBoost()));
+        assertThat(query, instanceOf(BoostQuery.class));
+        BoostQuery boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), equalTo(multiPhrasePrefixQuery.getBoost()));
     }
 }

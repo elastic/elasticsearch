@@ -37,6 +37,9 @@ class ClusterConfiguration {
     int transportPort = 9500
 
     @Input
+    boolean daemonize = true
+
+    @Input
     String jvmArgs = System.getProperty('tests.jvm.argline', '')
 
     Map<String, String> systemProperties = new HashMap<>()

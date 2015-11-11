@@ -41,6 +41,7 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
+import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -196,14 +197,16 @@ public class DefaultSearchContext extends SearchContext {
         if (query() == null) {
             parsedQuery(ParsedQuery.parsedMatchAllQuery());
         }
-        if (queryBoost() != 1.0f) {
+        if (queryBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
             parsedQuery(new ParsedQuery(new FunctionScoreQuery(query(), new WeightFactorFunction(queryBoost)), parsedQuery()));
         }
         Query searchFilter = searchFilter(types());
         if (searchFilter != null) {
             if (Queries.isConstantMatchAllQuery(query())) {
                 Query q = new ConstantScoreQuery(searchFilter);
-                q.setBoost(query().getBoost());
+                if (query().getBoost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                    q = new BoostQuery(q, query().getBoost());
+                }
                 parsedQuery(new ParsedQuery(q, parsedQuery()));
             } else {
                 BooleanQuery filtered = new BooleanQuery.Builder()

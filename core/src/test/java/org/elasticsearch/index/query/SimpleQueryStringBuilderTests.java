@@ -20,17 +20,10 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -239,16 +232,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        QueryParseContext context = createParseContext();
         String query = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
                 "      \"query\" : \"" + query + "\"" +
                 "    }\n" +
                 "}";
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
-        context.reset(parser);
-        SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(parser, ParseFieldMatcher.EMPTY);
+        SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(contentString);
         assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());
         assertThat(queryBuilder.fields().size(), equalTo(0));
@@ -276,10 +266,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(query, notNullValue());
 
         if ("".equals(queryBuilder.value())) {
-            assertTrue("Query should have been MatchNoDocsQuery but was " + query.getClass().getName(), query instanceof MatchNoDocsQuery);
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
         } else if (queryBuilder.fields().size() > 1) {
-            assertTrue("Query should have been BooleanQuery but was " + query.getClass().getName(), query instanceof BooleanQuery);
-
+            assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
             if (queryBuilder.lowercaseExpandedTerms()) {
                 for (BooleanClause clause : boolQuery.clauses()) {
@@ -289,43 +278,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                     }
                 }
             }
-
             assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
-            Iterator<String> fields = queryBuilder.fields().keySet().iterator();
+            Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
             for (BooleanClause booleanClause : boolQuery) {
-                assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
-                TermQuery termQuery = (TermQuery) booleanClause.getQuery();
-                assertThat(termQuery.getTerm().field(), equalTo(fields.next()));
-                assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(queryBuilder.value().toLowerCase(Locale.ROOT)));
+                Map.Entry<String, Float> field = fieldsIterator.next();
+                assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
             }
-
             if (queryBuilder.minimumShouldMatch() != null) {
                 assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
             }
-        } else if (queryBuilder.fields().size() <= 1) {
-            assertTrue("Query should have been TermQuery but was " + query.getClass().getName(), query instanceof TermQuery);
-
-            TermQuery termQuery = (TermQuery) query;
-            String field;
-            if (queryBuilder.fields().size() == 0) {
-                field = MetaData.ALL;
-            } else {
-                field = queryBuilder.fields().keySet().iterator().next();
-            }
-            assertThat(termQuery.getTerm().field(), equalTo(field));
-            assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(queryBuilder.value().toLowerCase(Locale.ROOT)));
+        } else if (queryBuilder.fields().size() == 1) {
+            Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
+            assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
+        } else if (queryBuilder.fields().size() == 0) {
+            assertTermQuery(query, MetaData.ALL, queryBuilder.value());
         } else {
             fail("Encountered lucene query type we do not have a validation implementation for in our " + SimpleQueryStringBuilderTests.class.getSimpleName());
         }
     }
 
-    @Override
-    protected void assertBoost(SimpleQueryStringBuilder queryBuilder, Query query) throws IOException {
-        //boost may get parsed from the random query, we then combine the main boost with that one coming from lucene
-        //instead of trying to reparse the query and guess what the boost should be, we delegate boost checks to specific boost tests below
-    }
-
-    private int shouldClauses(BooleanQuery query) {
+    private static int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
             if (c.getOccur() == BooleanClause.Occur.SHOULD) {
@@ -341,15 +313,21 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
         simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
         Query query = simpleQueryStringBuilder.toQuery(shardContext);
-        assertThat(query, instanceOf(TermQuery.class));
-        assertThat(query.getBoost(), equalTo(5f));
+        assertThat(query, instanceOf(BoostQuery.class));
+        BoostQuery boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), equalTo(5f));
+        assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
 
         simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
         simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
         simpleQueryStringBuilder.boost(2);
         query = simpleQueryStringBuilder.toQuery(shardContext);
-        assertThat(query, instanceOf(TermQuery.class));
-        assertThat(query.getBoost(), equalTo(10f));
+        boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), equalTo(2f));
+        assertThat(boostQuery.getQuery(), instanceOf(BoostQuery.class));
+        boostQuery = (BoostQuery) boostQuery.getQuery();
+        assertThat(boostQuery.getBoost(), equalTo(5f));
+        assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
     }
 
     public void testNegativeFlags() throws IOException {

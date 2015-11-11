@@ -20,7 +20,6 @@ package org.elasticsearch.gradle.plugin
 
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.ElasticsearchProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -49,7 +48,7 @@ class PluginBuildPlugin extends BuildPlugin {
             project.integTest.configure {
                 dependsOn project.bundlePlugin
                 cluster {
-                    plugin project.name, project.bundlePlugin.outputs.files
+                    plugin project.pluginProperties.extension.name, project.bundlePlugin.outputs.files
                 }
             }
         }
@@ -64,20 +63,18 @@ class PluginBuildPlugin extends BuildPlugin {
     }
 
     static void configureDependencies(Project project) {
-        String elasticsearchVersion = ElasticsearchProperties.version
         project.dependencies {
-            provided "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
-            testCompile "org.elasticsearch:test-framework:${elasticsearchVersion}"
+            provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+            testCompile "org.elasticsearch:test-framework:${project.versions.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
-            // TODO: remove duplication of version here with core...
-            provided 'com.spatial4j:spatial4j:0.4.1'
-            provided 'com.vividsolutions:jts:1.13'
-            provided 'com.github.spullara.mustache.java:compiler:0.9.1'
-            provided "log4j:log4j:1.2.17"
-            provided "log4j:apache-log4j-extras:1.2.17"
-            provided "org.slf4j:slf4j-api:1.6.2"
-            provided 'net.java.dev.jna:jna:4.1.0'
+            provided "com.spatial4j:spatial4j:${project.versions.spatial4j}"
+            provided "com.vividsolutions:jts:${project.versions.jts}"
+            provided "com.github.spullara.mustache.java:compiler:${project.versions.mustache}"
+            provided "log4j:log4j:${project.versions.log4j}"
+            provided "log4j:apache-log4j-extras:${project.versions.log4j}"
+            provided "org.slf4j:slf4j-api:${project.versions.slf4j}"
+            provided "net.java.dev.jna:jna:${project.versions.jna}"
         }
     }
 

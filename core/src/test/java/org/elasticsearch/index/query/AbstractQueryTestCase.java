@@ -23,8 +23,12 @@ import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.Accountable;
+import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.spans.SpanBoostQuery;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -40,6 +44,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.compress.CompressedXContent;
@@ -55,10 +60,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
@@ -104,9 +106,7 @@ import java.lang.reflect.Proxy;
 import java.util.*;
 import java.util.concurrent.ExecutionException;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.*;
 
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
@@ -336,11 +336,22 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTQUERIES; runs++) {
             QB testQuery = createTestQueryBuilder();
-            assertParsedQuery(testQuery.toString(), testQuery);
+            XContentBuilder builder = toXContent(testQuery, randomFrom(XContentType.values()));
+            assertParsedQuery(builder.bytes(), testQuery);
             for (Map.Entry<String, QB> alternateVersion : getAlternateVersions().entrySet()) {
-                assertParsedQuery(alternateVersion.getKey(), alternateVersion.getValue());
+                String queryAsString = alternateVersion.getKey();
+                assertParsedQuery(new BytesArray(queryAsString), alternateVersion.getValue());
             }
         }
+    }
+
+    protected static XContentBuilder toXContent(QueryBuilder<?> query, XContentType contentType) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
+        if (randomBoolean()) {
+            builder.prettyPrint();
+        }
+        query.toXContent(builder, ToXContent.EMPTY_PARAMS);
+        return builder;
     }
 
     /**
@@ -356,7 +367,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             testQuery = createTestQueryBuilder();
         } while (testQuery.toString().contains(marker));
         testQuery.queryName(marker); // to find root query to add additional bogus field there
-        String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker +  "\", \"bogusField\" : \"someValue\"");
+        String queryAsString = testQuery.toString().replace("\"" + marker + "\"", "\"" + marker + "\", \"bogusField\" : \"someValue\"");
         try {
             parseQuery(queryAsString);
             fail("ParsingException expected.");
@@ -411,6 +422,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
     }
 
+    /**
+     * Parses the query provided as bytes argument and compares it with the expected result provided as argument as a {@link QueryBuilder}
+     */
+    protected final void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder<?> expectedQuery) throws IOException {
+        assertParsedQuery(queryAsBytes, expectedQuery, ParseFieldMatcher.STRICT);
+    }
+
+    protected final void assertParsedQuery(BytesReference queryAsBytes, QueryBuilder<?> expectedQuery, ParseFieldMatcher matcher) throws IOException {
+        QueryBuilder<?> newQuery = parseQuery(queryAsBytes, matcher);
+        assertNotSame(newQuery, expectedQuery);
+        assertEquals(expectedQuery, newQuery);
+        assertEquals(expectedQuery.hashCode(), newQuery.hashCode());
+    }
+
     protected final QueryBuilder<?> parseQuery(String queryAsString) throws IOException {
         return parseQuery(queryAsString, ParseFieldMatcher.STRICT);
     }
@@ -420,12 +445,16 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         return parseQuery(parser, matcher);
     }
 
-    protected final QueryBuilder<?> parseQuery(BytesReference query) throws IOException {
-        XContentParser parser = XContentFactory.xContent(query).createParser(query);
-        return parseQuery(parser, ParseFieldMatcher.STRICT);
+    protected final QueryBuilder<?> parseQuery(BytesReference queryAsBytes) throws IOException {
+        return parseQuery(queryAsBytes, ParseFieldMatcher.STRICT);
     }
 
-    protected final QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
+    protected final QueryBuilder<?> parseQuery(BytesReference queryAsBytes, ParseFieldMatcher matcher) throws IOException {
+        XContentParser parser = XContentFactory.xContent(queryAsBytes).createParser(queryAsBytes);
+        return parseQuery(parser, matcher);
+    }
+
+    private QueryBuilder<?> parseQuery(XContentParser parser, ParseFieldMatcher matcher) throws IOException {
         QueryParseContext context = createParseContext();
         context.reset(parser);
         context.parseFieldMatcher(matcher);
@@ -501,18 +530,20 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
             assertThat(namedQuery, equalTo(query));
         }
         if (query != null) {
-            assertBoost(queryBuilder, query);
+            if (queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+                assertThat(query, either(instanceOf(BoostQuery.class)).or(instanceOf(SpanBoostQuery.class)));
+                if (query instanceof SpanBoostQuery) {
+                    SpanBoostQuery spanBoostQuery = (SpanBoostQuery) query;
+                    assertThat(spanBoostQuery.getBoost(), equalTo(queryBuilder.boost()));
+                    query = spanBoostQuery.getQuery();
+                } else {
+                    BoostQuery boostQuery = (BoostQuery) query;
+                    assertThat(boostQuery.getBoost(), equalTo(queryBuilder.boost()));
+                    query = boostQuery.getQuery();
+                }
+            }
         }
         doAssertLuceneQuery(queryBuilder, query, context);
-    }
-
-    /**
-     * Allows to override boost assertions for queries that don't have the default behaviour
-     */
-    protected void assertBoost(QB queryBuilder, Query query) throws IOException {
-        // workaround https://bugs.openjdk.java.net/browse/JDK-8056984
-        float boost = queryBuilder.boost();
-        assertThat(query.getBoost(), equalTo(boost));
     }
 
     /**
@@ -520,6 +551,23 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
      * Contains the query specific checks to be implemented by subclasses.
      */
     protected abstract void doAssertLuceneQuery(QB queryBuilder, Query query, QueryShardContext context) throws IOException;
+
+    protected static void assertTermOrBoostQuery(Query query, String field, String value, float fieldBoost) {
+        if (fieldBoost != AbstractQueryBuilder.DEFAULT_BOOST) {
+            assertThat(query, instanceOf(BoostQuery.class));
+            BoostQuery boostQuery = (BoostQuery) query;
+            assertThat(boostQuery.getBoost(), equalTo(fieldBoost));
+            query = boostQuery.getQuery();
+        }
+        assertTermQuery(query, field, value);
+    }
+
+    protected static void assertTermQuery(Query query, String field, String value) {
+        assertThat(query, instanceOf(TermQuery.class));
+        TermQuery termQuery = (TermQuery) query;
+        assertThat(termQuery.getTerm().field(), equalTo(field));
+        assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(value.toLowerCase(Locale.ROOT)));
+    }
 
     /**
      * Test serialization and deserialization of the test query.

@@ -385,7 +385,7 @@ public class IndexModuleTests extends ESTestCase {
         }
 
         @Override
-        public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+        public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
             return null;
         }
     }

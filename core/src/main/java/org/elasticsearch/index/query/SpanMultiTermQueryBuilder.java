@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanQuery;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -62,11 +65,23 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         Query subQuery = multiTermQueryBuilder.toQuery(context);
+        float boost = AbstractQueryBuilder.DEFAULT_BOOST;
+        if (subQuery instanceof BoostQuery) {
+            BoostQuery boostQuery = (BoostQuery) subQuery;
+            subQuery = boostQuery.getQuery();
+            boost = boostQuery.getBoost();
+        }
+        //no MultiTermQuery extends SpanQuery, so SpanBoostQuery is not supported here
+        assert subQuery instanceof SpanBoostQuery == false;
         if (subQuery instanceof MultiTermQuery == false) {
             throw new UnsupportedOperationException("unsupported inner query, should be " + MultiTermQuery.class.getName() +" but was "
                     + subQuery.getClass().getName());
         }
-        return new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
+        SpanQuery wrapper = new SpanMultiTermQueryWrapper<>((MultiTermQuery) subQuery);
+        if (boost != AbstractQueryBuilder.DEFAULT_BOOST) {
+            wrapper = new SpanBoostQuery(wrapper, boost);
+        }
+        return wrapper;
     }
 
     @Override

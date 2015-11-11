@@ -291,7 +291,13 @@ public class TypeParsers {
 
         if (indexAnalyzer == null) {
             if (searchAnalyzer != null) {
-                throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
+                // If the index was created before 2.0 then we are trying to upgrade the mappings so use the default indexAnalyzer 
+                // instead of throwing an exception so the user is able to upgrade
+                if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
+                    indexAnalyzer = parserContext.analysisService().defaultIndexAnalyzer();
+                } else {
+                    throw new MapperParsingException("analyzer on field [" + name + "] must be set when search_analyzer is set");
+                }
             }
         } else if (searchAnalyzer == null) {
             searchAnalyzer = indexAnalyzer;

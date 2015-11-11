@@ -628,4 +628,9 @@ public class AmazonS3Wrapper implements AmazonS3 {
     public BucketReplicationConfiguration getBucketReplicationConfiguration(GetBucketReplicationConfigurationRequest getBucketReplicationConfigurationRequest) throws AmazonServiceException, AmazonClientException {
         return delegate.getBucketReplicationConfiguration(getBucketReplicationConfigurationRequest);
     }
+
+    @Override
+    public HeadBucketResult headBucket(HeadBucketRequest headBucketRequest) throws AmazonClientException, AmazonServiceException {
+        return delegate.headBucket(headBucketRequest);
+    }
 }

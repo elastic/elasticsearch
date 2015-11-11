@@ -80,6 +80,7 @@ import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.test.FieldMaskingReader;
 import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
@@ -959,13 +960,15 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             MappedFieldType foo = newShard.mapperService().indexName("foo");
             IndexFieldData.Global ifd = shard.indexFieldDataService().getForField(foo);
             FieldDataStats before = shard.fieldData().stats("foo");
+            assertThat(before.getMemorySizeInBytes(), equalTo(0l));
             FieldDataStats after = null;
             try (Engine.Searcher searcher = newShard.acquireSearcher("test")) {
                 assumeTrue("we have to have more than one segment", searcher.getDirectoryReader().leaves().size() > 1);
                 IndexFieldData indexFieldData = ifd.loadGlobal(searcher.getDirectoryReader());
                 after = shard.fieldData().stats("foo");
                 assertEquals(after.getEvictions(), before.getEvictions());
-                assertTrue(indexFieldData.toString(), after.getMemorySizeInBytes() > before.getMemorySizeInBytes());
+                // If a field doesn't exist an empty IndexFieldData is returned and that isn't cached:
+                assertThat(after.getMemorySizeInBytes(), equalTo(0l));
             }
             assertEquals(shard.fieldData().stats("foo").getEvictions(), before.getEvictions());
             assertEquals(shard.fieldData().stats("foo").getMemorySizeInBytes(), after.getMemorySizeInBytes());
@@ -1024,28 +1027,4 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         return newShard;
     }
 
-    private static class FieldMaskingReader extends FilterDirectoryReader {
-        private final String field;
-        public FieldMaskingReader(String field, DirectoryReader in) throws IOException {
-            super(in, new SubReaderWrapper() {
-                private final String filteredField = field;
-                @Override
-                public LeafReader wrap(LeafReader reader) {
-                    return new FieldFilterLeafReader(reader, Collections.singleton(field), true);
-                }
-            });
-            this.field = field;
-
-        }
-
-        @Override
-        protected DirectoryReader doWrapDirectoryReader(DirectoryReader in) throws IOException {
-            return new FieldMaskingReader(field, in);
-        }
-
-        @Override
-        public Object getCoreCacheKey() {
-            return in.getCoreCacheKey();
-        }
-    }
 }

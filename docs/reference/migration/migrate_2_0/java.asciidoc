@@ -40,6 +40,12 @@ the request. Now the exception is only thrown if all shards fail the request.
 The responses for these APIs will always have a `getShardFailures` method that
 you can and should check for failures.
 
+
+==== IndexMissingException removed.
+
+Use `IndexNotFoundException` instead.
+
+
 ==== Automatically thread client listeners
 
 Previously, the user had to set request listener threads to `true` when on the
@@ -111,6 +117,16 @@ You can create an InetSocketAddress instance with `InetSocketAddress(String, int
 -----------------------------
 new InetSocketTransportAddress(new InetSocketAddress("127.0.0.1", 0));
 -----------------------------
+
+==== Request Builders refactoring
+
+An `action` parameter has been added to various request builders:
+
+* Instead of `new SnapshotsStatusRequestBuilder(elasticSearchClient)` use `new SnapshotsStatusRequestBuilder(elasticSearchClient, SnapshotsStatusAction.INSTANCE)`.
+
+* Instead of `new CreateSnapshotRequestBuilder(elasticSearchClient)` use `new CreateSnapshotRequestBuilder(elasticSearchClient, CreateSnapshotAction.INSTANCE)`.
+
+* Instead of `new CreateIndexRequestBuilder(elasticSearchClient, index)` use `new CreateIndexRequestBuilder(elasticSearchClient, CreateIndexAction.INSTANCE, index)`.
 
 ==== Shading and package relocation removed
 

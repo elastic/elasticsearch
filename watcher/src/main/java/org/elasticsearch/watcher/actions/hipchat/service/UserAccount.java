@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.actions.hipchat.service;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.logging.ESLogger;
@@ -19,7 +20,6 @@ import org.elasticsearch.watcher.actions.hipchat.service.HipChatMessage.Format;
 import org.elasticsearch.watcher.support.http.*;
 import org.elasticsearch.watcher.support.text.TextTemplateEngine;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;

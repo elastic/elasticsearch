@@ -6,6 +6,7 @@
 package org.elasticsearch.watcher.actions.slack;
 
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -15,7 +16,6 @@ import org.elasticsearch.watcher.actions.Action;
 import org.elasticsearch.watcher.actions.slack.service.SentMessages;
 import org.elasticsearch.watcher.actions.slack.service.message.SlackMessage;
 
-import javax.annotation.Nullable;
 import java.io.IOException;
 
 /**

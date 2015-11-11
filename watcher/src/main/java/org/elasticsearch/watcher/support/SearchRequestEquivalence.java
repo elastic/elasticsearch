@@ -6,9 +6,9 @@
 package org.elasticsearch.watcher.support;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 
-import javax.annotation.Nullable;
 import java.util.Arrays;
 
 import static org.elasticsearch.watcher.support.Exceptions.illegalState;

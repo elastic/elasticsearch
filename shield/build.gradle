@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.esplugin'
 esplugin {
+  name 'shield'
   description 'Elasticsearch Shield (security)'
   classname 'org.elasticsearch.shield.ShieldPlugin'
   isolated false
@@ -15,7 +16,6 @@ dependencies {
   compile project("${projectsPrefix}:license:plugin-api")
   compile 'dk.brics.automaton:automaton:1.11-8'
   compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
-  testCompile "org.elasticsearch:test-framework:${version}"
   testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
   testCompile 'org.elasticsearch:securemock:1.1'
   testCompile 'com.google.jimfs:jimfs:1.0'

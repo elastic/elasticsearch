@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 import com.google.common.base.Function;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -466,9 +467,17 @@ public abstract class FieldMapper extends Mapper {
             if (includeDefaults) {
                 builder.field("analyzer", "default");
             }
-        } else if (includeDefaults || fieldType().indexAnalyzer().name().startsWith("_") == false && fieldType().indexAnalyzer().name().equals("default") == false) {
-            builder.field("analyzer", fieldType().indexAnalyzer().name());
-            if (fieldType().searchAnalyzer().name().equals(fieldType().indexAnalyzer().name()) == false) {
+        } else {
+            boolean writeSearchAnalyzer = includeDefaults || fieldType().searchAnalyzer().name().startsWith("_") == false
+                    && fieldType().searchAnalyzer().name().equals("default") == false
+                    && fieldType().searchAnalyzer().name().equals(fieldType().indexAnalyzer().name()) == false;
+            // If we are going to write the search_analyzer then we need to write the analyzer as well since the search_analyzer 
+            // should not be specified without the analyzer
+            if (writeSearchAnalyzer || includeDefaults || fieldType().indexAnalyzer().name().startsWith("_") == false
+                    && fieldType().indexAnalyzer().name().equals("default") == false) {
+                builder.field("analyzer", fieldType().indexAnalyzer().name());
+            }
+            if (writeSearchAnalyzer) {
                 builder.field("search_analyzer", fieldType().searchAnalyzer().name());
             }
         }

@@ -179,6 +179,10 @@ def generate_index(client, version, index_name):
           'type': 'string',
           'index_analyzer': 'standard'
         },
+        'string_with_search_analyzer': {
+          'type': 'string',
+          'search_analyzer': 'keyword'
+        }
       }
     }
     # completion type was added in 0.90.3

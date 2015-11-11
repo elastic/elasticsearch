@@ -239,13 +239,13 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+                .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncAction(request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
-
+            assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
         }
     }
 
@@ -260,7 +260,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             action.new AsyncAction(request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
-
+            assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
         }
     }
 

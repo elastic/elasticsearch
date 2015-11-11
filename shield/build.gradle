@@ -19,6 +19,7 @@ dependencies {
   testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
   testCompile 'org.elasticsearch:securemock:1.1'
   testCompile 'com.google.jimfs:jimfs:1.0'
+  testCompile 'com.google.guava:guava:16.0.1' // needed by jimfs
 }
 
 forbiddenPatterns {

@@ -18,28 +18,47 @@
  */
 package org.elasticsearch.search.aggregations.metrics.stats;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
-import org.elasticsearch.search.aggregations.metrics.NumericValuesSourceMetricsAggregatorParser;
-import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.NumericValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
+
+import java.io.IOException;
+import java.util.Map;
 
 /**
  *
  */
-public class StatsParser extends NumericValuesSourceMetricsAggregatorParser<InternalStats> {
+public class StatsParser extends NumericValuesSourceParser {
 
     public StatsParser() {
-        super(InternalStats.TYPE);
+        super(true, true, false);
     }
 
     @Override
-    protected AggregatorFactory createFactory(String aggregationName, ValuesSourceParser.Input<ValuesSource.Numeric> input) {
-        return new StatsAggregator.Factory(aggregationName, input);
+    public String type() {
+        return InternalStats.TYPE.name();
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
+    @Override
+    protected boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        return false;
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory<Numeric> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        return new StatsAggregator.Factory(aggregationName);
+    }
+
     @Override
     public AggregatorFactory getFactoryPrototype() {
-        return null;
+        return new StatsAggregator.Factory(null);
     }
 }

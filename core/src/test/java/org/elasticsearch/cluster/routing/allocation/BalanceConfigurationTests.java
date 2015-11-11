@@ -365,7 +365,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             public boolean allocateUnassigned(RoutingAllocation allocation) {
                 RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
                 boolean changed = !unassigned.isEmpty();
-                for (ShardRouting sr : unassigned) {
+                for (ShardRouting sr : unassigned.drain()) {
                     switch (sr.id()) {
                         case 0:
                             if (sr.primary()) {
@@ -405,7 +405,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                     }
 
                 }
-                unassigned.clear();
                 return changed;
             }
         }), EmptyClusterInfoService.INSTANCE);

@@ -680,13 +680,10 @@ public class RoutingNodes implements Iterable<RoutingNode> {
             Collections.shuffle(unassigned);
         }
 
-        public void clear() {
-            unassigned.clear();
-            ignored.clear();
-            primaries = 0;
-            ignoredPrimaries = 0;
-        }
-
+        /**
+         * Drains all unassigned shards and returns it.
+         * This method will not drain ignored shards.
+         */
         public ShardRouting[] drain() {
             ShardRouting[] mutableShardRoutings = unassigned.toArray(new ShardRouting[unassigned.size()]);
             unassigned.clear();

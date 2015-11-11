@@ -268,7 +268,7 @@ public class Version {
     public static final int V_2_0_1_ID = 2000199;
     public static final Version V_2_0_1 = new Version(V_2_0_1_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_1_0_ID = 2010099;
-    public static final Version V_2_1_0 = new Version(V_2_1_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_3_0);
+    public static final Version V_2_1_0 = new Version(V_2_1_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_3_1);
 
     public static final Version CURRENT = V_2_1_0;
 

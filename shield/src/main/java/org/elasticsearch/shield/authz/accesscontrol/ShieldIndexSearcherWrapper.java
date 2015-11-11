@@ -17,7 +17,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
@@ -84,8 +83,8 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
         try {
             RequestContext context = RequestContext.current();
             if (context == null) {
-                logger.debug("couldn't locate the current request, field level security will only allow meta fields");
-                return FieldSubsetReader.wrap(reader, allowedMetaFields);
+                logger.debug("couldn't locate the current request, field level security will not be applied");
+                return reader;
             }
 
             IndicesAccessControl indicesAccessControl = context.getRequest().getFromContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);

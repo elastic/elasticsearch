@@ -205,10 +205,7 @@ public class MutateProcessorFactoryTests extends ESTestCase {
 
         MutateProcessor processor = factory.create(config);
         assertThat(processor.getGsub().size(), equalTo(1));
-        GsubExpression gsubExpression = processor.getGsub().get(0);
-        assertThat(gsubExpression.getFieldName(), equalTo("foo"));
-        assertThat(gsubExpression.getPattern().pattern(), equalTo(Pattern.compile("\\s.*e\\s").pattern()));
-        assertThat(gsubExpression.getReplacement(), equalTo("<word_ending_with_e>"));
+        assertThat(processor.getGsub().get(0), equalTo(new GsubExpression("foo", Pattern.compile("\\s.*e\\s"), "<word_ending_with_e>")));
     }
 
     public void testCreateGsubPatternInvalidFormat() throws Exception {

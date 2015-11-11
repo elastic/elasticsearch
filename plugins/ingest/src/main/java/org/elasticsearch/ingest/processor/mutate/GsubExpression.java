@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest.processor.mutate;
 
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 /**
@@ -31,9 +32,9 @@ public class GsubExpression {
     private final String replacement;
 
     public GsubExpression(String fieldName, Pattern pattern, String replacement) {
-        this.fieldName = fieldName;
-        this.pattern = pattern;
-        this.replacement = replacement;
+        this.fieldName = Objects.requireNonNull(fieldName);
+        this.pattern = Objects.requireNonNull(pattern);
+        this.replacement = Objects.requireNonNull(replacement);
     }
 
     public String getFieldName() {
@@ -46,5 +47,24 @@ public class GsubExpression {
 
     public String getReplacement() {
         return replacement;
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
+        GsubExpression that = (GsubExpression) o;
+        return Objects.equals(fieldName, that.fieldName) &&
+                Objects.equals(pattern.pattern(), that.pattern.pattern()) &&
+                Objects.equals(replacement, that.replacement);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(fieldName, pattern, replacement);
     }
 }

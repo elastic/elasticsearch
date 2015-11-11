@@ -24,12 +24,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNode;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -176,7 +171,7 @@ public class AllocationService extends AbstractComponent {
         changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
 
         // now allocate all the unassigned to available nodes
-        if (allocation.routingNodes().hasUnassigned()) {
+        if (allocation.routingNodes().unassigned().size() > 0) {
             changed |= shardsAllocators.allocateUnassigned(allocation);
         }
 
@@ -232,7 +227,7 @@ public class AllocationService extends AbstractComponent {
     private boolean electPrimariesAndUnassignedDanglingReplicas(RoutingAllocation allocation) {
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
-        if (!routingNodes.hasUnassignedPrimaries()) {
+        if (routingNodes.unassigned().getNumPrimaries() == 0) {
             // move out if we don't have unassigned primaries
             return changed;
         }

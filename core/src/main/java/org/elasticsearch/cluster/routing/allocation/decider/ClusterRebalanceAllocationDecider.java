@@ -38,10 +38,10 @@ import java.util.Locale;
  * <ul>
  * <li><tt>indices_primaries_active</tt> - Re-balancing is allowed only once all
  * primary shards on all indices are active.</li>
- * 
+ *
  * <li><tt>indices_all_active</tt> - Re-balancing is allowed only once all
  * shards on all indices are active.</li>
- * 
+ *
  * <li><tt>always</tt> - Re-balancing is allowed once a shard replication group
  * is active</li>
  * </ul>
@@ -64,7 +64,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     };
 
     /**
-     * An enum representation for the configured re-balance type. 
+     * An enum representation for the configured re-balance type.
      */
     public static enum ClusterRebalanceType {
         /**
@@ -76,7 +76,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
          */
         INDICES_PRIMARIES_ACTIVE,
         /**
-         * Re-balancing is allowed only once all shards on all indices are active. 
+         * Re-balancing is allowed only once all shards on all indices are active.
          */
         INDICES_ALL_ACTIVE;
 
@@ -141,11 +141,11 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     public Decision canRebalance(RoutingAllocation allocation) {
         if (type == ClusterRebalanceType.INDICES_PRIMARIES_ACTIVE) {
             // check if there are unassigned primaries.
-            if ( allocation.routingNodes().hasUnassignedPrimaries() ) {
+            if (allocation.routingNodes().hasUnassignedPrimaries()) {
                 return allocation.decision(Decision.NO, NAME, "cluster has unassigned primary shards");
             }
             // check if there are initializing primaries that don't have a relocatingNodeId entry.
-            if ( allocation.routingNodes().hasInactivePrimaries() ) {
+            if (allocation.routingNodes().hasInactivePrimaries()) {
                 return allocation.decision(Decision.NO, NAME, "cluster has inactive primary shards");
             }
 
@@ -153,12 +153,12 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         }
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
             // check if there are unassigned shards.
-            if ( allocation.routingNodes().hasUnassignedShards() ) {
+            if (allocation.routingNodes().hasUnassignedShards()) {
                 return allocation.decision(Decision.NO, NAME, "cluster has unassigned shards");
             }
             // in case all indices are assigned, are there initializing shards which
             // are not relocating?
-            if ( allocation.routingNodes().hasInactiveShards() ) {
+            if (allocation.routingNodes().hasInactiveShards()) {
                 return allocation.decision(Decision.NO, NAME, "cluster has inactive shards");
             }
         }

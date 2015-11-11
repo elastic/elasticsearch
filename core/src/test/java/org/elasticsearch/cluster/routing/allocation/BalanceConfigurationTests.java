@@ -35,9 +35,9 @@ import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllo
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.ESAllocationTestCase;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
-import org.elasticsearch.node.settings.NodeSettingsService;
 import org.hamcrest.Matchers;
 import org.junit.Test;
 
@@ -365,7 +365,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             public boolean allocateUnassigned(RoutingAllocation allocation) {
                 RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
                 boolean changed = !unassigned.isEmpty();
-                for (ShardRouting sr : unassigned) {
+                for (ShardRouting sr : unassigned.drain()) {
                     switch (sr.id()) {
                         case 0:
                             if (sr.primary()) {
@@ -405,7 +405,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                     }
 
                 }
-                unassigned.clear();
                 return changed;
             }
         }), EmptyClusterInfoService.INSTANCE);

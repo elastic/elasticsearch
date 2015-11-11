@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
@@ -190,7 +189,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         action = new TestTransportBroadcastByNodeAction(
                 Settings.EMPTY,
                 transportService,
-                new ActionFilters(new HashSet<ActionFilter>()),
+                new ActionFilters(new HashSet<>()),
                 new MyResolver(),
                 Request::new,
                 ThreadPool.Names.SAME
@@ -398,7 +397,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Map<String, List<ShardRouting>> map = new HashMap<>();
         for (ShardRouting shard : shardIt.asUnordered()) {
             if (!map.containsKey(shard.currentNodeId())) {
-                map.put(shard.currentNodeId(), new ArrayList<ShardRouting>());
+                map.put(shard.currentNodeId(), new ArrayList<>());
             }
             map.get(shard.currentNodeId()).add(shard);
         }

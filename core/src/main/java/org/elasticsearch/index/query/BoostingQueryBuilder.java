@@ -104,11 +104,11 @@ public class BoostingQueryBuilder extends AbstractQueryBuilder<BoostingQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("positive");
+        builder.field(BoostingQueryParser.POSITIVE_FIELD.getPreferredName());
         positiveQuery.toXContent(builder, params);
-        builder.field("negative");
+        builder.field(BoostingQueryParser.NEGATIVE_FIELD.getPreferredName());
         negativeQuery.toXContent(builder, params);
-        builder.field("negative_boost", negativeBoost);
+        builder.field(BoostingQueryParser.NEGATIVE_BOOST_FIELD.getPreferredName(), negativeBoost);
         printBoostAndQueryName(builder);
         builder.endObject();
     }

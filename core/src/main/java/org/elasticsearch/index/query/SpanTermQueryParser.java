@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,6 +31,8 @@ import java.io.IOException;
  */
 public class SpanTermQueryParser implements QueryParser<SpanTermQueryBuilder> {
 
+    public static final ParseField TERM_FIELD = new ParseField("term");
+  
     @Override
     public String[] names() {
         return new String[]{SpanTermQueryBuilder.NAME, Strings.toCamelCase(SpanTermQueryBuilder.NAME)};
@@ -58,13 +61,13 @@ public class SpanTermQueryParser implements QueryParser<SpanTermQueryBuilder> {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if ("term".equals(currentFieldName)) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
                         value = parser.objectBytes();
-                    } else if ("value".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, BaseTermQueryBuilder.VALUE_FIELD)) {
                         value = parser.objectBytes();
-                    } else if ("boost".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                         boost = parser.floatValue();
-                    } else if ("_name".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "[span_term] query does not support [" + currentFieldName + "]");

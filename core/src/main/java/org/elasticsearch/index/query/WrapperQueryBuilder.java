@@ -94,7 +94,7 @@ public class WrapperQueryBuilder extends AbstractQueryBuilder<WrapperQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query", source);
+        builder.field(WrapperQueryParser.QUERY_FIELD.getPreferredName(), source);
         builder.endObject();
     }
 

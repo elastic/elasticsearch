@@ -75,9 +75,9 @@ public class FieldMaskingSpanQueryBuilder extends AbstractQueryBuilder<FieldMask
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query");
+        builder.field(FieldMaskingSpanQueryParser.QUERY_FIELD.getPreferredName());
         queryBuilder.toXContent(builder, params);
-        builder.field("field", fieldName);
+        builder.field(FieldMaskingSpanQueryParser.FIELD_FIELD.getPreferredName(), fieldName);
         printBoostAndQueryName(builder);
         builder.endObject();
     }

@@ -374,4 +374,35 @@ public class QueryStringQueryBuilderTests extends AbstractQueryTestCase<QueryStr
         assertThat(phraseQuery.getSlop(), Matchers.equalTo(2));
         assertThat(phraseQuery.getTerms().length, equalTo(2));
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"query_string\" : {\n" + 
+                "    \"query\" : \"this AND that OR thus\",\n" + 
+                "    \"default_field\" : \"content\",\n" + 
+                "    \"fields\" : [ ],\n" + 
+                "    \"use_dis_max\" : true,\n" + 
+                "    \"tie_breaker\" : 0.0,\n" + 
+                "    \"default_operator\" : \"or\",\n" + 
+                "    \"auto_generated_phrase_queries\" : false,\n" + 
+                "    \"max_determined_states\" : 10000,\n" + 
+                "    \"lowercase_expanded_terms\" : true,\n" + 
+                "    \"enable_position_increment\" : true,\n" + 
+                "    \"fuzziness\" : \"AUTO\",\n" + 
+                "    \"fuzzy_prefix_length\" : 0,\n" + 
+                "    \"fuzzy_max_expansions\" : 50,\n" + 
+                "    \"phrase_slop\" : 0,\n" + 
+                "    \"locale\" : \"und\",\n" + 
+                "    \"escape\" : false,\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        QueryStringQueryBuilder parsed = (QueryStringQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "this AND that OR thus", parsed.queryString());
+        assertEquals(json, "content", parsed.defaultField());
+    }
 }

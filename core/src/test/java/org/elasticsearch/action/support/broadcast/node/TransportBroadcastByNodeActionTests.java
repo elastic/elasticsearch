@@ -84,7 +84,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
     private TestClusterService clusterService;
     private CapturingTransport transport;
-    private TransportService transportService;
 
     private TestTransportBroadcastByNodeAction action;
 
@@ -183,7 +182,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = new TestClusterService(THREAD_POOL);
-        transportService = new TransportService(transport, THREAD_POOL);
+        final TransportService transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
         setClusterState(clusterService, TEST_INDEX);
         action = new TestTransportBroadcastByNodeAction(

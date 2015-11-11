@@ -232,7 +232,7 @@ public class AllocationService extends AbstractComponent {
     private boolean electPrimariesAndUnassignedDanglingReplicas(RoutingAllocation allocation) {
         boolean changed = false;
         RoutingNodes routingNodes = allocation.routingNodes();
-        if (!routingNodes.hasUnassignedPrimaries()) {
+        if (routingNodes.unassigned().isEmpty()) {
             // move out if we don't have unassigned primaries
             return changed;
         }

@@ -31,8 +31,7 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
-import org.elasticsearch.search.profile.InternalProfileCollector;
-import org.elasticsearch.search.profile.InternalProfileShardResult;
+import org.elasticsearch.search.profile.CollectorResult;
 import org.elasticsearch.search.profile.Profiler;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
@@ -75,7 +74,6 @@ public class AggregationPhase implements SearchPhase {
 
             List<Aggregator> collectors = new ArrayList<>();
             Aggregator[] aggregators;
-            Profiler profiler = context.queryProfiler();
             try {
                 AggregatorFactories factories = context.aggregations().factories();
                 aggregators = factories.createTopLevelAggregators(aggregationContext);
@@ -88,7 +86,9 @@ public class AggregationPhase implements SearchPhase {
                 if (!collectors.isEmpty()) {
                     Collector collector = BucketCollector.wrap(collectors);
                     ((BucketCollector)collector).preCollection();
-                    collector = Profiler.wrapBucketCollector(profiler, collector);
+                    if (context.getProfilers() != null) {
+                        collector = Profiler.wrapCollector(context.getProfilers(), collector, CollectorResult.REASON_AGGREGATION);
+                    }
                     context.queryCollectors().put(AggregationPhase.class, collector);
                 }
             } catch (IOException e) {
@@ -124,11 +124,10 @@ public class AggregationPhase implements SearchPhase {
             Query searchFilter = context.searchFilter(context.types());
 
             Profiler profiler = null;
-            if (context.queryProfilers() != null) {
+            if (context.getProfilers() != null) {
                 // If we are profiling, ask the context to start a new one for
                 // the global agg and use the new profiler
-                context.addProfile();
-                profiler = context.queryProfiler();
+                profiler = context.getProfilers().addProfiler();
             }
 
             if (searchFilter != null) {

@@ -59,6 +59,7 @@ import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -133,7 +134,7 @@ public class DefaultSearchContext extends SearchContext {
     private final long originNanoTime = System.nanoTime();
     private volatile long lastAccessTime = -1;
     private InnerHitsContext innerHitsContext;
-    private List<Profiler> internalProfilers;
+    private Profilers profilers;
 
     private final Map<String, FetchSubPhaseContext> subPhaseContexts = new HashMap<>();
     private final Map<Class<?>, Collector> queryCollectors = new HashMap<>();
@@ -724,32 +725,12 @@ public class DefaultSearchContext extends SearchContext {
         return queryCollectors;
     }
 
-    public void addProfile() {
-        if (internalProfilers == null) {
-            internalProfilers = new ArrayList<>(2);
-        }
-        Profiler profiler = new Profiler();
-        internalProfilers.add(profiler);
-        searcher.setProfiler(profiler);
-    }
-
-    /**
-     * Returns the query profiler, which is used to store timings across the
-     * search context. Returns null if no profiler was set
-     *
-     * @return The query Profiler
-     */
     @Override
-    public @Nullable Profiler queryProfiler() {
-        Profiler profiler = null;
-        if (internalProfilers != null && internalProfilers.size() > 0) {
-            profiler = internalProfilers.get(internalProfilers.size() - 1);
-        }
-        return profiler;
+    public Profilers getProfilers() {
+        return profilers;
     }
 
-    public @Nullable List<Profiler> queryProfilers() {
-        return internalProfilers;
+    public void setProfilers(Profilers profilers) {
+        this.profilers = profilers;
     }
-
 }

@@ -48,7 +48,7 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 import org.elasticsearch.search.highlight.SearchContextHighlight;
 import org.elasticsearch.search.lookup.SearchLookup;
-import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -517,17 +517,7 @@ public abstract class FilteredSearchContext extends SearchContext {
     }
 
     @Override
-    public Profiler queryProfiler() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public List<Profiler> queryProfilers() {
-        throw new UnsupportedOperationException();
-    }
-
-    @Override
-    public void addProfile() {
+    public Profilers getProfilers() {
         throw new UnsupportedOperationException();
     }
 

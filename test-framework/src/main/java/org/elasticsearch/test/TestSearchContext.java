@@ -60,6 +60,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rescore.RescoreSearchContext;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -660,17 +661,9 @@ public class TestSearchContext extends SearchContext {
     public void copyContextAndHeadersFrom(HasContextAndHeaders other) {}
 
     @Override
-    public Profiler queryProfiler() {
-        return null;
+    public Profilers getProfilers() {
+        return null; // no profiling
     }
-
-    @Override
-    public List<Profiler> queryProfilers() {
-        return null;
-    }
-
-    @Override
-    public void addProfile() {}
 
     @Override
     public Map<Class<?>, Collector> queryCollectors() {return queryCollectors;}

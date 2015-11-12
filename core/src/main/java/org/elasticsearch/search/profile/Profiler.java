@@ -119,13 +119,14 @@ public final class Profiler {
      * Helper method to wrap a Collector in an InternalProfileCollector and create
      * the dependency tree in the process
      *
-     * @param profiler The InternalProfiler associated with the search context
+     * @param profilers The {@link Profilers} associated with the search context
      * @param original The Collector to be wrapped
      * @param purpose  A "hint" for the user to understand the context the Collector is being used in
      * @return         A Collector which has been wrapped for profiling
      */
-    public static Collector wrapCollector(Profiler profiler, Collector original, String purpose) {
-        if (profiler != null && !(original instanceof InternalProfileCollector)) {
+    public static Collector wrapCollector(Profilers profilers, Collector original, String purpose) {
+        if (profilers != null && !(original instanceof InternalProfileCollector)) {
+            Profiler profiler = profilers.getCurrentProfiler();
             InternalProfileCollector c = new InternalProfileCollector(original, purpose);
 
             // Add the existing collector as a child to our newly wrapped one,
@@ -141,12 +142,12 @@ public final class Profiler {
      * Helper method to wrap BucketCollectors which are not being used for global
      * aggregations
      *
-     * @param profiler The InternalProfiler associated with the search context
+     * @param profilers The {@link Profilers} associated with the search context
      * @param original The Collector to be wrapped
      * @return         A Collector which has been wrapped for profiling
      */
-    public static Collector wrapBucketCollector(Profiler profiler, Collector original) {
-        if (profiler != null && !(original instanceof InternalProfileCollector)) {
+    public static Collector wrapBucketCollector(Profilers profilers, Collector original) {
+        if (profilers != null && !(original instanceof InternalProfileCollector)) {
             return new InternalProfileCollector(original, CollectorResult.REASON_AGGREGATION);
         }
         return original;
@@ -183,13 +184,13 @@ public final class Profiler {
      * more Collectors, or to retrieve those.  Instead we rely on the calling code to provide the
      * list.
      *
-     * @param profiler      The InternalProfiler associated with the search context
+     * @param profilers     The {@link Profilers} associated with the search context
      * @param multi         The MultiCollector to wrap
      * @param constituents  The list of Collectors that the MultiCollector contains
      * @return              A wrapped MultiCollector
      */
-    public static Collector wrapMultiCollector(Profiler profiler, Collector multi, List<Collector> constituents) {
-        if (profiler != null) {
+    public static Collector wrapMultiCollector(Profilers profilers, Collector multi, List<Collector> constituents) {
+        if (profilers != null) {
 
             // If the multicollector hasn't been wrapped yet, wrap it
             if (!(multi instanceof InternalProfileCollector)) {
@@ -215,6 +216,7 @@ public final class Profiler {
 
             // Add the existing collector as a child to our newly wrapped one,
             // then set it as the root collector
+            Profiler profiler = profilers.getCurrentProfiler();
             ((InternalProfileCollector) multi).addChild(profiler.getCollector());
             profiler.setCollector((InternalProfileCollector) multi);
         }

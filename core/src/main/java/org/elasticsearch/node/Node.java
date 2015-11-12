@@ -57,11 +57,13 @@ import org.elasticsearch.http.HttpServer;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.memory.IndexingMemoryController;
+import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.monitor.MonitorModule;
@@ -133,7 +135,7 @@ public class Node implements Releasable {
         Settings tmpSettings = TribeService.processSettings(tmpEnv.settings());
 
         ESLogger logger = Loggers.getLogger(Node.class, tmpSettings.get("name"));
-        logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.hashShort(), Build.CURRENT.timestamp());
+        logger.info("version[{}], pid[{}], build[{}/{}]", version, JvmInfo.jvmInfo().pid(), Build.CURRENT.shortHash(), Build.CURRENT.date());
 
         logger.info("initializing ...");
 
@@ -182,7 +184,7 @@ public class Node implements Releasable {
                 modules.add(new HttpServerModule(settings));
             }
             modules.add(new IndicesModule());
-            modules.add(new SearchModule(settings));
+            modules.add(new SearchModule());
             modules.add(new ActionModule(false));
             modules.add(new MonitorModule(settings));
             modules.add(new GatewayModule(settings));
@@ -191,6 +193,7 @@ public class Node implements Releasable {
             modules.add(new ResourceWatcherModule());
             modules.add(new RepositoriesModule());
             modules.add(new TribeModule());
+            modules.add(new AnalysisModule(environment));
 
 
             pluginsService.processModules(modules);
@@ -306,6 +309,7 @@ public class Node implements Releasable {
         for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
             injector.getInstance(plugin).stop();
         }
+        injector.getInstance(RecoverySettings.class).close();
         // we should stop this last since it waits for resources to get released
         // if we had scroll searchers etc or recovery going on we wait for to finish.
         injector.getInstance(IndicesService.class).stop();

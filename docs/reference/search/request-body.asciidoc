@@ -94,6 +94,46 @@ parameter named `source`.
 Both HTTP GET and HTTP POST can be used to execute search with body. Since not
 all clients support GET with body, POST is allowed as well.
 
+[float]
+=== Fast check for any matching docs
+
+In case we only want to know if there are any documents matching a
+specific query, we can set the `size` to `0` to indicate that we are not
+interested in the search results. Also we can set `terminate_after` to `1`
+to indicate that the query execution can be terminated whenever the first
+matching document was found (per shard).
+
+[source,js]
+--------------------------------------------------
+$ curl -XGET 'http://localhost:9200/_search?q=tag:wow&size=0&terminate_after=1'
+--------------------------------------------------
+
+The response will not contain any hits as the `size` was set to `0`. The
+`hits.total` will be either equal to `0`, indicating that there were no
+matching documents, or greater than `0` meaning that there were at least
+as many documents matching the query when it was early terminated.
+Also if the query was terminated early, the `terminated_early` flag will
+be set to `true` in the response.
+
+[source,js]
+--------------------------------------------------
+{
+  "took": 3,
+  "timed_out": false,
+  "terminated_early": true,
+  "_shards": {
+    "total": 1,
+    "successful": 1,
+    "failed": 0
+  },
+  "hits": {
+    "total": 1,
+    "max_score": 0,
+    "hits": []
+  }
+}
+--------------------------------------------------
+
 
 include::request/query.asciidoc[]
 

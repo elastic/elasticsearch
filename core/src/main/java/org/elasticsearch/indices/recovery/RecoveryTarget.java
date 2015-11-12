@@ -45,10 +45,8 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -105,8 +103,7 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
     }
 
     @Override
-    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                       @IndexSettings Settings indexSettings) {
+    public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
         if (indexShard != null) {
             onGoingRecoveries.cancelRecoveriesForShard(shardId, "shard closed");
         }
@@ -127,14 +124,6 @@ public class RecoveryTarget extends AbstractComponent implements IndexEventListe
     }
 
     public void startRecovery(final IndexShard indexShard, final RecoveryState.Type recoveryType, final DiscoveryNode sourceNode, final RecoveryListener listener) {
-        try {
-            RecoveryState recoveryState = new RecoveryState(indexShard.shardId(), indexShard.routingEntry().primary(), recoveryType, sourceNode, clusterService.localNode());
-            indexShard.recovering("from " + sourceNode, recoveryState);
-        } catch (IllegalIndexShardStateException e) {
-            // that's fine, since we might be called concurrently, just ignore this, we are already recovering
-            logger.debug("{} ignore recovery. already in recovering process, {}", indexShard.shardId(), e.getMessage());
-            return;
-        }
         // create a new recovery status, and process...
         final long recoveryId = onGoingRecoveries.startRecovery(indexShard, sourceNode, listener, recoverySettings.activityTimeout());
         threadPool.generic().execute(new RecoveryRunner(recoveryId));

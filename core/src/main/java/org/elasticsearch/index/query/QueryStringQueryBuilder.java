@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.queryparser.classic.MapperQueryParser;
 import org.apache.lucene.queryparser.classic.QueryParserSettings;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.automaton.Operations;
@@ -36,10 +37,7 @@ import org.elasticsearch.index.query.support.QueryParsers;
 import org.joda.time.DateTimeZone;
 
 import java.io.IOException;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Objects;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  * A query that parses a query string and runs it. There are two modes that this operates. The first,
@@ -661,7 +659,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
             String fieldName = fieldsEntry.getKey();
             Float weight = fieldsEntry.getValue();
             if (Regex.isSimpleMatchPattern(fieldName)) {
-                for (String resolvedFieldName : context.mapperService().simpleMatchToIndexNames(fieldName)) {
+                for (String resolvedFieldName : context.getMapperService().simpleMatchToIndexNames(fieldName)) {
                     resolvedFields.put(resolvedFieldName, weight);
                 }
             } else {
@@ -672,16 +670,16 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         qpSettings.defaultOperator(defaultOperator.toQueryParserOperator());
 
         if (analyzer == null) {
-            qpSettings.defaultAnalyzer(context.mapperService().searchAnalyzer());
+            qpSettings.defaultAnalyzer(context.getMapperService().searchAnalyzer());
         } else {
-            NamedAnalyzer namedAnalyzer = context.analysisService().analyzer(analyzer);
+            NamedAnalyzer namedAnalyzer = context.getAnalysisService().analyzer(analyzer);
             if (namedAnalyzer == null) {
                 throw new QueryShardException(context, "[query_string] analyzer [" + analyzer + "] not found");
             }
             qpSettings.forceAnalyzer(namedAnalyzer);
         }
         if (quoteAnalyzer != null) {
-            NamedAnalyzer namedAnalyzer = context.analysisService().analyzer(quoteAnalyzer);
+            NamedAnalyzer namedAnalyzer = context.getAnalysisService().analyzer(quoteAnalyzer);
             if (namedAnalyzer == null) {
                 throw new QueryShardException(context, "[query_string] quote_analyzer [" + quoteAnalyzer + "] not found");
             }
@@ -689,7 +687,7 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         } else if (analyzer != null) {
             qpSettings.forceQuoteAnalyzer(qpSettings.analyzer());
         } else {
-            qpSettings.defaultQuoteAnalyzer(context.mapperService().searchQuoteAnalyzer());
+            qpSettings.defaultQuoteAnalyzer(context.getMapperService().searchQuoteAnalyzer());
         }
 
         qpSettings.quoteFieldSuffix(quoteFieldSuffix);
@@ -722,16 +720,25 @@ public class QueryStringQueryBuilder extends AbstractQueryBuilder<QueryStringQue
         if (query == null) {
             return null;
         }
+
+        //save the BoostQuery wrapped structure if present
+        List<Float> boosts = new ArrayList<>();
+        while(query instanceof BoostQuery) {
+            BoostQuery boostQuery = (BoostQuery) query;
+            boosts.add(boostQuery.getBoost());
+            query = boostQuery.getQuery();
+        }
+
         query = Queries.fixNegativeQueryIfNeeded(query);
         if (query instanceof BooleanQuery) {
             query = Queries.applyMinimumShouldMatch((BooleanQuery) query, this.minimumShouldMatch());
         }
-        return query;
-    }
 
-    @Override
-    protected void setFinalBoost(Query query) {
-        //we need to preserve the boost that came out of the parsing phase
-        query.setBoost(query.getBoost() * boost);
+        //restore the previous BoostQuery wrapping
+        for (int i = boosts.size() - 1; i >= 0; i--) {
+            query = new BoostQuery(query, boosts.get(i));
+        }
+
+        return query;
     }
 }

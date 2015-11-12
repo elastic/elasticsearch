@@ -21,6 +21,7 @@ package org.elasticsearch.indices.cache.query;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BulkScorer;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.LRUQueryCache;
 import org.apache.lucene.search.Query;
@@ -255,6 +256,12 @@ public class IndicesQueryCache extends AbstractComponent implements QueryCache, 
         public Scorer scorer(LeafReaderContext context) throws IOException {
             shardKeyMap.add(context.reader());
             return in.scorer(context);
+        }
+
+        @Override
+        public BulkScorer bulkScorer(LeafReaderContext context) throws IOException {
+            shardKeyMap.add(context.reader());
+            return in.bulkScorer(context);
         }
     }
 

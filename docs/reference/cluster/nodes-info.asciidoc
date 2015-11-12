@@ -54,6 +54,11 @@ the operating system:
 `os.available_processors`::
 	Number of processors available to the Java virtual machine
 
+`os.allocated_processors`::
+    The number of processors actually used to calculate thread pool size. This number can be set
+    with the `processors` setting of a node and defaults to the number of processors reported by the OS.
+    In both cases this number will never be larger than 32.
+
 [float]
 [[process-info]]
 ==== Process information

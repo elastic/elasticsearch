@@ -74,6 +74,7 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.percolator.QueryCollector.Count;
@@ -190,7 +191,7 @@ public class PercolatorService extends AbstractComponent {
                 indexShard.shardId().index().name(),
                 request.indices()
         );
-        Query aliasFilter = percolateIndexService.aliasFilter(filteringAliases);
+        Query aliasFilter = percolateIndexService.aliasFilter(indexShard.getQueryShardContext(), filteringAliases);
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(
@@ -198,7 +199,7 @@ public class PercolatorService extends AbstractComponent {
         );
         SearchContext.setCurrent(context);
         try {
-            ParsedDocument parsedDocument = parseRequest(percolateIndexService, request, context, request.shardId().getIndex());
+            ParsedDocument parsedDocument = parseRequest(indexShard, request, context, request.shardId().getIndex());
             if (context.percolateQueries().isEmpty()) {
                 return new PercolateShardResponse(context, request.shardId());
             }
@@ -258,7 +259,7 @@ public class PercolatorService extends AbstractComponent {
         }
     }
 
-    private ParsedDocument parseRequest(IndexService documentIndexService, PercolateShardRequest request, PercolateContext context, String index) {
+    private ParsedDocument parseRequest(IndexShard shard, PercolateShardRequest request, PercolateContext context, String index) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             return null;
@@ -276,6 +277,7 @@ public class PercolatorService extends AbstractComponent {
         // not the in memory percolate doc
         String[] previousTypes = context.types();
         context.types(new String[]{TYPE_NAME});
+        QueryShardContext queryShardContext = shard.getQueryShardContext();
         try {
             parser = XContentFactory.xContent(source).createParser(source);
             String currentFieldName = null;
@@ -290,7 +292,7 @@ public class PercolatorService extends AbstractComponent {
                             throw new ElasticsearchParseException("Either specify doc or get, not both");
                         }
 
-                        MapperService mapperService = documentIndexService.mapperService();
+                        MapperService mapperService = shard.mapperService();
                         DocumentMapperForType docMapper = mapperService.documentMapperWithAutoCreate(request.documentType());
                         doc = docMapper.getDocumentMapper().parse(source(parser).index(index).type(request.documentType()).flyweight(true));
                         if (docMapper.getMapping() != null) {
@@ -312,12 +314,12 @@ public class PercolatorService extends AbstractComponent {
                         if (context.percolateQuery() != null) {
                             throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
-                        context.percolateQuery(documentIndexService.queryParserService().parse(parser).query());
+                        context.percolateQuery(queryShardContext.parse(parser).query());
                     } else if ("filter".equals(currentFieldName)) {
                         if (context.percolateQuery() != null) {
                             throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
-                        Query filter = documentIndexService.queryParserService().parseInnerFilter(parser).query();
+                        Query filter = queryShardContext.parseInnerFilter(parser).query();
                         context.percolateQuery(new ConstantScoreQuery(filter));
                     } else if ("sort".equals(currentFieldName)) {
                         parseSort(parser, context);

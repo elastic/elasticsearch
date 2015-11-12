@@ -38,8 +38,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.cache.IndexCacheModule;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -77,8 +77,8 @@ public class IndexStatsIT extends ESIntegTestCase {
         //Filter/Query cache is cleaned periodically, default is 60s, so make sure it runs often. Thread.sleep for 60s is bad
         return Settings.settingsBuilder().put(super.nodeSettings(nodeOrdinal))
                 .put(IndicesRequestCache.INDICES_CACHE_REQUEST_CLEAN_INTERVAL, "1ms")
-                .put(IndexCacheModule.QUERY_CACHE_EVERYTHING, true)
-                .put(IndexCacheModule.QUERY_CACHE_TYPE, IndexCacheModule.INDEX_QUERY_CACHE)
+                .put(IndexModule.QUERY_CACHE_EVERYTHING, true)
+                .put(IndexModule.QUERY_CACHE_TYPE, IndexModule.INDEX_QUERY_CACHE)
                 .build();
     }
 

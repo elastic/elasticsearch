@@ -466,8 +466,8 @@ public class DiskThresholdDecider extends AllocationDecider {
         // If this node is already above the high threshold, the shard cannot remain (get it off!)
         final double freeDiskPercentage = usage.getFreeDiskAsPercentage();
         final long freeBytes = usage.getFreeBytes();
-        if (logger.isDebugEnabled()) {
-            logger.debug("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
+        if (logger.isTraceEnabled()) {
+            logger.trace("node [{}] has {}% free disk ({} bytes)", node.nodeId(), freeDiskPercentage, freeBytes);
         }
         if (dataPath == null || usage.getPath().equals(dataPath) == false) {
             return allocation.decision(Decision.YES, NAME, "shard is not allocated on the most utilized disk");

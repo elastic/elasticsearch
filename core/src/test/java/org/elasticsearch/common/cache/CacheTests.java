@@ -22,11 +22,14 @@ package org.elasticsearch.common.cache;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.lang.management.ManagementFactory;
+import java.lang.management.ThreadMXBean;
 import java.util.*;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReferenceArray;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -460,6 +463,25 @@ public class CacheTests extends ESTestCase {
         assertEquals(replacements, notifications);
     }
 
+    public void testComputeIfAbsentLoadsSuccessfully() {
+        Map<Integer, Integer> map = new HashMap<>();
+        Cache<Integer, Integer> cache = CacheBuilder.<Integer, Integer>builder().build();
+        for (int i = 0; i < numberOfEntries; i++) {
+            try {
+                cache.computeIfAbsent(i, k -> {
+                    int value = randomInt();
+                    map.put(k, value);
+                    return value;
+                });
+            } catch (ExecutionException e) {
+                fail(e.getMessage());
+            }
+        }
+        for (int i = 0; i < numberOfEntries; i++) {
+            assertEquals(map.get(i), cache.get(i));
+        }
+    }
+
     public void testComputeIfAbsentCallsOnce() throws InterruptedException {
         int numberOfThreads = randomIntBetween(2, 200);
         final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
@@ -499,6 +521,146 @@ public class CacheTests extends ESTestCase {
             fail("expected ExecutionException");
         } catch (ExecutionException e) {
             assertThat(e.getCause(), instanceOf(NullPointerException.class));
+        }
+    }
+
+    public void testDependentKeyDeadlock() throws InterruptedException {
+        class Key {
+            private final int key;
+
+            public Key(int key) {
+                this.key = key;
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                if (this == o) return true;
+                if (o == null || getClass() != o.getClass()) return false;
+
+                Key key1 = (Key) o;
+
+                return key == key1.key;
+
+            }
+
+            @Override
+            public int hashCode() {
+                return key % 2;
+            }
+        }
+
+        int numberOfThreads = randomIntBetween(2, 256);
+        final Cache<Key, Integer> cache = CacheBuilder.<Key, Integer>builder().build();
+        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
+        CountDownLatch deadlockLatch = new CountDownLatch(numberOfThreads);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < numberOfThreads; i++) {
+            Thread thread = new Thread(() -> {
+                Random random = new Random(random().nextLong());
+                latch.countDown();
+                for (int j = 0; j < numberOfEntries; j++) {
+                    Key key = new Key(random.nextInt(numberOfEntries));
+                    try {
+                        cache.computeIfAbsent(key, k -> {
+                            if (k.key == 0) {
+                                return 0;
+                            } else {
+                                Integer value = cache.get(new Key(k.key / 2));
+                                return value != null ? value : 0;
+                            }
+                        });
+                    } catch (ExecutionException e) {
+                        fail(e.getMessage());
+                    }
+                }
+                // successfully avoided deadlock, release the main thread
+                deadlockLatch.countDown();
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        AtomicBoolean deadlock = new AtomicBoolean();
+        assert !deadlock.get();
+
+        // start a watchdog service
+        ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
+        scheduler.scheduleAtFixedRate(() -> {
+            Set<Long> ids = threads.stream().map(t -> t.getId()).collect(Collectors.toSet());
+            ThreadMXBean mxBean = ManagementFactory.getThreadMXBean();
+            long[] deadlockedThreads = mxBean.findDeadlockedThreads();
+            if (!deadlock.get() && deadlockedThreads != null) {
+                for (long deadlockedThread : deadlockedThreads) {
+                    // ensure that we detected deadlock on our threads
+                    if (ids.contains(deadlockedThread)) {
+                        deadlock.set(true);
+                        // release the main test thread to fail the test
+                        for (int i = 0; i < numberOfThreads; i++) {
+                            deadlockLatch.countDown();
+                        }
+                        break;
+                    }
+                }
+            }
+        }, 1, 1, TimeUnit.SECONDS);
+
+        // everything is setup, release the hounds
+        latch.countDown();
+
+        // wait for either deadlock to be detected or the threads to terminate
+        deadlockLatch.await();
+
+        // shutdown the watchdog service
+        scheduler.shutdown();
+
+        assertFalse("deadlock", deadlock.get());
+    }
+
+    public void testCachePollution() throws InterruptedException {
+        int numberOfThreads = randomIntBetween(2, 200);
+        final Cache<Integer, String> cache = CacheBuilder.<Integer, String>builder().build();
+        CountDownLatch latch = new CountDownLatch(1 + numberOfThreads);
+        List<Thread> threads = new ArrayList<>();
+        for (int i = 0; i < numberOfThreads; i++) {
+            Thread thread = new Thread(() -> {
+                latch.countDown();
+                Random random = new Random(random().nextLong());
+                for (int j = 0; j < numberOfEntries; j++) {
+                    Integer key = random.nextInt(numberOfEntries);
+                    boolean first;
+                    boolean second;
+                    do {
+                        first = random.nextBoolean();
+                        second = random.nextBoolean();
+                    } while (first && second);
+                    if (first && !second) {
+                        try {
+                            cache.computeIfAbsent(key, k -> {
+                                if (random.nextBoolean()) {
+                                    return Integer.toString(k);
+                                } else {
+                                    throw new Exception("testCachePollution");
+                                }
+                            });
+                        } catch (ExecutionException e) {
+                            assertNotNull(e.getCause());
+                            assertThat(e.getCause(), instanceOf(Exception.class));
+                            assertEquals(e.getCause().getMessage(), "testCachePollution");
+                        }
+                    } else if (!first && second) {
+                        cache.invalidate(key);
+                    } else if (!first && !second) {
+                        cache.get(key);
+                    }
+                }
+            });
+            threads.add(thread);
+            thread.start();
+        }
+
+        latch.countDown();
+        for (Thread thread : threads) {
+            thread.join();
         }
     }
 

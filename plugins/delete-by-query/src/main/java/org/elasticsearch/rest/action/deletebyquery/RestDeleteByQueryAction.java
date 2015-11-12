@@ -20,16 +20,12 @@
 package org.elasticsearch.rest.action.deletebyquery;
 
 import org.elasticsearch.action.deletebyquery.DeleteByQueryRequest;
-import org.elasticsearch.action.deletebyquery.DeleteByQueryResponse;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
@@ -67,29 +63,15 @@ public class RestDeleteByQueryAction extends BaseRestHandler {
         if (request.hasParam("timeout")) {
             delete.timeout(request.paramAsTime("timeout", null));
         }
-        if (request.hasContent()) {
-            XContentParser requestParser = XContentFactory.xContent(request.content()).createParser(request.content());
-            QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-            context.reset(requestParser);
-            context.parseFieldMatcher(parseFieldMatcher);
-            final QueryBuilder<?> builder = context.parseInnerQueryBuilder();
-            delete.query(builder);
+        if (RestActions.hasBodyContent(request)) {
+            delete.query(RestActions.getQueryContent(RestActions.getRestContent(request), indicesQueriesRegistry, parseFieldMatcher));
         } else {
-            String source = request.param("source");
-            if (source != null) {
-                XContentParser requestParser = XContentFactory.xContent(source).createParser(source);
-                QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
-                context.reset(requestParser);
-                final QueryBuilder<?> builder = context.parseInnerQueryBuilder();
-                delete.query(builder);
-            } else {
-                QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
-                if (queryBuilder != null) {
-                    delete.query(queryBuilder);
-                }
+            QueryBuilder<?> queryBuilder = RestActions.urlParamsToQueryBuilder(request);
+            if (queryBuilder != null) {
+                delete.query(queryBuilder);
             }
         }
         delete.types(Strings.splitStringByCommaToArray(request.param("type")));
-        client.execute(INSTANCE, delete, new RestToXContentListener<DeleteByQueryResponse>(channel));
+        client.execute(INSTANCE, delete, new RestToXContentListener<>(channel));
     }
 }

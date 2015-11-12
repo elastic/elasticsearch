@@ -57,11 +57,11 @@ public final class EngineConfig {
     private volatile boolean compoundOnFlush = true;
     private long gcDeletesInMillis = DEFAULT_GC_DELETES.millis();
     private volatile boolean enableGcDeletes = true;
+    private final TimeValue flushMergesAfter;
     private final String codecName;
     private final ThreadPool threadPool;
     private final ShardIndexingService indexingService;
-    @Nullable
-    private final IndicesWarmer warmer;
+    private final Engine.Warmer warmer;
     private final Store store;
     private final SnapshotDeletionPolicy deletionPolicy;
     private final MergePolicy mergePolicy;
@@ -115,15 +115,15 @@ public final class EngineConfig {
      * Creates a new {@link org.elasticsearch.index.engine.EngineConfig}
      */
     public EngineConfig(ShardId shardId, ThreadPool threadPool, ShardIndexingService indexingService,
-                        Settings indexSettings, IndicesWarmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
+                        Settings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
         this.shardId = shardId;
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.indexingService = indexingService;
-        this.warmer = warmer;
+        this.warmer = warmer == null ? (a,b) -> {} : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
@@ -144,6 +144,7 @@ public final class EngineConfig {
         this.queryCache = queryCache;
         this.queryCachingPolicy = queryCachingPolicy;
         this.translogConfig = translogConfig;
+        this.flushMergesAfter = flushMergesAfter;
     }
 
     /** updates {@link #versionMapSize} based on current setting and {@link #indexingBufferSize} */
@@ -265,11 +266,9 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns an {@link org.elasticsearch.indices.IndicesWarmer} used to warm new searchers before they are used for searching.
-     * Note: This method might retrun <code>null</code>
+     * Returns an {@link org.elasticsearch.index.engine.Engine.Warmer} used to warm new searchers before they are used for searching.
      */
-    @Nullable
-    public IndicesWarmer getWarmer() {
+    public Engine.Warmer getWarmer() {
         return warmer;
     }
 
@@ -399,4 +398,12 @@ public final class EngineConfig {
     public boolean isCreate() {
         return create;
     }
+
+    /**
+     * Returns a {@link TimeValue} at what time interval after the last write modification to the engine finished merges
+     * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
+     * are written after the engine became inactive from an indexing perspective.
+     */
+    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
+
 }

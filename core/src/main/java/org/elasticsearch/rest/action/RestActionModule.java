@@ -92,8 +92,10 @@ import org.elasticsearch.rest.action.cat.RestMasterAction;
 import org.elasticsearch.rest.action.cat.RestNodeAttrsAction;
 import org.elasticsearch.rest.action.cat.RestNodesAction;
 import org.elasticsearch.rest.action.cat.RestPluginsAction;
+import org.elasticsearch.rest.action.cat.RestRepositoriesAction;
 import org.elasticsearch.rest.action.cat.RestSegmentsAction;
 import org.elasticsearch.rest.action.cat.RestShardsAction;
+import org.elasticsearch.rest.action.cat.RestSnapshotAction;
 import org.elasticsearch.rest.action.cat.RestThreadPoolAction;
 import org.elasticsearch.rest.action.delete.RestDeleteAction;
 import org.elasticsearch.rest.action.explain.RestExplainAction;
@@ -263,6 +265,8 @@ public class RestActionModule extends AbstractModule {
         catActionMultibinder.addBinding().to(RestPluginsAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestFielddataAction.class).asEagerSingleton();
         catActionMultibinder.addBinding().to(RestNodeAttrsAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestRepositoriesAction.class).asEagerSingleton();
+        catActionMultibinder.addBinding().to(RestSnapshotAction.class).asEagerSingleton();
         // no abstract cat action
         bind(RestCatAction.class).asEagerSingleton();
     }

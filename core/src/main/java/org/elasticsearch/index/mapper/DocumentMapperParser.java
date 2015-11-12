@@ -32,49 +32,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
-import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
-import org.elasticsearch.index.mapper.core.ByteFieldMapper;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.DoubleFieldMapper;
-import org.elasticsearch.index.mapper.core.FloatFieldMapper;
-import org.elasticsearch.index.mapper.core.IntegerFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.ShortFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
-import org.elasticsearch.index.mapper.core.TypeParsers;
+import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
-import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
-import org.elasticsearch.index.mapper.internal.IdFieldMapper;
-import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
-import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
-import org.elasticsearch.index.mapper.internal.RoutingFieldMapper;
-import org.elasticsearch.index.mapper.internal.SourceFieldMapper;
-import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
-import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
-import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
-import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
+import org.elasticsearch.index.mapper.internal.*;
 import org.elasticsearch.index.mapper.ip.IpFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptService;
 
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.*;
 
 import static java.util.Collections.unmodifiableMap;
 import static java.util.Collections.unmodifiableSortedMap;
@@ -87,7 +56,6 @@ public class DocumentMapperParser {
     final AnalysisService analysisService;
     private static final ESLogger logger = Loggers.getLogger(DocumentMapperParser.class);
     private final SimilarityService similarityService;
-    private final ScriptService scriptService;
 
     private final RootObjectMapper.TypeParser rootObjectTypeParser = new RootObjectMapper.TypeParser();
 
@@ -99,14 +67,13 @@ public class DocumentMapperParser {
     private volatile Map<String, Mapper.TypeParser> rootTypeParsers;
     private volatile SortedMap<String, Mapper.TypeParser> additionalRootMappers;
 
-    public DocumentMapperParser(@IndexSettings Settings indexSettings, MapperService mapperService, AnalysisService analysisService,
-                                SimilarityService similarityService, ScriptService scriptService) {
-        this.indexSettings = indexSettings;
-        this.parseFieldMatcher = new ParseFieldMatcher(indexSettings);
+    public DocumentMapperParser(IndexSettings indexSettings, MapperService mapperService, AnalysisService analysisService,
+                                SimilarityService similarityService) {
+        this.indexSettings = indexSettings.getSettings();
+        this.parseFieldMatcher = new ParseFieldMatcher(this.indexSettings);
         this.mapperService = mapperService;
         this.analysisService = analysisService;
         this.similarityService = similarityService;
-        this.scriptService = scriptService;
         Map<String, Mapper.TypeParser> typeParsers = new HashMap<>();
         typeParsers.put(ByteFieldMapper.CONTENT_TYPE, new ByteFieldMapper.TypeParser());
         typeParsers.put(ShortFieldMapper.CONTENT_TYPE, new ShortFieldMapper.TypeParser());
@@ -147,7 +114,7 @@ public class DocumentMapperParser {
         rootTypeParsers.put(FieldNamesFieldMapper.NAME, new FieldNamesFieldMapper.TypeParser());
         this.rootTypeParsers = unmodifiableMap(rootTypeParsers);
         additionalRootMappers = Collections.emptySortedMap();
-        indexVersionCreated = Version.indexCreated(indexSettings);
+        indexVersionCreated = indexSettings.getIndexVersionCreated();
     }
 
     public void putTypeParser(String type, Mapper.TypeParser typeParser) {
@@ -242,29 +209,13 @@ public class DocumentMapperParser {
             String fieldName = Strings.toUnderscoreCase(entry.getKey());
             Object fieldNode = entry.getValue();
 
-            if ("transform".equals(fieldName)) {
-                if (fieldNode instanceof Map) {
-                    parseTransform(docBuilder, (Map<String, Object>) fieldNode, parserContext.indexVersionCreated());
-                } else if (fieldNode instanceof List) {
-                    for (Object transformItem: (List)fieldNode) {
-                        if (!(transformItem instanceof Map)) {
-                            throw new MapperParsingException("Elements of transform list must be objects but one was:  " + fieldNode);
-                        }
-                        parseTransform(docBuilder, (Map<String, Object>) transformItem, parserContext.indexVersionCreated());
-                    }
-                } else {
-                    throw new MapperParsingException("Transform must be an object or an array but was:  " + fieldNode);
-                }
+            Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
+            if (typeParser != null) {
                 iterator.remove();
-            } else {
-                Mapper.TypeParser typeParser = rootTypeParsers.get(fieldName);
-                if (typeParser != null) {
-                    iterator.remove();
-                    Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
-                    docBuilder.put((MetadataFieldMapper.Builder)typeParser.parse(fieldName, fieldNodeMap, parserContext));
-                    fieldNodeMap.remove("type");
-                    checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());
-                }
+                Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
+                docBuilder.put((MetadataFieldMapper.Builder) typeParser.parse(fieldName, fieldNodeMap, parserContext));
+                fieldNodeMap.remove("type");
+                checkNoRemainingFields(fieldName, fieldNodeMap, parserContext.indexVersionCreated());
             }
         }
 
@@ -300,14 +251,6 @@ public class DocumentMapperParser {
             remainingFields.append(" [").append(key).append(" : ").append(map.get(key)).append("]");
         }
         return remainingFields.toString();
-    }
-
-    private void parseTransform(DocumentMapper.Builder docBuilder, Map<String, Object> transformConfig, Version indexVersionCreated) {
-        Script script = Script.parse(transformConfig, true, parseFieldMatcher);
-        if (script != null) {
-            docBuilder.transform(scriptService, script);
-        }
-        checkNoRemainingFields(transformConfig, indexVersionCreated, "Transform config has unsupported parameters: ");
     }
 
     private Tuple<String, Map<String, Object>> extractMapping(String type, String source) throws MapperParsingException {

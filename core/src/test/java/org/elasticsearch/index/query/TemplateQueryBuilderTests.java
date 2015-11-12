@@ -23,6 +23,7 @@ import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.script.Script.ScriptParseException;
 import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.script.Template;
 import org.junit.BeforeClass;
@@ -67,9 +68,21 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
         }
     }
 
+    /**
+     * Override superclass test since template query doesn't support boost and queryName, so
+     * we need to mutate other existing field in the test query.
+     */
     @Override
-    protected void assertBoost(TemplateQueryBuilder queryBuilder, Query query) throws IOException {
-        //no-op boost is checked already above as part of doAssertLuceneQuery as we rely on lucene equals impl
+    public void testUnknownField() throws IOException {
+        TemplateQueryBuilder testQuery = createTestQueryBuilder();
+        String testQueryAsString = toXContent(testQuery, randomFrom(XContentType.JSON, XContentType.YAML)).string();
+        String queryAsString = testQueryAsString.replace("inline", "bogusField");
+        try {
+            parseQuery(queryAsString);
+            fail("ScriptParseException expected.");
+        } catch (ScriptParseException e) {
+            assertTrue(e.getMessage().contains("bogusField"));
+        }
     }
 
     public void testJSONGeneration() throws IOException {
@@ -97,11 +110,6 @@ public class TemplateQueryBuilderTests extends AbstractQueryTestCase<TemplateQue
     }
 
     public void testRawTemplate() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder();
-        builder.startObject();
-        builder.startObject("match_{{template}}");
-        builder.endObject();
-        builder.endObject();
         String expectedTemplateString = "{\"match_{{template}}\":{}}";
         String query = "{\"template\": {\"query\": {\"match_{{template}}\": {}},\"params\" : {\"template\" : \"all\"}}}";
         Map<String, Object> params = new HashMap<>();

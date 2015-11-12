@@ -279,8 +279,8 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         } else {
             minimumShouldMatch = this.minimumShouldMatch;
         }
-        booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-        return adjustPureNegative ? fixNegativeQueryIfNeeded(booleanQuery) : booleanQuery;
+        Query query = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
+        return adjustPureNegative ? fixNegativeQueryIfNeeded(query) : query;
     }
 
     private static void addBooleanClauses(QueryShardContext context, BooleanQuery.Builder booleanQueryBuilder, List<QueryBuilder> clauses, Occur occurs) throws IOException {

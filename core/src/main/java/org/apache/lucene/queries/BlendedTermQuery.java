@@ -18,18 +18,9 @@
  */
 package org.apache.lucene.queries;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.IndexReaderContext;
-import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.Term;
-import org.apache.lucene.index.TermContext;
-import org.apache.lucene.index.TermState;
-import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.index.*;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.BooleanClause.Occur;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.DisjunctionMaxQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.InPlaceMergeSorter;
 import org.apache.lucene.util.ToStringUtils;
@@ -37,6 +28,7 @@ import org.apache.lucene.util.ToStringUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * BlendedTermQuery can be used to unify term statistics across
@@ -77,6 +69,10 @@ public abstract class BlendedTermQuery extends Query {
 
     @Override
     public Query rewrite(IndexReader reader) throws IOException {
+        Query rewritten = super.rewrite(reader);
+        if (rewritten != this) {
+            return rewritten;
+        }
         IndexReaderContext context = reader.getContext();
         TermContext[] ctx = new TermContext[terms.length];
         int[] docFreqs = new int[ctx.length];
@@ -87,9 +83,7 @@ public abstract class BlendedTermQuery extends Query {
 
         final int maxDoc = reader.maxDoc();
         blend(ctx, maxDoc, reader);
-        Query query = topLevelQuery(terms, ctx, docFreqs, maxDoc);
-        query.setBoost(getBoost());
-        return query;
+        return topLevelQuery(terms, ctx, docFreqs, maxDoc);
     }
 
     protected abstract Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc);
@@ -274,20 +268,15 @@ public abstract class BlendedTermQuery extends Query {
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
         if (!super.equals(o)) return false;
 
         BlendedTermQuery that = (BlendedTermQuery) o;
-        if (!Arrays.equals(equalsTerms(), that.equalsTerms())) return false;
-
-        return true;
+        return Arrays.equals(equalsTerms(), that.equalsTerms());
     }
 
     @Override
     public int hashCode() {
-        int result = super.hashCode();
-        result = 31 * result + Arrays.hashCode(equalsTerms());
-        return result;
+        return Objects.hash(super.hashCode(), Arrays.hashCode(equalsTerms()));
     }
 
     public static BlendedTermQuery booleanBlendedQuery(Term[] terms, final boolean disableCoord) {
@@ -298,16 +287,16 @@ public abstract class BlendedTermQuery extends Query {
         return new BlendedTermQuery(terms, boosts) {
             @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
-                BooleanQuery.Builder query = new BooleanQuery.Builder();
-                query.setDisableCoord(disableCoord);
+                BooleanQuery.Builder booleanQueryBuilder = new BooleanQuery.Builder();
+                booleanQueryBuilder.setDisableCoord(disableCoord);
                 for (int i = 0; i < terms.length; i++) {
-                    TermQuery termQuery = new TermQuery(terms[i], ctx[i]);
-                    if (boosts != null) {
-                        termQuery.setBoost(boosts[i]);
+                    Query query = new TermQuery(terms[i], ctx[i]);
+                    if (boosts != null && boosts[i] != 1f) {
+                        query = new BoostQuery(query, boosts[i]);
                     }
-                    query.add(termQuery, BooleanClause.Occur.SHOULD);
+                    booleanQueryBuilder.add(query, BooleanClause.Occur.SHOULD);
                 }
-                return query.build();
+                return booleanQueryBuilder.build();
             }
         };
     }
@@ -321,16 +310,16 @@ public abstract class BlendedTermQuery extends Query {
                 BooleanQuery.Builder lowBuilder = new BooleanQuery.Builder();
                 lowBuilder.setDisableCoord(disableCoord);
                 for (int i = 0; i < terms.length; i++) {
-                    TermQuery termQuery = new TermQuery(terms[i], ctx[i]);
-                    if (boosts != null) {
-                        termQuery.setBoost(boosts[i]);
+                    Query query = new TermQuery(terms[i], ctx[i]);
+                    if (boosts != null && boosts[i] != 1f) {
+                        query = new BoostQuery(query, boosts[i]);
                     }
                     if ((maxTermFrequency >= 1f && docFreqs[i] > maxTermFrequency)
                             || (docFreqs[i] > (int) Math.ceil(maxTermFrequency
                             * (float) maxDoc))) {
-                        highBuilder.add(termQuery, BooleanClause.Occur.SHOULD);
+                        highBuilder.add(query, BooleanClause.Occur.SHOULD);
                     } else {
-                        lowBuilder.add(termQuery, BooleanClause.Occur.SHOULD);
+                        lowBuilder.add(query, BooleanClause.Occur.SHOULD);
                     }
                 }
                 BooleanQuery high = highBuilder.build();
@@ -363,15 +352,15 @@ public abstract class BlendedTermQuery extends Query {
         return new BlendedTermQuery(terms, boosts) {
             @Override
             protected Query topLevelQuery(Term[] terms, TermContext[] ctx, int[] docFreqs, int maxDoc) {
-                DisjunctionMaxQuery query = new DisjunctionMaxQuery(tieBreakerMultiplier);
+                DisjunctionMaxQuery disMaxQuery = new DisjunctionMaxQuery(tieBreakerMultiplier);
                 for (int i = 0; i < terms.length; i++) {
-                    TermQuery termQuery = new TermQuery(terms[i], ctx[i]);
-                    if (boosts != null) {
-                        termQuery.setBoost(boosts[i]);
+                    Query query = new TermQuery(terms[i], ctx[i]);
+                    if (boosts != null && boosts[i] != 1f) {
+                        query = new BoostQuery(query, boosts[i]);
                     }
-                    query.add(termQuery);
+                    disMaxQuery.add(query);
                 }
-                return query;
+                return disMaxQuery;
             }
         };
     }

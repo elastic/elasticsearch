@@ -118,6 +118,9 @@ public class RoutingAllocation {
 
     private boolean debugDecision = false;
 
+    private boolean hasPendingAsyncFetch = false;
+
+
     /**
      * Creates a new {@link RoutingAllocation}
      * 
@@ -245,5 +248,21 @@ public class RoutingAllocation {
         } else {
             return decision;
         }
+    }
+
+    /**
+     * Returns <code>true</code> iff the current allocation run has not processed all of the in-flight or available
+     * shard or store fetches. Otherwise <code>true</code>
+     */
+    public boolean hasPendingAsyncFetch() {
+        return hasPendingAsyncFetch;
+    }
+
+    /**
+     * Sets a flag that signals that current allocation run has not processed all of the in-flight or available shard or store fetches.
+     * This state is anti-viral and can be reset in on allocation run.
+     */
+    public void setHasPendingAsyncFetch() {
+        this.hasPendingAsyncFetch = true;
     }
 }

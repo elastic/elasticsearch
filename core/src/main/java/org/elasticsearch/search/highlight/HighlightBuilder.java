@@ -164,7 +164,7 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * Set this to true when using the highlighterType <tt>fast-vector-highlighter</tt>
+     * Set this to true when using the highlighterType <tt>fvh</tt>
      * and you want to provide highlighting on filter clauses in your
      * query. Default is <tt>false</tt>.
      */
@@ -237,7 +237,7 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * When using the highlighterType <tt>fast-vector-highlighter</tt> this setting
+     * When using the highlighterType <tt>fvh</tt> this setting
      * controls how far to look for boundary characters, and defaults to 20.
      */
     public HighlightBuilder boundaryMaxScan(Integer boundaryMaxScan) {
@@ -246,7 +246,7 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * When using the highlighterType <tt>fast-vector-highlighter</tt> this setting
+     * When using the highlighterType <tt>fvh</tt> this setting
      * defines what constitutes a boundary for highlighting. It’s a single string with
      * each boundary character defined in it. It defaults to .,!? \t\n
      */
@@ -256,8 +256,8 @@ public class HighlightBuilder implements ToXContent {
     }
 
     /**
-     * Set type of highlighter to use. Supported types
-     * are <tt>highlighter</tt>, <tt>fast-vector-highlighter</tt> and <tt>postings-highlighter</tt>.
+     * Set type of highlighter to use. Out of the box supported types
+     * are <tt>plain</tt>, <tt>fvh</tt> and <tt>postings</tt>.
      * The default option selected is dependent on the mappings defined for your index.
      * Details of the different highlighter types are covered in the reference guide.
      */
@@ -568,8 +568,8 @@ public class HighlightBuilder implements ToXContent {
         }
 
         /**
-         * Set type of highlighter to use. Supported types
-         * are <tt>highlighter</tt>, <tt>fast-vector-highlighter</tt> nad <tt>postings-highlighter</tt>.
+         * Set type of highlighter to use. Out of the box supported types
+         * are <tt>plain</tt>, <tt>fvh</tt> and <tt>postings</tt>.
          * This overrides global settings set by {@link HighlightBuilder#highlighterType(String)}.
          */
         public Field highlighterType(String highlighterType) {

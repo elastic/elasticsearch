@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.NumericRangeQuery;
 import org.apache.lucene.search.Query;
@@ -116,12 +117,15 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "    }\n" +
                 "}";
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        assertThat(parsedQuery, instanceOf(FuzzyQuery.class));
-        FuzzyQuery fuzzyQuery = (FuzzyQuery) parsedQuery;
+        assertThat(parsedQuery, instanceOf(BoostQuery.class));
+        BoostQuery boostQuery = (BoostQuery) parsedQuery;
+        assertThat(boostQuery.getBoost(), equalTo(2.0f));
+        assertThat(boostQuery.getQuery(), instanceOf(FuzzyQuery.class));
+        FuzzyQuery fuzzyQuery = (FuzzyQuery) boostQuery.getQuery();
         assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
         assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
-        assertThat(fuzzyQuery.getBoost(), equalTo(2.0f));
+
     }
 
     public void testToQueryWithNumericField() throws IOException {
@@ -130,8 +134,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
                 "    \"fuzzy\":{\n" +
                 "        \"" + INT_FIELD_NAME + "\":{\n" +
                 "            \"value\":12,\n" +
-                "            \"fuzziness\":5,\n" +
-                "            \"boost\":2.0\n" +
+                "            \"fuzziness\":5\n" +
                 "        }\n" +
                 "    }\n" +
                 "}\n";

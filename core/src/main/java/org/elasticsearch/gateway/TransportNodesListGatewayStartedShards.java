@@ -39,6 +39,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.shard.ShardStateMetaData;
@@ -48,6 +50,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
@@ -128,7 +131,8 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 if (metaData != null) {
                     ShardPath shardPath = null;
                     try {
-                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, metaData.getSettings());
+                        IndexSettings indexSettings = new IndexSettings(metaData, settings, Collections.EMPTY_LIST);
+                        shardPath = ShardPath.loadShardPath(logger, nodeEnv, shardId, indexSettings);
                         if (shardPath == null) {
                             throw new IllegalStateException(shardId + " no shard path found");
                         }

@@ -19,12 +19,10 @@
 
 package org.elasticsearch.action.explain;
 
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.single.shard.SingleShardOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.source.FetchSourceContext;
 
@@ -32,8 +30,6 @@ import org.elasticsearch.search.fetch.source.FetchSourceContext;
  * A builder for {@link ExplainRequest}.
  */
 public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<ExplainRequest, ExplainResponse, ExplainRequestBuilder> {
-
-    private QuerySourceBuilder sourceBuilder;
 
     ExplainRequestBuilder(ElasticsearchClient client, ExplainAction action) {
         super(client, action, new ExplainRequest());
@@ -87,15 +83,7 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
      * Sets the query to get a score explanation for.
      */
     public ExplainRequestBuilder setQuery(QueryBuilder query) {
-        sourceBuilder().setQuery(query);
-        return this;
-    }
-
-    /**
-     * Sets the query to get a score explanation for.
-     */
-    public ExplainRequestBuilder setQuery(BytesReference query) {
-        sourceBuilder().setQuery(query);
+        request.query(query);
         return this;
     }
 
@@ -151,28 +139,4 @@ public class ExplainRequestBuilder extends SingleShardOperationRequestBuilder<Ex
         }
         return this;
     }
-
-    /**
-     * Sets the full source of the explain request (for example, wrapping an actual query).
-     */
-    public ExplainRequestBuilder setSource(BytesReference source) {
-        request().source(source);
-        return this;
-    }
-
-    @Override
-    protected ExplainRequest beforeExecute(ExplainRequest request) {
-        if (sourceBuilder != null) {
-            request.source(sourceBuilder);
-        }
-        return request;
-    }
-
-    private QuerySourceBuilder sourceBuilder() {
-        if (sourceBuilder == null) {
-            sourceBuilder = new QuerySourceBuilder();
-        }
-        return sourceBuilder;
-    }
-
 }

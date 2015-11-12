@@ -301,8 +301,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     /**
-     * Get the setting for handling zero terms queries.
-     * @see #zeroTermsQuery(ZeroTermsQuery)
+     * Returns the setting for handling zero terms queries.
      */
     public MatchQuery.ZeroTermsQuery zeroTermsQuery() {
         return this.zeroTermsQuery;
@@ -346,7 +345,7 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
         // validate context specific fields
-        if (analyzer != null && context.analysisService().analyzer(analyzer) == null) {
+        if (analyzer != null && context.getAnalysisService().analyzer(analyzer) == null) {
             throw new QueryShardException(context, "[match] analyzer [" + analyzer + "] not found");
         }
 

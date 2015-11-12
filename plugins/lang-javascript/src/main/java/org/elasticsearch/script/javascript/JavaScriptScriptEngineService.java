@@ -58,6 +58,34 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     private Scriptable globalScope;
 
+    // one time initialization of rhino security manager integration
+    private static final CodeSource DOMAIN;
+    static {
+        try {
+            DOMAIN = new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null);
+        } catch (MalformedURLException e) {
+            throw new RuntimeException(e);
+        }
+        SecurityController.initGlobal(new PolicySecurityController() {
+            @Override
+            public GeneratedClassLoader createClassLoader(ClassLoader parent, Object securityDomain) {
+                // don't let scripts compile other scripts
+                SecurityManager sm = System.getSecurityManager();
+                if (sm != null) {
+                    sm.checkPermission(new SpecialPermission());
+                }
+                // check the domain, this is all we allow
+                if (securityDomain != DOMAIN) {
+                    throw new SecurityException("illegal securityDomain: " + securityDomain);
+                }
+                return super.createClassLoader(parent, securityDomain);
+            }
+        });
+    }
+
+    /** ensures this engine is initialized */
+    public static void init() {}
+
     @Inject
     public JavaScriptScriptEngineService(Settings settings) {
         super(settings);
@@ -100,21 +128,11 @@ public class JavaScriptScriptEngineService extends AbstractComponent implements 
 
     @Override
     public Object compile(String script) {
-        // we don't know why kind of safeguards rhino has,
-        // but just be safe
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
         Context ctx = Context.enter();
         try {
             ctx.setWrapFactory(wrapFactory);
             ctx.setOptimizationLevel(optimizationLevel);
-            ctx.setSecurityController(new PolicySecurityController());
-            return ctx.compileString(script, generateScriptName(), 1, 
-                      new CodeSource(new URL("file:" + BootstrapInfo.UNTRUSTED_CODEBASE), (Certificate[]) null));
-        } catch (MalformedURLException e) {
-            throw new RuntimeException(e);
+            return ctx.compileString(script, generateScriptName(), 1, DOMAIN);
         } finally {
             Context.exit();
         }

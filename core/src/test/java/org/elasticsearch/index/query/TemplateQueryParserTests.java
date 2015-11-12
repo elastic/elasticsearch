@@ -20,6 +20,7 @@ package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.Version;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
@@ -37,18 +38,25 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNameModule;
-import org.elasticsearch.index.analysis.AnalysisModule;
-import org.elasticsearch.index.cache.IndexCacheModule;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionParser;
-import org.elasticsearch.index.settings.IndexSettingsModule;
-import org.elasticsearch.index.similarity.SimilarityModule;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.IndicesModule;
-import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
+import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPoolModule;
 import org.junit.After;
@@ -56,6 +64,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.lang.reflect.Proxy;
+import java.util.Collections;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -82,6 +91,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                     throw new UnsupportedOperationException("client is just a dummy");
                 });
         Index index = new Index("test");
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),
@@ -95,10 +105,6 @@ public class TemplateQueryParserTests extends ESTestCase {
                 },
                 new ScriptModule(settings),
                 new IndexSettingsModule(index, settings),
-                new IndexCacheModule(settings),
-                new AnalysisModule(settings, new IndicesAnalysisService(settings)),
-                new SimilarityModule(index, settings),
-                new IndexNameModule(index),
                 new AbstractModule() {
                     @Override
                     protected void configure() {
@@ -110,8 +116,24 @@ public class TemplateQueryParserTests extends ESTestCase {
                 }
         ).createInjector();
 
-        IndexQueryParserService queryParserService = injector.getInstance(IndexQueryParserService.class);
-        context = new QueryShardContext(index, queryParserService);
+        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
+        ScriptService scriptService = injector.getInstance(ScriptService.class);
+        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService);
+        IndexFieldDataService indexFieldDataService =new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null), new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
+        IndicesQueriesRegistry indicesQueriesRegistry = injector.getInstance(IndicesQueriesRegistry.class);
+        context = new QueryShardContext(idxSettings, proxy, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
     }
 
     @Override

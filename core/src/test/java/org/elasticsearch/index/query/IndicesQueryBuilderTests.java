@@ -56,15 +56,7 @@ public class IndicesQueryBuilderTests extends AbstractQueryTestCase<IndicesQuery
         } else {
             expected = queryBuilder.noMatchQuery().toQuery(context);
         }
-        if (expected != null && queryBuilder.boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
-            expected.setBoost(queryBuilder.boost());
-        }
-        assertEquals(query, expected);
-    }
-
-    @Override
-    protected void assertBoost(IndicesQueryBuilder queryBuilder, Query query) throws IOException {
-        //nothing to do here, boost check is already included in equality check done as part of doAssertLuceneQuery above
+        assertEquals(expected, query);
     }
 
     public void testIllegalArguments() {

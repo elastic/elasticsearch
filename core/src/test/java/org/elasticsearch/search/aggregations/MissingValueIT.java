@@ -183,16 +183,20 @@ public class MissingValueIT extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx").addAggregation(geoBounds("bounds").field("non_existing_field").missing("2,1")).get();
         assertSearchResponse(response);
         GeoBounds bounds = response.getAggregations().get("bounds");
-        assertEquals(new GeoPoint(2,1), bounds.bottomRight());
-        assertEquals(new GeoPoint(2,1), bounds.topLeft());
+        assertThat(bounds.bottomRight().lat(), closeTo(2.0, 1E-5));
+        assertThat(bounds.bottomRight().lon(), closeTo(1.0, 1E-5));
+        assertThat(bounds.topLeft().lat(), closeTo(2.0, 1E-5));
+        assertThat(bounds.topLeft().lon(), closeTo(1.0, 1E-5));
     }
 
     public void testGeoBounds() {
         SearchResponse response = client().prepareSearch("idx").addAggregation(geoBounds("bounds").field("location").missing("2,1")).get();
         assertSearchResponse(response);
         GeoBounds bounds = response.getAggregations().get("bounds");
-        assertEquals(new GeoPoint(1,2), bounds.bottomRight());
-        assertEquals(new GeoPoint(2,1), bounds.topLeft());
+        assertThat(bounds.bottomRight().lat(), closeTo(1.0, 1E-5));
+        assertThat(bounds.bottomRight().lon(), closeTo(2.0, 1E-5));
+        assertThat(bounds.topLeft().lat(), closeTo(2.0, 1E-5));
+        assertThat(bounds.topLeft().lon(), closeTo(1.0, 1E-5));
     }
 
     public void testGeoCentroid() {

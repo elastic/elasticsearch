@@ -54,8 +54,8 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         assertStatus(status, OK_AND_EXIT);
 
         assertThatTerminalOutput(containsString(Version.CURRENT.toString()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.hashShort()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.timestamp()));
+        assertThatTerminalOutput(containsString(Build.CURRENT.shortHash()));
+        assertThatTerminalOutput(containsString(Build.CURRENT.date()));
         assertThatTerminalOutput(containsString(JvmInfo.jvmInfo().version()));
     }
 
@@ -65,8 +65,8 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         assertStatus(status, OK_AND_EXIT);
 
         assertThatTerminalOutput(containsString(Version.CURRENT.toString()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.hashShort()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.timestamp()));
+        assertThatTerminalOutput(containsString(Build.CURRENT.shortHash()));
+        assertThatTerminalOutput(containsString(Build.CURRENT.date()));
         assertThatTerminalOutput(containsString(JvmInfo.jvmInfo().version()));
 
         CaptureOutputTerminal terminal = new CaptureOutputTerminal();
@@ -75,8 +75,8 @@ public class BootstrapCliParserTests extends CliToolTestCase {
         assertStatus(status, OK_AND_EXIT);
 
         assertThatTerminalOutput(containsString(Version.CURRENT.toString()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.hashShort()));
-        assertThatTerminalOutput(containsString(Build.CURRENT.timestamp()));
+        assertThatTerminalOutput(containsString(Build.CURRENT.shortHash()));
+        assertThatTerminalOutput(containsString(Build.CURRENT.date()));
         assertThatTerminalOutput(containsString(JvmInfo.jvmInfo().version()));
     }
 

@@ -22,11 +22,7 @@ package org.apache.lucene.search.vectorhighlight;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.queries.BlendedTermQuery;
-import org.apache.lucene.search.ConstantScoreQuery;
-import org.apache.lucene.search.MultiPhraseQuery;
-import org.apache.lucene.search.PhraseQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.apache.lucene.search.spans.SpanTermQuery;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
@@ -103,8 +99,7 @@ public class CustomFieldQuery extends FieldQuery {
             for (int i = 0; i < termsIdx.length; i++) {
                 queryBuilder.add(terms.get(i)[termsIdx[i]], pos[i]);
             }
-            PhraseQuery query = queryBuilder.build();
-            query.setBoost(orig.getBoost());
+            Query query = queryBuilder.build();
             this.flatten(query, reader, flatQueries, orig.getBoost());
         } else {
             Term[] t = terms.get(currentPos);

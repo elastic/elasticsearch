@@ -1,0 +1,51 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+esplugin {
+  description 'The S3 repository plugin adds S3 repositories.'
+  classname 'org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin'
+}
+
+versions << [
+  'aws': '1.10.33'
+]
+
+dependencies {
+  compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
+  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
+  compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
+  compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "com.fasterxml.jackson.core:jackson-databind:2.5.3"
+  compile "com.fasterxml.jackson.core:jackson-annotations:2.5.0"
+}
+
+dependencyLicenses {
+  mapping from: /aws-java-sdk-.*/, to: 'aws-java-sdk'
+  mapping from: /jackson-.*/, to: 'jackson'
+}
+
+compileJava.options.compilerArgs << '-Xlint:-deprecation,-rawtypes'
+
+test {
+  // this is needed for insecure plugins, remove if possible!
+  systemProperty 'tests.artifact', project.name 
+}

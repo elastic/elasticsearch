@@ -23,7 +23,9 @@ import com.microsoft.azure.storage.StorageException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobMetaData;
 import org.elasticsearch.common.blobstore.BlobPath;
-import org.elasticsearch.common.blobstore.support.AbstractLegacyBlobContainer;
+import org.elasticsearch.common.blobstore.support.AbstractBlobContainer;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.repositories.RepositoryException;
@@ -39,7 +41,7 @@ import java.util.Map;
 /**
  *
  */
-public class AzureBlobContainer extends AbstractLegacyBlobContainer {
+public class AzureBlobContainer extends AbstractBlobContainer {
 
     protected final ESLogger logger = Loggers.getLogger(AzureBlobContainer.class);
     protected final AzureBlobStore blobStore;
@@ -69,7 +71,7 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
     }
 
     @Override
-    public InputStream openInput(String blobName) throws IOException {
+    public InputStream readBlob(String blobName) throws IOException {
         try {
             return blobStore.client().getInputStream(blobStore.container(), buildKey(blobName));
         } catch (StorageException e) {
@@ -83,7 +85,20 @@ public class AzureBlobContainer extends AbstractLegacyBlobContainer {
     }
 
     @Override
-    public OutputStream createOutput(String blobName) throws IOException {
+    public void writeBlob(String blobName, InputStream inputStream, long blobSize) throws IOException {
+        try (OutputStream stream = createOutput(blobName)) {
+            Streams.copy(inputStream, stream);
+        }
+    }
+
+    @Override
+    public void writeBlob(String blobName, BytesReference bytes) throws IOException {
+        try (OutputStream stream = createOutput(blobName)) {
+            bytes.writeTo(stream);
+        }
+    }
+
+    private OutputStream createOutput(String blobName) throws IOException {
         try {
             return new AzureOutputStream(blobStore.client().getOutputStream(blobStore.container(), buildKey(blobName)));
         } catch (StorageException e) {

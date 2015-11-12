@@ -26,7 +26,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.index.settings.IndexSettingsService;
 
 /**
  * A shard in elasticsearch is a Lucene index, and a Lucene index is broken
@@ -65,15 +64,15 @@ import org.elasticsearch.index.settings.IndexSettingsService;
  * 
  * <li><code>index.merge.policy.max_merge_at_once_explicit</code>:
  * 
- *     Maximum number of segments to be merged at a time, during optimize or
+ *     Maximum number of segments to be merged at a time, during force merge or
  *     expungeDeletes. Default is <code>30</code>.
  * 
  * <li><code>index.merge.policy.max_merged_segment</code>:
  * 
  *     Maximum sized segment to produce during normal merging (not explicit
- *     optimize). This setting is approximate: the estimate of the merged segment
- *     size is made by summing sizes of to-be-merged segments (compensating for
- *     percent deleted docs). Default is <code>5gb</code>.
+ *     force merge). This setting is approximate: the estimate of the merged
+ *     segment size is made by summing sizes of to-be-merged segments
+ *     (compensating for percent deleted docs). Default is <code>5gb</code>.
  * 
  * <li><code>index.merge.policy.segments_per_tier</code>:
  * 
@@ -114,7 +113,7 @@ import org.elasticsearch.index.settings.IndexSettingsService;
  * call for the index (try and aim to issue it on a low traffic time).
  */
 
-public final class MergePolicyConfig implements IndexSettingsService.Listener{
+public final class MergePolicyConfig {
     private final TieredMergePolicy mergePolicy = new TieredMergePolicy();
     private final ESLogger logger;
     private final boolean mergesEnabled;
@@ -185,7 +184,6 @@ public final class MergePolicyConfig implements IndexSettingsService.Listener{
         return mergesEnabled ? mergePolicy : NoMergePolicy.INSTANCE;
     }
 
-    @Override
     public void onRefreshSettings(Settings settings) {
         final double oldExpungeDeletesPctAllowed = mergePolicy.getForceMergeDeletesPctAllowed();
         final double expungeDeletesPctAllowed = settings.getAsDouble(INDEX_MERGE_POLICY_EXPUNGE_DELETES_ALLOWED, oldExpungeDeletesPctAllowed);

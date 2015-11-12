@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.store.smb;
 
-import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.store.smbmmapfs.SmbMmapFsIndexStore;
 import org.elasticsearch.index.store.smbsimplefs.SmbSimpleFsIndexStore;
 import org.elasticsearch.plugins.Plugin;
@@ -36,8 +36,9 @@ public class SMBStorePlugin extends Plugin {
         return "SMB Store Plugin";
     }
 
-    public void onModule(IndexStoreModule storeModule) {
-        storeModule.addIndexStore("smb_mmap_fs", SmbMmapFsIndexStore.class);
-        storeModule.addIndexStore("smb_simple_fs", SmbSimpleFsIndexStore.class);
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.addIndexStore("smb_mmap_fs", SmbMmapFsIndexStore::new);
+        indexModule.addIndexStore("smb_simple_fs", SmbSimpleFsIndexStore::new);
     }
 }

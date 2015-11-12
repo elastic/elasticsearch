@@ -29,7 +29,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.discovery.DiscoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.hamcrest.Matchers;
@@ -59,7 +59,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
     }
 
     public void testClusterSettingsUpdateResponse() {
-        String key1 = IndicesStore.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC;
+        String key1 = IndexStoreConfig.INDICES_STORE_THROTTLE_MAX_BYTES_PER_SEC;
         int value1 = 10;
 
         String key2 = EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE;

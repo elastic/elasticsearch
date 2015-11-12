@@ -19,15 +19,13 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
+
 import java.io.IOException;
 
 public class FuzzyQueryParser implements QueryParser<FuzzyQueryBuilder> {
-
-    private static final ParseField FUZZINESS = Fuzziness.FIELD.withDeprecation("min_similarity");
 
     @Override
     public String[] names() {
@@ -68,7 +66,7 @@ public class FuzzyQueryParser implements QueryParser<FuzzyQueryBuilder> {
                         value = parser.objectBytes();
                     } else if ("boost".equals(currentFieldName)) {
                         boost = parser.floatValue();
-                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZINESS)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
                         fuzziness = Fuzziness.parse(parser);
                     } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
                         prefixLength = parser.intValue();

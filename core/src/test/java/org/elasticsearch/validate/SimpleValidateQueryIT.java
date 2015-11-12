@@ -66,7 +66,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setSource("foo".getBytes(StandardCharsets.UTF_8)).execute().actionGet().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8))).execute().actionGet().isValid(), equalTo(false));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_id:1")).execute().actionGet().isValid(), equalTo(true));
         assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.queryStringQuery("_i:d:1")).execute().actionGet().isValid(), equalTo(false));
 
@@ -94,12 +94,12 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
 
         for (Client client : internalCluster()) {
             ValidateQueryResponse response = client.admin().indices().prepareValidateQuery("test")
-                    .setSource("foo".getBytes(StandardCharsets.UTF_8))
+                    .setQuery(QueryBuilders.wrapperQuery("foo".getBytes(StandardCharsets.UTF_8)))
                     .setExplain(true)
                     .execute().actionGet();
             assertThat(response.isValid(), equalTo(false));
             assertThat(response.getQueryExplanation().size(), equalTo(1));
-            assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to parse"));
+            assertThat(response.getQueryExplanation().get(0).getError(), containsString("Failed to derive xcontent"));
             assertThat(response.getQueryExplanation().get(0).getExplanation(), nullValue());
 
         }
@@ -260,7 +260,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}")).get().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("{\"foo\": \"bar\", \"query\": {\"term\" : { \"user\" : \"kimchy\" }}}"))).get().isValid(), equalTo(false));
     }
 
     public void testIrrelevantPropertiesAfterQuery() throws IOException {
@@ -268,7 +268,7 @@ public class SimpleValidateQueryIT extends ESIntegTestCase {
         ensureGreen();
         refresh();
 
-        assertThat(client().admin().indices().prepareValidateQuery("test").setSource(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}")).get().isValid(), equalTo(false));
+        assertThat(client().admin().indices().prepareValidateQuery("test").setQuery(QueryBuilders.wrapperQuery(new BytesArray("{\"query\": {\"term\" : { \"user\" : \"kimchy\" }}, \"foo\": \"bar\"}"))).get().isValid(), equalTo(false));
     }
 
     private static void assertExplanation(QueryBuilder queryBuilder, Matcher<String> matcher, boolean withRewrite) {

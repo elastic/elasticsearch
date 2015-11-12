@@ -82,6 +82,7 @@ public class PluginManager {
             "lang-groovy",
             "lang-javascript",
             "lang-python",
+            "mapper-attachments",
             "mapper-murmur3",
             "mapper-size",
             "repository-azure",
@@ -511,7 +512,7 @@ public class PluginManager {
         if (removed) {
             terminal.println("Removed %s", name);
         } else {
-            terminal.println("Plugin %s not found. Run plugin --list to get list of installed plugins.", name);
+            terminal.println("Plugin %s not found. Run \"plugin list\" to get list of installed plugins.", name);
         }
     }
 
@@ -574,7 +575,7 @@ public class PluginManager {
                 // Elasticsearch new download service uses groupId org.elasticsearch.plugin from 2.0.0
                 if (user == null) {
                     if (!Strings.isNullOrEmpty(System.getProperty(PROPERTY_SUPPORT_STAGING_URLS))) {
-                        addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.hashShort(), name, version, name, version));
+                        addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/staging/%s-%s/org/elasticsearch/plugin/%s/%s/%s-%s.zip", version, Build.CURRENT.shortHash(), name, version, name, version));
                     }
                     addUrl(urls, String.format(Locale.ROOT, "https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/%s/%s/%s-%s.zip", name, version, name, version));
                 } else {

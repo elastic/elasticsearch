@@ -23,12 +23,9 @@ import org.apache.lucene.analysis.core.StopAnalyzer;
 import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.analysis.util.CharArraySet;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 
 /**
  *
@@ -38,10 +35,9 @@ public class StandardAnalyzerProvider extends AbstractIndexAnalyzerProvider<Stan
     private final StandardAnalyzer standardAnalyzer;
     private final Version esVersion;
 
-    @Inject
-    public StandardAnalyzerProvider(Index index, @IndexSettings Settings indexSettings, Environment env, @Assisted String name, @Assisted Settings settings) {
-        super(index, indexSettings, name, settings);
-        this.esVersion = Version.indexCreated(indexSettings);
+    public StandardAnalyzerProvider(IndexSettings indexSettings, Environment env, String name, Settings settings) {
+        super(indexSettings, name, settings);
+        this.esVersion = indexSettings.getIndexVersionCreated();
         final CharArraySet defaultStopwords;
         if (esVersion.onOrAfter(Version.V_1_0_0_Beta1)) {
             defaultStopwords = CharArraySet.EMPTY_SET;

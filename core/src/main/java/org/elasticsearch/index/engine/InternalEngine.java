@@ -79,8 +79,7 @@ public class InternalEngine extends Engine {
     private volatile long lastDeleteVersionPruneTimeMSec;
 
     private final ShardIndexingService indexingService;
-    @Nullable
-    private final IndicesWarmer warmer;
+    private final Engine.Warmer warmer;
     private final Translog translog;
     private final ElasticsearchConcurrentMergeScheduler mergeScheduler;
 
@@ -353,6 +352,7 @@ public class InternalEngine extends Engine {
 
     private boolean innerIndex(Index index) throws IOException {
         synchronized (dirtyLock(index.uid())) {
+            lastWriteNanos  = index.startTime();
             final long currentVersion;
             final boolean deleted;
             VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
@@ -464,6 +464,7 @@ public class InternalEngine extends Engine {
 
     private void innerDelete(Delete delete) throws IOException {
         synchronized (dirtyLock(delete.uid())) {
+            lastWriteNanos = delete.startTime();
             final long currentVersion;
             final boolean deleted;
             VersionValue versionValue = versionMap.getUnderLock(delete.uid().bytes());
@@ -567,6 +568,29 @@ public class InternalEngine extends Engine {
             maybeFailEngine("sync commit", ex);
             throw new EngineException(shardId, "failed to sync commit", ex);
         }
+    }
+
+    final boolean tryRenewSyncCommit() {
+        boolean renewed = false;
+        try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
+            String syncId = lastCommittedSegmentInfos.getUserData().get(SYNC_COMMIT_ID);
+            if (syncId != null && translog.totalOperations() == 0 && indexWriter.hasUncommittedChanges()) {
+                logger.trace("start renewing sync commit [{}]", syncId);
+                commitIndexWriter(indexWriter, translog, syncId);
+                logger.debug("successfully sync committed. sync id [{}].", syncId);
+                lastCommittedSegmentInfos = store.readLastCommittedSegmentsInfo();
+                renewed = true;
+            }
+        } catch (IOException ex) {
+            maybeFailEngine("renew sync commit", ex);
+            throw new EngineException(shardId, "failed to renew sync commit", ex);
+        }
+        if (renewed) { // refresh outside of the write lock
+            refresh("renew sync commit");
+        }
+
+        return renewed;
     }
 
     @Override
@@ -905,8 +929,7 @@ public class InternalEngine extends Engine {
                         assert isMergedSegment(esLeafReader);
                         if (warmer != null) {
                             final Engine.Searcher searcher = new Searcher("warmer", searcherFactory.newSearcher(esLeafReader, null));
-                            final IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, searcher);
-                            warmer.warmNewReaders(context);
+                            warmer.warm(searcher, false);
                         }
                     } catch (Throwable t) {
                         // Don't fail a merge if the warm-up failed
@@ -930,7 +953,7 @@ public class InternalEngine extends Engine {
 
     /** Extended SearcherFactory that warms the segments if needed when acquiring a new searcher */
     final static class SearchFactory extends EngineSearcherFactory {
-        private final IndicesWarmer warmer;
+        private final Engine.Warmer warmer;
         private final ShardId shardId;
         private final ESLogger logger;
         private final AtomicBoolean isEngineClosed;
@@ -989,11 +1012,10 @@ public class InternalEngine extends Engine {
                     }
 
                     if (newSearcher != null) {
-                        IndicesWarmer.WarmerContext context = new IndicesWarmer.WarmerContext(shardId, new Searcher("new_reader_warming", newSearcher));
-                        warmer.warmNewReaders(context);
+                        warmer.warm(new Searcher("new_reader_warming", newSearcher), false);
                     }
                     assert searcher.getIndexReader() instanceof ElasticsearchDirectoryReader : "this class needs an ElasticsearchDirectoryReader but got: " + searcher.getIndexReader().getClass();
-                    warmer.warmTopReader(new IndicesWarmer.WarmerContext(shardId, new Searcher("top_reader_warming", searcher)));
+                    warmer.warm(new Searcher("top_reader_warming", searcher), true);
                 } catch (Throwable e) {
                     if (isEngineClosed.get() == false) {
                         logger.warn("failed to prepare/warm", e);
@@ -1054,6 +1076,32 @@ public class InternalEngine extends Engine {
                     indexingService.throttlingDeactivated();
                     deactivateThrottling();
                 }
+            }
+            if (indexWriter.hasPendingMerges() == false && System.nanoTime() - lastWriteNanos >= engineConfig.getFlushMergesAfter().nanos()) {
+                // NEVER do this on a merge thread since we acquire some locks blocking here and if we concurrently rollback the writer
+                // we deadlock on engine#close for instance.
+                engineConfig.getThreadPool().executor(ThreadPool.Names.FLUSH).execute(new AbstractRunnable() {
+                    @Override
+                    public void onFailure(Throwable t) {
+                        if (isClosed.get() == false) {
+                            logger.warn("failed to flush after merge has finished");
+                        }
+                    }
+
+                    @Override
+                    protected void doRun() throws Exception {
+                        // if we have no pending merges and we are supposed to flush once merges have finished
+                        // we try to renew a sync commit which is the case when we are having a big merge after we
+                        // are inactive. If that didn't work we go and do a real flush which is ok since it only doesn't work
+                        // if we either have records in the translog or if we don't have a sync ID at all...
+                        // maybe even more important, we flush after all merges finish and we are inactive indexing-wise to
+                        // free up transient disk usage of the (presumably biggish) segments that were just merged
+                        if (tryRenewSyncCommit() == false) {
+                            flush();
+                        }
+                    }
+                });
+
             }
         }
 

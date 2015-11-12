@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointDistanceQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -31,7 +32,8 @@ import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
 
 import java.io.IOException;
@@ -203,6 +205,15 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
     @Override
     protected Query doToQuery(QueryShardContext shardContext) throws IOException {
+        MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
+        if (fieldType == null) {
+            throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+        }
+
+        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
+        }
+
         QueryValidationException exception = checkLatLon(shardContext.indexVersionCreated().before(Version.V_2_0_0));
         if (exception != null) {
             throw new QueryShardException(shardContext, "couldn't validate latitude/ longitude values", exception);
@@ -214,18 +225,15 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         double normDistance = geoDistance.normalize(this.distance, DistanceUnit.DEFAULT);
 
-        MappedFieldType fieldType = shardContext.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryShardException(shardContext, "failed to find geo_point field [" + fieldName + "]");
+        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
+        if (shardContext.indexVersionCreated().onOrBefore(Version.CURRENT)) {
+            GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
+            IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
+            return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
         }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryShardException(shardContext, "field [" + fieldName + "] is not a geo_point field");
-        }
-        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
-        IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
-        Query query = new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);
-        return query;
+        normDistance = GeoUtils.maxRadialDistance(center, normDistance);
+        return new GeoPointDistanceQuery(fieldType.names().fullName(), center.lon(), center.lat(), normDistance);
     }
 
     @Override

@@ -579,7 +579,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
     public void testFieldValueFactorFactorArray() throws IOException {
         // don't permit an array of factors
         String querySource = "{" +
-                "\"query\": {" +
                 "  \"function_score\": {" +
                 "    \"query\": {" +
                 "      \"match\": {\"name\": \"foo\"}" +
@@ -593,7 +592,6 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
                 "        }" +
                 "      ]" +
                 "    }" +
-                "  }" +
                 "}";
         try {
             parseQuery(querySource);

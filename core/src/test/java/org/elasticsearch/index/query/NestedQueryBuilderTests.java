@@ -20,17 +20,11 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
-import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.compress.CompressedXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.support.QueryInnerHits;
@@ -41,7 +35,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
-import java.util.Arrays;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -50,7 +43,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        MapperService mapperService = queryParserService().mapperService;
+        MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
                 STRING_FIELD_NAME, "type=string",
                 INT_FIELD_NAME, "type=integer",
@@ -64,8 +57,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
 
     @Override
     protected void setSearchContext(String[] types) {
-        final MapperService mapperService = queryParserService().mapperService;
-        final IndexFieldDataService fieldData = queryParserService().fieldDataService;
+        final MapperService mapperService = queryShardContext().getMapperService();
+        final IndexFieldDataService fieldData = indexFieldDataService();
         TestSearchContext testSearchContext = new TestSearchContext() {
             private InnerHitsContext context;
 
@@ -129,38 +122,6 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 assertNull(SearchContext.current().innerHits());
             }
         }
-    }
-
-    public void testParseDeprecatedFilter() throws IOException {
-        XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-        builder.startObject();
-            builder.startObject("nested");
-                builder.startObject("filter");
-                    builder.startObject("terms").array(STRING_FIELD_NAME, "a", "b").endObject();// deprecated
-                builder.endObject();
-                builder.field("path", "foo.bar");
-            builder.endObject();
-        builder.endObject();
-
-        QueryShardContext shardContext = createShardContext();
-        QueryParseContext context = shardContext.parseContext();
-        XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string());
-        context.reset(parser);
-        context.parseFieldMatcher(ParseFieldMatcher.STRICT);
-        try {
-            context.parseInnerQueryBuilder();
-            fail("filter is deprecated");
-        } catch (IllegalArgumentException ex) {
-            assertEquals("Deprecated field [filter] used, replaced by [query]", ex.getMessage());
-        }
-
-        parser = XContentFactory.xContent(XContentType.JSON).createParser(builder.string());
-        context.reset(parser);
-        NestedQueryBuilder queryBuilder = (NestedQueryBuilder) context.parseInnerQueryBuilder();
-        QueryBuilder query = queryBuilder.query();
-        assertTrue(query instanceof TermsQueryBuilder);
-        TermsQueryBuilder tqb = (TermsQueryBuilder) query;
-        assertEquals(tqb.values(), Arrays.asList("a", "b"));
     }
 
     public void testValidate() {

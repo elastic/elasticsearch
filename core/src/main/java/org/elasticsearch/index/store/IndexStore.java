@@ -20,86 +20,41 @@
 package org.elasticsearch.index.store;
 
 import org.apache.lucene.store.StoreRateLimiting;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.settings.IndexSettings;
-import org.elasticsearch.index.settings.IndexSettingsService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardPath;
-import org.elasticsearch.indices.store.IndicesStore;
-
-import java.io.Closeable;
-
 /**
  *
  */
-public class IndexStore extends AbstractIndexComponent implements Closeable {
+public class IndexStore extends AbstractIndexComponent {
 
     public static final String INDEX_STORE_THROTTLE_TYPE = "index.store.throttle.type";
     public static final String INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC = "index.store.throttle.max_bytes_per_sec";
 
-    private final IndexSettingsService settingsService;
-
-    class ApplySettings implements IndexSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            String rateLimitingType = settings.get(INDEX_STORE_THROTTLE_TYPE, IndexStore.this.rateLimitingType);
-            if (!rateLimitingType.equals(IndexStore.this.rateLimitingType)) {
-                logger.info("updating index.store.throttle.type from [{}] to [{}]", IndexStore.this.rateLimitingType, rateLimitingType);
-                if (rateLimitingType.equalsIgnoreCase("node")) {
-                    IndexStore.this.rateLimitingType = rateLimitingType;
-                    IndexStore.this.nodeRateLimiting = true;
-                } else {
-                    StoreRateLimiting.Type.fromString(rateLimitingType);
-                    IndexStore.this.rateLimitingType = rateLimitingType;
-                    IndexStore.this.nodeRateLimiting = false;
-                    IndexStore.this.rateLimiting.setType(rateLimitingType);
-                }
-            }
-
-            ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, IndexStore.this.rateLimitingThrottle);
-            if (!rateLimitingThrottle.equals(IndexStore.this.rateLimitingThrottle)) {
-                logger.info("updating index.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndexStore.this.rateLimitingThrottle, rateLimitingThrottle, IndexStore.this.rateLimitingType);
-                IndexStore.this.rateLimitingThrottle = rateLimitingThrottle;
-                IndexStore.this.rateLimiting.setMaxRate(rateLimitingThrottle);
-            }
-        }
-    }
-    protected final IndicesStore indicesStore;
-
+    protected final IndexStoreConfig indexStoreConfig;
     private volatile String rateLimitingType;
     private volatile ByteSizeValue rateLimitingThrottle;
     private volatile boolean nodeRateLimiting;
 
     private final StoreRateLimiting rateLimiting = new StoreRateLimiting();
 
-    private final ApplySettings applySettings = new ApplySettings();
+    public IndexStore(IndexSettings indexSettings, IndexStoreConfig indexStoreConfig) {
+        super(indexSettings);
+        this.indexStoreConfig = indexStoreConfig;
 
-    @Inject
-    public IndexStore(Index index, @IndexSettings Settings indexSettings, IndexSettingsService settingsService, IndicesStore indicesStore) {
-        super(index, indexSettings);
-         this.indicesStore = indicesStore;
-
-        this.rateLimitingType = indexSettings.get(INDEX_STORE_THROTTLE_TYPE, "none");
+        this.rateLimitingType = indexSettings.getSettings().get(INDEX_STORE_THROTTLE_TYPE, "none");
         if (rateLimitingType.equalsIgnoreCase("node")) {
             nodeRateLimiting = true;
         } else {
             nodeRateLimiting = false;
             rateLimiting.setType(rateLimitingType);
         }
-        this.rateLimitingThrottle = indexSettings.getAsBytesSize(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(0));
+        this.rateLimitingThrottle = indexSettings.getSettings().getAsBytesSize(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, new ByteSizeValue(0));
         rateLimiting.setMaxRate(rateLimitingThrottle);
 
         logger.debug("using index.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
-        this.settingsService = settingsService;
-        this.settingsService.addListener(applySettings);
-    }
-
-    @Override
-    public void close() {
-        settingsService.removeListener(applySettings);
     }
 
     /**
@@ -107,7 +62,7 @@ public class IndexStore extends AbstractIndexComponent implements Closeable {
      * the node level one (defaults to the node level one).
      */
     public StoreRateLimiting rateLimiting() {
-        return nodeRateLimiting ? indicesStore.rateLimiting() : this.rateLimiting;
+        return nodeRateLimiting ? indexStoreConfig.getNodeRateLimiter() : this.rateLimiting;
     }
 
     /**
@@ -115,5 +70,28 @@ public class IndexStore extends AbstractIndexComponent implements Closeable {
      */
     public DirectoryService newDirectoryService(ShardPath path) {
         return new FsDirectoryService(indexSettings, this, path);
+    }
+
+    public void onRefreshSettings(Settings settings) {
+        String rateLimitingType = settings.get(INDEX_STORE_THROTTLE_TYPE, IndexStore.this.rateLimitingType);
+        if (!rateLimitingType.equals(IndexStore.this.rateLimitingType)) {
+            logger.info("updating index.store.throttle.type from [{}] to [{}]", IndexStore.this.rateLimitingType, rateLimitingType);
+            if (rateLimitingType.equalsIgnoreCase("node")) {
+                IndexStore.this.rateLimitingType = rateLimitingType;
+                IndexStore.this.nodeRateLimiting = true;
+            } else {
+                StoreRateLimiting.Type.fromString(rateLimitingType);
+                IndexStore.this.rateLimitingType = rateLimitingType;
+                IndexStore.this.nodeRateLimiting = false;
+                IndexStore.this.rateLimiting.setType(rateLimitingType);
+            }
+        }
+
+        ByteSizeValue rateLimitingThrottle = settings.getAsBytesSize(INDEX_STORE_THROTTLE_MAX_BYTES_PER_SEC, IndexStore.this.rateLimitingThrottle);
+        if (!rateLimitingThrottle.equals(IndexStore.this.rateLimitingThrottle)) {
+            logger.info("updating index.store.throttle.max_bytes_per_sec from [{}] to [{}], note, type is [{}]", IndexStore.this.rateLimitingThrottle, rateLimitingThrottle, IndexStore.this.rateLimitingType);
+            IndexStore.this.rateLimitingThrottle = rateLimitingThrottle;
+            IndexStore.this.rateLimiting.setMaxRate(rateLimitingThrottle);
+        }
     }
 }

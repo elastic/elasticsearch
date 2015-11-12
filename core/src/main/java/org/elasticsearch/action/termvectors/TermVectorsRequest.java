@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.DocumentRequest;
@@ -211,7 +210,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
     public String id() {
         return id;
     }
-    
+
     /**
      * Sets the id of document the term vector is requested for.
      */
@@ -651,7 +650,7 @@ public class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> i
             if (e.getValue() instanceof String) {
                 mapStrStr.put(e.getKey(), (String) e.getValue());
             } else {
-                throw new ElasticsearchException("expecting the analyzer at [{}] to be a String, but found [{}] instead", e.getKey(), e.getValue().getClass());
+                throw new ElasticsearchParseException("expecting the analyzer at [{}] to be a String, but found [{}] instead", e.getKey(), e.getValue().getClass());
             }
         }
         return mapStrStr;

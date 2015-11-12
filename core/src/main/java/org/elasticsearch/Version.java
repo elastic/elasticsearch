@@ -264,7 +264,9 @@ public class Version {
     public static final int V_2_0_0_rc1_ID = 2000051;
     public static final Version V_2_0_0_rc1 = new Version(V_2_0_0_rc1_ID, false, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_0_0_ID = 2000099;
-    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
+    public static final Version V_2_0_0 = new Version(V_2_0_0_ID, false, org.apache.lucene.util.Version.LUCENE_5_2_1);
+    public static final int V_2_0_1_ID = 2000199;
+    public static final Version V_2_0_1 = new Version(V_2_0_1_ID, true, org.apache.lucene.util.Version.LUCENE_5_2_1);
     public static final int V_2_1_0_ID = 2010099;
     public static final Version V_2_1_0 = new Version(V_2_1_0_ID, true, org.apache.lucene.util.Version.LUCENE_5_3_0);
     public static final int V_2_2_0_ID = 2020099;
@@ -289,6 +291,8 @@ public class Version {
                 return V_2_2_0;
             case V_2_1_0_ID:
                 return V_2_1_0;
+            case V_2_0_1_ID:
+                return V_2_0_1;
             case V_2_0_0_ID:
                 return V_2_0_0;
             case V_2_0_0_rc1_ID:
@@ -657,7 +661,7 @@ public class Version {
 
     @SuppressForbidden(reason = "System.out.*")
     public static void main(String[] args) {
-        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.hashShort() + "/" + Build.CURRENT.timestamp() + ", JVM: " + JvmInfo.jvmInfo().version());
+        System.out.println("Version: " + Version.CURRENT + ", Build: " + Build.CURRENT.shortHash() + "/" + Build.CURRENT.date() + ", JVM: " + JvmInfo.jvmInfo().version());
     }
 
     @Override

@@ -29,7 +29,6 @@ import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -39,12 +38,7 @@ import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * The source recovery accepts recovery requests from other peer shards and start the recovery process from this
@@ -78,7 +72,7 @@ public class RecoverySource extends AbstractComponent implements IndexEventListe
 
     @Override
     public void beforeIndexShardClosed(ShardId shardId, @Nullable IndexShard indexShard,
-                                       @IndexSettings Settings indexSettings) {
+                                       Settings indexSettings) {
         if (indexShard != null) {
             ongoingRecoveries.cancel(indexShard, "shard is closed");
         }

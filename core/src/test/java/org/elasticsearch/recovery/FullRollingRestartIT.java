@@ -21,10 +21,16 @@ package org.elasticsearch.recovery;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
+import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.ZenDiscovery;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
@@ -122,6 +128,38 @@ public class FullRollingRestartIT extends ESIntegTestCase {
         refresh();
         for (int i = 0; i < 10; i++) {
             assertHitCount(client().prepareSearch().setSize(0).setQuery(matchAllQuery()).get(), 2000l);
+        }
+    }
+
+    public void testNoRebalanceOnRollingRestart() throws Exception {
+        // see https://github.com/elastic/elasticsearch/issues/14387
+        internalCluster().startMasterOnlyNode(Settings.EMPTY);
+        internalCluster().startDataOnlyNodesAsync(3).get();
+        /**
+         * We start 3 nodes and a dedicated master. Restart on of the data-nodes and ensure that we got no relocations.
+         * Yet we have 6 shards 0 replica so that means if the restarting node comes back both other nodes are subject
+         * to relocating to the restarting node since all had 2 shards and now one node has nothing allocated.
+         * We have a fix for this to wait until we have allocated unallocated shards now so this shouldn't happen.
+         */
+        prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, "6").put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, "0").put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueMinutes(1))).get();
+
+        for (int i = 0; i < 100; i++) {
+            client().prepareIndex("test", "type1", Long.toString(i))
+                    .setSource(MapBuilder.<String, Object>newMapBuilder().put("test", "value" + i).map()).execute().actionGet();
+        }
+        ensureGreen();
+        ClusterState state = client().admin().cluster().prepareState().get().getState();
+        RecoveryResponse recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
+            assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode() + "\n" + state.prettyPrint(), recoveryState.getType() != RecoveryState.Type.RELOCATION);
+        }
+        internalCluster().restartRandomDataNode();
+        ensureGreen();
+        ClusterState afterState = client().admin().cluster().prepareState().get().getState();
+
+        recoveryResponse = client().admin().indices().prepareRecoveries("test").get();
+        for (RecoveryState recoveryState : recoveryResponse.shardRecoveryStates().get("test")) {
+           assertTrue("relocated from: " + recoveryState.getSourceNode() + " to: " + recoveryState.getTargetNode()+ "-- \nbefore: \n" + state.prettyPrint() + "\nafter: \n" + afterState.prettyPrint(), recoveryState.getType() != RecoveryState.Type.RELOCATION);
         }
     }
 }

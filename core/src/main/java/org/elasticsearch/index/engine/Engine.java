@@ -54,6 +54,7 @@ import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.locks.Condition;
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
@@ -79,6 +80,18 @@ public abstract class Engine implements Closeable {
     protected final ReleasableLock readLock = new ReleasableLock(rwl.readLock());
     protected final ReleasableLock writeLock = new ReleasableLock(rwl.writeLock());
     protected volatile Throwable failedEngine = null;
+    /*
+     * on <tt>lastWriteNanos</tt> we use System.nanoTime() to initialize this since:
+     *  - we use the value for figuring out if the shard / engine is active so if we startup and no write has happened yet we still consider it active
+     *    for the duration of the configured active to inactive period. If we initialize to 0 or Long.MAX_VALUE we either immediately or never mark it
+     *    inactive if no writes at all happen to the shard.
+     *  - we also use this to flush big-ass merges on an inactive engine / shard but if we we initialize 0 or Long.MAX_VALUE we either immediately or never
+     *    commit merges even though we shouldn't from a user perspective (this can also have funky sideeffects in tests when we open indices with lots of segments
+     *    and suddenly merges kick in.
+     *  NOTE: don't use this value for anything accurate it's a best effort for freeing up diskspace after merges and on a shard level to reduce index buffer sizes on
+     *  inactive shards.
+     */
+    protected volatile long lastWriteNanos = System.nanoTime();
 
     protected Engine(EngineConfig engineConfig) {
         Objects.requireNonNull(engineConfig.getStore(), "Store must be provided to the engine");
@@ -486,7 +499,7 @@ public abstract class Engine implements Closeable {
     public abstract CommitId flush() throws EngineException;
 
     /**
-     * Optimizes to 1 segment
+     * Force merges to 1 segment
      */
     public void forceMerge(boolean flush) throws IOException {
         forceMerge(flush, 1, false, false, false);
@@ -562,6 +575,9 @@ public abstract class Engine implements Closeable {
 
 
     public interface EventListener {
+        /**
+         * Called when a fatal exception occurred
+         */
         default void onFailedEngine(String reason, @Nullable Throwable t) {}
     }
 
@@ -1039,5 +1055,30 @@ public abstract class Engine implements Closeable {
     }
 
     public void onSettingsChanged() {
+    }
+
+    /**
+     * Returns the timestamp of the last write in nanoseconds.
+     * Note: this time might not be absolutely accurate since the {@link Operation#startTime()} is used which might be
+     * slightly inaccurate.
+     * @see System#nanoTime()
+     * @see Operation#startTime()
+     */
+    public long getLastWriteNanos() {
+        return this.lastWriteNanos;
+    }
+
+    /**
+     * Called for each new opened engine searcher to warm new segments
+     * @see EngineConfig#getWarmer()
+     */
+    public interface Warmer {
+        /**
+         * Called once a new Searcher is opened.
+         * @param searcher the searcer to warm
+         * @param isTopLevelReader <code>true</code> iff the searcher is build from a top-level reader.
+         *                         Otherwise the searcher might be build from a leaf reader to warm in isolation
+         */
+        void warm(Engine.Searcher searcher, boolean isTopLevelReader);
     }
 }

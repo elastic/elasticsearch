@@ -57,24 +57,18 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
 
     static final TermsQueryBuilder PROTOTYPE = new TermsQueryBuilder("field", "value");
 
-    public static final boolean DEFAULT_DISABLE_COORD = false;
-
     private final String fieldName;
     private final List<Object> values;
-    @Deprecated
-    private String minimumShouldMatch;
-    @Deprecated
-    private boolean disableCoord = DEFAULT_DISABLE_COORD;
     private final TermsLookup termsLookup;
 
     public TermsQueryBuilder(String fieldName, TermsLookup termsLookup) {
-        this(fieldName, null, null, DEFAULT_DISABLE_COORD, termsLookup);
+        this(fieldName, null, termsLookup);
     }
 
     /**
      * constructor used internally for serialization of both value / termslookup variants
      */
-    TermsQueryBuilder(String fieldName, List<Object> values, String minimumShouldMatch, boolean disableCoord, TermsLookup termsLookup) {
+    TermsQueryBuilder(String fieldName, List<Object> values, TermsLookup termsLookup) {
         if (Strings.isEmpty(fieldName)) {
             throw new IllegalArgumentException("field name cannot be null.");
         }
@@ -86,8 +80,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         }
         this.fieldName = fieldName;
         this.values = values;
-        this.disableCoord = disableCoord;
-        this.minimumShouldMatch = minimumShouldMatch;
         this.termsLookup = termsLookup;
     }
 
@@ -178,34 +170,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return convertToStringListIfBytesRefList(this.values);
     }
 
-    /**
-     * Sets the minimum number of matches across the provided terms. Defaults to <tt>1</tt>.
-     * @deprecated use [bool] query instead
-     */
-    @Deprecated
-    public TermsQueryBuilder minimumShouldMatch(String minimumShouldMatch) {
-        this.minimumShouldMatch = minimumShouldMatch;
-        return this;
-    }
-
-    public String minimumShouldMatch() {
-        return this.minimumShouldMatch;
-    }
-
-    /**
-     * Disables <tt>Similarity#coord(int,int)</tt> in scoring. Defaults to <tt>false</tt>.
-     * @deprecated use [bool] query instead
-     */
-    @Deprecated
-    public TermsQueryBuilder disableCoord(boolean disableCoord) {
-        this.disableCoord = disableCoord;
-        return this;
-    }
-
-    boolean disableCoord() {
-        return this.disableCoord;
-    }
-
     public TermsLookup termsLookup() {
         return this.termsLookup;
     }
@@ -252,12 +216,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         } else {
             builder.field(fieldName, convertToStringListIfBytesRefList(values));
         }
-        if (minimumShouldMatch != null) {
-            builder.field("minimum_should_match", minimumShouldMatch);
-        }
-        if (disableCoord != DEFAULT_DISABLE_COORD) {
-            builder.field("disable_coord", disableCoord);
-        }
         printBoostAndQueryName(builder);
         builder.endObject();
     }
@@ -284,7 +242,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         if (terms == null || terms.isEmpty()) {
             return Queries.newMatchNoDocsQuery();
         }
-        return handleTermsQuery(terms, fieldName, context, minimumShouldMatch, disableCoord);
+        return handleTermsQuery(terms, fieldName, context);
     }
 
     private List<Object> fetch(TermsLookup termsLookup, Client client) {
@@ -300,7 +258,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
         return terms;
     }
 
-    private static Query handleTermsQuery(List<Object> terms, String fieldName, QueryShardContext context, String minimumShouldMatch, boolean disableCoord) {
+    private static Query handleTermsQuery(List<Object> terms, String fieldName, QueryShardContext context) {
         MappedFieldType fieldType = context.fieldMapper(fieldName);
         String indexFieldName;
         if (fieldType != null) {
@@ -322,7 +280,6 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             }
         } else {
             BooleanQuery.Builder bq = new BooleanQuery.Builder();
-            bq.setDisableCoord(disableCoord);
             for (Object term : terms) {
                 if (fieldType != null) {
                     bq.add(fieldType.termQuery(term, context), BooleanClause.Occur.SHOULD);
@@ -330,7 +287,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
                     bq.add(new TermQuery(new Term(indexFieldName, BytesRefs.toBytesRef(term))), BooleanClause.Occur.SHOULD);
                 }
             }
-            query = Queries.applyMinimumShouldMatch(bq.build(), minimumShouldMatch);
+            query = bq.build();
         }
         return query;
     }
@@ -344,9 +301,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             lookup = TermsLookup.readTermsLookupFrom(in);
         }
         List<Object> values = (List<Object>) in.readGenericValue();
-        String minimumShouldMatch = in.readOptionalString();
-        boolean disableCoord = in.readBoolean();
-        return new TermsQueryBuilder(field, values, minimumShouldMatch, disableCoord, lookup);
+        return new TermsQueryBuilder(field, values, lookup);
     }
 
     @Override
@@ -357,21 +312,17 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
             termsLookup.writeTo(out);
         }
         out.writeGenericValue(values);
-        out.writeOptionalString(minimumShouldMatch);
-        out.writeBoolean(disableCoord);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, values, minimumShouldMatch, disableCoord, termsLookup);
+        return Objects.hash(fieldName, values, termsLookup);
     }
 
     @Override
     protected boolean doEquals(TermsQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(values, other.values) &&
-                Objects.equals(minimumShouldMatch, other.minimumShouldMatch) &&
-                Objects.equals(disableCoord, other.disableCoord) &&
                 Objects.equals(termsLookup, other.termsLookup);
     }
 }

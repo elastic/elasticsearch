@@ -39,11 +39,7 @@ import org.elasticsearch.test.disruption.NetworkDelaysPartition;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -51,15 +47,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Predicate;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.isOneOf;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0)
 @ESIntegTestCase.SuppressLocalMode
@@ -366,6 +355,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .put(DiscoverySettings.COMMIT_TIMEOUT, "100ms") // speed things up
                 .build();
         internalCluster().startNodesAsync(3, settings).get();
+        ensureGreen(); // ensure cluster state is recovered before we disrupt things
 
         final String master = internalCluster().getMasterName();
         Set<String> otherNodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));

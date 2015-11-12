@@ -28,11 +28,13 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.settings.IndexSettings;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -52,7 +54,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         final AtomicInteger counter = new AtomicInteger(1);
         IndexEventListener countingListener = new IndexEventListener() {
             @Override
-            public void afterIndexClosed(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexClosed(Index index, Settings indexSettings) {
                 assertEquals(counter.get(), 5);
                 counter.incrementAndGet();
             }
@@ -64,7 +66,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             }
 
             @Override
-            public void afterIndexDeleted(Index index, @IndexSettings Settings indexSettings) {
+            public void afterIndexDeleted(Index index, Settings indexSettings) {
                 assertEquals(counter.get(), 6);
                 counter.incrementAndGet();
             }
@@ -89,14 +91,17 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         };
         indicesService.deleteIndex("test", "simon says");
         try {
-            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
+            NodeServicesProvider nodeServicesProvider = getInstanceFromNode(NodeServicesProvider.class);
+            IndexService index = indicesService.createIndex(nodeServicesProvider, metaData, Arrays.asList(countingListener));
             ShardRouting newRouting = new ShardRouting(shardRouting);
             String nodeId = newRouting.currentNodeId();
             ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom"));
             ShardRoutingHelper.initialize(newRouting, nodeId);
             IndexShard shard = index.createShard(0, newRouting);
             shard.updateRoutingEntry(newRouting, true);
-            shard.recoverFromStore(newRouting, new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT));
+            final DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
+            shard.markAsRecovering("store", new RecoveryState(shard.shardId(), newRouting.primary(), RecoveryState.Type.SNAPSHOT, newRouting.restoreSource(), localNode));
+            shard.recoverFromStore(localNode);
             newRouting = new ShardRouting(newRouting);
             ShardRoutingHelper.moveToStarted(newRouting);
             shard.updateRoutingEntry(newRouting, true);

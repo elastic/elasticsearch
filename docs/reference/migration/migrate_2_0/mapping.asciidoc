@@ -1,3 +1,4 @@
+[[breaking_20_mapping_changes]]
 === Mapping changes
 
 A number of changes have been made to mappings to remove ambiguity and to
@@ -313,6 +314,10 @@ PUT my_index/my_type/1
 }
 -------------------------
 <1> Has `format`: `"strict_date_optional_time||epoch_millis"`.
+
+==== `mapping.date.round_ceil` setting
+
+The `mapping.date.round_ceil` setting for date math parsing has been removed.
 
 [[migration-bool-fields]]
 ==== Boolean fields

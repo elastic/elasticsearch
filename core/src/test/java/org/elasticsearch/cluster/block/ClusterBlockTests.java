@@ -28,7 +28,9 @@ import org.elasticsearch.test.ESTestCase;
 import java.util.EnumSet;
 
 import static org.elasticsearch.test.VersionUtils.randomVersion;
+import static org.hamcrest.CoreMatchers.endsWith;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.not;
 
 public class ClusterBlockTests extends ESTestCase {
     public void testSerialization() throws Exception {
@@ -62,5 +64,16 @@ public class ClusterBlockTests extends ESTestCase {
             assertThat(result.disableStatePersistence(), equalTo(clusterBlock.disableStatePersistence()));
             assertArrayEquals(result.levels().toArray(), clusterBlock.levels().toArray());
         }
+    }
+
+    public void testToStringDanglingComma() {
+        EnumSet<ClusterBlockLevel> levels = EnumSet.noneOf(ClusterBlockLevel.class);
+        int nbLevels = randomIntBetween(1, ClusterBlockLevel.values().length);
+        for (int j = 0; j < nbLevels; j++) {
+            levels.add(randomFrom(ClusterBlockLevel.values()));
+        }
+        ClusterBlock clusterBlock = new ClusterBlock(randomInt(), "cluster block #" + randomInt(), randomBoolean(),
+                randomBoolean(), randomFrom(RestStatus.values()), levels);
+        assertThat(clusterBlock.toString(), not(endsWith(",")));
     }
 }

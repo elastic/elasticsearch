@@ -204,6 +204,13 @@ Commonly used filters are cached in Elasticsearch. That cache is limited in size
 
 While we are working on a longer term solution ({GIT}9176[#9176]), we introduced a minimum weight of 1k for each cache entry. This puts an effective limit on the number of entries in the cache. See {GIT}8304[#8304] (STATUS: DONE, fixed in v1.4.0)
 
+[float]
+=== Do not allow stale shards to automatically be promoted to primary (STATUS: ONGOING)
+
+In some scenarios, a succession of multiple isolated nodes can cause a stale replica shard to be promoted to primary
+leading to a loss of acknowledged indexing operations. Work is underway ({GIT}14671[#14671]) to prevent the automatic
+promotion of a stale primary and only allow such promotion to occur when a system operator manually intervenes.
+
 == Completed
 
 [float]
@@ -444,7 +451,7 @@ The Snapshot/Restore API supports a number of different repository types for sto
 [float]
 === Circuit Breaker: Fielddata (STATUS: DONE, v1.0.0)
 
-Currently, the https://www.elastic.co/guide/en/elasticsearch/reference/current/index-modules-fielddata.html[circuit breaker] protects against loading too much field data by estimating how much memory the field data will take to load, then aborting the request if the memory requirements are too high. This feature was added in Elasticsearch version 1.0.0.
+Currently, the circuit breaker protects against loading too much field data by estimating how much memory the field data will take to load, then aborting the request if the memory requirements are too high. This feature was added in Elasticsearch version 1.0.0.
 
 [float]
 === Use of Paginated Data Structures to Ease Garbage Collection (STATUS: DONE, v1.0.0 & v1.2.0)

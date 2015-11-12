@@ -20,21 +20,16 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
 
 import java.io.IOException;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.nullValue;
-import static org.hamcrest.Matchers.closeTo;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBuilder> {
     /**
@@ -138,9 +133,13 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         List<Query> disjuncts = disjunctionMaxQuery.getDisjuncts();
         assertThat(disjuncts.size(), equalTo(1));
 
-        PrefixQuery firstQ = (PrefixQuery) disjuncts.get(0);
+        assertThat(disjuncts.get(0), instanceOf(BoostQuery.class));
+        BoostQuery boostQuery = (BoostQuery) disjuncts.get(0);
+        assertThat((double) boostQuery.getBoost(), closeTo(1.2, 0.00001));
+        assertThat(boostQuery.getQuery(), instanceOf(PrefixQuery.class));
+        PrefixQuery firstQ = (PrefixQuery) boostQuery.getQuery();
         // since age is automatically registered in data, we encode it as numeric
         assertThat(firstQ.getPrefix(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
-        assertThat((double) firstQ.getBoost(), closeTo(1.2, 0.00001));
+
     }
 }

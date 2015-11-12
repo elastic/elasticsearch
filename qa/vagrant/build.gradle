@@ -1,0 +1,156 @@
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+
+import org.elasticsearch.gradle.vagrant.VagrantCommandTask
+import org.elasticsearch.gradle.vagrant.BatsOverVagrantTask
+import org.gradle.api.InvalidUserDataException
+
+def testScripts = '2*.bats' // Once the rpm and deb are build this should be *.bats
+def testCommand = "cd \$TESTROOT && sudo bats --tap \$BATS/$testScripts"
+def smokeTestCommand = 'echo I work'
+def representativeBoxes = ['ubuntu-1404', 'centos-7']
+def boxes = representativeBoxes + ['ubuntu-1204', 'ubuntu-1504', 'debian-8',
+  'centos-6', 'oel-7', 'fedora-22', 'opensuse-13', 'sles-12']
+
+configurations {
+  test
+}
+
+dependencies {
+  test project("${projectsPrefix}:distribution:tar")
+  // NOCOMMMIT: we need the rpm and deb!
+  // test project(path: ':distribution:rpm', configuration: 'archives')
+  // test project(path: ':distribution:deb', configuration: 'archives')
+  // Collect all the plugins
+  for (Project subproj : project.rootProject.subprojects) {
+    if (subproj.path.startsWith(':plugins:')) {
+      test project("${projectsPrefix}${subproj.path}")
+    }
+  }
+}
+
+task checkPackages {
+  group 'Verification'
+  description 'Check the packages against a representative sample of the ' +
+    'linux distributions we have in our Vagrantfile'
+}
+
+task checkPackagesAllDistros {
+  group 'Verification'
+  description 'Check the packages against all the linux distributions we ' +
+    'have in our Vagrantfile'
+}
+
+task clean(type: Delete) {
+  group = 'Build'
+  delete buildDir
+}
+
+task copyDepsToTestRoot(type: Copy) {
+  description "Dump bats test dependencies into the \$TESTROOT."
+  into "$buildDir/testroot"
+  from configurations.test
+}
+
+task checkVagrantVersion(type: Exec) {
+  group 'Package Verification'
+  description 'Check that the version of vagrant is ok'
+  commandLine 'vagrant', '--version'
+  standardOutput = new ByteArrayOutputStream()
+  doLast {
+    def version = standardOutput.toString().trim()
+    if ((version ==~ /Vagrant 1\.[789]\..+/) == false) {
+      throw new InvalidUserDataException('Illegal version of vagrant [' +
+        version + ']. Need [Vagrant 1.7+]')
+    }
+  }
+}
+
+task vagrantSmokeTest {
+  group 'Vagrant'
+  description 'Smoke test some representative distros from the Vagrantfile'
+}
+
+task vagrantSmokeTestAllDistros {
+  group 'Vagrant'
+  description 'Smoke test all distros from the Vagrantfile'
+}
+
+// Each box gets it own set of tasks
+boxes.each { box ->
+  def boxTask = taskifyBoxName box
+  task "vagrantUp$boxTask"(type: VagrantCommandTask) {
+    group 'Vagrant'
+    description "Startup a vagrant VM running $box"
+    boxName box
+    /* Its important that we try to reprovision the box even if it already
+      exists. That way updates to the vagrant configuration take automatically.
+      That isn't to say that the updates will always be compatible. Its ok to
+      just destroy the boxes if they get busted but that is a manual step
+      because its slow-ish. */
+    /* We lock the provider to virtualbox because the Vagrantfile specifies
+      lots of boxes that only work properly in virtualbox. Virtualbox is
+      vagrant's default but its possible to change that default and folks do.
+      But the boxes that we use are unlikely to work properly with other
+      virtualization providers. Thus the lock. */
+    commandLine 'up', box, '--provision', '--provider', 'virtualbox'
+    /* It'd be possible to check if the box is already up here and output
+      SKIPPED but that would require running vagrant status which is slow! */
+    dependsOn checkVagrantVersion
+  }
+  task "vagrantHalt$boxTask"(type: VagrantCommandTask) {
+    group 'Vagrant'
+    description "Shutdown the vagrant VM running $box"
+    boxName box
+    commandLine 'halt', box
+  }
+
+  task "smokeTest$boxTask"(type: Exec) {
+    group 'Vagrant'
+    description "Smoke test the $box VM"
+    dependsOn "vagrantUp$boxTask"
+    finalizedBy "vagrantHalt$boxTask"
+    commandLine 'vagrant', 'ssh', box, '--command',
+      "set -o pipefail && $smokeTestCommand | sed -ue \'s/^/    $box: /'"
+    vagrantSmokeTestAllDistros.dependsOn name
+    if (representativeBoxes.contains(box)) {
+      vagrantSmokeTest.dependsOn name
+    }
+  }
+
+  task "check$boxTask"(type: BatsOverVagrantTask) {
+    group 'Package Verification'
+    description "Run packaging tests against $box"
+    dependsOn "vagrantUp$boxTask"
+    finalizedBy "vagrantHalt$boxTask"
+    boxName box
+    command testCommand
+    dependsOn copyDepsToTestRoot
+    checkPackagesAllDistros.dependsOn name
+    if (representativeBoxes.contains(box)) {
+      checkPackages.dependsOn name
+    }
+  }
+}
+
+
+// Twists the box name into a sensible task name
+def taskifyBoxName(box) {
+  box.capitalize().replace('-', '')
+}

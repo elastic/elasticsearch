@@ -210,6 +210,14 @@ The following settings are supported:
 
     Makes repository read-only. coming[2.1.0]  Defaults to `false`.
 
+`canned_acl`::
+
+    The S3 repository supports all http://docs.aws.amazon.com/AmazonS3/latest/dev/acl-overview.html#canned-acl[S3 canned ACLs]
+    : `private`, `public-read`, `public-read-write`, `authenticated-read`, `log-delivery-write`,
+    `bucket-owner-read`, `bucket-owner-full-control`. Defaults to `private`.
+    You could specify a canned ACL using the `canned_acl` setting. When the S3 repository
+    creates buckets and objects, it adds the canned ACL into the buckets and objects.
+
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
 

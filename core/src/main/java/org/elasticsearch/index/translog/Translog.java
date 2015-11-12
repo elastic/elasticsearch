@@ -215,7 +215,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 Files.copy(location.resolve(CHECKPOINT_FILE_NAME), tempFile, StandardCopyOption.REPLACE_EXISTING);
                 IOUtils.fsync(tempFile, false);
                 Files.move(tempFile, commitCheckpoint, StandardCopyOption.ATOMIC_MOVE);
-                IOUtils.fsync(commitCheckpoint, false);
+                // we only fsync the directory the tempFile was already fsynced
                 IOUtils.fsync(commitCheckpoint.getParent(), true);
             }
             success = true;
@@ -226,7 +226,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             try {
                 Files.delete(tempFile);
             } catch (IOException ex) {
-                logger.warn("failed to delete temp file {}", tempFile);
+                logger.warn("failed to delete temp file {}", ex, tempFile);
             }
         }
         return foundTranslogs;

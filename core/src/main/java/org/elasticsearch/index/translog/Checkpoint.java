@@ -105,9 +105,9 @@ class Checkpoint {
 
     @Override
     public int hashCode() {
-        int result = (int) (offset ^ (offset >>> 32));
+        int result = Long.hashCode(offset);
         result = 31 * result + numOps;
-        result = 31 * result + (int) (generation ^ (generation >>> 32));
+        result = 31 * result + Long.hashCode(generation);
         return result;
     }
 }

@@ -28,6 +28,7 @@ import org.gradle.api.Task
 import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
+import org.gradle.internal.jvm.Jvm
 import org.gradle.util.GradleVersion
 
 /**
@@ -60,12 +61,15 @@ class BuildPlugin implements Plugin<Project> {
 
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
+            String javaHome = System.getenv('JAVA_HOME')
+
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
             println '======================================='
             println "  Gradle Version : ${project.gradle.gradleVersion}"
             println "  JDK Version    : ${System.getProperty('java.runtime.version')} (${System.getProperty('java.vendor')})"
+            println "  JAVA_HOME      : ${javaHome == null ? 'not set' : javaHome}"
             println "  OS Info        : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
 
             // enforce gradle version
@@ -79,10 +83,22 @@ class BuildPlugin implements Plugin<Project> {
                 throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
             }
 
+            // find java home so eg tests can use it to set java to run with
+            if (javaHome == null) {
+                if (System.getProperty("idea.active") != null) {
+                    // intellij doesn't set JAVA_HOME, so we use the jdk gradle was run with
+                    javaHome = Jvm.current().javaHome
+                } else {
+                    throw new GradleException('JAVA_HOME must be set to build Elasticsearch')
+                }
+            }
+            project.rootProject.ext.javaHome = javaHome
             project.rootProject.ext.buildChecksDone = true
         }
         project.targetCompatibility = minimumJava
         project.sourceCompatibility = minimumJava
+        // set java home for each project, so they dont have to find it in the root project
+        project.ext.javaHome = project.rootProject.ext.javaHome
     }
 
     /** Makes dependencies non-transitive by default */
@@ -146,7 +162,7 @@ class BuildPlugin implements Plugin<Project> {
     /** Returns a closure of common configuration shared by unit and integration tests. */
     static Closure commonTestConfig(Project project) {
         return {
-            jvm System.getProperty("java.home") + File.separator + 'bin' + File.separator + 'java'
+            jvm "${project.javaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
 
             // TODO: why are we not passing maxmemory to junit4?

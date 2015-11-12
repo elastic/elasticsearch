@@ -136,6 +136,9 @@ if (projectsPrefix.isEmpty()) {
       vcs = 'Git'
     }
   }
+  tasks.cleanIdea {
+    delete '.idea'
+  }
 }
 
 // eclipse configuration
@@ -154,19 +157,17 @@ allprojects {
       }
     }
   }
-  task cleanEclipseSettings(type: Delete) {
-    delete '.settings'
-  }
   task copyEclipseSettings(type: Copy) {
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
     into '.settings'
   }
   // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse.dependsOn(cleanEclipseSettings)
+  tasks.cleanEclipse {
+    delete '.settings'
+  }
   // otherwise the eclipse merging is *super confusing*
-  tasks.eclipse.dependsOn(cleanEclipse)
-  tasks.eclipse.dependsOn(copyEclipseSettings)
+  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
 // add buildSrc itself as a groovy project

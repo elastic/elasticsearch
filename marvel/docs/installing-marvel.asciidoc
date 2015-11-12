@@ -36,7 +36,7 @@ complete list of default paths, see {ref}/setup-dir-layout.html#_deb_and_rpm[Dir
 the Elasticsearch Reference.)
 
 To install the Marvel and License plugins on a DEB/RPM package installation, you need to run 
-`bin/plugin -i` from the `/usr/share/elasticsearch` directory with superuser permissions, and 
+`bin/plugin install` from the `/usr/share/elasticsearch` directory with superuser permissions, and 
 specify the location of the configuration files by setting `-Des.path.conf`. For example:
 
 [source,shell]

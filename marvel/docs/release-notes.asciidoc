@@ -44,14 +44,14 @@ curl -XPUT localhost:9200/_cluster/settings -d '{
 +
 [source,sh]
 --------------------------------------------------
-bin/plugin -r marvel
+bin/plugin remove marvel-agent
 --------------------------------------------------
 
 .. Install the latest version of the Marvel plugin:
 +
 [source,sh]
 --------------------------------------------------
-bin/plugin -i elasticsearch/marvel/latest
+bin/plugin install marvel-agent
 --------------------------------------------------
 
 .. Start Elasticsearch and confirm that the node rejoins the cluster and that there are no errors 

@@ -39,12 +39,12 @@ For more information about Elasticsearch plugins, see https://www.elastic.co/gui
 
 To use a custom realm:
 
-. Install the realm plugin on each node in the cluster. You run `bin/plugin` with the `--url` 
+. Install the realm plugin on each node in the cluster. You run `bin/plugin` with the `install` 
 option and specify the location of the zip file that contains the plugin. For example:
 +
 [source,shell]
 ----------------------------------------
-bin/plugin --url file:///<path>/example-realm-plugin-1.0.zip --install example-realm-plugin
+bin/plugin install file:///<path>/example-realm-plugin-1.0.zip
 ----------------------------------------
 
 . Add a realm configuration of the appropriate realm type to `elasticsearch.yml` in the 

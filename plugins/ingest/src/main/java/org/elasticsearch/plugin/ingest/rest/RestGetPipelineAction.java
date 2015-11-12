@@ -25,27 +25,24 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineRequest;
-import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
-import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
-import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 public class RestGetPipelineAction extends BaseRestHandler {
 
     @Inject
     public RestGetPipelineAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{ids}", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{id}", this);
     }
 
     @Override
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
         GetPipelineRequest request = new GetPipelineRequest();
-        request.ids(Strings.splitStringByCommaToArray(restRequest.param("ids")));
+        request.ids(Strings.splitStringByCommaToArray(restRequest.param("id")));
         client.execute(GetPipelineAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
     }
 }

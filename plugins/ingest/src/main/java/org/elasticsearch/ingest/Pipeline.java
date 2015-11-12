@@ -20,6 +20,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
 import java.io.IOException;
@@ -88,7 +89,7 @@ public final class Pipeline {
     public final static class Factory {
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws IOException {
-            String description = (String) config.get("description");
+            String description = ConfigurationUtils.readStringProperty(config, "description");
             List<Processor> processors = new ArrayList<>();
             @SuppressWarnings("unchecked")
             List<Map<String, Map<String, Object>>> processorConfigs = (List<Map<String, Map<String, Object>>>) config.get("processors");

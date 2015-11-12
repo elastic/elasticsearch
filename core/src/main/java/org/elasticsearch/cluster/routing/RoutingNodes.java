@@ -183,13 +183,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return this.customs;
     }
 
-    public <T extends ClusterState.Custom> T custom(String type) {
-        return (T) customs.get(type);
-    }
-
-    public boolean hasUnassigned() {
-        return !unassignedShards.isEmpty();
-    }
+    public <T extends ClusterState.Custom> T custom(String type) { return (T) customs.get(type); }
 
     public UnassignedShards unassigned() {
         return this.unassignedShards;

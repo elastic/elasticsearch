@@ -26,8 +26,10 @@ import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -38,13 +40,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
-    private final Settings idxSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build();
+    private final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("foo", Settings.EMPTY);
 
     public void testNodeLockSingleEnvironment() throws IOException {
         NodeEnvironment env = newNodeEnvironment(Settings.builder()
@@ -100,9 +100,8 @@ public class NodeEnvironmentTests extends ESTestCase {
             Files.createDirectories(path.resolve("0"));
             Files.createDirectories(path.resolve("1"));
         }
-        Settings settings = settingsBuilder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, randomIntBetween(1, 10)).build();
         try {
-            env.lockAllForIndex(new Index("foo"), settings, randomIntBetween(0, 10));
+            env.lockAllForIndex(new Index("foo"), idxSettings, randomIntBetween(0, 10));
             fail("shard 0 is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -112,7 +111,7 @@ public class NodeEnvironmentTests extends ESTestCase {
         // can lock again?
         env.shardLock(new ShardId("foo", 0)).close();
 
-        List<ShardLock> locks = env.lockAllForIndex(new Index("foo"), settings, randomIntBetween(0, 10));
+        List<ShardLock> locks = env.lockAllForIndex(new Index("foo"), idxSettings, randomIntBetween(0, 10));
         try {
             env.shardLock(new ShardId("foo", 0));
             fail("shard is locked");
@@ -244,7 +243,7 @@ public class NodeEnvironmentTests extends ESTestCase {
             flipFlop[i] = new AtomicInteger();
         }
 
-        Thread[] threads = new Thread[randomIntBetween(2,5)];
+        Thread[] threads = new Thread[randomIntBetween(2, 5)];
         final CountDownLatch latch = new CountDownLatch(1);
         final int iters = scaledRandomIntBetween(10000, 100000);
         for (int i = 0; i < threads.length; i++) {
@@ -257,7 +256,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                         fail(e.getMessage());
                     }
                     for (int i = 0; i < iters; i++) {
-                        int shard = randomIntBetween(0, counts.length-1);
+                        int shard = randomIntBetween(0, counts.length - 1);
                         try {
                             try (ShardLock autoCloses = env.shardLock(new ShardId("foo", shard), scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
@@ -293,18 +292,16 @@ public class NodeEnvironmentTests extends ESTestCase {
         String[] dataPaths = tmpPaths();
         NodeEnvironment env = newNodeEnvironment(dataPaths, "/tmp", Settings.EMPTY);
 
-        Settings s1 = Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).build();
-        Settings s2 = Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build();
+        IndexSettings s1 = IndexSettingsModule.newIndexSettings("myindex", Settings.EMPTY);
+        IndexSettings s2 = IndexSettingsModule.newIndexSettings("myindex", Settings.builder().put(IndexMetaData.SETTING_DATA_PATH, "/tmp/foo").build());
         ShardId sid = new ShardId("myindex", 0);
         Index i = new Index("myindex");
 
-        assertFalse("no settings should mean no custom data path", NodeEnvironment.hasCustomDataPath(s1));
-        assertTrue("settings with path_data should have a custom data path", NodeEnvironment.hasCustomDataPath(s2));
+        assertFalse("no settings should mean no custom data path", s1.hasCustomDataPath());
+        assertTrue("settings with path_data should have a custom data path", s2.hasCustomDataPath());
 
         assertThat(env.availableShardPaths(sid), equalTo(env.availableShardPaths(sid)));
-        assertFalse(NodeEnvironment.hasCustomDataPath(s1));
         assertThat(env.resolveCustomLocation(s2, sid), equalTo(PathUtils.get("/tmp/foo/0/myindex/0")));
-        assertTrue(NodeEnvironment.hasCustomDataPath(s2));
 
         assertThat("shard paths with a custom data_path should contain only regular paths",
                 env.availableShardPaths(sid),

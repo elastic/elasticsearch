@@ -42,9 +42,7 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItems;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
@@ -52,7 +50,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     public void testDefaultsCompoundAnalysis() throws Exception {
         Index index = new Index("test");
         Settings settings = getJsonSettings();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings),
                 Collections.EMPTY_MAP,Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new),Collections.EMPTY_MAP,Collections.EMPTY_MAP).build(idxSettings);
 
@@ -71,7 +69,7 @@ public class CompoundAnalysisTests extends ESTestCase {
 
     private List<String> analyze(Settings settings, String analyzerName, String text) throws IOException {
         Index index = new Index("test");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings),
                 Collections.EMPTY_MAP, Collections.singletonMap("myfilter", MyFilterTokenFilterFactory::new),Collections.EMPTY_MAP,Collections.EMPTY_MAP).build(idxSettings);
 

@@ -27,8 +27,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
-import java.util.Collections;
-
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 /**
@@ -44,7 +42,7 @@ public class CharFilterTests extends ESTokenStreamTestCase {
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "my_mapping")
                 .put("path.home", createTempDir().toString())
                 .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");
 
@@ -62,7 +60,7 @@ public class CharFilterTests extends ESTokenStreamTestCase {
                 .putArray("index.analysis.analyzer.custom_with_char_filter.char_filter", "html_strip")
                 .put("path.home", createTempDir().toString())
                 .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("custom_with_char_filter");

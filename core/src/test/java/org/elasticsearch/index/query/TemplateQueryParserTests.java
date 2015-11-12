@@ -91,7 +91,7 @@ public class TemplateQueryParserTests extends ESTestCase {
                     throw new UnsupportedOperationException("client is just a dummy");
                 });
         Index index = new Index("test");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
                 new SettingsModule(settings),

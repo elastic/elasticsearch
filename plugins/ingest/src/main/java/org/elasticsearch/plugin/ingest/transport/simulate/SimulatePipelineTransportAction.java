@@ -46,22 +46,21 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
 
     @Override
     protected void doExecute(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
-        Map<String, Object> source = XContentHelper.convertToMap(request.source(), false).v2();
+        Map<String, Object> source = XContentHelper.convertToMap(request.getSource(), false).v2();
 
         ParsedSimulateRequest simulateRequest;
         ParsedSimulateRequest.Parser parser = new ParsedSimulateRequest.Parser();
         try {
-            simulateRequest = parser.parse(request.id(), source, request.verbose(), pipelineStore);
+            if (request.getId() != null) {
+                simulateRequest = parser.parseWithPipelineId(request.getId(), source, request.isVerbose(), pipelineStore);
+            } else {
+                simulateRequest = parser.parse(source, request.isVerbose(), pipelineStore);
+            }
         } catch (IOException e) {
             listener.onFailure(e);
             return;
         }
 
-        executionService.execute(simulateRequest, new SimulateExecutionService.Listener() {
-            @Override
-            public void onResponse(SimulatePipelineResponse response) {
-                listener.onResponse(response);
-            }
-        });
+        executionService.execute(simulateRequest, listener);
     }
 }

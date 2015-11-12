@@ -29,7 +29,7 @@ import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
-import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 public class RestSimulatePipelineAction extends BaseRestHandler {
 
@@ -45,13 +45,13 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
     @Override
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
         SimulatePipelineRequest request = new SimulatePipelineRequest();
-        request.id(restRequest.param("id"));
-        request.verbose(restRequest.paramAsBoolean("verbose", false));
+        request.setId(restRequest.param("id"));
+        request.setVerbose(restRequest.paramAsBoolean("verbose", false));
 
         if (RestActions.hasBodyContent(restRequest)) {
-            request.source(RestActions.getRestContent(restRequest));
+            request.setSource(RestActions.getRestContent(restRequest));
         }
 
-        client.execute(SimulatePipelineAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        client.execute(SimulatePipelineAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

@@ -30,17 +30,17 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
     }
 
     public SimulatePipelineRequestBuilder setId(String id) {
-        request.id(id);
+        request.setId(id);
         return this;
     }
 
     public SimulatePipelineRequestBuilder setVerbose(boolean verbose) {
-        request.verbose(verbose);
+        request.setVerbose(verbose);
         return this;
     }
 
     public SimulatePipelineRequestBuilder setSource(BytesReference source) {
-        request.source(source);
+        request.setSource(source);
         return this;
     }
 

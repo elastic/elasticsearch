@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.plugin.ingest.transport.simulate;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -26,27 +26,27 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.ingest.Data;
+import org.elasticsearch.plugin.ingest.transport.TransportData;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 
-public class ProcessorResult implements Streamable, ToXContent {
+public class SimulateProcessorResult implements Streamable, ToXContent {
 
     private String processorId;
-    private Data data;
+    private TransportData data;
     private Throwable failure;
 
-    public ProcessorResult() {
+    public SimulateProcessorResult() {
 
     }
 
-    public ProcessorResult(String processorId, Data data) {
+    public SimulateProcessorResult(String processorId, Data data) {
         this.processorId = processorId;
-        this.data = data;
+        this.data = new TransportData(data);
     }
 
-    public ProcessorResult(String processorId, Throwable failure) {
+    public SimulateProcessorResult(String processorId, Throwable failure) {
         this.processorId = processorId;
         this.failure = failure;
     }
@@ -56,7 +56,7 @@ public class ProcessorResult implements Streamable, ToXContent {
     }
 
     public Data getData() {
-        return data;
+        return data.get();
     }
 
     public String getProcessorId() {
@@ -69,12 +69,8 @@ public class ProcessorResult implements Streamable, ToXContent {
         if (isFailure) {
             this.failure = in.readThrowable();
         } else {
-            this.processorId = in.readString();
-            String index = in.readString();
-            String type = in.readString();
-            String id = in.readString();
-            Map<String, Object> doc = in.readMap();
-            this.data = new Data(index, type, id, doc);
+            this.data = new TransportData();
+            this.data.readFrom(in);
         }
     }
 
@@ -85,10 +81,7 @@ public class ProcessorResult implements Streamable, ToXContent {
             out.writeThrowable(failure);
         } else {
             out.writeString(processorId);
-            out.writeString(data.getIndex());
-            out.writeString(data.getType());
-            out.writeString(data.getId());
-            out.writeMap(data.getDocument());
+            data.writeTo(out);
         }
     }
 
@@ -96,12 +89,10 @@ public class ProcessorResult implements Streamable, ToXContent {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(Fields.PROCESSOR_ID, processorId);
-        builder.field(Fields.ERROR, isFailed());
         if (isFailed()) {
-            builder.field(Fields.ERROR_MESSAGE, ExceptionsHelper.detailedMessage(failure));
+            ElasticsearchException.renderThrowable(builder, params, failure);
         } else {
-            builder.field(Fields.MODIFIED, data.isModified());
-            builder.field(Fields.DOCUMENT, data.asMap());
+            data.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
@@ -109,11 +100,13 @@ public class ProcessorResult implements Streamable, ToXContent {
 
     @Override
     public boolean equals(Object obj) {
-        if (obj == this) { return true; }
+        if (obj == this) {
+            return true;
+        }
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        ProcessorResult other = (ProcessorResult) obj;
+        SimulateProcessorResult other = (SimulateProcessorResult) obj;
         return Objects.equals(processorId, other.processorId) && Objects.equals(data, other.data) && Objects.equals(failure, other.failure);
     }
 
@@ -123,10 +116,6 @@ public class ProcessorResult implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString DOCUMENT = new XContentBuilderString("doc");
         static final XContentBuilderString PROCESSOR_ID = new XContentBuilderString("processor_id");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
-        static final XContentBuilderString ERROR_MESSAGE = new XContentBuilderString("error_message");
-        static final XContentBuilderString MODIFIED = new XContentBuilderString("modified");
     }
 }

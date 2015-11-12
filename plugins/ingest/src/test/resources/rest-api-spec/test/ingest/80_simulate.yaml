@@ -47,8 +47,7 @@
             ]
           }
   - length: { docs: 1 }
-  - is_false: docs.0.error
-  - is_true: docs.0.modified
+  - is_true: docs.0.doc.modified
   - match: { docs.0.doc._source.foo: "bar" }
   - match: { docs.0.doc._source.field2: "_value" }
 
@@ -132,8 +131,7 @@
   - length: { docs: 1 }
   - length: { docs.0.processor_results: 2 }
   - match: { docs.0.processor_results.0.processor_id: "processor[mutate]-0" }
-  - is_false: docs.0.processor_results.0.error
-  - is_true: docs.0.processor_results.0.modified
+  - is_true: docs.0.processor_results.0.doc.modified
   - length: { docs.0.processor_results.0.doc._source: 2 }
   - match: { docs.0.processor_results.0.doc._source.foo: "bar" }
   - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
@@ -149,7 +147,6 @@
           wait_for_status: green
 
   - do:
-      catch: request
       ingest.simulate:
         body: >
           {
@@ -183,10 +180,8 @@
             ]
           }
   - length: { docs: 2 }
-  - is_true: docs.0.error
-  - match: { docs.0.error_message: "NullPointerException[null]" }
-  - is_false: docs.1.error
-  - is_true: docs.1.modified
+  - match: { docs.0.error.type: "null_pointer_exception" }
+  - is_true: docs.1.doc.modified
   - match: { docs.1.doc._source.foo: "BAR" }
 
 ---
@@ -196,7 +191,6 @@
           wait_for_status: green
 
   - do:
-      catch: request
       ingest.simulate:
         verbose: true
         body: >
@@ -240,12 +234,11 @@
             ]
           }
   - length: { docs: 2 }
-  - is_true: docs.0.error
-  - is_false: docs.1.error
   - length: { docs.0.processor_results: 2 }
-  - is_false: docs.1.processor_results.0.error
-  - match: { docs.0.processor_results.0.error_message: "NumberFormatException[For input string: \"bar\"]" }
-  - is_false: docs.1.processor_results.1.error
+  - match: { docs.0.processor_results.0.error.type: "number_format_exception" }
+  - match: { docs.0.processor_results.1.doc._index: "index" }
+  - match: { docs.0.processor_results.1.doc._type: "type" }
+  - match: { docs.0.processor_results.1.doc._id: "id" }
   - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
   - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }
   - match: { docs.1.processor_results.0.doc._source.foo: 5 }

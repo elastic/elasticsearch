@@ -68,34 +68,44 @@ public class ParsedSimulateRequest {
         private static final Pipeline.Factory PIPELINE_FACTORY = new Pipeline.Factory();
         public static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 
-        public ParsedSimulateRequest parse(String pipelineId, Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws IOException {
-            Pipeline pipeline;
-            // if pipeline `id` passed to request, fetch pipeline from store.
-            if (pipelineId != null) {
-                pipeline = pipelineStore.get(pipelineId);
-            } else {
-                Map<String, Object> pipelineConfig = ConfigurationUtils.readOptionalMap(config, "pipeline");
-                pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactoryRegistry());
-            }
-
-            List<Map<String, Object>> docs = ConfigurationUtils.readList(config, "docs");
-
+        private List<Data> parseDocs(Map<String, Object> config) {
+            List<Map<String, Object>> docs = ConfigurationUtils.readList(config, Fields.DOCS);
             List<Data> dataList = new ArrayList<>();
-
-            for (int i = 0; i < docs.size(); i++) {
-                Map<String, Object> dataMap = docs.get(i);
-                Map<String, Object> document = ConfigurationUtils.readOptionalMap(dataMap, "_source");
-                if (document == null) {
-                    document = Collections.emptyMap();
-                }
-                Data data = new Data(ConfigurationUtils.readOptionalStringProperty(dataMap, "_index"),
-                        ConfigurationUtils.readOptionalStringProperty(dataMap, "_type"),
-                        ConfigurationUtils.readOptionalStringProperty(dataMap, "_id"),
+            for (Map<String, Object> dataMap : docs) {
+                Map<String, Object> document = ConfigurationUtils.readMap(dataMap, Fields.SOURCE);
+                Data data = new Data(ConfigurationUtils.readStringProperty(dataMap, Fields.INDEX),
+                        ConfigurationUtils.readStringProperty(dataMap, Fields.TYPE),
+                        ConfigurationUtils.readStringProperty(dataMap, Fields.ID),
                         document);
                 dataList.add(data);
             }
+            return dataList;
+        }
 
+        public ParsedSimulateRequest parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) {
+            if (pipelineId == null) {
+                throw new IllegalArgumentException("param [pipeline] is null");
+            }
+            Pipeline pipeline = pipelineStore.get(pipelineId);
+            List<Data> dataList = parseDocs(config);
             return new ParsedSimulateRequest(pipeline, dataList, verbose);
+
+        }
+
+        public ParsedSimulateRequest parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws IOException {
+            Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(config, Fields.PIPELINE);
+            Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactoryRegistry());
+            List<Data> dataList = parseDocs(config);
+            return new ParsedSimulateRequest(pipeline, dataList, verbose);
+        }
+
+        static final class Fields {
+            static final String PIPELINE = "pipeline";
+            static final String DOCS = "docs";
+            static final String SOURCE = "_source";
+            static final String INDEX = "_index";
+            static final String TYPE = "_type";
+            static final String ID = "_id";
         }
     }
 }

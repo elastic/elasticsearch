@@ -44,27 +44,27 @@ public class SimulatePipelineRequest extends ActionRequest {
         return validationException;
     }
 
-    public String id() {
+    public String getId() {
         return id;
     }
 
-    public void id(String id) {
+    public void setId(String id) {
         this.id = id;
     }
 
-    public boolean verbose() {
+    public boolean isVerbose() {
         return verbose;
     }
 
-    public void verbose(boolean verbose) {
+    public void setVerbose(boolean verbose) {
         this.verbose = verbose;
     }
 
-    public BytesReference source() {
+    public BytesReference getSource() {
         return source;
     }
 
-    public void source(BytesReference source) {
+    public void setSource(BytesReference source) {
         this.source = source;
     }
 

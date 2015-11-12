@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -83,5 +84,30 @@ public class DataTests extends ESTestCase {
     public void testAddFieldOnExistingParent() {
         data.addField("fizz.new", "bar");
         assertThat(data.getProperty("fizz.new"), equalTo("bar"));
+    }
+
+    public void testEquals() {
+        Data otherData = new Data(data);
+        assertThat(otherData, equalTo(data));
+    }
+
+    public void testNotEqualsDiffIndex() {
+        Data otherData = new Data(data.getIndex() + "foo", data.getType(), data.getId(), data.getDocument());
+        assertThat(otherData, not(equalTo(data)));
+    }
+
+    public void testNotEqualsDiffType() {
+        Data otherData = new Data(data.getIndex(), data.getType() + "foo", data.getId(), data.getDocument());
+        assertThat(otherData, not(equalTo(data)));
+    }
+
+    public void testNotEqualsDiffId() {
+        Data otherData = new Data(data.getIndex(), data.getType(), data.getId() + "foo", data.getDocument());
+        assertThat(otherData, not(equalTo(data)));
+    }
+
+    public void testNotEqualsDiffDocument() {
+        Data otherData = new Data(data.getIndex(), data.getType(), data.getId(), Collections.emptyMap());
+        assertThat(otherData, not(equalTo(data)));
     }
 }

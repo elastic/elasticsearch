@@ -22,9 +22,9 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -32,33 +32,33 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-public class SimulatePipelineResponse extends ActionResponse implements StatusToXContent {
+public class SimulatePipelineResponse extends ActionResponse implements ToXContent {
 
     private String pipelineId;
-    private List<SimulatedItemResponse> responses;
+    private List<SimulateDocumentResult> responses;
 
     public SimulatePipelineResponse() {
 
     }
 
-    public SimulatePipelineResponse(String pipelineId, List<SimulatedItemResponse> responses) {
+    public SimulatePipelineResponse(String pipelineId, List<SimulateDocumentResult> responses) {
         this.pipelineId = pipelineId;
         this.responses = Collections.unmodifiableList(responses);
     }
 
-    public String pipelineId() {
+    public String getPipelineId() {
         return pipelineId;
     }
 
-    public void pipelineId(String pipelineId) {
+    public void setPipelineId(String pipelineId) {
         this.pipelineId = pipelineId;
     }
 
-    public List<SimulatedItemResponse> responses() {
+    public List<SimulateDocumentResult> getResponses() {
         return responses;
     }
 
-    public void responses(List<SimulatedItemResponse> responses) {
+    public void setResponses(List<SimulateDocumentResult> responses) {
         this.responses = responses;
     }
 
@@ -67,7 +67,7 @@ public class SimulatePipelineResponse extends ActionResponse implements StatusTo
         super.writeTo(out);
         out.writeString(pipelineId);
         out.writeVInt(responses.size());
-        for (SimulatedItemResponse response : responses) {
+        for (SimulateDocumentResult response : responses) {
             response.writeTo(out);
         }
     }
@@ -79,7 +79,7 @@ public class SimulatePipelineResponse extends ActionResponse implements StatusTo
         int responsesLength = in.readVInt();
         responses = new ArrayList<>();
         for (int i = 0; i < responsesLength; i++) {
-            SimulatedItemResponse response = new SimulatedItemResponse();
+            SimulateDocumentResult response = new SimulateDocumentResult();
             response.readFrom(in);
             responses.add(response);
         }
@@ -88,23 +88,13 @@ public class SimulatePipelineResponse extends ActionResponse implements StatusTo
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startArray("docs");
-        for (SimulatedItemResponse response : responses) {
-            builder.value(response);
+        builder.startArray(Fields.DOCUMENTS);
+        for (SimulateDocumentResult response : responses) {
+            response.toXContent(builder, params);
         }
         builder.endArray();
 
         return builder;
-    }
-
-    @Override
-    public RestStatus status() {
-        for (SimulatedItemResponse response : responses) {
-            if (response.isFailed()) {
-                return RestStatus.BAD_REQUEST;
-            }
-        }
-        return RestStatus.OK;
     }
 
     @Override
@@ -119,5 +109,9 @@ public class SimulatePipelineResponse extends ActionResponse implements StatusTo
     @Override
     public int hashCode() {
         return Objects.hash(pipelineId, responses);
+    }
+
+    static final class Fields {
+        static final XContentBuilderString DOCUMENTS = new XContentBuilderString("docs");
     }
 }

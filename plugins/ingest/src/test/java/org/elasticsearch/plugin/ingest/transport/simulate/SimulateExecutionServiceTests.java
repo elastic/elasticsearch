@@ -19,11 +19,12 @@
 
 package org.elasticsearch.plugin.ingest.transport.simulate;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.plugin.ingest.PipelineStore;
+import org.elasticsearch.plugin.ingest.transport.TransportData;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
@@ -37,26 +38,28 @@ import static org.mockito.Mockito.*;
 
 public class SimulateExecutionServiceTests extends ESTestCase {
 
-    private PipelineStore store;
     private ThreadPool threadPool;
     private SimulateExecutionService executionService;
     private Pipeline pipeline;
     private Processor processor;
     private Data data;
+    private TransportData transportData;
+    private ActionListener<SimulatePipelineResponse> listener;
 
     @Before
     public void setup() {
-        store = mock(PipelineStore.class);
         threadPool = new ThreadPool(
                 Settings.builder()
-                        .put("name", "_name")
+                        .put("name", getClass().getName())
                         .build()
         );
         executionService = new SimulateExecutionService(threadPool);
         processor = mock(Processor.class);
         when(processor.getType()).thenReturn("mock");
         pipeline = new Pipeline("_id", "_description", Arrays.asList(processor, processor));
-        data = new Data("_index", "_type", "_id", Collections.emptyMap());
+        data = new Data("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
+        transportData = new TransportData(data);
+        listener = mock(ActionListener.class);
     }
 
     @After
@@ -65,43 +68,42 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteVerboseItem() throws Exception {
-        SimulatedItemResponse expectedItemResponse = new SimulatedItemResponse(
-                Arrays.asList(new ProcessorResult("processor[mock]-0", data), new ProcessorResult("processor[mock]-1", data)));
-        SimulatedItemResponse actualItemResponse = executionService.executeVerboseItem(pipeline, data);
+        SimulateDocumentResult expectedItemResponse = new SimulateDocumentResult(
+                Arrays.asList(new SimulateProcessorResult("processor[mock]-0", data), new SimulateProcessorResult("processor[mock]-1", data)));
+        SimulateDocumentResult actualItemResponse = executionService.executeVerboseItem(pipeline, data);
         verify(processor, times(2)).execute(data);
         assertThat(actualItemResponse, equalTo(expectedItemResponse));
     }
 
     public void testExecuteItem() throws Exception {
-        SimulatedItemResponse expectedItemResponse = new SimulatedItemResponse(data);
-        SimulatedItemResponse actualItemResponse = executionService.executeItem(pipeline, data);
+        SimulateDocumentResult expectedItemResponse = new SimulateDocumentResult(data);
+        SimulateDocumentResult actualItemResponse = executionService.executeItem(pipeline, data);
         verify(processor, times(2)).execute(data);
         assertThat(actualItemResponse, equalTo(expectedItemResponse));
     }
 
-    public void testExecuteVerboseItem_Failure() throws Exception {
+    public void testExecuteVerboseItemWithFailure() throws Exception {
         Exception e = new RuntimeException("processor failed");
-        SimulatedItemResponse expectedItemResponse = new SimulatedItemResponse(
-                Arrays.asList(new ProcessorResult("processor[mock]-0", e), new ProcessorResult("processor[mock]-1", data))
+        SimulateDocumentResult expectedItemResponse = new SimulateDocumentResult(
+                Arrays.asList(new SimulateProcessorResult("processor[mock]-0", e), new SimulateProcessorResult("processor[mock]-1", data))
         );
         doThrow(e).doNothing().when(processor).execute(data);
-        SimulatedItemResponse actualItemResponse = executionService.executeVerboseItem(pipeline, data);
+        SimulateDocumentResult actualItemResponse = executionService.executeVerboseItem(pipeline, data);
         verify(processor, times(2)).execute(data);
         assertThat(actualItemResponse, equalTo(expectedItemResponse));
     }
 
-    public void testExecuteItem_Failure() throws Exception {
+    public void testExecuteItemWithFailure() throws Exception {
         Exception e = new RuntimeException("processor failed");
-        SimulatedItemResponse expectedItemResponse = new SimulatedItemResponse(e);
+        SimulateDocumentResult expectedItemResponse = new SimulateDocumentResult(e);
         doThrow(e).when(processor).execute(data);
-        SimulatedItemResponse actualItemResponse = executionService.executeItem(pipeline, data);
+        SimulateDocumentResult actualItemResponse = executionService.executeItem(pipeline, data);
         verify(processor, times(1)).execute(data);
         assertThat(actualItemResponse, equalTo(expectedItemResponse));
     }
 
     public void testExecute() throws Exception {
-        SimulateExecutionService.Listener listener = mock(SimulateExecutionService.Listener.class);
-        SimulatedItemResponse itemResponse = new SimulatedItemResponse(data);
+        SimulateDocumentResult itemResponse = new SimulateDocumentResult(data);
         ParsedSimulateRequest request = new ParsedSimulateRequest(pipeline, Collections.singletonList(data), false);
         executionService.execute(request, listener);
         SimulatePipelineResponse response = new SimulatePipelineResponse("_id", Collections.singletonList(itemResponse));
@@ -114,11 +116,10 @@ public class SimulateExecutionServiceTests extends ESTestCase {
         });
     }
 
-    public void testExecute_Verbose() throws Exception {
-        SimulateExecutionService.Listener listener = mock(SimulateExecutionService.Listener.class);
+    public void testExecuteWithVerbose() throws Exception {
         ParsedSimulateRequest request = new ParsedSimulateRequest(pipeline, Collections.singletonList(data), true);
-        SimulatedItemResponse itemResponse = new SimulatedItemResponse(
-                Arrays.asList(new ProcessorResult("processor[mock]-0", data), new ProcessorResult("processor[mock]-1", data)));
+        SimulateDocumentResult itemResponse = new SimulateDocumentResult(
+                Arrays.asList(new SimulateProcessorResult("processor[mock]-0", data), new SimulateProcessorResult("processor[mock]-1", data)));
         executionService.execute(request, listener);
         SimulatePipelineResponse response = new SimulatePipelineResponse("_id", Collections.singletonList(itemResponse));
         assertBusy(new Runnable() {

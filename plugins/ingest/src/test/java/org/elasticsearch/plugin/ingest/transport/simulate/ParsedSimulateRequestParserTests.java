@@ -35,28 +35,26 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class ParsedSimulateRequestParserTests extends ESTestCase {
-    private static final ParsedSimulateRequest.Parser PARSER = new ParsedSimulateRequest.Parser();
-
-    private Map<String, Processor.Factory> processorRegistry;
     private PipelineStore store;
-    private Processor processor;
+    private ParsedSimulateRequest.Parser parser;
     private Pipeline pipeline;
     private Data data;
 
     @Before
     public void init() throws IOException {
+        parser = new ParsedSimulateRequest.Parser();
         List<String> uppercase = Collections.unmodifiableList(Collections.singletonList("foo"));
-        processor = new MutateProcessor(null, null, null, null, null, null, null, null, uppercase, null);
+        Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, uppercase, null);
         pipeline = new Pipeline(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID, null, Collections.unmodifiableList(Arrays.asList(processor)));
-        data = new Data("_index", "_type", "_id", Collections.emptyMap());
-        processorRegistry = new HashMap<>();
+        data = new Data("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
+        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
         processorRegistry.put("mutate", new MutateProcessor.Factory());
         store = mock(PipelineStore.class);
         when(store.get("_id")).thenReturn(pipeline);
         when(store.getProcessorFactoryRegistry()).thenReturn(processorRegistry);
     }
 
-    public void testParse_UsingPipelineStore() throws Exception {
+    public void testParseUsingPipelineStore() throws Exception {
         ParsedSimulateRequest expectedRequest = new ParsedSimulateRequest(pipeline, Collections.singletonList(data), false);
 
         Map<String, Object> raw = new HashMap<>();
@@ -65,14 +63,15 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         doc.put("_index", "_index");
         doc.put("_type", "_type");
         doc.put("_id", "_id");
+        doc.put("_source", data.getDocument());
         docs.add(doc);
         raw.put("docs", docs);
 
-        ParsedSimulateRequest actualRequest = PARSER.parse("_id", raw, false, store);
+        ParsedSimulateRequest actualRequest = parser.parseWithPipelineId("_id", raw, false, store);
         assertThat(actualRequest, equalTo(expectedRequest));
     }
 
-    public void testParse_ProvidedPipeline() throws Exception {
+    public void testParseWithProvidedPipeline() throws Exception {
         ParsedSimulateRequest expectedRequest = new ParsedSimulateRequest(pipeline, Collections.singletonList(data), false);
 
         Map<String, Object> raw = new HashMap<>();
@@ -81,6 +80,7 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         doc.put("_index", "_index");
         doc.put("_type", "_type");
         doc.put("_id", "_id");
+        doc.put("_source", data.getDocument());
         docs.add(doc);
 
         Map<String, Object> processorConfig = new HashMap<>();
@@ -91,7 +91,7 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         raw.put("docs", docs);
         raw.put("pipeline", pipelineConfig);
 
-        ParsedSimulateRequest actualRequest = PARSER.parse(null, raw, false, store);
+        ParsedSimulateRequest actualRequest = parser.parse(raw, false, store);
         assertThat(actualRequest, equalTo(expectedRequest));
     }
 }

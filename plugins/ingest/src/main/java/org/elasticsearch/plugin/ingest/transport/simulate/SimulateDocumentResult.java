@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.plugin.ingest.transport.simulate;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
@@ -26,46 +26,39 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.ingest.Data;
+import org.elasticsearch.plugin.ingest.transport.TransportData;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
-public class SimulatedItemResponse implements Streamable, ToXContent {
+public class SimulateDocumentResult implements Streamable, ToXContent {
 
-    private Data data;
-    private List<ProcessorResult> processorResultList;
+    private TransportData data;
+    private List<SimulateProcessorResult> processorResultList;
     private Throwable failure;
 
-    public SimulatedItemResponse() {
+    public SimulateDocumentResult() {
 
     }
 
-    public SimulatedItemResponse(Data data) {
-        this.data = data;
+    public SimulateDocumentResult(Data data) {
+        this.data = new TransportData(data);
     }
 
-    public SimulatedItemResponse(List<ProcessorResult> processorResultList) {
+    public SimulateDocumentResult(List<SimulateProcessorResult> processorResultList) {
         this.processorResultList = processorResultList;
     }
 
-    public SimulatedItemResponse(Throwable failure) {
+    public SimulateDocumentResult(Throwable failure) {
         this.failure = failure;
     }
 
     public boolean isFailed() {
         if (failure != null) {
             return true;
-        } else if (processorResultList != null) {
-            for (ProcessorResult result : processorResultList) {
-                if (result.isFailed()) {
-                    return true;
-                }
-            }
         }
-
         return false;
     }
 
@@ -74,10 +67,10 @@ public class SimulatedItemResponse implements Streamable, ToXContent {
     }
 
     public Data getData() {
-        return data;
+        return data.get();
     }
 
-    public List<ProcessorResult> getProcessorResultList() {
+    public List<SimulateProcessorResult> getProcessorResultList() {
         return processorResultList;
     }
 
@@ -91,16 +84,13 @@ public class SimulatedItemResponse implements Streamable, ToXContent {
             int size = in.readVInt();
             processorResultList = new ArrayList<>();
             for (int i = 0; i < size; i++) {
-                ProcessorResult processorResult = new ProcessorResult();
+                SimulateProcessorResult processorResult = new SimulateProcessorResult();
                 processorResult.readFrom(in);
                 processorResultList.add(processorResult);
             }
         } else {
-            String index = in.readString();
-            String type = in.readString();
-            String id = in.readString();
-            Map<String, Object> doc = in.readMap();
-            this.data = new Data(index, type, id, doc);
+            this.data = new TransportData();
+            this.data.readFrom(in);
         }
     }
 
@@ -113,32 +103,27 @@ public class SimulatedItemResponse implements Streamable, ToXContent {
             out.writeThrowable(failure);
         } else if (isVerbose()) {
             out.writeVInt(processorResultList.size());
-            for (ProcessorResult p : processorResultList) {
+            for (SimulateProcessorResult p : processorResultList) {
                 p.writeTo(out);
             }
         } else {
-            out.writeString(data.getIndex());
-            out.writeString(data.getType());
-            out.writeString(data.getId());
-            out.writeMap(data.getDocument());
+            data.writeTo(out);
         }
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.ERROR, isFailed());
-        if (failure != null) {
-            builder.field(Fields.ERROR_MESSAGE, ExceptionsHelper.detailedMessage(failure));
+        if (isFailed()) {
+            ElasticsearchException.renderThrowable(builder, params, failure);
         } else if (isVerbose()) {
             builder.startArray(Fields.PROCESSOR_RESULTS);
-            for (ProcessorResult processorResult : processorResultList) {
-                builder.value(processorResult);
+            for (SimulateProcessorResult processorResult : processorResultList) {
+                processorResult.toXContent(builder, params);
             }
             builder.endArray();
         } else {
-            builder.field(Fields.MODIFIED, data.isModified());
-            builder.field(Fields.DOCUMENT, data.asMap());
+            data.toXContent(builder, params);
         }
         builder.endObject();
         return builder;
@@ -150,7 +135,7 @@ public class SimulatedItemResponse implements Streamable, ToXContent {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        SimulatedItemResponse other = (SimulatedItemResponse) obj;
+        SimulateDocumentResult other = (SimulateDocumentResult) obj;
         return Objects.equals(data, other.data) && Objects.equals(processorResultList, other.processorResultList) && Objects.equals(failure, other.failure);
     }
 
@@ -160,10 +145,6 @@ public class SimulatedItemResponse implements Streamable, ToXContent {
     }
 
     static final class Fields {
-        static final XContentBuilderString DOCUMENT = new XContentBuilderString("doc");
-        static final XContentBuilderString ERROR = new XContentBuilderString("error");
-        static final XContentBuilderString ERROR_MESSAGE = new XContentBuilderString("error_message");
-        static final XContentBuilderString MODIFIED = new XContentBuilderString("modified");
         static final XContentBuilderString PROCESSOR_RESULTS = new XContentBuilderString("processor_results");
     }
 }

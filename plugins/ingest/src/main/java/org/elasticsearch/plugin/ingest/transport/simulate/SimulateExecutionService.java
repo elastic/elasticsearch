@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.ingest.transport.simulate;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
@@ -30,7 +31,7 @@ import java.util.List;
 
 public class SimulateExecutionService {
 
-    static final String THREAD_POOL_NAME = ThreadPool.Names.MANAGEMENT;
+    private static final String THREAD_POOL_NAME = ThreadPool.Names.MANAGEMENT;
 
     private final ThreadPool threadPool;
 
@@ -40,18 +41,18 @@ public class SimulateExecutionService {
     }
 
 
-    SimulatedItemResponse executeItem(Pipeline pipeline, Data data) {
+    SimulateDocumentResult executeItem(Pipeline pipeline, Data data) {
         try {
             pipeline.execute(data);
-            return new SimulatedItemResponse(data);
+            return new SimulateDocumentResult(data);
         } catch (Exception e) {
-            return new SimulatedItemResponse(e);
+            return new SimulateDocumentResult(e);
         }
 
     }
 
-    SimulatedItemResponse executeVerboseItem(Pipeline pipeline, Data data) {
-        List<ProcessorResult> processorResultList = new ArrayList<>();
+    SimulateDocumentResult executeVerboseItem(Pipeline pipeline, Data data) {
+        List<SimulateProcessorResult> processorResultList = new ArrayList<>();
         Data currentData = new Data(data);
         for (int i = 0; i < pipeline.getProcessors().size(); i++) {
             Processor processor = pipeline.getProcessors().get(i);
@@ -59,39 +60,30 @@ public class SimulateExecutionService {
 
             try {
                 processor.execute(currentData);
-                processorResultList.add(new ProcessorResult(processorId, currentData));
+                processorResultList.add(new SimulateProcessorResult(processorId, currentData));
             } catch (Exception e) {
-                processorResultList.add(new ProcessorResult(processorId, e));
+                processorResultList.add(new SimulateProcessorResult(processorId, e));
             }
 
             currentData = new Data(currentData);
         }
-        return new SimulatedItemResponse(processorResultList);
+        return new SimulateDocumentResult(processorResultList);
     }
 
-    SimulatePipelineResponse execute(ParsedSimulateRequest request) {
-        List<SimulatedItemResponse> responses = new ArrayList<>();
-        for (Data data : request.getDocuments()) {
-            if (request.isVerbose()) {
-                responses.add(executeVerboseItem(request.getPipeline(), data));
-            } else {
-                responses.add(executeItem(request.getPipeline(), data));
-            }
-        }
-        return new SimulatePipelineResponse(request.getPipeline().getId(), responses);
-    }
-
-    public void execute(ParsedSimulateRequest request, Listener listener) {
+    public void execute(ParsedSimulateRequest request, ActionListener<SimulatePipelineResponse> listener) {
         threadPool.executor(THREAD_POOL_NAME).execute(new Runnable() {
             @Override
             public void run() {
-                SimulatePipelineResponse response = execute(request);
-                listener.onResponse(response);
+                List<SimulateDocumentResult> responses = new ArrayList<>();
+                for (Data data : request.getDocuments()) {
+                    if (request.isVerbose()) {
+                        responses.add(executeVerboseItem(request.getPipeline(), data));
+                    } else {
+                        responses.add(executeItem(request.getPipeline(), data));
+                    }
+                }
+                listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), responses));
             }
         });
-    }
-
-    public interface Listener {
-        void onResponse(SimulatePipelineResponse response);
     }
 }

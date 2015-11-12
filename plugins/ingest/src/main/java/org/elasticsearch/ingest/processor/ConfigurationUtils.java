@@ -111,6 +111,20 @@ public final class ConfigurationUtils {
         }
     }
 
+    /**
+     * Returns and removes the specified property of type map from the specified configuration map.
+     *
+     * If the property value isn't of type map an {@link IllegalArgumentException} is thrown.
+     * If the property is missing an {@link IllegalArgumentException} is thrown
+     */
+    public static <T> Map<String, T> readMap(Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
+        }
+
+        return readMap(propertyName, value);
+    }
 
     /**
      * Returns and removes the specified property of type map from the specified configuration map.
@@ -122,6 +136,11 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
+
+        return readMap(propertyName, value);
+    }
+
+    private static <T> Map<String, T> readMap(String propertyName, Object value) {
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, T> map = (Map<String, T>) value;
@@ -130,4 +149,5 @@ public final class ConfigurationUtils {
             throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
         }
     }
+
 }

@@ -89,7 +89,7 @@ public final class Pipeline {
     public final static class Factory {
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws IOException {
-            String description = ConfigurationUtils.readStringProperty(config, "description");
+            String description = ConfigurationUtils.readOptionalStringProperty(config, "description");
             List<Processor> processors = new ArrayList<>();
             @SuppressWarnings("unchecked")
             List<Map<String, Map<String, Object>>> processorConfigs = (List<Map<String, Map<String, Object>>>) config.get("processors");

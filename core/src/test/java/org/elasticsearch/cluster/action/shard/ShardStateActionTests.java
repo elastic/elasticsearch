@@ -20,7 +20,6 @@
 package org.elasticsearch.cluster.action.shard;
 
 import org.apache.lucene.index.CorruptIndexException;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -44,7 +43,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.action.support.replication.ClusterStateCreationUtils.stateWithStartedPrimary;
 import static org.hamcrest.CoreMatchers.equalTo;
-import static org.junit.Assert.*;
 
 public class ShardStateActionTests extends ESTestCase {
     private static ThreadPool THREAD_POOL;

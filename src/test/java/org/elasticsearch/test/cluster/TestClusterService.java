@@ -31,13 +31,15 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
+import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.Loggers;
+import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Queue;
@@ -48,9 +50,10 @@ import java.util.concurrent.ScheduledFuture;
 public class TestClusterService implements ClusterService {
 
     volatile ClusterState state;
-    private final Collection<ClusterStateListener> listeners = new CopyOnWriteArrayList<>();
+    private final List<ClusterStateListener> listeners = new CopyOnWriteArrayList<>();
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
     private final ThreadPool threadPool;
+    private final ESLogger logger = Loggers.getLogger(getClass(), ImmutableSettings.EMPTY);
 
     public TestClusterService() {
         this(ClusterState.builder(new ClusterName("test")).build());
@@ -96,6 +99,15 @@ public class TestClusterService implements ClusterService {
         setState(state.build());
     }
 
+    private ClusterState setStateAndNotifyListeners(ClusterState state) {
+        ClusterChangedEvent event = new ClusterChangedEvent("test", state, this.state);
+        this.state = state;
+        for (ClusterStateListener listener : listeners) {
+            listener.clusterChanged(event);
+        }
+        return state;
+    }
+
     @Override
     public DiscoveryNode localNode() {
         return state.getNodes().localNode();
@@ -125,7 +137,7 @@ public class TestClusterService implements ClusterService {
 
     @Override
     public void addFirst(ClusterStateListener listener) {
-        throw new UnsupportedOperationException();
+        listeners.add(0, listener);
     }
 
     @Override
@@ -174,12 +186,30 @@ public class TestClusterService implements ClusterService {
 
     @Override
     public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
-        throw new UnsupportedOperationException();
+        logger.debug("processing [{}]", source);
+        if (state().nodes().localNodeMaster() == false && updateTask.runOnlyOnMaster()) {
+            updateTask.onNoLongerMaster(source);
+            logger.debug("failed [{}], no longer master", source);
+            return;
+        }
+        ClusterState newState;
+        ClusterState previousClusterState = state;
+        try {
+            newState = updateTask.execute(previousClusterState);
+        } catch (Exception e) {
+            updateTask.onFailure(source, new ElasticsearchException("failed to process cluster state update task [" + source + "]", e));
+            return;
+        }
+        setStateAndNotifyListeners(newState);
+        if (updateTask instanceof ProcessedClusterStateUpdateTask) {
+            ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newState);
+        }
+        logger.debug("finished [{}]", source);
     }
 
     @Override
-    public void submitStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
-        throw new UnsupportedOperationException();
+    synchronized public void submitStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
+        submitStateUpdateTask(source, Priority.NORMAL, updateTask);
     }
 
     @Override

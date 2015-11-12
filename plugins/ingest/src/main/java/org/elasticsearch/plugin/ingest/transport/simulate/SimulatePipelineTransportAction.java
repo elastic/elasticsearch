@@ -26,10 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.ingest.Pipeline;
-import org.elasticsearch.plugin.ingest.simulate.ParsedSimulateRequest;
 import org.elasticsearch.plugin.ingest.PipelineStore;
-import org.elasticsearch.plugin.ingest.simulate.SimulateExecutionService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -51,16 +48,16 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
     protected void doExecute(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
         Map<String, Object> source = XContentHelper.convertToMap(request.source(), false).v2();
 
-        ParsedSimulateRequest payload;
+        ParsedSimulateRequest simulateRequest;
         ParsedSimulateRequest.Parser parser = new ParsedSimulateRequest.Parser();
         try {
-            payload = parser.parse(request.id(), source, request.verbose(), pipelineStore);
+            simulateRequest = parser.parse(request.id(), source, request.verbose(), pipelineStore);
         } catch (IOException e) {
             listener.onFailure(e);
             return;
         }
 
-        executionService.execute(payload, new SimulateExecutionService.Listener() {
+        executionService.execute(simulateRequest, new SimulateExecutionService.Listener() {
             @Override
             public void onResponse(SimulatePipelineResponse response) {
                 listener.onResponse(response);

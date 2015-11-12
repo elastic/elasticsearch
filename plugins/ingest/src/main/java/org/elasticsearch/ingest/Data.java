@@ -22,7 +22,6 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
-import java.lang.reflect.Array;
 import java.util.*;
 
 /**
@@ -129,6 +128,16 @@ public final class Data {
 
     public boolean isModified() {
         return modified;
+    }
+
+    public Map<String, Object> asMap() {
+        Map<String, Object> dataMap = new HashMap<>();
+        dataMap.put("_index", index);
+        dataMap.put("_type", type);
+        dataMap.put("_id", id);
+        dataMap.put("_source", document);
+
+        return dataMap;
     }
 
     @Override

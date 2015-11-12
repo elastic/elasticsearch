@@ -16,60 +16,86 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.ingest.simulate;
+package org.elasticsearch.plugin.ingest.transport.simulate;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
-import org.elasticsearch.common.xcontent.StatusToXContent;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.ingest.Data;
-import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-public class ProcessedData implements Streamable, StatusToXContent {
+public class SimulatedItemResponse implements Streamable, ToXContent {
 
-    private String processorId;
     private Data data;
+    private List<ProcessorResult> processorResultList;
     private Throwable failure;
 
-    public ProcessedData() {
+    public SimulatedItemResponse() {
 
     }
 
-    public ProcessedData(String processorId, Data data) {
-        this.processorId = processorId;
+    public SimulatedItemResponse(Data data) {
         this.data = data;
     }
 
-    public ProcessedData(Throwable failure) {
+    public SimulatedItemResponse(List<ProcessorResult> processorResultList) {
+        this.processorResultList = processorResultList;
+    }
+
+    public SimulatedItemResponse(Throwable failure) {
         this.failure = failure;
     }
 
     public boolean isFailed() {
-        return this.failure != null;
+        if (failure != null) {
+            return true;
+        } else if (processorResultList != null) {
+            for (ProcessorResult result : processorResultList) {
+                if (result.isFailed()) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
+    public boolean isVerbose() {
+        return this.processorResultList != null;
     }
 
     public Data getData() {
         return data;
     }
 
-    public String getProcessorId() {
-        return processorId;
+    public List<ProcessorResult> getProcessorResultList() {
+        return processorResultList;
     }
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        boolean isFailure = in.readBoolean();
-        if (isFailure) {
+        boolean isFailed = in.readBoolean();
+        boolean isVerbose = in.readBoolean();
+        if (isFailed) {
             this.failure = in.readThrowable();
-            // TODO(talevy): check out mget for throwable limitations
+        } else if (isVerbose) {
+            int size = in.readVInt();
+            processorResultList = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                ProcessorResult processorResult = new ProcessorResult();
+                processorResult.readFrom(in);
+                processorResultList.add(processorResult);
+            }
         } else {
-            this.processorId = in.readString();
             String index = in.readString();
             String type = in.readString();
             String id = in.readString();
@@ -81,10 +107,16 @@ public class ProcessedData implements Streamable, StatusToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(isFailed());
-        if (isFailed()) {
+        out.writeBoolean(isVerbose());
+
+        if (failure != null) {
             out.writeThrowable(failure);
+        } else if (isVerbose()) {
+            out.writeVInt(processorResultList.size());
+            for (ProcessorResult p : processorResultList) {
+                p.writeTo(out);
+            }
         } else {
-            out.writeString(processorId);
             out.writeString(data.getIndex());
             out.writeString(data.getType());
             out.writeString(data.getId());
@@ -95,25 +127,21 @@ public class ProcessedData implements Streamable, StatusToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.PROCESSOR_ID, processorId);
         builder.field(Fields.ERROR, isFailed());
-        if (isFailed()) {
-            builder.field(Fields.FAILURE, failure.toString());
+        if (failure != null) {
+            builder.field(Fields.ERROR_MESSAGE, ExceptionsHelper.detailedMessage(failure));
+        } else if (isVerbose()) {
+            builder.startArray(Fields.PROCESSOR_RESULTS);
+            for (ProcessorResult processorResult : processorResultList) {
+                builder.value(processorResult);
+            }
+            builder.endArray();
         } else {
             builder.field(Fields.MODIFIED, data.isModified());
-            builder.field(Fields.DOCUMENT, data.getDocument());
+            builder.field(Fields.DOCUMENT, data.asMap());
         }
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public RestStatus status() {
-        if (isFailed()) {
-            return RestStatus.BAD_REQUEST;
-        } else {
-            return RestStatus.OK;
-        }
     }
 
     @Override
@@ -122,20 +150,20 @@ public class ProcessedData implements Streamable, StatusToXContent {
         if (obj == null || getClass() != obj.getClass()) {
             return false;
         }
-        ProcessedData other = (ProcessedData) obj;
-        return Objects.equals(processorId, other.processorId) && Objects.equals(data, other.data) && Objects.equals(failure, other.failure);
+        SimulatedItemResponse other = (SimulatedItemResponse) obj;
+        return Objects.equals(data, other.data) && Objects.equals(processorResultList, other.processorResultList) && Objects.equals(failure, other.failure);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(processorId, data, failure);
+        return Objects.hash(data, processorResultList, failure);
     }
 
     static final class Fields {
         static final XContentBuilderString DOCUMENT = new XContentBuilderString("doc");
-        static final XContentBuilderString PROCESSOR_ID = new XContentBuilderString("processor_id");
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
-        static final XContentBuilderString FAILURE = new XContentBuilderString("failure");
+        static final XContentBuilderString ERROR_MESSAGE = new XContentBuilderString("error_message");
         static final XContentBuilderString MODIFIED = new XContentBuilderString("modified");
+        static final XContentBuilderString PROCESSOR_RESULTS = new XContentBuilderString("processor_results");
     }
 }

@@ -27,7 +27,7 @@ import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
 import org.elasticsearch.ingest.processor.grok.GrokProcessor;
 import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
-import org.elasticsearch.plugin.ingest.simulate.SimulateExecutionService;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulateExecutionService;
 
 import java.util.HashMap;
 import java.util.Map;

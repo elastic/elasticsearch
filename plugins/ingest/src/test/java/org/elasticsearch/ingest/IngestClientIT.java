@@ -33,7 +33,7 @@ import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequestBuilder;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequestBuilder;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineResponse;
-import org.elasticsearch.plugin.ingest.simulate.SimulatedItemResponse;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatedItemResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 

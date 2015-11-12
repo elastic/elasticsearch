@@ -1,10 +1,10 @@
 {
   "ingest.simulate": {
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html",
-    "methods": [ "POST" ],
+    "methods": [ "GET", "POST" ],
     "url": {
       "path": "/_ingest/pipeline/_simulate",
-      "paths": [ "/_ingest/pipeline/_simulate", "/_ingest/pipeline/{id}/_simulate" ],
+      "paths": [ "/_ingest/pipeline/_simulate", "/_ingest/pipeline/_simulate/{id}" ],
       "parts": {
         "id": {
           "type" : "string",

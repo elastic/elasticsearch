@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest.simulate;
+package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;

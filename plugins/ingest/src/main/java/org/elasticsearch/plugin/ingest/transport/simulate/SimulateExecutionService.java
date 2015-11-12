@@ -17,13 +17,12 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest.simulate;
+package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineResponse;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -41,14 +40,10 @@ public class SimulateExecutionService {
     }
 
 
-    SimulatedItemResponse executeItem(Pipeline pipeline, Data data, boolean verbose) {
+    SimulatedItemResponse executeItem(Pipeline pipeline, Data data) {
         try {
-            if (verbose) {
-                return executeVerboseItem(pipeline, data);
-            } else {
-                pipeline.execute(data);
-                return new SimulatedItemResponse(data);
-            }
+            pipeline.execute(data);
+            return new SimulatedItemResponse(data);
         } catch (Exception e) {
             return new SimulatedItemResponse(e);
         }
@@ -56,24 +51,32 @@ public class SimulateExecutionService {
     }
 
     SimulatedItemResponse executeVerboseItem(Pipeline pipeline, Data data) {
-        List<ProcessedData> processedDataList = new ArrayList<>();
+        List<ProcessorResult> processorResultList = new ArrayList<>();
         Data currentData = new Data(data);
         for (int i = 0; i < pipeline.getProcessors().size(); i++) {
             Processor processor = pipeline.getProcessors().get(i);
             String processorId = "processor[" + processor.getType() + "]-" + i;
 
-            processor.execute(currentData);
-            processedDataList.add(new ProcessedData(processorId, currentData));
+            try {
+                processor.execute(currentData);
+                processorResultList.add(new ProcessorResult(processorId, currentData));
+            } catch (Exception e) {
+                processorResultList.add(new ProcessorResult(processorId, e));
+            }
 
             currentData = new Data(currentData);
         }
-        return new SimulatedItemResponse(processedDataList);
+        return new SimulatedItemResponse(processorResultList);
     }
 
     SimulatePipelineResponse execute(ParsedSimulateRequest request) {
         List<SimulatedItemResponse> responses = new ArrayList<>();
         for (Data data : request.getDocuments()) {
-            responses.add(executeItem(request.getPipeline(), data, request.isVerbose()));
+            if (request.isVerbose()) {
+                responses.add(executeVerboseItem(request.getPipeline(), data));
+            } else {
+                responses.add(executeItem(request.getPipeline(), data));
+            }
         }
         return new SimulatePipelineResponse(request.getPipeline().getId(), responses);
     }

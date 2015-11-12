@@ -49,8 +49,8 @@
   - length: { docs: 1 }
   - is_false: docs.0.error
   - is_true: docs.0.modified
-  - match: { docs.0.foo: "bar" }
-  - match: { docs.0.field2: "_value" }
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc._source.field2: "_value" }
 
 
 ---
@@ -130,17 +130,17 @@
             ]
           }
   - length: { docs: 1 }
-  - length: { docs.0.processor_steps: 2 }
-  - match: { docs.0.processor_steps.0.processor_id: "processor[mutate]-0" }
-  - is_false: docs.0.processor_steps.0.error
-  - is_true: docs.0.processor_steps.0.modified
-  - length: { docs.0.processor_steps.0.doc: 2 }
-  - match: { docs.0.processor_steps.0.doc.foo: "bar" }
-  - match: { docs.0.processor_steps.0.doc.field2: "_value" }
-  - length: { docs.0.processor_steps.1.doc: 3 }
-  - match: { docs.0.processor_steps.1.doc.foo: "bar" }
-  - match: { docs.0.processor_steps.1.doc.field2: "_value" }
-  - match: { docs.0.processor_steps.1.doc.field3: "third_val" }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.processor_id: "processor[mutate]-0" }
+  - is_false: docs.0.processor_results.0.error
+  - is_true: docs.0.processor_results.0.modified
+  - length: { docs.0.processor_results.0.doc._source: 2 }
+  - match: { docs.0.processor_results.0.doc._source.foo: "bar" }
+  - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
+  - length: { docs.0.processor_results.1.doc._source: 3 }
+  - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
+  - match: { docs.0.processor_results.1.doc._source.field2: "_value" }
+  - match: { docs.0.processor_results.1.doc._source..field3: "third_val" }
 
 ---
 "Test simulate with exception thrown":
@@ -184,7 +184,71 @@
           }
   - length: { docs: 2 }
   - is_true: docs.0.error
-  - match: { docs.0.failure: "java.lang.NullPointerException" }
+  - match: { docs.0.error_message: "NullPointerException[null]" }
   - is_false: docs.1.error
   - is_true: docs.1.modified
-  - match: { docs.1.doc.foo: "BAR" }
+  - match: { docs.1.doc._source.foo: "BAR" }
+
+---
+"Test verbose simulate with exception thrown":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      catch: request
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "mutate" : {
+                    "convert" : {
+                      "foo": "integer"
+                    }
+                  }
+                },
+                {
+                  "mutate" : {
+                    "uppercase" : ["bar"]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar",
+                  "bar": "hello"
+                }
+              },
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id2",
+                "_source": {
+                  "foo": "5",
+                  "bar": "hello"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - is_true: docs.0.error
+  - is_false: docs.1.error
+  - length: { docs.0.processor_results: 2 }
+  - is_false: docs.1.processor_results.0.error
+  - match: { docs.0.processor_results.0.error_message: "NumberFormatException[For input string: \"bar\"]" }
+  - is_false: docs.1.processor_results.1.error
+  - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
+  - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }
+  - match: { docs.1.processor_results.0.doc._source.foo: 5 }
+  - match: { docs.1.processor_results.0.doc._source.bar: "hello" }
+  - match: { docs.1.processor_results.1.doc._source.foo: 5 }
+  - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }

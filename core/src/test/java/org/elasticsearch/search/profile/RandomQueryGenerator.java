@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.*;
+import static org.junit.Assert.assertTrue;
 
 
 public class RandomQueryGenerator {

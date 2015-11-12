@@ -15,6 +15,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
@@ -764,6 +765,25 @@ public class FieldLevelSecurityTests extends ShieldIntegTestCase {
         client().prepareUpdate("test", "type", "1").setDoc("field2", "value2")
                 .get();
         assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
+
+        // With field level security enabled the update in bulk is not allowed:
+        try {
+            client().prepareBulk()
+                    .putHeader(BASIC_AUTH_HEADER, basicAuthHeaderValue("user1", USERS_PASSWD))
+                    .add(new UpdateRequest("test", "type", "1").doc("field2", "value3"))
+                    .get();
+            fail("failed, because bulk request with updates shouldn't be allowed if field level security is enabled");
+        } catch (ElasticsearchSecurityException e) {
+            assertThat(e.status(), equalTo(RestStatus.BAD_REQUEST));
+            assertThat(e.getMessage(), equalTo("Can't execute an bulk request with update requests embedded if field level security is enabled"));
+        }
+        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value2"));
+
+        // With no field level security enabled the update in bulk is allowed:
+        client().prepareBulk()
+                .add(new UpdateRequest("test", "type", "1").doc("field2", "value3"))
+                .get();
+        assertThat(client().prepareGet("test", "type", "1").get().getSource().get("field2").toString(), equalTo("value3"));
     }
 
     public void testQuery_withRoleWithFieldWildcards() throws Exception {

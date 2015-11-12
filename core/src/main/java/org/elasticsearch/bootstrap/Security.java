@@ -279,7 +279,7 @@ final class Security {
             // a profile is only valid if its the default profile, or if it has an actual name and specifies a port
             boolean valid = NettyTransport.DEFAULT_PROFILE.equals(name) || (Strings.hasLength(name) && profileSettings.get("port") != null);
             if (valid) {
-                // listen is always called always called with 'localhost' but use wildcard to be sure, no name service is consulted.
+                // listen is always called with 'localhost' but use wildcard to be sure, no name service is consulted.
                 // see SocketPermission implies() code
                 policy.add(new SocketPermission("*:" + transportRange, "listen,resolve"));
             }

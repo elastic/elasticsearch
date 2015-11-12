@@ -26,7 +26,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.junit.Test;
 
 import java.util.Arrays;
 import java.util.List;
@@ -43,7 +42,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * This test simply checks to make sure nothing crashes.  Test indexes 100-150 documents,
      * constructs 20-100 random queries and tries to profile them
      */
-    @Test
     public void testProfileQuery() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -97,7 +95,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * search for each query.  It then does some basic sanity checking of score and hits
      * to make sure the profiling doesn't interfere with the hits being returned
      */
-    @Test
     public void testProfileMatchesRegular() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -174,7 +171,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
     /**
      * This test verifies that the output is reasonable for a simple, non-nested query
      */
-    @Test
     public void testSimpleMatch() throws Exception {
         createIndex("test");
         int numDocs = randomIntBetween(100, 150);
@@ -219,7 +215,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
     /**
      * This test verifies that the output is reasonable for a nested query
      */
-    @Test
     public void testBool() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -285,7 +280,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
     /**
      * Tests a boolean query with no children clauses
      */
-    @Test
     public void testEmptyBool() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -335,7 +329,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
      * The rewrite process will "collapse" this down to a single bool, so this tests to make sure
      * nothing catastrophic happens during that fairly substantial rewrite
      */
-    @Test
     public void testCollapsingBool() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -382,7 +375,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testBoosting() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -429,7 +421,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testDisMaxRange() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -476,7 +467,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testRange() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -522,7 +512,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
         }
     }
 
-    @Test
     public void testPhrase() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -580,7 +569,6 @@ public class QueryProfilerIT extends ESIntegTestCase {
     /**
      * This test makes sure no profile results are returned when profiling is disabled
      */
-    @Test
     public void testNoProfile() throws Exception {
         createIndex("test");
         ensureGreen();

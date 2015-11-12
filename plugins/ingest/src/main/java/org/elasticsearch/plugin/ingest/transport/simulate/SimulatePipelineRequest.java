@@ -32,6 +32,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
 public class SimulatePipelineRequest extends ActionRequest {
 
     private String id;
+    private boolean verbose;
     private BytesReference source;
 
     @Override
@@ -51,6 +52,14 @@ public class SimulatePipelineRequest extends ActionRequest {
         this.id = id;
     }
 
+    public boolean verbose() {
+        return verbose;
+    }
+
+    public void verbose(boolean verbose) {
+        this.verbose = verbose;
+    }
+
     public BytesReference source() {
         return source;
     }
@@ -63,6 +72,7 @@ public class SimulatePipelineRequest extends ActionRequest {
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         id = in.readString();
+        verbose = in.readBoolean();
         source = in.readBytesReference();
     }
 
@@ -70,6 +80,7 @@ public class SimulatePipelineRequest extends ActionRequest {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(id);
+        out.writeBoolean(verbose);
         out.writeBytesReference(source);
     }
 }

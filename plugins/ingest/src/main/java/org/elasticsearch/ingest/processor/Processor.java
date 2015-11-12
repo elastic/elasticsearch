@@ -39,6 +39,11 @@ public interface Processor {
     void execute(Data data);
 
     /**
+     * Gets the type of a processor
+     */
+    String getType();
+
+    /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
     interface Factory<P extends Processor> extends Closeable {
@@ -53,6 +58,7 @@ public interface Processor {
          */
         default void setConfigDirectory(Path configDirectory) {
         }
+
 
         @Override
         default void close() throws IOException {

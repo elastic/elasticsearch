@@ -134,6 +134,11 @@ public final class MutateProcessor implements Processor {
         }
     }
 
+    @Override
+    public String getType() {
+        return TYPE;
+    }
+
     private void doUpdate(Data data) {
         for(Map.Entry<String, Object> entry : update.entrySet()) {
             data.addField(entry.getKey(), entry.getValue());
@@ -272,6 +277,28 @@ public final class MutateProcessor implements Processor {
         }
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        MutateProcessor that = (MutateProcessor) o;
+        return Objects.equals(update, that.update) &&
+                Objects.equals(rename, that.rename) &&
+                Objects.equals(convert, that.convert) &&
+                Objects.equals(split, that.split) &&
+                Objects.equals(gsub, that.gsub) &&
+                Objects.equals(join, that.join) &&
+                Objects.equals(remove, that.remove) &&
+                Objects.equals(trim, that.trim) &&
+                Objects.equals(uppercase, that.uppercase) &&
+                Objects.equals(lowercase, that.lowercase);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(update, rename, convert, split, gsub, join, remove, trim, uppercase, lowercase);
+    }
+
     public static final class Factory implements Processor.Factory<MutateProcessor> {
         @Override
         public MutateProcessor create(Map<String, Object> config) throws IOException {
@@ -281,10 +308,10 @@ public final class MutateProcessor implements Processor {
             Map<String, String> split = ConfigurationUtils.readOptionalMap(config, "split");
             Map<String, List<String>> gsubConfig = ConfigurationUtils.readOptionalMap(config, "gsub");
             Map<String, String> join = ConfigurationUtils.readOptionalMap(config, "join");
-            List<String> remove = ConfigurationUtils.readOptionalStringList(config, "remove");
-            List<String> trim = ConfigurationUtils.readOptionalStringList(config, "trim");
-            List<String> uppercase = ConfigurationUtils.readOptionalStringList(config, "uppercase");
-            List<String> lowercase = ConfigurationUtils.readOptionalStringList(config, "lowercase");
+            List<String> remove = ConfigurationUtils.readOptionalList(config, "remove");
+            List<String> trim = ConfigurationUtils.readOptionalList(config, "trim");
+            List<String> uppercase = ConfigurationUtils.readOptionalList(config, "uppercase");
+            List<String> lowercase = ConfigurationUtils.readOptionalList(config, "lowercase");
 
             // pre-compile regex patterns
             List<GsubExpression> gsubExpressions = null;

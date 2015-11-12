@@ -78,6 +78,11 @@ public final class DateProcessor implements Processor {
         data.addField(targetField, ISODateTimeFormat.dateTime().print(dateTime));
     }
 
+    @Override
+    public String getType() {
+        return TYPE;
+    }
+
     DateTimeZone getTimezone() {
         return timezone;
     }
@@ -108,7 +113,7 @@ public final class DateProcessor implements Processor {
             DateTimeZone timezone = timezoneString == null ? DateTimeZone.UTC : DateTimeZone.forID(timezoneString);
             String localeString = ConfigurationUtils.readOptionalStringProperty(config, "locale");
             Locale locale = localeString == null ? Locale.ENGLISH : Locale.forLanguageTag(localeString);
-            List<String> matchFormats = ConfigurationUtils.readStringList(config, "match_formats");
+            List<String> matchFormats = ConfigurationUtils.readList(config, "match_formats");
             return new DateProcessor(timezone, locale, matchField, matchFormats, targetField);
         }
     }

@@ -59,7 +59,7 @@ public class ConfigurationUtilsTests extends ESTestCase {
 
     // TODO(talevy): Issue with generics. This test should fail, "int" is of type List<Integer>
     public void testOptional_InvalidType() {
-        List<String> val = ConfigurationUtils.readStringList(config, "int");
+        List<String> val = ConfigurationUtils.readList(config, "int");
         assertThat(val, equalTo(Arrays.asList(2)));
     }
 }

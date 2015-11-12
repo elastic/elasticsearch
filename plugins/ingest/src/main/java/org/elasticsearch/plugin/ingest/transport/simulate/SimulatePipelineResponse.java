@@ -24,6 +24,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.plugin.ingest.simulate.SimulatedItemResponse;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
@@ -100,7 +101,7 @@ public class SimulatePipelineResponse extends ActionResponse implements StatusTo
     @Override
     public RestStatus status() {
         for (SimulatedItemResponse response : responses) {
-            if (response.failed()) {
+            if (response.isFailed()) {
                 return RestStatus.BAD_REQUEST;
             }
         }

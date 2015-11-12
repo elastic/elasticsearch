@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.plugin.ingest.transport.simulate;
+package org.elasticsearch.plugin.ingest.simulate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -28,12 +28,15 @@ import org.elasticsearch.ingest.Data;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
 public class SimulatedItemResponse implements Streamable, StatusToXContent {
 
     private Data data;
+    private List<ProcessedData> processedDataList;
     private Throwable failure;
 
     public SimulatedItemResponse() {
@@ -44,25 +47,45 @@ public class SimulatedItemResponse implements Streamable, StatusToXContent {
         this.data = data;
     }
 
+    public SimulatedItemResponse(List<ProcessedData> processedDataList) {
+        this.processedDataList = processedDataList;
+    }
+
     public SimulatedItemResponse(Throwable failure) {
         this.failure = failure;
     }
 
-    public boolean failed() {
+    public boolean isFailed() {
         return this.failure != null;
+    }
+
+    public boolean isVerbose() {
+        return this.processedDataList != null;
     }
 
     public Data getData() {
         return data;
     }
 
+    public List<ProcessedData> getProcessedDataList() {
+        return processedDataList;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
-        boolean failed = in.readBoolean();
-
-        if (failed) {
+        boolean isFailed = in.readBoolean();
+        boolean isVerbose = in.readBoolean();
+        if (isFailed) {
             this.failure = in.readThrowable();
             // TODO(talevy): check out mget for throwable limitations
+        } else if (isVerbose) {
+            int size = in.readVInt();
+            processedDataList = new ArrayList<>();
+            for (int i = 0; i < size; i++) {
+                ProcessedData processedData = new ProcessedData();
+                processedData.readFrom(in);
+                processedDataList.add(processedData);
+            }
         } else {
             String index = in.readString();
             String type = in.readString();
@@ -74,10 +97,16 @@ public class SimulatedItemResponse implements Streamable, StatusToXContent {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(failed());
+        out.writeBoolean(isFailed());
+        out.writeBoolean(isVerbose());
 
-        if (failed()) {
+        if (isFailed()) {
             out.writeThrowable(failure);
+        } else if (isVerbose()) {
+            out.writeVInt(processedDataList.size());
+            for (ProcessedData p : processedDataList) {
+                p.writeTo(out);
+            }
         } else {
             out.writeString(data.getIndex());
             out.writeString(data.getType());
@@ -89,9 +118,16 @@ public class SimulatedItemResponse implements Streamable, StatusToXContent {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.ERROR, failed());
-        if (failed()) {
+        builder.field(Fields.ERROR, isFailed());
+        builder.field(Fields.VERBOSE, isVerbose());
+        if (isFailed()) {
             builder.field(Fields.FAILURE, failure.toString());
+        } else if (isVerbose()) {
+            builder.startArray(Fields.PROCESSOR_STEPS);
+            for (ProcessedData processedData : processedDataList) {
+                builder.value(processedData);
+            }
+            builder.endArray();
         } else {
             builder.field(Fields.MODIFIED, data.isModified());
             builder.field(Fields.DOCUMENT, data.getDocument());
@@ -102,7 +138,7 @@ public class SimulatedItemResponse implements Streamable, StatusToXContent {
 
     @Override
     public RestStatus status() {
-        if (failed()) {
+        if (isFailed()) {
             return RestStatus.BAD_REQUEST;
         } else {
             return RestStatus.OK;
@@ -116,18 +152,20 @@ public class SimulatedItemResponse implements Streamable, StatusToXContent {
             return false;
         }
         SimulatedItemResponse other = (SimulatedItemResponse) obj;
-        return Objects.equals(data, other.data) && Objects.equals(failure, other.failure);
+        return Objects.equals(data, other.data) && Objects.equals(processedDataList, other.processedDataList) && Objects.equals(failure, other.failure);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(data, failure);
+        return Objects.hash(data, processedDataList, failure);
     }
 
     static final class Fields {
         static final XContentBuilderString DOCUMENT = new XContentBuilderString("doc");
         static final XContentBuilderString ERROR = new XContentBuilderString("error");
+        static final XContentBuilderString VERBOSE = new XContentBuilderString("verbose");
         static final XContentBuilderString FAILURE = new XContentBuilderString("failure");
         static final XContentBuilderString MODIFIED = new XContentBuilderString("modified");
+        static final XContentBuilderString PROCESSOR_STEPS = new XContentBuilderString("processor_steps");
     }
 }

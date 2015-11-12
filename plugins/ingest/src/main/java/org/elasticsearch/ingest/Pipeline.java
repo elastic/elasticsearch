@@ -70,6 +70,21 @@ public final class Pipeline {
         return processors;
     }
 
+    @Override
+    public boolean equals(Object o) {
+        if (this == o) return true;
+        if (o == null || getClass() != o.getClass()) return false;
+        Pipeline pipeline = (Pipeline) o;
+        return Objects.equals(id, pipeline.id) &&
+                Objects.equals(description, pipeline.description) &&
+                Objects.equals(processors, pipeline.processors);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(id, description, processors);
+    }
+
     public final static class Factory {
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws IOException {

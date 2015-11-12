@@ -26,7 +26,10 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.plugin.ingest.simulate.ParsedSimulateRequest;
 import org.elasticsearch.plugin.ingest.PipelineStore;
+import org.elasticsearch.plugin.ingest.simulate.SimulateExecutionService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -34,32 +37,33 @@ import java.io.IOException;
 import java.util.Map;
 
 public class SimulatePipelineTransportAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
-
     private final PipelineStore pipelineStore;
+    private final SimulateExecutionService executionService;
 
     @Inject
-    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStore pipelineStore) {
+    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStore pipelineStore, SimulateExecutionService executionService) {
         super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SimulatePipelineRequest::new);
         this.pipelineStore = pipelineStore;
+        this.executionService = executionService;
     }
 
     @Override
     protected void doExecute(SimulatePipelineRequest request, ActionListener<SimulatePipelineResponse> listener) {
         Map<String, Object> source = XContentHelper.convertToMap(request.source(), false).v2();
 
-        SimulatePipelineRequestPayload payload;
-        SimulatePipelineRequestPayload.Factory factory = new SimulatePipelineRequestPayload.Factory();
+        ParsedSimulateRequest payload;
+        ParsedSimulateRequest.Parser parser = new ParsedSimulateRequest.Parser();
         try {
-            payload = factory.create(request.id(), source, pipelineStore);
+            payload = parser.parse(request.id(), source, request.verbose(), pipelineStore);
         } catch (IOException e) {
             listener.onFailure(e);
             return;
         }
 
-        threadPool.executor(ThreadPool.Names.MANAGEMENT).execute(new Runnable() {
+        executionService.execute(payload, new SimulateExecutionService.Listener() {
             @Override
-            public void run() {
-                listener.onResponse(payload.execute());
+            public void onResponse(SimulatePipelineResponse response) {
+                listener.onResponse(response);
             }
         });
     }

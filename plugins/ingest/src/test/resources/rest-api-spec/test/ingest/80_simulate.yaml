@@ -12,11 +12,10 @@
             "description": "_description",
             "processors": [
               {
-                "simple" : {
-                  "path" : "field1",
-                  "expected_value" : "_value",
-                  "add_field" : "field2",
-                  "add_field_value" : "_value"
+                "mutate" : {
+                  "update" : {
+                    "field2" : "_value"
+                  }
                 }
               }
             ]
@@ -48,4 +47,144 @@
             ]
           }
   - length: { docs: 1 }
+  - is_false: docs.0.error
+  - is_true: docs.0.modified
+  - match: { docs.0.foo: "bar" }
+  - match: { docs.0.field2: "_value" }
 
+
+---
+"Test simulate with provided pipeline definition":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "mutate" : {
+                    "update" : {
+                      "field2" : "_value"
+                    }
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+
+---
+"Test simulate with verbose flag":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "mutate" : {
+                    "update" : {
+                      "field2" : "_value"
+                    }
+                  }
+                },
+                {
+                  "mutate" : {
+                    "update" : {
+                      "field3" : "third_val"
+                    }
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_steps: 2 }
+  - match: { docs.0.processor_steps.0.processor_id: "processor[mutate]-0" }
+  - is_false: docs.0.processor_steps.0.error
+  - is_true: docs.0.processor_steps.0.modified
+  - length: { docs.0.processor_steps.0.doc: 2 }
+  - match: { docs.0.processor_steps.0.doc.foo: "bar" }
+  - match: { docs.0.processor_steps.0.doc.field2: "_value" }
+  - length: { docs.0.processor_steps.1.doc: 3 }
+  - match: { docs.0.processor_steps.1.doc.foo: "bar" }
+  - match: { docs.0.processor_steps.1.doc.field2: "_value" }
+  - match: { docs.0.processor_steps.1.doc.field3: "third_val" }
+
+---
+"Test simulate with exception thrown":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      catch: request
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "mutate" : {
+                    "uppercase" : ["foo"]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "not_foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id2",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - is_true: docs.0.error
+  - match: { docs.0.failure: "java.lang.NullPointerException" }
+  - is_false: docs.1.error
+  - is_true: docs.1.modified
+  - match: { docs.1.doc.foo: "BAR" }

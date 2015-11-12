@@ -34,6 +34,11 @@ public class SimulatePipelineRequestBuilder extends ActionRequestBuilder<Simulat
         return this;
     }
 
+    public SimulatePipelineRequestBuilder setVerbose(boolean verbose) {
+        request.verbose(verbose);
+        return this;
+    }
+
     public SimulatePipelineRequestBuilder setSource(BytesReference source) {
         request.source(source);
         return this;

@@ -40,7 +40,7 @@ import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.*;
 
-import static org.elasticsearch.ingest.processor.ConfigurationUtils.readStringList;
+import static org.elasticsearch.ingest.processor.ConfigurationUtils.readList;
 import static org.elasticsearch.ingest.processor.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor implements Processor {
@@ -89,6 +89,11 @@ public final class GeoIpProcessor implements Processor {
                 throw new IllegalStateException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType() + "]");
         }
         data.addField(targetField, geoData);
+    }
+
+    @Override
+    public String getType() {
+        return TYPE;
     }
 
     String getSourceField() {
@@ -222,7 +227,7 @@ public final class GeoIpProcessor implements Processor {
             final Set<Field> fields;
             if (config.containsKey("fields")) {
                 fields = EnumSet.noneOf(Field.class);
-                List<String> fieldNames = readStringList(config, "fields");
+                List<String> fieldNames = readList(config, "fields");
                 for (String fieldName : fieldNames) {
                     try {
                         fields.add(Field.parse(fieldName));

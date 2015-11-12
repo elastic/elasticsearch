@@ -44,6 +44,10 @@ public final class Data {
         this.document = document;
     }
 
+    public Data(Data other) {
+        this(other.index, other.type, other.id, new HashMap<>(other.document));
+    }
+
     @SuppressWarnings("unchecked")
     public <T> T getProperty(String path) {
         // TODO: we should not rely on any core class, so we should have custom map extract value logic:

@@ -13,6 +13,11 @@
         }
       },
       "params": {
+        "verbose": {
+          "type" : "boolean",
+          "description" : "Verbose mode. Display data output for each processor in executed pipeline",
+          "default" : false
+        }
       }
     },
     "body": {

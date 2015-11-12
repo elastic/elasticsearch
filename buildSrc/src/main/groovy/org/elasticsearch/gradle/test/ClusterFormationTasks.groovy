@@ -213,7 +213,7 @@ class ClusterFormationTasks {
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, File cwd, ClusterConfiguration config, String clusterName, File pidFile, File home) {
         Map esEnv = [
-            'JAVA_HOME' : System.getProperty('java.home'),
+            'JAVA_HOME' : project.javaHome,
             'ES_GC_OPTS': config.jvmArgs
         ]
         List esProps = config.systemProperties.collect { key, value -> "-D${key}=${value}" }
@@ -288,9 +288,9 @@ class ClusterFormationTasks {
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
             File jps
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                jps = getJpsExecutableByName("jps.exe")
+                jps = getJpsExecutableByName(project, "jps.exe")
             } else {
-                jps = getJpsExecutableByName("jps")
+                jps = getJpsExecutableByName(project, "jps")
             }
             if (!jps.exists()) {
                 throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
@@ -313,8 +313,8 @@ class ClusterFormationTasks {
         }
     }
 
-    private static File getJpsExecutableByName(String jpsExecutableName) {
-        return Paths.get(Jvm.current().javaHome.toString(), "bin/" + jpsExecutableName).toFile()
+    private static File getJpsExecutableByName(Project project, String jpsExecutableName) {
+        return Paths.get(project.javaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */

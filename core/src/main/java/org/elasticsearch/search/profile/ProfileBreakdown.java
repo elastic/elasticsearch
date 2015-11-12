@@ -21,6 +21,7 @@ package org.elasticsearch.search.profile;
 
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -41,7 +42,7 @@ public final class ProfileBreakdown {
 
         @Override
         public String toString() {
-            return name().toLowerCase();
+            return name().toLowerCase(Locale.ROOT);
         }
     }
 

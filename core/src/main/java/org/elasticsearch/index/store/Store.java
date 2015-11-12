@@ -39,6 +39,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.SingleObjectCache;
@@ -116,10 +117,11 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     @Inject
     public Store(ShardId shardId, IndexSettings indexSettings, DirectoryService directoryService, ShardLock shardLock, OnClose onClose) throws IOException {
         super(shardId, indexSettings);
-        this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", this.indexSettings, shardId));
+        final Settings settings = indexSettings.getSettings();
+        this.directory = new StoreDirectory(directoryService.newDirectory(), Loggers.getLogger("index.store.deletes", settings, shardId));
         this.shardLock = shardLock;
         this.onClose = onClose;
-        final TimeValue refreshInterval = this.indexSettings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
+        final TimeValue refreshInterval = settings.getAsTime(INDEX_STORE_STATS_REFRESH_INTERVAL, TimeValue.timeValueSeconds(10));
         this.statsCache = new StoreStatsCache(refreshInterval, directory, directoryService);
         logger.debug("store stats are refreshed with refresh_interval [{}]", refreshInterval);
 

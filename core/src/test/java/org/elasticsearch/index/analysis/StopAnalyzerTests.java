@@ -28,8 +28,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
-import java.util.Collections;
-
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 
 public class StopAnalyzerTests extends ESTokenStreamTestCase {
@@ -40,7 +38,7 @@ public class StopAnalyzerTests extends ESTokenStreamTestCase {
                 .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.emptyList());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("analyzer1");

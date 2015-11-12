@@ -40,7 +40,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.io.StringReader;
-import java.util.Collections;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -103,6 +102,6 @@ public class SimplePolishTokenFilterTests extends ESTestCase {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(settings),
                 new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
-        return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings, Collections.emptyList()));
+        return parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));
     }
 }

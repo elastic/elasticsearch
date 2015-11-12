@@ -22,13 +22,11 @@ package org.elasticsearch.index.query;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
-
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -172,7 +170,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         index = new Index(randomAsciiOfLengthBetween(1, 10));
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.emptyList());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));

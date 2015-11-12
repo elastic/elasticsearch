@@ -65,8 +65,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
 
     private Scroll scroll;
 
-    private Boolean profile;
-
     private String[] types = Strings.EMPTY_ARRAY;
 
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = IndicesOptions.strictExpandOpenAndForbidClosed();
@@ -324,26 +322,6 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         return this.requestCache;
     }
 
-    /**
-     * Sets if this query should be profiled or not
-     *
-     * @param profile True if the query should be profiled
-     * @return the current request
-     */
-    public SearchRequest profile(Boolean profile) {
-        this.profile = profile;
-        return this;
-    }
-
-    /**
-     * Returns if profiling is enabled for this query
-     *
-     * @return whether profiling is enabled
-     */
-    public Boolean profile() {
-        return this.profile;
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
@@ -368,11 +346,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
         requestCache = in.readOptionalBoolean();
-
         template = in.readOptionalStreamable(new Template());
-
-        // nocommit Version check?
-        profile = in.readOptionalBoolean();
     }
 
     @Override
@@ -404,7 +378,5 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         indicesOptions.writeIndicesOptions(out);
         out.writeOptionalBoolean(requestCache);
         out.writeOptionalStreamable(template);
-        // nocommit Version check?
-        out.writeOptionalBoolean(profile);
     }
 }

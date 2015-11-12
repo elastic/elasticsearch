@@ -9,6 +9,7 @@ import org.elasticsearch.action.admin.cluster.stats.ClusterStatsNodes;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.cluster.ClusterStatsCollector;
+import org.elasticsearch.marvel.agent.collector.indices.IndexStatsCollector;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.search.SearchHit;
@@ -62,16 +63,13 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
         // ok.. we'll start collecting now...
         updateMarvelInterval(3L, TimeUnit.SECONDS);
 
-        awaitMarvelTemplateInstalled();
+        awaitMarvelDocsCount(greaterThan(0L), ClusterStatsCollector.TYPE);
 
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                logger.debug("--> searching for marvel [{}] documents", ClusterStatsCollector.TYPE);
-                SearchResponse response = client().prepareSearch().setTypes(ClusterStatsCollector.TYPE).get();
-                assertThat(response.getHits().getTotalHits(), greaterThan(0L));
-
                 logger.debug("--> checking that every document contains the expected fields");
+                SearchResponse response = client().prepareSearch().setTypes(ClusterStatsCollector.TYPE).get();
                 String[] filters = ClusterStatsRenderer.FILTERS;
                 for (SearchHit searchHit : response.getHits().getHits()) {
                     Map<String, Object> fields = searchHit.sourceAsMap();
@@ -80,9 +78,9 @@ public class ClusterStatsTests extends MarvelIntegTestCase {
                         assertContains(filter, fields);
                     }
                 }
-
-                logger.debug("--> cluster stats successfully collected");
             }
         });
+
+        logger.debug("--> cluster stats successfully collected");
     }
 }

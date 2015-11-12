@@ -182,11 +182,18 @@ final class Bootstrap {
      * option for elasticsearch.yml etc to turn off our security manager completely,
      * for example if you want to have your own configuration or just disable.
      */
+    // TODO: remove this: http://www.openbsd.org/papers/hackfest2015-pledge/mgp00005.jpg
     static final String SECURITY_SETTING = "security.manager.enabled";
+    /**
+     * option for elasticsearch.yml to fully respect the system policy, including bad defaults
+     * from java.
+     */
+    // TODO: remove this hack when insecure defaults are removed from java
+    static final String SECURITY_FILTER_BAD_DEFAULTS_SETTING = "security.manager.filter_bad_defaults";
 
     private void setupSecurity(Settings settings, Environment environment) throws Exception {
         if (settings.getAsBoolean(SECURITY_SETTING, true)) {
-            Security.configure(environment);
+            Security.configure(environment, settings.getAsBoolean(SECURITY_FILTER_BAD_DEFAULTS_SETTING, true));
         }
     }
 

@@ -90,10 +90,6 @@ if (hasProperty('projectsPrefix') == false) {
 allprojects {
   // injecting groovy property variables into all projects
   project.ext {
-    // minimum java 8
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = sourceCompatibility
-
     // for eclipse hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
   }
@@ -136,7 +132,7 @@ allprojects {
 if (projectsPrefix.isEmpty()) {
   idea {
     project {
-      languageLevel = sourceCompatibility
+      languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava
       vcs = 'Git'
     }
   }

@@ -35,10 +35,10 @@ import org.gradle.util.GradleVersion
  */
 class BuildPlugin implements Plugin<Project> {
 
+    static final JavaVersion minimumJava = JavaVersion.VERSION_1_8
+
     @Override
     void apply(Project project) {
-        globalBuildInfo(project)
-        configureRepositories(project)
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
@@ -48,6 +48,8 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
 
+        globalBuildInfo(project)
+        configureRepositories(project)
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
@@ -73,12 +75,14 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // enforce Java version
-            if (!JavaVersion.current().isJava8Compatible()) {
-                throw new GradleException('Java 8 or above is required to build Elasticsearch')
+            if (JavaVersion.current() < minimumJava) {
+                throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
             }
 
             project.rootProject.ext.buildChecksDone = true
         }
+        project.targetCompatibility = minimumJava
+        project.sourceCompatibility = minimumJava
     }
 
     /** Makes dependencies non-transitive by default */

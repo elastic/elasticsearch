@@ -20,15 +20,18 @@
 package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
+import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.env.Environment;
 
 import java.io.*;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.AccessMode;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.Files;
 import java.nio.file.NotDirectoryException;
 import java.nio.file.Path;
+import java.security.PermissionCollection;
 import java.security.Permissions;
 import java.security.Policy;
 import java.util.Collections;
@@ -91,13 +94,15 @@ final class Security {
     /** 
      * Initializes SecurityManager for the environment
      * Can only happen once!
+     * @param environment configuration for generating dynamic permissions
+     * @param filterBadDefaults true if we should filter out bad java defaults in the system policy.
      */
-    static void configure(Environment environment) throws Exception {
+    static void configure(Environment environment, boolean filterBadDefaults) throws Exception {
         // set properties for jar locations
         setCodebaseProperties();
 
         // enable security policy: union of template and environment-based paths.
-        Policy.setPolicy(new ESPolicy(createPermissions(environment)));
+        Policy.setPolicy(new ESPolicy(createPermissions(environment), filterBadDefaults));
 
         // enable security manager
         System.setSecurityManager(new SecurityManager() {
@@ -151,9 +156,37 @@ final class Security {
         }
     }
 
-    /** returns dynamic Permissions to configured paths */
+    /** Adds access to classpath jars/classes for jar hell scan, etc */
+    @SuppressForbidden(reason = "accesses fully qualified URLs to configure security")
+    static void addClasspathPermissions(Permissions policy) throws IOException {
+        // add permissions to everything in classpath
+        // really it should be covered by lib/, but there could be e.g. agents or similar configured)
+        for (URL url : JarHell.parseClassPath()) {
+            Path path;
+            try {
+                path = PathUtils.get(url.toURI());
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+            // resource itself
+            policy.add(new FilePermission(path.toString(), "read,readlink"));
+            // classes underneath
+            if (Files.isDirectory(path)) {
+                policy.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", "read,readlink"));
+            }
+        }
+    }
+    
+    /** returns dynamic Permissions to configured paths and bind ports */
     static Permissions createPermissions(Environment environment) throws IOException {
         Permissions policy = new Permissions();
+        addClasspathPermissions(policy);
+        addFilePermissions(policy, environment);
+        return policy;
+    }
+
+    /** returns dynamic Permissions to configured paths */
+    static void addFilePermissions(Permissions policy, Environment environment) throws IOException {
         // read-only dirs
         addPath(policy, "path.home", environment.binFile(), "read,readlink");
         addPath(policy, "path.home", environment.libFile(), "read,readlink");
@@ -179,7 +212,6 @@ final class Security {
             // we just need permission to remove the file if its elsewhere.
             policy.add(new FilePermission(environment.pidFile().toString(), "delete"));
         }
-        return policy;
     }
     
     /**

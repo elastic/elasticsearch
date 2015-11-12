@@ -49,7 +49,7 @@ public class ESPolicyTests extends ESTestCase {
     public void testNullCodeSource() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
-        ESPolicy policy = new ESPolicy(noPermissions);
+        ESPolicy policy = new ESPolicy(noPermissions, true);
         assertFalse(policy.implies(new ProtectionDomain(null, noPermissions), new FilePermission("foo", "read")));
     }
 
@@ -61,7 +61,7 @@ public class ESPolicyTests extends ESTestCase {
     public void testNullLocation() throws Exception {
         assumeTrue("test cannot run with security manager", System.getSecurityManager() == null);
         PermissionCollection noPermissions = new Permissions();
-        ESPolicy policy = new ESPolicy(noPermissions);
+        ESPolicy policy = new ESPolicy(noPermissions, true);
         assertFalse(policy.implies(new ProtectionDomain(new CodeSource(null, (Certificate[])null), noPermissions), new FilePermission("foo", "read")));
     }
 

@@ -42,13 +42,19 @@ final class ESPolicy extends Policy {
     
     final Policy template;
     final Policy groovy;
+    final Policy system;
     final PermissionCollection dynamic;
 
-    public ESPolicy(PermissionCollection dynamic) throws Exception {
+    public ESPolicy(PermissionCollection dynamic, boolean filterBadDefaults) throws Exception {
         URI policyUri = getClass().getResource(POLICY_RESOURCE).toURI();
         URI groovyUri = getClass().getResource(GROOVY_RESOURCE).toURI();
         this.template = Policy.getInstance("JavaPolicy", new URIParameter(policyUri));
         this.groovy = Policy.getInstance("JavaPolicy", new URIParameter(groovyUri));
+        if (filterBadDefaults) {
+            this.system = new SystemPolicy(Policy.getPolicy());
+        } else {
+            this.system = Policy.getPolicy();
+        }
         this.dynamic = dynamic;
     }
 
@@ -69,7 +75,7 @@ final class ESPolicy extends Policy {
         }
 
         // otherwise defer to template + dynamic file permissions
-        return template.implies(domain, permission) || dynamic.implies(permission);
+        return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
     }
 
     @Override
@@ -85,5 +91,37 @@ final class ESPolicy extends Policy {
         }
         // return UNSUPPORTED_EMPTY_COLLECTION since it is safe.
         return super.getPermissions(codesource);
+    }
+
+    // TODO: remove this hack when insecure defaults are removed from java
+
+    // default policy file states:
+    // "It is strongly recommended that you either remove this permission
+    //  from this policy file or further restrict it to code sources
+    //  that you specify, because Thread.stop() is potentially unsafe."
+    // not even sure this method still works...
+    static final Permission BAD_DEFAULT_NUMBER_ONE = new RuntimePermission("stopThread");
+
+    // there are bad socket permission defaults too, but that's not locked down
+    // yet it in this version.
+
+    /**
+     * Wraps the Java system policy, filtering out bad default permissions that
+     * are granted to all domains.
+     */
+    static class SystemPolicy extends Policy {
+        final Policy delegate;
+
+        SystemPolicy(Policy delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean implies(ProtectionDomain domain, Permission permission) {
+            if (BAD_DEFAULT_NUMBER_ONE.equals(permission)) {
+                return false;
+            }
+            return delegate.implies(domain, permission);
+        }
     }
 }

@@ -81,13 +81,10 @@ public class BootstrapForTesting {
                 Security.setCodebaseProperties();
                 // initialize paths the same exact way as bootstrap.
                 Permissions perms = new Permissions();
-                // add permissions to everything in classpath
+                Security.addClasspathPermissions(perms);
+                // crazy jython
                 for (URL url : JarHell.parseClassPath()) {
                     Path path = PathUtils.get(url.toURI());
-                    // resource itself
-                    perms.add(new FilePermission(path.toString(), "read,readlink"));
-                    // classes underneath
-                    perms.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", "read,readlink"));
 
                     // crazy jython...
                     String filename = path.getFileName().toString();
@@ -110,7 +107,7 @@ public class BootstrapForTesting {
                     // in case we get fancy and use the -integration goals later:
                     perms.add(new FilePermission(coverageDir.resolve("jacoco-it.exec").toString(), "read,write"));
                 }
-                Policy.setPolicy(new ESPolicy(perms));
+                Policy.setPolicy(new ESPolicy(perms, true));
                 System.setSecurityManager(new TestSecurityManager());
                 Security.selfTest();
             } catch (Exception e) {

@@ -46,11 +46,11 @@ public class SecurityTests extends ESTestCase {
 
         Path fakeTmpDir = createTempDir();
         String realTmpDir = System.getProperty("java.io.tmpdir");
-        Permissions permissions;
+        Permissions permissions = new Permissions();
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             Environment environment = new Environment(settings);
-            permissions = Security.createPermissions(environment);
+            Security.addFilePermissions(permissions, environment);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }
@@ -84,12 +84,12 @@ public class SecurityTests extends ESTestCase {
 
         Path fakeTmpDir = createTempDir();
         String realTmpDir = System.getProperty("java.io.tmpdir");
-        Permissions permissions;
+        Permissions permissions = new Permissions();
         Environment environment;
         try {
             System.setProperty("java.io.tmpdir", fakeTmpDir.toString());
             environment = new Environment(settings);
-            permissions = Security.createPermissions(environment);
+            Security.addFilePermissions(permissions, environment);
         } finally {
             System.setProperty("java.io.tmpdir", realTmpDir);
         }

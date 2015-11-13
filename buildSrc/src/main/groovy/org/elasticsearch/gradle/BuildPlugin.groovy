@@ -111,7 +111,7 @@ class BuildPlugin implements Plugin<Project> {
      * Makes dependencies non-transitive.
      *
      * Gradle allows setting all dependencies as non-transitive very easily.
-     * But this mechanism does not translate into maven pom generation. In order
+     * Sadly this mechanism does not translate into maven pom generation. In order
      * to effectively make the pom act as if it has no transitive dependencies,
      * we must exclude each transitive dependency of each direct dependency.
      *

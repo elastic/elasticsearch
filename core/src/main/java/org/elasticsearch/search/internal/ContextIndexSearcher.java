@@ -123,7 +123,6 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
 
     @Override
     public Explanation explain(Query query, int doc) throws IOException {
-        // TODO: add timings for explain?
         return in.explain(query, doc);
     }
 

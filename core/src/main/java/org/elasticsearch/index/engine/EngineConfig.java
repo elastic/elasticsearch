@@ -31,7 +31,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.indexing.ShardIndexingService;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.TranslogRecoveryPerformer;
@@ -73,7 +72,6 @@ public final class EngineConfig {
     private final boolean forceNewTranslog;
     private final QueryCache queryCache;
     private final QueryCachingPolicy queryCachingPolicy;
-    private final SequenceNumbersService seqNoService;
 
 
     /**
@@ -120,14 +118,14 @@ public final class EngineConfig {
                         IndexSettings indexSettings, Engine.Warmer warmer, Store store, SnapshotDeletionPolicy deletionPolicy,
                         MergePolicy mergePolicy, MergeSchedulerConfig mergeSchedulerConfig, Analyzer analyzer,
                         Similarity similarity, CodecService codecService, Engine.EventListener eventListener,
-                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter, SequenceNumbersService seqNoService) {
+                        TranslogRecoveryPerformer translogRecoveryPerformer, QueryCache queryCache, QueryCachingPolicy queryCachingPolicy, TranslogConfig translogConfig, TimeValue flushMergesAfter) {
         this.shardId = shardId;
         final Settings settings = indexSettings.getSettings();
         this.indexSettings = indexSettings;
         this.threadPool = threadPool;
         this.indexingService = indexingService;
-        this.seqNoService = seqNoService;
-        this.warmer = warmer == null ? (a,b) -> {} : warmer;
+        this.warmer = warmer == null ? (a, b) -> {
+        } : warmer;
         this.store = store;
         this.deletionPolicy = deletionPolicy;
         this.mergePolicy = mergePolicy;
@@ -230,9 +228,9 @@ public final class EngineConfig {
      * Returns <code>true</code> iff delete garbage collection in the engine should be enabled. This setting is updateable
      * in realtime and forces a volatile read. Consumers can safely read this value directly go fetch it's latest value. The default is <code>true</code>
      * <p>
-     *     Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
-     *     time ({@link #getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
-     *     to fail.
+     * Engine GC deletion if enabled collects deleted documents from in-memory realtime data structures after a certain amount of
+     * time ({@link #getGcDeletesInMillis()} if enabled. Before deletes are GCed they will cause re-adding the document that was deleted
+     * to fail.
      * </p>
      */
     public boolean isEnableGcDeletes() {
@@ -242,7 +240,7 @@ public final class EngineConfig {
     /**
      * Returns the {@link Codec} used in the engines {@link org.apache.lucene.index.IndexWriter}
      * <p>
-     *     Note: this settings is only read on startup.
+     * Note: this settings is only read on startup.
      * </p>
      */
     public Codec getCodec() {
@@ -263,7 +261,6 @@ public final class EngineConfig {
      *
      * @see org.elasticsearch.index.indexing.ShardIndexingService#postIndex(Engine.Index)
      * @see org.elasticsearch.index.indexing.ShardIndexingService#preIndex(Engine.Index)
-     *
      */
     public ShardIndexingService getIndexingService() {
         return indexingService;
@@ -327,7 +324,9 @@ public final class EngineConfig {
     /**
      * Returns the engines shard ID
      */
-    public ShardId getShardId() { return shardId; }
+    public ShardId getShardId() {
+        return shardId;
+    }
 
     /**
      * Returns the analyzer as the default analyzer in the engines {@link org.apache.lucene.index.IndexWriter}
@@ -408,14 +407,7 @@ public final class EngineConfig {
      * should be automatically flushed. This is used to free up transient disk usage of potentially large segments that
      * are written after the engine became inactive from an indexing perspective.
      */
-    public TimeValue getFlushMergesAfter() { return flushMergesAfter; }
-
-
-    /**
-     * Returns the {@link SequenceNumbersService} that will be used to generate and track sequence numbers
-     */
-    public SequenceNumbersService getSeqNoService() {
-        return seqNoService;
+    public TimeValue getFlushMergesAfter() {
+        return flushMergesAfter;
     }
-
 }

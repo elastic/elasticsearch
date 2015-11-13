@@ -28,7 +28,7 @@ import org.elasticsearch.index.shard.ShardId;
 import java.io.IOException;
 
 /**
- * A based class for the response of a write operation that involves are a single doc
+ * A base class for the response of a write operation that involves are a single doc
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements ToXContent {
 

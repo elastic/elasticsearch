@@ -118,7 +118,7 @@ public class InternalEngine extends Engine {
             this.lastDeleteVersionPruneTimeMSec = engineConfig.getThreadPool().estimatedTimeInMillis();
             this.indexingService = engineConfig.getIndexingService();
             this.warmer = engineConfig.getWarmer();
-            seqNoService = engineConfig.getSeqNoService();
+            seqNoService = new SequenceNumbersService(shardId, engineConfig.getIndexSettings());
             mergeScheduler = scheduler = new EngineMergeScheduler(engineConfig.getShardId(), engineConfig.getIndexSettings(), engineConfig.getMergeSchedulerConfig());
             this.dirtyLocks = new Object[Runtime.getRuntime().availableProcessors() * 10]; // we multiply it to have enough...
             for (int i = 0; i < dirtyLocks.length; i++) {

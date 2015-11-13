@@ -104,6 +104,7 @@ import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -339,7 +340,8 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             indexShard.incrementOperationCounter(primaryTerm - 1);
             fail("you can not increment the operation counter with an older primary term");
         } catch (IllegalIndexShardStateException e) {
-            // expected
+            assertThat(e.getMessage(), containsString("operation term"));
+            assertThat(e.getMessage(), containsString("too old"));
         }
 
         // but you can increment with a newer one..

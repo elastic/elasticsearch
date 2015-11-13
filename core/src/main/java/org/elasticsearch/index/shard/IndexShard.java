@@ -79,7 +79,6 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
-import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.store.Store;
@@ -148,7 +147,6 @@ public class IndexShard extends AbstractIndexShardComponent {
     private final IndexEventListener indexEventListener;
     private final IndexSettings idxSettings;
     private final NodeServicesProvider provider;
-    private final SequenceNumbersService seqNoService;
 
     private TimeValue refreshInterval;
 
@@ -234,7 +232,6 @@ public class IndexShard extends AbstractIndexShardComponent {
         this.flushOnClose = settings.getAsBoolean(INDEX_FLUSH_ON_CLOSE, true);
         this.path = path;
         this.mergePolicyConfig = new MergePolicyConfig(logger, settings);
-        seqNoService = new SequenceNumbersService(shardId, indexSettings);
 
         /* create engine config */
         logger.debug("state: [CREATED]");
@@ -1501,7 +1498,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         return new EngineConfig(shardId,
                 threadPool, indexingService, indexSettings, engineWarmer, store, deletionPolicy, mergePolicyConfig.getMergePolicy(), mergeSchedulerConfig,
                 mapperService.indexAnalyzer(), similarityService.similarity(mapperService), codecService, shardEventListener, translogRecoveryPerformer,
-                indexCache.query(), cachingPolicy, translogConfig, inactiveTime, seqNoService);
+                indexCache.query(), cachingPolicy, translogConfig, inactiveTime);
     }
 
     private static class IndexShardOperationCounter extends AbstractRefCounted {

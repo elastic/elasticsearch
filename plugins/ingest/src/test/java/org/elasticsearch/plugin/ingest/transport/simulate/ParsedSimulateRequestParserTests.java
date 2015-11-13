@@ -22,7 +22,6 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -30,70 +29,120 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequest.Fields;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-import static org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequest.Fields;
-
 public class ParsedSimulateRequestParserTests extends ESTestCase {
+
     private PipelineStore store;
-    private ParsedSimulateRequest.Parser parser;
-    private Pipeline pipeline;
-    private Data data;
 
     @Before
     public void init() throws IOException {
-        parser = new ParsedSimulateRequest.Parser();
-        List<String> uppercase = Collections.singletonList("foo");
-        Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, uppercase, null);
-        pipeline = new Pipeline(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID, null, Arrays.asList(processor));
-        data = new Data("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
+        Pipeline pipeline = new Pipeline(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID, null, Collections.singletonList(mock(Processor.class)));
         Map<String, Processor.Factory> processorRegistry = new HashMap<>();
-        processorRegistry.put("mutate", new MutateProcessor.Factory());
+        processorRegistry.put("mock_processor", mock(Processor.Factory.class));
         store = mock(PipelineStore.class);
-        when(store.get("_id")).thenReturn(pipeline);
+        when(store.get(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
         when(store.getProcessorFactoryRegistry()).thenReturn(processorRegistry);
     }
 
     public void testParseUsingPipelineStore() throws Exception {
-        ParsedSimulateRequest expectedRequest = new ParsedSimulateRequest(pipeline, Collections.singletonList(data), false);
+        int numDocs = randomIntBetween(1, 10);
 
-        Map<String, Object> raw = new HashMap<>();
+        Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
-        Map<String, Object> doc = new HashMap<>();
-        doc.put(Fields.INDEX, "_index");
-        doc.put(Fields.TYPE, "_type");
-        doc.put(Fields.ID, "_id");
-        doc.put(Fields.SOURCE, data.getDocument());
-        docs.add(doc);
-        raw.put(Fields.DOCS, docs);
+        List<Map<String, Object>> expectedDocs = new ArrayList<>();
+        requestContent.put(Fields.DOCS, docs);
+        for (int i = 0; i < numDocs; i++) {
+            Map<String, Object> doc = new HashMap<>();
+            String index = randomAsciiOfLengthBetween(1, 10);
+            String type = randomAsciiOfLengthBetween(1, 10);
+            String id = randomAsciiOfLengthBetween(1, 10);
+            doc.put(Fields.INDEX, index);
+            doc.put(Fields.TYPE, type);
+            doc.put(Fields.ID, id);
+            String fieldName = randomAsciiOfLengthBetween(1, 10);
+            String fieldValue = randomAsciiOfLengthBetween(1, 10);
+            doc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
+            docs.add(doc);
+            Map<String, Object> expectedDoc = new HashMap<>();
+            expectedDoc.put(Fields.INDEX, index);
+            expectedDoc.put(Fields.TYPE, type);
+            expectedDoc.put(Fields.ID, id);
+            expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
+            expectedDocs.add(expectedDoc);
+        }
 
-        ParsedSimulateRequest actualRequest = parser.parseWithPipelineId("_id", raw, false, store);
-        assertThat(actualRequest, equalTo(expectedRequest));
+        ParsedSimulateRequest actualRequest = new ParsedSimulateRequest.Parser().parseWithPipelineId(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID, requestContent, false, store);
+        assertThat(actualRequest.isVerbose(), equalTo(false));
+        assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
+        Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
+        for (Data data : actualRequest.getDocuments()) {
+            Map<String, Object> expectedDocument = expectedDocsIterator.next();
+            assertThat(data.getDocument(), equalTo(expectedDocument.get(Fields.SOURCE)));
+            assertThat(data.getIndex(), equalTo(expectedDocument.get(Fields.INDEX)));
+            assertThat(data.getType(), equalTo(expectedDocument.get(Fields.TYPE)));
+            assertThat(data.getId(), equalTo(expectedDocument.get(Fields.ID)));
+        }
+
+        assertThat(actualRequest.getPipeline().getId(), equalTo(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID));
+        assertThat(actualRequest.getPipeline().getDescription(), nullValue());
+        assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
     }
 
     public void testParseWithProvidedPipeline() throws Exception {
-        ParsedSimulateRequest expectedRequest = new ParsedSimulateRequest(pipeline, Collections.singletonList(data), false);
+        int numDocs = randomIntBetween(1, 10);
 
-        Map<String, Object> raw = new HashMap<>();
+        Map<String, Object> requestContent = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
-        Map<String, Object> doc = new HashMap<>();
-        doc.put(Fields.INDEX, "_index");
-        doc.put(Fields.TYPE, "_type");
-        doc.put(Fields.ID, "_id");
-        doc.put(Fields.SOURCE, data.getDocument());
-        docs.add(doc);
+        List<Map<String, Object>> expectedDocs = new ArrayList<>();
+        requestContent.put(Fields.DOCS, docs);
+        for (int i = 0; i < numDocs; i++) {
+            Map<String, Object> doc = new HashMap<>();
+            String index = randomAsciiOfLengthBetween(1, 10);
+            String type = randomAsciiOfLengthBetween(1, 10);
+            String id = randomAsciiOfLengthBetween(1, 10);
+            doc.put(Fields.INDEX, index);
+            doc.put(Fields.TYPE, type);
+            doc.put(Fields.ID, id);
+            String fieldName = randomAsciiOfLengthBetween(1, 10);
+            String fieldValue = randomAsciiOfLengthBetween(1, 10);
+            doc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
+            docs.add(doc);
+            Map<String, Object> expectedDoc = new HashMap<>();
+            expectedDoc.put(Fields.INDEX, index);
+            expectedDoc.put(Fields.TYPE, type);
+            expectedDoc.put(Fields.ID, id);
+            expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
+            expectedDocs.add(expectedDoc);
+        }
 
-        Map<String, Object> processorConfig = new HashMap<>();
-        processorConfig.put("uppercase", Arrays.asList("foo"));
         Map<String, Object> pipelineConfig = new HashMap<>();
-        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("mutate", processorConfig)));
+        List<Map<String, Object>> processors = new ArrayList<>();
+        int numProcessors = randomIntBetween(1, 10);
+        for (int i = 0; i < numProcessors; i++) {
+            processors.add(Collections.singletonMap("mock_processor", Collections.emptyMap()));
+        }
+        pipelineConfig.put("processors", processors);
+        requestContent.put(Fields.PIPELINE, pipelineConfig);
 
-        raw.put(Fields.DOCS, docs);
-        raw.put(Fields.PIPELINE, pipelineConfig);
+        ParsedSimulateRequest actualRequest = new ParsedSimulateRequest.Parser().parse(requestContent, false, store);
+        assertThat(actualRequest.isVerbose(), equalTo(false));
+        assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
+        Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
+        for (Data data : actualRequest.getDocuments()) {
+            Map<String, Object> expectedDocument = expectedDocsIterator.next();
+            assertThat(data.getDocument(), equalTo(expectedDocument.get(Fields.SOURCE)));
+            assertThat(data.getIndex(), equalTo(expectedDocument.get(Fields.INDEX)));
+            assertThat(data.getType(), equalTo(expectedDocument.get(Fields.TYPE)));
+            assertThat(data.getId(), equalTo(expectedDocument.get(Fields.ID)));
+        }
 
-        ParsedSimulateRequest actualRequest = parser.parse(raw, false, store);
-        assertThat(actualRequest, equalTo(expectedRequest));
+        assertThat(actualRequest.getPipeline().getId(), equalTo(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID));
+        assertThat(actualRequest.getPipeline().getDescription(), nullValue());
+        assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(numProcessors));
     }
 }

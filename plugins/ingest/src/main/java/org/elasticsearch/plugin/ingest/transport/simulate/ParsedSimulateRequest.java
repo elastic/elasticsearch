@@ -51,21 +51,6 @@ public class ParsedSimulateRequest {
         return verbose;
     }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        ParsedSimulateRequest that = (ParsedSimulateRequest) o;
-        return Objects.equals(verbose, that.verbose) &&
-                Objects.equals(documents, that.documents) &&
-                Objects.equals(pipeline, that.pipeline);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(documents, pipeline, verbose);
-    }
-
     public static class Parser {
         private static final Pipeline.Factory PIPELINE_FACTORY = new Pipeline.Factory();
         public static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";

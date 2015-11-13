@@ -26,7 +26,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
 
 public class DataTests extends ESTestCase {
 
@@ -86,28 +87,54 @@ public class DataTests extends ESTestCase {
         assertThat(data.getProperty("fizz.new"), equalTo("bar"));
     }
 
-    public void testEquals() {
-        Data otherData = new Data(data);
-        assertThat(otherData, equalTo(data));
-    }
+    public void testEqualsAndHashcode() throws Exception {
+        String index = randomAsciiOfLengthBetween(1, 10);
+        String type = randomAsciiOfLengthBetween(1, 10);
+        String id = randomAsciiOfLengthBetween(1, 10);
+        String fieldName = randomAsciiOfLengthBetween(1, 10);
+        String fieldValue = randomAsciiOfLengthBetween(1, 10);
+        Data data = new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue));
 
-    public void testNotEqualsDiffIndex() {
-        Data otherData = new Data(data.getIndex() + "foo", data.getType(), data.getId(), data.getDocument());
-        assertThat(otherData, not(equalTo(data)));
-    }
+        boolean changed = false;
+        String otherIndex;
+        if (randomBoolean()) {
+            otherIndex = randomAsciiOfLengthBetween(1, 10);
+            changed = true;
+        } else {
+            otherIndex = index;
+        }
+        String otherType;
+        if (randomBoolean()) {
+            otherType = randomAsciiOfLengthBetween(1, 10);
+            changed = true;
+        } else {
+            otherType = type;
+        }
+        String otherId;
+        if (randomBoolean()) {
+            otherId = randomAsciiOfLengthBetween(1, 10);
+            changed = true;
+        } else {
+            otherId = id;
+        }
+        Map<String, Object> document;
+        if (randomBoolean()) {
+            document = Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+            changed = true;
+        } else {
+            document = Collections.singletonMap(fieldName, fieldValue);
+        }
 
-    public void testNotEqualsDiffType() {
-        Data otherData = new Data(data.getIndex(), data.getType() + "foo", data.getId(), data.getDocument());
-        assertThat(otherData, not(equalTo(data)));
-    }
-
-    public void testNotEqualsDiffId() {
-        Data otherData = new Data(data.getIndex(), data.getType(), data.getId() + "foo", data.getDocument());
-        assertThat(otherData, not(equalTo(data)));
-    }
-
-    public void testNotEqualsDiffDocument() {
-        Data otherData = new Data(data.getIndex(), data.getType(), data.getId(), Collections.emptyMap());
-        assertThat(otherData, not(equalTo(data)));
+        Data otherData = new Data(otherIndex, otherType, otherId, document);
+        if (changed) {
+            assertThat(data, not(equalTo(otherData)));
+            assertThat(otherData, not(equalTo(data)));
+        } else {
+            assertThat(data, equalTo(otherData));
+            assertThat(otherData, equalTo(data));
+            Data thirdData = new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue));
+            assertThat(thirdData, equalTo(data));
+            assertThat(data, equalTo(thirdData));
+        }
     }
 }

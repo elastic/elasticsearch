@@ -39,8 +39,7 @@ public class TransportDataTests extends ESTestCase {
         String id = randomAsciiOfLengthBetween(1, 10);
         String fieldName = randomAsciiOfLengthBetween(1, 10);
         String fieldValue = randomAsciiOfLengthBetween(1, 10);
-        Data data = new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue));
-        TransportData transportData = new TransportData(data);
+        TransportData transportData = new TransportData(new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
 
         boolean changed = false;
         String otherIndex;
@@ -72,22 +71,14 @@ public class TransportDataTests extends ESTestCase {
             document = Collections.singletonMap(fieldName, fieldValue);
         }
 
-        Data otherData = new Data(otherIndex, otherType, otherId, document);
-        TransportData otherTransportData = new TransportData(otherData);
+        TransportData otherTransportData = new TransportData(new Data(otherIndex, otherType, otherId, document));
         if (changed) {
-            assertThat(data, not(equalTo(otherData)));
-            assertThat(otherData, not(equalTo(data)));
             assertThat(transportData, not(equalTo(otherTransportData)));
             assertThat(otherTransportData, not(equalTo(transportData)));
         } else {
-            assertThat(data, equalTo(otherData));
-            assertThat(otherData, equalTo(data));
             assertThat(transportData, equalTo(otherTransportData));
             assertThat(otherTransportData, equalTo(transportData));
-            Data thirdData = new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue));
-            TransportData thirdTransportData = new TransportData(thirdData);
-            assertThat(thirdData, equalTo(data));
-            assertThat(data, equalTo(thirdData));
+            TransportData thirdTransportData = new TransportData(new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
             assertThat(thirdTransportData, equalTo(transportData));
             assertThat(transportData, equalTo(thirdTransportData));
         }

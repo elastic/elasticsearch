@@ -45,7 +45,7 @@ public final class MutateProcessor implements Processor {
     private final List<String> uppercase;
     private final List<String> lowercase;
 
-    public MutateProcessor(Map<String, Object> update, Map<String, String> rename, Map<String, String> convert,
+    MutateProcessor(Map<String, Object> update, Map<String, String> rename, Map<String, String> convert,
                            Map<String, String> split, List<GsubExpression> gsub, Map<String, String> join,
                            List<String> remove, List<String> trim, List<String> uppercase, List<String> lowercase) {
         this.update = update;

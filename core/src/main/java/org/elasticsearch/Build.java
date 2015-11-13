@@ -29,6 +29,8 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
@@ -47,7 +49,11 @@ public class Build {
             try (JarInputStream jar = new JarInputStream(Files.newInputStream(path))) {
                 Manifest manifest = jar.getManifest();
                 shortHash = manifest.getMainAttributes().getValue("Change");
-                date = manifest.getMainAttributes().getValue("Build-Date");
+                LocalDateTime manifestDate = LocalDateTime.parse(
+                        manifest.getMainAttributes().getValue("Build-Date"),
+                        DateTimeFormatter.ofPattern("yyyy-MM-dd_HH:mm:ss")
+                );
+                date = DateTimeFormatter.ISO_LOCAL_DATE_TIME.format(manifestDate);
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }

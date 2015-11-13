@@ -1387,7 +1387,7 @@ public class StoreTests extends ESTestCase {
         } catch (CorruptIndexException e) {
             assertEquals(ex.getMessage(), e.getMessage());
             assertEquals(ex.toString(), e.toString());
-            assertEquals(ExceptionsHelper.stackTrace(ex), ExceptionsHelper.stackTrace(e));
+            assertArrayEquals(ex.getStackTrace(), e.getStackTrace());
         }
 
         store.removeCorruptionMarker();
@@ -1399,7 +1399,7 @@ public class StoreTests extends ESTestCase {
             fail("should be corrupted");
         } catch (CorruptIndexException e) {
             assertEquals("foobar (resource=preexisting_corruption)", e.getMessage());
-            assertEquals(ExceptionsHelper.stackTrace(ioe), ExceptionsHelper.stackTrace(e.getCause()));
+            assertArrayEquals(ioe.getStackTrace(), e.getCause().getStackTrace());
         }
         store.close();
     }

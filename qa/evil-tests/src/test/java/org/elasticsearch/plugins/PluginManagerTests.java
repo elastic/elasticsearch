@@ -661,9 +661,14 @@ public class PluginManagerTests extends ESIntegTestCase {
 
         SSLSocketFactory defaultSocketFactory = HttpsURLConnection.getDefaultSSLSocketFactory();
         ServerBootstrap serverBootstrap = new ServerBootstrap(new NioServerSocketChannelFactory());
-        SelfSignedCertificate ssc = new SelfSignedCertificate("localhost");
+        SelfSignedCertificate ssc = null;
 
         try {
+            try {
+                ssc = new SelfSignedCertificate("localhost");
+            } catch (Exception e) {
+                assumeNoException("self signing shenanigans not supported by this JDK", e);
+            }
 
             //  Create a trust manager that does not validate certificate chains:
             SSLContext sc = SSLContext.getInstance("SSL");
@@ -700,7 +705,9 @@ public class PluginManagerTests extends ESIntegTestCase {
         } finally {
             HttpsURLConnection.setDefaultSSLSocketFactory(defaultSocketFactory);
             serverBootstrap.releaseExternalResources();
-            ssc.delete();
+            if (ssc != null) {
+                ssc.delete();
+            }
         }
     }
 

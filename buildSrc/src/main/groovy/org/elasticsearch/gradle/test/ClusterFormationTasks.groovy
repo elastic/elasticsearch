@@ -264,16 +264,7 @@ class ClusterFormationTasks {
                 args esExecutable
                 args esProps
                 environment esEnv
-                errorOutput = new ByteArrayOutputStream()
                 doLast {
-                    if (errorOutput.toString().isEmpty() == false) {
-                        logger.error(errorOutput.toString())
-                        File logFile = new File(home, "logs/${clusterName}.log")
-                        if (logFile.exists()) {
-                            logFile.eachLine { line -> logger.error(line) }
-                        }
-                        throw new GradleException('Failed to start elasticsearch')
-                    }
                     esPostStartActions(ant, logger)
                 }
             }

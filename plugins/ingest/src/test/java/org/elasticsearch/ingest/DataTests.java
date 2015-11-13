@@ -28,6 +28,7 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.nullValue;
 
 public class DataTests extends ESTestCase {
 
@@ -49,6 +50,11 @@ public class DataTests extends ESTestCase {
 
     public void testNestedGetProperty() {
         assertThat(data.getProperty("fizz.buzz"), equalTo("hello world"));
+    }
+
+    public void testGetPropertyNotFound() {
+        data.getProperty("not.here");
+        assertThat(data.getProperty("not.here"), nullValue());
     }
 
     public void testContainsProperty() {

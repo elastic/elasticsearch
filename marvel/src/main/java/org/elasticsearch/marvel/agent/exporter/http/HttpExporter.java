@@ -670,10 +670,13 @@ public class HttpExporter extends Exporter {
                 // because the renderer might close the outputstream (ex: XContentBuilder)
                 try (BytesStreamOutput buffer = new BytesStreamOutput()) {
                     for (MarvelDoc marvelDoc : docs) {
-                        render(marvelDoc, buffer);
-
-                        // write the result to the connection
-                        out.write(buffer.bytes().toBytes());
+                        try {
+                            render(marvelDoc, buffer);
+                            // write the result to the connection
+                            out.write(buffer.bytes().toBytes());
+                        } finally {
+                            buffer.reset();
+                        }
                     }
                 }
             }

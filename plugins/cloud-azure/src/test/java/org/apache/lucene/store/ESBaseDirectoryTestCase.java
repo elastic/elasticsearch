@@ -36,6 +36,7 @@ import com.carrotsearch.randomizedtesting.annotations.TimeoutSuite;
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@LuceneTestCase.SuppressFileSystems("*") // incompatible with java 9: https://issues.apache.org/jira/browse/LUCENE-6795
 public abstract class ESBaseDirectoryTestCase extends BaseDirectoryTestCase {
     static {
         BootstrapForTesting.ensureInitialized();

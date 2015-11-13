@@ -892,6 +892,39 @@ public class HistogramTests extends ESIntegTestCase {
         }
     }
 
+    public void testPartiallyUnmappedWithExtendedBounds() throws Exception {
+        SearchResponse response = client()
+                .prepareSearch("idx", "idx_unmapped")
+                .addAggregation(
+                        histogram("histo").field(SINGLE_VALUED_FIELD_NAME).interval(interval)
+                                .extendedBounds((long) -1 * 2 * interval, (long) valueCounts.length * interval)).execute().actionGet();
+
+        assertSearchResponse(response);
+
+        Histogram histo = response.getAggregations().get("histo");
+        assertThat(histo, notNullValue());
+        assertThat(histo.getName(), equalTo("histo"));
+        List<? extends Bucket> buckets = histo.getBuckets();
+        assertThat(buckets.size(), equalTo(numValueBuckets + 3));
+
+        Histogram.Bucket bucket = buckets.get(0);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) -1 * 2 * interval));
+        assertThat(bucket.getDocCount(), equalTo(0l));
+
+        bucket = buckets.get(1);
+        assertThat(bucket, notNullValue());
+        assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) -1 * interval));
+        assertThat(bucket.getDocCount(), equalTo(0l));
+
+        for (int i = 2; i < numValueBuckets + 2; ++i) {
+            bucket = buckets.get(i);
+            assertThat(bucket, notNullValue());
+            assertThat(((Number) bucket.getKey()).longValue(), equalTo((long) (i - 2) * interval));
+            assertThat(bucket.getDocCount(), equalTo(valueCounts[i - 2]));
+        }
+    }
+
     public void testEmptyAggregation() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("empty_bucket_idx")
                 .setQuery(matchAllQuery())

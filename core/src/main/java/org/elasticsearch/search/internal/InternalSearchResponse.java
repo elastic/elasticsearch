@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.internal;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -136,9 +137,10 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
         terminatedEarly = in.readOptionalBoolean();
 
-        // nocommit TODO need version check here?
-        if (in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
             profileResults = InternalProfileShardResults.readProfileShardResults(in);
+        } else {
+            profileResults = null;
         }
     }
 
@@ -161,12 +163,13 @@ public class InternalSearchResponse implements Streamable, ToXContent {
 
         out.writeOptionalBoolean(terminatedEarly);
 
-        // nocommit TODO need version check here?
-        if (profileResults == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            profileResults.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            if (profileResults == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                profileResults.writeTo(out);
+            }
         }
     }
 }

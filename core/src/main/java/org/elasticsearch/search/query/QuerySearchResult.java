@@ -20,6 +20,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.search.TopDocs;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -31,7 +32,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.profile.InternalProfileShardResult;
-import org.elasticsearch.search.profile.InternalProfileShardResults;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -213,8 +213,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         searchTimedOut = in.readBoolean();
         terminatedEarly = in.readOptionalBoolean();
 
-        // nocommit TODO need version check here?
-        if (in.readBoolean()) {
+        if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
             int profileSize = in.readVInt();
             profileShardResults = new ArrayList<>(profileSize);
             for (int i = 0; i < profileSize; i++) {
@@ -261,14 +260,15 @@ public class QuerySearchResult extends QuerySearchResultProvider {
         out.writeBoolean(searchTimedOut);
         out.writeOptionalBoolean(terminatedEarly);
 
-        // nocommit TODO need version check here?
-        if (profileShardResults == null) {
-            out.writeBoolean(false);
-        } else {
-            out.writeBoolean(true);
-            out.writeVInt(profileShardResults.size());
-            for (InternalProfileShardResult shardResult : profileShardResults) {
-                shardResult.writeTo(out);
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            if (profileShardResults == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                out.writeVInt(profileShardResults.size());
+                for (InternalProfileShardResult shardResult : profileShardResults) {
+                    shardResult.writeTo(out);
+                }
             }
         }
     }

@@ -22,6 +22,7 @@ package org.elasticsearch.search.builder;
 import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.support.ToXContentToBytes;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.ParseField;
@@ -1250,8 +1251,11 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (in.readBoolean()) {
             builder.ext = in.readBytesReference();
         }
-        // nocommit version check
-        builder.profile = in.readOptionalBoolean();
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            builder.profile = in.readOptionalBoolean();
+        } else {
+            builder.profile = null;
+        }
         return builder;
     }
 
@@ -1365,8 +1369,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
         if (hasExt) {
             out.writeBytesReference(ext);
         }
-        // nocommit version check
-        out.writeOptionalBoolean(profile);
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeOptionalBoolean(profile);
+        }
     }
 
     @Override

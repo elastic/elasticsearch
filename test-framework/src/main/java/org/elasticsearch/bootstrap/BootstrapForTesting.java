@@ -96,13 +96,10 @@ public class BootstrapForTesting {
             try {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();
-                // add permissions to everything in classpath
+                Security.addClasspathPermissions(perms);
+                // crazy jython
                 for (URL url : JarHell.parseClassPath()) {
                     Path path = PathUtils.get(url.toURI());
-                    // resource itself
-                    perms.add(new FilePermission(path.toString(), "read,readlink"));
-                    // classes underneath
-                    perms.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", "read,readlink"));
 
                     // crazy jython...
                     String filename = path.getFileName().toString();
@@ -141,7 +138,7 @@ public class BootstrapForTesting {
                 
                 // read test-framework permissions
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), JarHell.parseClassPath());
-                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions());
+                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions(), true);
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {

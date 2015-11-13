@@ -45,6 +45,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.Callback;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexShardAlreadyExistsException;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
@@ -236,15 +237,15 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
             if (logger.isDebugEnabled()) {
                 logger.debug("[{}] cleaning index, no longer part of the metadata", index);
             }
-            final Settings indexSettings;
             final IndexService idxService = indicesService.indexService(index);
+            final IndexSettings indexSettings;
             if (idxService != null) {
-                indexSettings = idxService.getIndexSettings().getSettings();
+                indexSettings = idxService.getIndexSettings();
                 deleteIndex(index, "index no longer part of the metadata");
             } else {
                 final IndexMetaData metaData = previousState.metaData().index(index);
                 assert metaData != null;
-                indexSettings = metaData.getSettings();
+                indexSettings = new IndexSettings(metaData, settings, Collections.EMPTY_LIST);
                 indicesService.deleteClosedIndex("closed index no longer part of the metadata", metaData, event.state());
             }
             try {

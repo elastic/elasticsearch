@@ -19,7 +19,6 @@
 
 package org.elasticsearch.plugin.discovery.ec2;
 
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.aws.AwsEc2ServiceImpl;
 import org.elasticsearch.cloud.aws.Ec2Module;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -32,8 +31,6 @@ import org.elasticsearch.discovery.ec2.AwsEc2UnicastHostsProvider;
 import org.elasticsearch.discovery.ec2.Ec2Discovery;
 import org.elasticsearch.plugins.Plugin;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -41,27 +38,6 @@ import java.util.Collection;
  *
  */
 public class Ec2DiscoveryPlugin extends Plugin {
-    
-    static {
-        // This internal config is deserialized but with wrong access modifiers,
-        // cannot work without suppressAccessChecks permission right now. We force
-        // a one time load with elevated privileges as a workaround.
-        SecurityManager sm = System.getSecurityManager();
-        if (sm != null) {
-            sm.checkPermission(new SpecialPermission());
-        }
-        AccessController.doPrivileged(new PrivilegedAction<Void>() {
-            @Override
-            public Void run() {
-                try {
-                    Class.forName("com.amazonaws.internal.config.InternalConfig$Factory");
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException("Unable to initialize internal aws config", e);
-                }
-                return null;
-            }
-        });
-    }
 
     private final Settings settings;
     protected final ESLogger logger = Loggers.getLogger(Ec2DiscoveryPlugin.class);

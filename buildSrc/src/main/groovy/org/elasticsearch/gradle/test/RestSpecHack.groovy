@@ -18,7 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
-import org.elasticsearch.gradle.ElasticsearchProperties
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.Copy
@@ -38,7 +38,7 @@ class RestSpecHack {
             restSpec
         }
         project.dependencies {
-            restSpec "org.elasticsearch:rest-api-spec:${ElasticsearchProperties.version}"
+            restSpec "org.elasticsearch:rest-api-spec:${VersionProperties.elasticsearch}"
         }
     }
 

@@ -37,7 +37,7 @@ final class SingletonMultiGeoPointValues extends MultiGeoPointValues {
     @Override
     public void setDocument(int docID) {
         value = in.get(docID);
-        if (value.lat() == 0 && value.lon() == 0 && docsWithField != null && !docsWithField.get(docID)) {
+        if (value.lat() == Double.NaN && value.lon() == Double.NaN || (docsWithField != null && !docsWithField.get(docID))) {
             count = 0;
         } else {
             count = 1;

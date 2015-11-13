@@ -777,7 +777,6 @@ public class MovAvgIT extends ESIntegTestCase {
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
                         histogram("histo").field("test").interval(interval)
-                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                 .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                 .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)
@@ -801,7 +800,6 @@ public class MovAvgIT extends ESIntegTestCase {
                 .prepareSearch("idx").setTypes("type")
                 .addAggregation(
                         histogram("histo").field("test").interval(interval)
-                                .extendedBounds(0L, (long) (interval * (numBuckets - 1)))
                                 .subAggregation(randomMetric("the_metric", VALUE_FIELD))
                                 .subAggregation(movingAvg("movavg_counts")
                                         .window(windowSize)

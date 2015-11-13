@@ -30,10 +30,13 @@ import org.apache.lucene.spatial.query.SpatialArgs;
 import org.apache.lucene.spatial.query.SpatialOperation;
 import org.apache.lucene.spatial.query.UnsupportedSpatialOperation;
 import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.util.GeoProjectionUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -43,11 +46,14 @@ import org.elasticsearch.common.geo.builders.MultiPolygonBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.GeohashCellQuery;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.BeforeClass;
 
 import java.io.ByteArrayOutputStream;
@@ -73,10 +79,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirs
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -398,25 +401,28 @@ public class GeoFilterIT extends ESIntegTestCase {
 
     public void testBulk() throws Exception {
         byte[] bulkAction = unZipData("/org/elasticsearch/search/geo/gzippedmap.gz");
-
-        String mapping = XContentFactory.jsonBuilder()
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        XContentBuilder xContentBuilder = XContentFactory.jsonBuilder()
                 .startObject()
                 .startObject("country")
                 .startObject("properties")
                 .startObject("pin")
-                .field("type", "geo_point")
-                .field("lat_lon", true)
-                .field("store", true)
+                .field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.field("store", true)
                 .endObject()
                 .startObject("location")
                 .field("type", "geo_shape")
                 .endObject()
                 .endObject()
                 .endObject()
-                .endObject()
-                .string();
+                .endObject();
 
-        client().admin().indices().prepareCreate("countries").addMapping("country", mapping).execute().actionGet();
+        client().admin().indices().prepareCreate("countries").setSettings(settings)
+                .addMapping("country", xContentBuilder.string()).execute().actionGet();
         BulkResponse bulk = client().prepareBulk().add(bulkAction, 0, bulkAction.length, null, null).execute().actionGet();
 
         for (BulkItemResponse item : bulk.getItems()) {
@@ -450,13 +456,17 @@ public class GeoFilterIT extends ESIntegTestCase {
         GeoPoint point = new GeoPoint();
         for (SearchHit hit : distance.getHits()) {
             String name = hit.getId();
-            point.resetFromString(hit.fields().get("pin").getValue().toString());
+            if (version.before(Version.V_2_2_0)) {
+                point.resetFromString(hit.fields().get("pin").getValue().toString());
+            } else {
+                point.resetFromIndexHash(hit.fields().get("pin").getValue());
+            }
             double dist = distance(point.getLat(), point.getLon(), 51.11, 9.851);
 
             assertThat("distance to '" + name + "'", dist, lessThanOrEqualTo(425000d));
             assertThat(name, anyOf(equalTo("CZ"), equalTo("DE"), equalTo("BE"), equalTo("NL"), equalTo("LU")));
             if (key.equals(name)) {
-                assertThat(dist, equalTo(0d));
+                assertThat(dist, closeTo(0d, 0.1d));
             }
         }
     }
@@ -557,7 +567,7 @@ public class GeoFilterIT extends ESIntegTestCase {
     }
 
     public static double distance(double lat1, double lon1, double lat2, double lon2) {
-        return GeoUtils.EARTH_SEMI_MAJOR_AXIS * DistanceUtils.distHaversineRAD(
+        return GeoProjectionUtils.SEMIMAJOR_AXIS * DistanceUtils.distHaversineRAD(
                 DistanceUtils.toRadians(lat1),
                 DistanceUtils.toRadians(lon1),
                 DistanceUtils.toRadians(lat2),

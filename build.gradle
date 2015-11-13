@@ -31,6 +31,9 @@ buildscript {
 
 // common maven publishing configuration
 subprojects {
+  group = 'org.elasticsearch'
+  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+
   plugins.withType(NexusPlugin).whenPluginAdded {
     modifyPom {
       project {
@@ -87,38 +90,12 @@ if (hasProperty('projectsPrefix') == false) {
 allprojects {
   // injecting groovy property variables into all projects
   project.ext {
-    // minimum java 8
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = sourceCompatibility
-
-    // dependency versions that are used in more than one place
-    versions = [
-      lucene:             "${luceneVersion}",
-      randomizedrunner:   '2.2.0',
-      httpclient:         '4.3.6'
-    ]
-
     // for eclipse hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 }
 
 subprojects {
-  repositories {
-    mavenCentral()
-    maven {
-      name 'sonatype-snapshots'
-      url 'http://oss.sonatype.org/content/repositories/snapshots/'
-    }
-    if (versions.lucene.contains('-snapshot')) {
-      String revision = (luceneVersion =~ /\d\.\d\.\d-snapshot-(\d+)/)[0][1]
-      maven {
-        name 'lucene-snapshots'
-        url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
-      }
-    }
-  }
-
   // include license and notice in jars
   gradle.projectsEvaluated {
     tasks.withType(Jar) {
@@ -133,7 +110,7 @@ subprojects {
   configurations {
     all {
       resolutionStrategy {
-        //failOnVersionConflict()
+        failOnVersionConflict()
 
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
@@ -155,9 +132,12 @@ allprojects {
 if (projectsPrefix.isEmpty()) {
   idea {
     project {
-      languageLevel = sourceCompatibility
+      languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava
       vcs = 'Git'
     }
+  }
+  tasks.cleanIdea {
+    delete '.idea'
   }
 }
 
@@ -177,19 +157,17 @@ allprojects {
       }
     }
   }
-  task cleanEclipseSettings(type: Delete) {
-    delete '.settings'
-  }
   task copyEclipseSettings(type: Copy) {
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
     into '.settings'
   }
   // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse.dependsOn(cleanEclipseSettings)
+  tasks.cleanEclipse {
+    delete '.settings'
+  }
   // otherwise the eclipse merging is *super confusing*
-  tasks.eclipse.dependsOn(cleanEclipse)
-  tasks.eclipse.dependsOn(copyEclipseSettings)
+  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
 // add buildSrc itself as a groovy project

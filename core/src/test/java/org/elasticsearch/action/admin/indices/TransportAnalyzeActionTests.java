@@ -34,7 +34,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
@@ -58,7 +57,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
                 .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter")
                 .put("index.analysis.analyzer.custom_analyzer.tokenizer", "whitespace")
                 .putArray("index.analysis.analyzer.custom_analyzer.filter", "lowercase", "wordDelimiter").build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), indexSettings, Collections.EMPTY_LIST);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), indexSettings);
         environment = new Environment(settings);
         registry = new AnalysisRegistry(null, environment);
         analysisService = registry.build(idxSettings);

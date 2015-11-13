@@ -164,7 +164,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
             } else {
                 if (nodes.masterNode() == null) {
                     logger.debug("no known master node, scheduling a retry");
-                    retry(new MasterNotDiscoveredException(), masterNodeChangedPredicate);
+                    retry(null, masterNodeChangedPredicate);
                 } else {
                     transportService.sendRequest(nodes.masterNode(), actionName, request, new ActionListenerResponseHandler<Response>(listener) {
                         @Override
@@ -205,7 +205,7 @@ public abstract class TransportMasterNodeAction<Request extends MasterNodeReques
                     @Override
                     public void onTimeout(TimeValue timeout) {
                         logger.debug("timed out while retrying [{}] after failure (timeout [{}])", failure, actionName, timeout);
-                        listener.onFailure(failure);
+                        listener.onFailure(new MasterNotDiscoveredException(failure));
                     }
                 }, changePredicate
             );

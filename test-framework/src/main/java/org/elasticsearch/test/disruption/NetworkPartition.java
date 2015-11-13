@@ -18,10 +18,8 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
-import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportService;
@@ -29,7 +27,6 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
-import java.util.List;
 import java.util.Random;
 import java.util.Set;
 
@@ -140,7 +137,6 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
     @Override
     public synchronized void removeFromNode(String node, InternalTestCluster cluster) {
         MockTransportService transportService = (MockTransportService) cluster.getInstance(TransportService.class, node);
-        DiscoveryNode discoveryNode = discoveryNode(node);
         Set<String> otherSideNodes;
         if (nodesSideOne.contains(node)) {
             otherSideNodes = nodesSideTwo;
@@ -153,8 +149,7 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
         }
         for (String node2 : otherSideNodes) {
             MockTransportService transportService2 = (MockTransportService) cluster.getInstance(TransportService.class, node2);
-            DiscoveryNode discoveryNode2 = discoveryNode(node2);
-            removeDisruption(discoveryNode, transportService, discoveryNode2, transportService2);
+            removeDisruption(transportService, transportService2);
         }
     }
 
@@ -165,11 +160,6 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
 
     protected abstract String getPartitionDescription();
 
-
-    protected DiscoveryNode discoveryNode(String node) {
-        return cluster.getInstance(Discovery.class, node).localNode();
-    }
-
     @Override
     public synchronized void startDisrupting() {
         if (nodesSideOne.size() == 0 || nodesSideTwo.size() == 0) {
@@ -179,11 +169,9 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
         activeDisruption = true;
         for (String node1 : nodesSideOne) {
             MockTransportService transportService1 = (MockTransportService) cluster.getInstance(TransportService.class, node1);
-            DiscoveryNode discoveryNode1 = discoveryNode(node1);
             for (String node2 : nodesSideTwo) {
-                DiscoveryNode discoveryNode2 = discoveryNode(node2);
                 MockTransportService transportService2 = (MockTransportService) cluster.getInstance(TransportService.class, node2);
-                applyDisruption(discoveryNode1, transportService1, discoveryNode2, transportService2);
+                applyDisruption(transportService1, transportService2);
             }
         }
     }
@@ -197,24 +185,20 @@ public abstract class NetworkPartition implements ServiceDisruptionScheme {
         logger.info("restoring partition between nodes {} & nodes {}", nodesSideOne, nodesSideTwo);
         for (String node1 : nodesSideOne) {
             MockTransportService transportService1 = (MockTransportService) cluster.getInstance(TransportService.class, node1);
-            DiscoveryNode discoveryNode1 = discoveryNode(node1);
             for (String node2 : nodesSideTwo) {
-                DiscoveryNode discoveryNode2 = discoveryNode(node2);
                 MockTransportService transportService2 = (MockTransportService) cluster.getInstance(TransportService.class, node2);
-                removeDisruption(discoveryNode1, transportService1, discoveryNode2, transportService2);
+                removeDisruption(transportService1, transportService2);
             }
         }
         activeDisruption = false;
     }
 
-    abstract void applyDisruption(DiscoveryNode node1, MockTransportService transportService1,
-                                  DiscoveryNode node2, MockTransportService transportService2);
+    abstract void applyDisruption(MockTransportService transportService1, MockTransportService transportService2);
 
 
-    protected void removeDisruption(DiscoveryNode node1, MockTransportService transportService1,
-                                    DiscoveryNode node2, MockTransportService transportService2) {
-        transportService1.clearRule(node2);
-        transportService2.clearRule(node1);
+    protected void removeDisruption(MockTransportService transportService1, MockTransportService transportService2) {
+        transportService1.clearRule(transportService2);
+        transportService2.clearRule(transportService1);
     }
 
 }

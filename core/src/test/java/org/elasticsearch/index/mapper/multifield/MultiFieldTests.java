@@ -257,8 +257,7 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
     public void testConvertMultiFieldGeoPoint() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        boolean indexCreatedBefore22 = version.onOrBefore(Version.CURRENT);
+        boolean indexCreatedBefore22 = version.before(Version.V_2_2_0);
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/test-multi-field-type-geo_point.json");
         DocumentMapper docMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 

@@ -1355,4 +1355,9 @@ public class AmazonEC2Mock implements AmazonEC2 {
     public ResponseMetadata getCachedResponseMetadata(AmazonWebServiceRequest request) {
         throw new UnsupportedOperationException("Not supported in mock"); 
     }
+
+    @Override
+    public ModifySpotFleetRequestResult modifySpotFleetRequest(ModifySpotFleetRequestRequest modifySpotFleetRequestRequest) throws AmazonServiceException, AmazonClientException {
+        throw new UnsupportedOperationException("Not supported in mock"); 
+    }
 }

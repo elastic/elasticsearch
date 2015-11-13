@@ -19,23 +19,27 @@
 package org.elasticsearch.gradle
 
 import org.elasticsearch.gradle.precommit.PrecommitTasks
+import org.gradle.api.artifacts.ProjectDependency
 import org.gradle.api.GradleException
 import org.gradle.api.JavaVersion
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.artifacts.dsl.RepositoryHandler
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
-import org.gradle.util.VersionNumber
+import org.gradle.internal.jvm.Jvm
+import org.gradle.util.GradleVersion
 
 /**
  * Encapsulates build configuration for elasticsearch projects.
  */
 class BuildPlugin implements Plugin<Project> {
 
+    static final JavaVersion minimumJava = JavaVersion.VERSION_1_8
+
     @Override
     void apply(Project project) {
-        globalBuildInfo(project)
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
@@ -45,6 +49,10 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
 
+        globalBuildInfo(project)
+        configureRepositories(project)
+        configureConfigurations(project)
+        project.ext.versions = VersionProperties.versions
         configureCompile(project)
         configureJarManifest(project)
         configureTest(project)
@@ -53,16 +61,7 @@ class BuildPlugin implements Plugin<Project> {
 
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
-            // enforce gradle version
-            VersionNumber gradleVersion = VersionNumber.parse(project.gradle.gradleVersion)
-            if (gradleVersion.major < 2 || gradleVersion.major == 2 && gradleVersion.minor < 6) {
-                throw new GradleException('Gradle 2.6 or above is required to build elasticsearch')
-            }
-
-            // enforce Java version
-            if (!JavaVersion.current().isJava8Compatible()) {
-                throw new GradleException('Java 8 or above is required to build Elasticsearch')
-            }
+            String javaHome = System.getenv('JAVA_HOME')
 
             // Build debugging info
             println '======================================='
@@ -70,8 +69,70 @@ class BuildPlugin implements Plugin<Project> {
             println '======================================='
             println "  Gradle Version : ${project.gradle.gradleVersion}"
             println "  JDK Version    : ${System.getProperty('java.runtime.version')} (${System.getProperty('java.vendor')})"
+            println "  JAVA_HOME      : ${javaHome == null ? 'not set' : javaHome}"
             println "  OS Info        : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
+
+            // enforce gradle version
+            GradleVersion minGradle = GradleVersion.version('2.8')
+            if (GradleVersion.current() < minGradle) {
+                throw new GradleException("${minGradle} or above is required to build elasticsearch")
+            }
+
+            // enforce Java version
+            if (JavaVersion.current() < minimumJava) {
+                throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
+            }
+
+            // find java home so eg tests can use it to set java to run with
+            if (javaHome == null) {
+                if (System.getProperty("idea.active") != null) {
+                    // intellij doesn't set JAVA_HOME, so we use the jdk gradle was run with
+                    javaHome = Jvm.current().javaHome
+                } else {
+                    throw new GradleException('JAVA_HOME must be set to build Elasticsearch')
+                }
+            }
+            project.rootProject.ext.javaHome = javaHome
             project.rootProject.ext.buildChecksDone = true
+        }
+        project.targetCompatibility = minimumJava
+        project.sourceCompatibility = minimumJava
+        // set java home for each project, so they dont have to find it in the root project
+        project.ext.javaHome = project.rootProject.ext.javaHome
+    }
+
+    /** Makes dependencies non-transitive by default */
+    static void configureConfigurations(Project project) {
+
+        // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
+        project.configurations.compile.dependencies.all { dep ->
+            if (!(dep instanceof ProjectDependency) && dep.getGroup() != 'org.elasticsearch') {
+                dep.transitive = false
+            }
+        }
+        project.configurations.testCompile.dependencies.all { dep ->
+            if (!(dep instanceof ProjectDependency) && dep.getGroup() != 'org.elasticsearch') {
+                dep.transitive = false
+            }
+        }
+    }
+
+    /** Adds repositores used by ES dependencies */
+    static void configureRepositories(Project project) {
+        RepositoryHandler repos = project.repositories
+        repos.mavenCentral()
+        repos.maven {
+            name 'sonatype-snapshots'
+            url 'http://oss.sonatype.org/content/repositories/snapshots/'
+        }
+        String luceneVersion = VersionProperties.lucene
+        if (luceneVersion.contains('-snapshot')) {
+            // extract the revision number from the version with a regex matcher
+            String revision = (luceneVersion =~ /\w+-snapshot-(\d+)/)[0][1]
+            repos.maven {
+                name 'lucene-snapshots'
+                url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
+            }
         }
     }
 
@@ -91,8 +152,8 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             project.tasks.withType(Jar) { Jar jarTask ->
                 manifest {
-                    attributes('X-Compile-Elasticsearch-Version': ElasticsearchProperties.version,
-                               'X-Compile-Lucene-Version': ElasticsearchProperties.luceneVersion)
+                    attributes('X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
+                               'X-Compile-Lucene-Version': VersionProperties.lucene)
                 }
             }
         }
@@ -101,7 +162,7 @@ class BuildPlugin implements Plugin<Project> {
     /** Returns a closure of common configuration shared by unit and integration tests. */
     static Closure commonTestConfig(Project project) {
         return {
-            jvm System.getProperty("java.home") + File.separator + 'bin' + File.separator + 'java'
+            jvm "${project.javaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
 
             // TODO: why are we not passing maxmemory to junit4?

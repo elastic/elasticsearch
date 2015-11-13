@@ -173,7 +173,7 @@ public class HistogramAggregator extends BucketsAggregator {
         @Override
         protected Aggregator createUnmapped(AggregationContext aggregationContext, Aggregator parent, List<PipelineAggregator> pipelineAggregators,
                 Map<String, Object> metaData) throws IOException {
-            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, null, null, config.formatter(),
+            return new HistogramAggregator(name, factories, rounding, order, keyed, minDocCount, extendedBounds, null, config.formatter(),
                     histogramFactory, aggregationContext, parent, pipelineAggregators, metaData);
         }
 

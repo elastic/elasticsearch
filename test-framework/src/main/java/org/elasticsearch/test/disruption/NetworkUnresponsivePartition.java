@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.test.disruption;
 
-import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.transport.MockTransportService;
 
@@ -45,10 +44,9 @@ public class NetworkUnresponsivePartition extends NetworkPartition {
     }
 
     @Override
-    void applyDisruption(DiscoveryNode node1, MockTransportService transportService1,
-                         DiscoveryNode node2, MockTransportService transportService2) {
-        transportService1.addUnresponsiveRule(node2);
-        transportService2.addUnresponsiveRule(node1);
+    void applyDisruption(MockTransportService transportService1, MockTransportService transportService2) {
+        transportService1.addUnresponsiveRule(transportService2);
+        transportService2.addUnresponsiveRule(transportService1);
     }
 
     @Override

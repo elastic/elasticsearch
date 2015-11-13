@@ -1046,7 +1046,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         });
 
-        serviceB.addFailToSendNoConnectRule(nodeA);
+        serviceB.addFailToSendNoConnectRule(serviceA);
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHello",
                 new StringMessageRequest("moshe"), new BaseTransportResponseHandler<StringMessageResponse>() {
@@ -1104,7 +1104,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         });
 
-        serviceB.addUnresponsiveRule(nodeA);
+        serviceB.addUnresponsiveRule(serviceA);
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHello",
                 new StringMessageRequest("moshe"), TransportRequestOptions.options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {

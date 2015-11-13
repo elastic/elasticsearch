@@ -42,7 +42,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -68,7 +67,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .put("path.home", home)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
 
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.emptyList());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings);
         analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
 

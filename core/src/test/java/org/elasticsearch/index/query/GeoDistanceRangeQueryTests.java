@@ -29,6 +29,7 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.index.search.geo.GeoDistanceRangeQuery;
+import org.elasticsearch.test.geo.RandomGeoGenerator;
 
 import java.io.IOException;
 
@@ -44,23 +45,19 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         Version version = queryShardContext().indexVersionCreated();
         GeoDistanceRangeQueryBuilder builder;
         if (randomBoolean()) {
-            builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomGeohash(1, 12));
+            builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomGeohash(3, 12));
         } else {
-            double lat = randomDouble() * 180 - 90;
-            double lon = randomDouble() * 360 - 180;
+            GeoPoint point = RandomGeoGenerator.randomPoint(random());
             if (randomBoolean()) {
-                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, new GeoPoint(lat, lon));
+                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, point);
             } else {
-                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, lat, lon);
+                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, point.lat(), point.lon());
             }
         }
         GeoPoint point = builder.point();
-        // todo remove the following pole hack when LUCENE-6846 lands
-        final double distToPole = SloppyMath.haversin(point.lat(), point.lon(), (point.lat()<0) ? -90.0 : 90.0, point.lon());
-        final double maxRadius = GeoUtils.maxRadialDistance(point, distToPole);
-
+        final double maxRadius = GeoUtils.maxRadialDistance(point);
         final int fromValueMeters = randomInt((int)(maxRadius*0.5));
-        final int toValueMeters = randomIntBetween(fromValueMeters, (int)maxRadius);
+        final int toValueMeters = randomIntBetween(fromValueMeters + 1, (int)maxRadius);
         DistanceUnit fromToUnits = randomFrom(DistanceUnit.values());
         final String fromToUnitsStr = fromToUnits.toString();
         final double fromValue = DistanceUnit.convert(fromValueMeters, DistanceUnit.DEFAULT, fromToUnits);
@@ -105,8 +102,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         if (randomBoolean()) {
             builder.geoDistance(randomFrom(GeoDistance.values()));
         }
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (randomBoolean() && version.onOrBefore(Version.CURRENT)) {
+        if (randomBoolean() && version.before(Version.V_2_2_0)) {
             builder.optimizeBbox(randomFrom("none", "memory", "indexed"));
         }
         builder.unit(fromToUnits);
@@ -120,8 +116,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     protected void doAssertLuceneQuery(GeoDistanceRangeQueryBuilder queryBuilder, Query query, QueryShardContext context)
             throws IOException {
         Version version = context.indexVersionCreated();
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertLegacyQuery(queryBuilder, query);
         } else {
             assertGeoPointQuery(queryBuilder, query);
@@ -192,9 +187,6 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             double toValue = ((Number) queryBuilder.to()).doubleValue();
             if (queryBuilder.unit() != null) {
                 toValue = queryBuilder.unit().toMeters(toValue);
-            }
-            if (queryBuilder.geoDistance() != null) {
-                toValue = queryBuilder.geoDistance().normalize(toValue, DistanceUnit.DEFAULT);
             }
             assertThat(geoQuery.getMaxRadiusMeters(), closeTo(toValue, 1E-5));
         }

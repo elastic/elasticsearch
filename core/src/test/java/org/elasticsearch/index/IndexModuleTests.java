@@ -39,7 +39,6 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.cache.query.index.IndexQueryCache;
 import org.elasticsearch.index.cache.query.none.NoneQueryCache;
-import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexSearcherWrapper;
@@ -83,10 +82,10 @@ public class IndexModuleTests extends ESTestCase {
     private NodeServicesProvider nodeServicesProvider;
     private IndexService.ShardStoreDeleter deleter = new IndexService.ShardStoreDeleter() {
         @Override
-        public void deleteShardStore(String reason, ShardLock lock, Settings indexSettings) throws IOException {
+        public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
         }
         @Override
-        public void addPendingDelete(ShardId shardId, Settings indexSettings) {
+        public void addPendingDelete(ShardId shardId, IndexSettings indexSettings) {
         }
     };
 
@@ -112,7 +111,7 @@ public class IndexModuleTests extends ESTestCase {
         super.setUp();
         index = new Index("foo");
         settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).build();
-        indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
         environment = new Environment(settings);
         nodeServicesProvider = newNodeServiceProvider(settings, environment, null);
         nodeEnvironment = new NodeEnvironment(settings, environment);
@@ -142,7 +141,7 @@ public class IndexModuleTests extends ESTestCase {
     public void testRegisterIndexStore() throws IOException {
         final Index index = new Index("foo");
         final Settings settings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).put("path.home", createTempDir().toString()).put(IndexModule.STORE_TYPE, "foo_store").build();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
         IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         module.addIndexStore("foo_store", FooStore::new);
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider);
@@ -164,7 +163,7 @@ public class IndexModuleTests extends ESTestCase {
                 atomicBoolean.set(true);
             }
         };
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
         IndexModule module = new IndexModule(indexSettings, null, new AnalysisRegistry(null, environment));
         Consumer<Settings> listener = (s) -> {};
         module.addIndexSettingsListener(listener);
@@ -213,7 +212,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put("index.similarity.my_similarity.key", "there is a key")
                 .put("path.home", createTempDir().toString())
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
         module.addSimilarity("test_similarity", (string, settings) -> new SimilarityProvider() {
             @Override
             public String name() {
@@ -241,7 +240,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put("path.home", createTempDir().toString())
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
         try {
             module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider);
         } catch (IllegalArgumentException ex) {
@@ -255,7 +254,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null,new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
         try {
             module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider);
         } catch (IllegalArgumentException ex) {
@@ -267,7 +266,7 @@ public class IndexModuleTests extends ESTestCase {
         Settings indexSettings = Settings.settingsBuilder()
                 .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
         try {
             module.registerQueryCache("index", IndexQueryCache::new);
             fail("only once");
@@ -295,7 +294,7 @@ public class IndexModuleTests extends ESTestCase {
                 .put(IndexModule.QUERY_CACHE_TYPE, "custom")
                 .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
         module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
         try {
             module.registerQueryCache("custom", (a, b) -> new CustomQueryCache());
@@ -313,7 +312,7 @@ public class IndexModuleTests extends ESTestCase {
         Settings indexSettings = Settings.settingsBuilder()
                 .put("path.home", createTempDir().toString())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings, Collections.EMPTY_LIST), null, new AnalysisRegistry(null, environment));
+        IndexModule module = new IndexModule(IndexSettingsModule.newIndexSettings(new Index("foo"), indexSettings), null, new AnalysisRegistry(null, environment));
         IndexService indexService = module.newIndexService(nodeEnvironment, deleter, nodeServicesProvider);
         assertTrue(indexService.cache().query() instanceof IndexQueryCache);
         indexService.close("simon says", false);
@@ -385,7 +384,7 @@ public class IndexModuleTests extends ESTestCase {
         }
 
         @Override
-        public IndexSearcher wrap(EngineConfig engineConfig, IndexSearcher searcher) throws EngineException {
+        public IndexSearcher wrap(IndexSearcher searcher) throws EngineException {
             return null;
         }
     }

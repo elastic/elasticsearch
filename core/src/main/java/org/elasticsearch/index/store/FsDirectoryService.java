@@ -61,8 +61,9 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
         return indexStore.rateLimiting();
     }
 
-    public static LockFactory buildLockFactory(Settings indexSettings) {
-        String fsLock = indexSettings.get("index.store.fs.lock", indexSettings.get("index.store.fs.fs_lock", "native"));
+    public static LockFactory buildLockFactory(IndexSettings indexSettings) {
+        final Settings settings = indexSettings.getSettings();
+        String fsLock = settings.get("index.store.fs.lock", settings.get("index.store.fs.fs_lock", "native"));
         LockFactory lockFactory;
         if (fsLock.equals("native")) {
             lockFactory = NativeFSLockFactory.INSTANCE;
@@ -101,7 +102,7 @@ public class FsDirectoryService extends DirectoryService implements StoreRateLim
 
 
     protected Directory newFSDirectory(Path location, LockFactory lockFactory) throws IOException {
-        final String storeType = indexSettings.get(IndexModule.STORE_TYPE, IndexModule.Type.DEFAULT.getSettingsKey());
+        final String storeType = indexSettings.getSettings().get(IndexModule.STORE_TYPE, IndexModule.Type.DEFAULT.getSettingsKey());
         if (IndexModule.Type.FS.match(storeType) || IndexModule.Type.DEFAULT.match(storeType)) {
             final FSDirectory open = FSDirectory.open(location, lockFactory); // use lucene defaults
             if (open instanceof MMapDirectory && Constants.WINDOWS == false) {

@@ -21,7 +21,8 @@
 package org.elasticsearch.gradle.test
 
 import com.carrotsearch.gradle.junit4.RandomizedTestingPlugin
-import org.elasticsearch.gradle.ElasticsearchProperties
+import org.elasticsearch.gradle.BuildPlugin
+import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 import org.gradle.api.plugins.JavaBasePlugin
@@ -34,6 +35,9 @@ class StandaloneTestBasePlugin implements Plugin<Project> {
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(RandomizedTestingPlugin)
 
+        BuildPlugin.globalBuildInfo(project)
+        BuildPlugin.configureRepositories(project)
+
         // remove some unnecessary tasks for a qa test
         project.tasks.removeAll { it.name in ['assemble', 'buildDependents'] }
 
@@ -42,7 +46,7 @@ class StandaloneTestBasePlugin implements Plugin<Project> {
             test
         }
         project.dependencies {
-            testCompile "org.elasticsearch:test-framework:${ElasticsearchProperties.version}"
+            testCompile "org.elasticsearch:test-framework:${VersionProperties.elasticsearch}"
         }
 
         project.eclipse {

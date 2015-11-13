@@ -180,7 +180,6 @@ class BuildPlugin implements Plugin<Project> {
     /** Adds repositores used by ES dependencies */
     static void configureRepositories(Project project) {
         RepositoryHandler repos = project.repositories
-        repos.mavenLocal() // nocommit: remove
         repos.mavenCentral()
         repos.maven {
             name 'sonatype-snapshots'

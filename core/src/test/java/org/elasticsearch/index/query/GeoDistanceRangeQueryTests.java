@@ -47,7 +47,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
         if (randomBoolean()) {
             builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomGeohash(3, 12));
         } else {
-            GeoPoint point = RandomGeoGenerator.randomPointIn(random(), -179, -89, 89, 179);
+            GeoPoint point = RandomGeoGenerator.randomPoint(random());
             if (randomBoolean()) {
                 builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, point);
             } else {
@@ -55,10 +55,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
         }
         GeoPoint point = builder.point();
-        // todo remove the following pole hack when LUCENE-6846 lands
-        final double distToPole = SloppyMath.haversin(point.lat(), point.lon(), (point.lat()<0) ? -90.0 : 90.0, point.lon());
-        final double maxRadius = GeoUtils.maxRadialDistance(point, distToPole);
-
+        final double maxRadius = GeoUtils.maxRadialDistance(point);
         final int fromValueMeters = randomInt((int)(maxRadius*0.5));
         final int toValueMeters = randomIntBetween(fromValueMeters + 1, (int)maxRadius);
         DistanceUnit fromToUnits = randomFrom(DistanceUnit.values());

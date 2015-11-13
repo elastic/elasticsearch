@@ -68,6 +68,9 @@ public class GeoUtils {
 
     /** Returns the maximum distance/radius from the point 'center' before overlapping */
     public static double maxRadialDistance(GeoPoint center) {
+        if (Math.abs(center.lat()) == 90.0) {
+            return SloppyMath.haversin(center.lat(), center.lon(), 0, center.lon())*1000.0;
+        }
         return SloppyMath.haversin(center.lat(), center.lon(), center.lat(), (180.0 + center.lon()) % 360)*1000.0;
     }
 

@@ -44,9 +44,9 @@ public class SimulateExecutionService {
     SimulateDocumentResult executeItem(Pipeline pipeline, Data data) {
         try {
             pipeline.execute(data);
-            return new SimulateDocumentResult(data);
+            return new SimulateSimpleDocumentResult(data);
         } catch (Exception e) {
-            return new SimulateDocumentResult(e);
+            return new SimulateFailedDocumentResult(e);
         }
 
     }
@@ -67,7 +67,7 @@ public class SimulateExecutionService {
 
             currentData = new Data(currentData);
         }
-        return new SimulateDocumentResult(processorResultList);
+        return new SimulateVerboseDocumentResult(processorResultList);
     }
 
     public void execute(ParsedSimulateRequest request, ActionListener<SimulatePipelineResponse> listener) {

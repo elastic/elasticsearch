@@ -30,10 +30,7 @@ import org.elasticsearch.plugin.ingest.transport.get.GetPipelineRequestBuilder;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineResponse;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequestBuilder;
-import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
-import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequestBuilder;
-import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineResponse;
-import org.elasticsearch.plugin.ingest.transport.simulate.SimulateDocumentResult;
+import org.elasticsearch.plugin.ingest.transport.simulate.*;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -104,7 +101,7 @@ public class IngestClientIT extends ESIntegTestCase {
         Map<String, Object> expectedDoc = new HashMap<>();
         expectedDoc.put("foo", "bar");
         Data expectedData = new Data("index", "type", "id", expectedDoc);
-        SimulateDocumentResult expectedResponse = new SimulateDocumentResult(expectedData);
+        SimulateDocumentResult expectedResponse = new SimulateSimpleDocumentResult(expectedData);
         List<SimulateDocumentResult> expectedResponses = Arrays.asList(expectedResponse);
         SimulatePipelineResponse expected = new SimulatePipelineResponse("_id", expectedResponses);
 

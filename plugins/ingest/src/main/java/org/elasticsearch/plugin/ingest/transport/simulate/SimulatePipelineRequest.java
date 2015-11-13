@@ -83,4 +83,13 @@ public class SimulatePipelineRequest extends ActionRequest {
         out.writeBoolean(verbose);
         out.writeBytesReference(source);
     }
+
+    public static final class Fields {
+        static final String PIPELINE = "pipeline";
+        static final String DOCS = "docs";
+        static final String SOURCE = "_source";
+        static final String INDEX = "_index";
+        static final String TYPE = "_type";
+        static final String ID = "_id";
+    }
 }

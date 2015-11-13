@@ -51,7 +51,7 @@ public class SimulateProcessorResult implements Streamable, ToXContent {
         this.failure = failure;
     }
 
-    public boolean isFailed() {
+    private boolean isFailed() {
         return this.failure != null;
     }
 
@@ -66,6 +66,7 @@ public class SimulateProcessorResult implements Streamable, ToXContent {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         boolean isFailure = in.readBoolean();
+        this.processorId = in.readString();
         if (isFailure) {
             this.failure = in.readThrowable();
         } else {
@@ -77,10 +78,10 @@ public class SimulateProcessorResult implements Streamable, ToXContent {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeBoolean(isFailed());
+        out.writeString(processorId);
         if (isFailed()) {
             out.writeThrowable(failure);
         } else {
-            out.writeString(processorId);
             data.writeTo(out);
         }
     }
@@ -107,7 +108,9 @@ public class SimulateProcessorResult implements Streamable, ToXContent {
             return false;
         }
         SimulateProcessorResult other = (SimulateProcessorResult) obj;
-        return Objects.equals(processorId, other.processorId) && Objects.equals(data, other.data) && Objects.equals(failure, other.failure);
+
+        return Objects.equals(processorId, other.processorId) && Objects.equals(data, other.data) &&
+                Objects.equals((failure == null) ? null : failure.getClass(), (other.failure == null) ? null : other.failure.getClass());
     }
 
     @Override

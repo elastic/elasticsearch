@@ -26,6 +26,8 @@ import org.elasticsearch.plugin.ingest.PipelineStore;
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequest.Fields;
+
 public class ParsedSimulateRequest {
     private final List<Data> documents;
     private final Pipeline pipeline;
@@ -97,15 +99,6 @@ public class ParsedSimulateRequest {
             Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactoryRegistry());
             List<Data> dataList = parseDocs(config);
             return new ParsedSimulateRequest(pipeline, dataList, verbose);
-        }
-
-        static final class Fields {
-            static final String PIPELINE = "pipeline";
-            static final String DOCS = "docs";
-            static final String SOURCE = "_source";
-            static final String INDEX = "_index";
-            static final String TYPE = "_type";
-            static final String ID = "_id";
         }
     }
 }

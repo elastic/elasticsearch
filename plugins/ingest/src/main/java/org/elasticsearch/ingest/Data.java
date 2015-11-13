@@ -130,16 +130,6 @@ public final class Data {
         return modified;
     }
 
-    public Map<String, Object> asMap() {
-        Map<String, Object> dataMap = new HashMap<>();
-        dataMap.put("_index", index);
-        dataMap.put("_type", type);
-        dataMap.put("_id", id);
-        dataMap.put("_source", document);
-
-        return dataMap;
-    }
-
     @Override
     public boolean equals(Object obj) {
         if (obj == this) { return true; }

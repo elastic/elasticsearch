@@ -33,9 +33,8 @@ import java.util.List;
 import java.util.Objects;
 
 public class SimulatePipelineResponse extends ActionResponse implements ToXContent {
-
     private String pipelineId;
-    private List<SimulateDocumentResult> responses;
+    private List<SimulateDocumentResult> results;
 
     public SimulatePipelineResponse() {
 
@@ -43,7 +42,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
 
     public SimulatePipelineResponse(String pipelineId, List<SimulateDocumentResult> responses) {
         this.pipelineId = pipelineId;
-        this.responses = Collections.unmodifiableList(responses);
+        this.results = Collections.unmodifiableList(responses);
     }
 
     public String getPipelineId() {
@@ -54,20 +53,21 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
         this.pipelineId = pipelineId;
     }
 
-    public List<SimulateDocumentResult> getResponses() {
-        return responses;
+    public List<SimulateDocumentResult> getResults() {
+        return results;
     }
 
-    public void setResponses(List<SimulateDocumentResult> responses) {
-        this.responses = responses;
+    public void setResults(List<SimulateDocumentResult> results) {
+        this.results = results;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeString(pipelineId);
-        out.writeVInt(responses.size());
-        for (SimulateDocumentResult response : responses) {
+        out.writeVInt(results.size());
+        for (SimulateDocumentResult response : results) {
+            out.writeVInt(response.getStreamId());
             response.writeTo(out);
         }
     }
@@ -77,11 +77,24 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
         super.readFrom(in);
         this.pipelineId = in.readString();
         int responsesLength = in.readVInt();
-        responses = new ArrayList<>();
+        results = new ArrayList<>();
         for (int i = 0; i < responsesLength; i++) {
-            SimulateDocumentResult response = new SimulateDocumentResult();
-            response.readFrom(in);
-            responses.add(response);
+            SimulateDocumentResult result;
+            switch (in.readVInt()) {
+                case SimulateSimpleDocumentResult.STREAM_ID:
+                    result = new SimulateSimpleDocumentResult();
+                    break;
+                case SimulateVerboseDocumentResult.STREAM_ID:
+                    result = new SimulateVerboseDocumentResult();
+                    break;
+                case SimulateFailedDocumentResult.STREAM_ID:
+                    result = new SimulateFailedDocumentResult();
+                    break;
+                default:
+                    throw new IOException("Cannot read result from stream");
+            }
+            result.readFrom(in);
+            results.add(result);
         }
 
     }
@@ -89,7 +102,7 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(Fields.DOCUMENTS);
-        for (SimulateDocumentResult response : responses) {
+        for (SimulateDocumentResult response : results) {
             response.toXContent(builder, params);
         }
         builder.endArray();
@@ -103,12 +116,12 @@ public class SimulatePipelineResponse extends ActionResponse implements ToXConte
         if (o == null || getClass() != o.getClass()) return false;
         SimulatePipelineResponse that = (SimulatePipelineResponse) o;
         return Objects.equals(pipelineId, that.pipelineId) &&
-                Objects.equals(responses, that.responses);
+                Objects.equals(results, that.results);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(pipelineId, responses);
+        return Objects.hash(pipelineId, results);
     }
 
     static final class Fields {

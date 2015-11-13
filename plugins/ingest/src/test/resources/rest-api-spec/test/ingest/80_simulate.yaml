@@ -88,6 +88,33 @@
   - length: { docs: 1 }
 
 ---
+"Test simulate with no provided pipeline or pipeline_id":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      catch: request
+      ingest.simulate:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { error: 3 }
+  - match: { status: 400 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "required property [pipeline] is missing" }
+
+---
 "Test simulate with verbose flag":
   - do:
       cluster.health:

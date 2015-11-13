@@ -34,6 +34,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import static org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequest.Fields;
+
 public class ParsedSimulateRequestParserTests extends ESTestCase {
     private PipelineStore store;
     private ParsedSimulateRequest.Parser parser;
@@ -43,9 +45,9 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
     @Before
     public void init() throws IOException {
         parser = new ParsedSimulateRequest.Parser();
-        List<String> uppercase = Collections.unmodifiableList(Collections.singletonList("foo"));
+        List<String> uppercase = Collections.singletonList("foo");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, uppercase, null);
-        pipeline = new Pipeline(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID, null, Collections.unmodifiableList(Arrays.asList(processor)));
+        pipeline = new Pipeline(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID, null, Arrays.asList(processor));
         data = new Data("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
         Map<String, Processor.Factory> processorRegistry = new HashMap<>();
         processorRegistry.put("mutate", new MutateProcessor.Factory());
@@ -60,12 +62,12 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         Map<String, Object> raw = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
         Map<String, Object> doc = new HashMap<>();
-        doc.put("_index", "_index");
-        doc.put("_type", "_type");
-        doc.put("_id", "_id");
-        doc.put("_source", data.getDocument());
+        doc.put(Fields.INDEX, "_index");
+        doc.put(Fields.TYPE, "_type");
+        doc.put(Fields.ID, "_id");
+        doc.put(Fields.SOURCE, data.getDocument());
         docs.add(doc);
-        raw.put("docs", docs);
+        raw.put(Fields.DOCS, docs);
 
         ParsedSimulateRequest actualRequest = parser.parseWithPipelineId("_id", raw, false, store);
         assertThat(actualRequest, equalTo(expectedRequest));
@@ -77,10 +79,10 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         Map<String, Object> raw = new HashMap<>();
         List<Map<String, Object>> docs = new ArrayList<>();
         Map<String, Object> doc = new HashMap<>();
-        doc.put("_index", "_index");
-        doc.put("_type", "_type");
-        doc.put("_id", "_id");
-        doc.put("_source", data.getDocument());
+        doc.put(Fields.INDEX, "_index");
+        doc.put(Fields.TYPE, "_type");
+        doc.put(Fields.ID, "_id");
+        doc.put(Fields.SOURCE, data.getDocument());
         docs.add(doc);
 
         Map<String, Object> processorConfig = new HashMap<>();
@@ -88,8 +90,8 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("mutate", processorConfig)));
 
-        raw.put("docs", docs);
-        raw.put("pipeline", pipelineConfig);
+        raw.put(Fields.DOCS, docs);
+        raw.put(Fields.PIPELINE, pipelineConfig);
 
         ParsedSimulateRequest actualRequest = parser.parse(raw, false, store);
         assertThat(actualRequest, equalTo(expectedRequest));

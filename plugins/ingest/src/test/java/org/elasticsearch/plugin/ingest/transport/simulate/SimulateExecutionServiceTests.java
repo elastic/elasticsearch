@@ -68,7 +68,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteVerboseItem() throws Exception {
-        SimulateDocumentResult expectedItemResponse = new SimulateDocumentResult(
+        SimulateDocumentResult expectedItemResponse = new SimulateVerboseDocumentResult(
                 Arrays.asList(new SimulateProcessorResult("processor[mock]-0", data), new SimulateProcessorResult("processor[mock]-1", data)));
         SimulateDocumentResult actualItemResponse = executionService.executeVerboseItem(pipeline, data);
         verify(processor, times(2)).execute(data);
@@ -76,7 +76,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteItem() throws Exception {
-        SimulateDocumentResult expectedItemResponse = new SimulateDocumentResult(data);
+        SimulateDocumentResult expectedItemResponse = new SimulateSimpleDocumentResult(data);
         SimulateDocumentResult actualItemResponse = executionService.executeItem(pipeline, data);
         verify(processor, times(2)).execute(data);
         assertThat(actualItemResponse, equalTo(expectedItemResponse));
@@ -84,7 +84,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteVerboseItemWithFailure() throws Exception {
         Exception e = new RuntimeException("processor failed");
-        SimulateDocumentResult expectedItemResponse = new SimulateDocumentResult(
+        SimulateDocumentResult expectedItemResponse = new SimulateVerboseDocumentResult(
                 Arrays.asList(new SimulateProcessorResult("processor[mock]-0", e), new SimulateProcessorResult("processor[mock]-1", data))
         );
         doThrow(e).doNothing().when(processor).execute(data);
@@ -95,7 +95,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteItemWithFailure() throws Exception {
         Exception e = new RuntimeException("processor failed");
-        SimulateDocumentResult expectedItemResponse = new SimulateDocumentResult(e);
+        SimulateDocumentResult expectedItemResponse = new SimulateFailedDocumentResult(e);
         doThrow(e).when(processor).execute(data);
         SimulateDocumentResult actualItemResponse = executionService.executeItem(pipeline, data);
         verify(processor, times(1)).execute(data);
@@ -103,7 +103,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecute() throws Exception {
-        SimulateDocumentResult itemResponse = new SimulateDocumentResult(data);
+        SimulateDocumentResult itemResponse = new SimulateSimpleDocumentResult(data);
         ParsedSimulateRequest request = new ParsedSimulateRequest(pipeline, Collections.singletonList(data), false);
         executionService.execute(request, listener);
         SimulatePipelineResponse response = new SimulatePipelineResponse("_id", Collections.singletonList(itemResponse));
@@ -118,7 +118,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
 
     public void testExecuteWithVerbose() throws Exception {
         ParsedSimulateRequest request = new ParsedSimulateRequest(pipeline, Collections.singletonList(data), true);
-        SimulateDocumentResult itemResponse = new SimulateDocumentResult(
+        SimulateDocumentResult itemResponse = new SimulateVerboseDocumentResult(
                 Arrays.asList(new SimulateProcessorResult("processor[mock]-0", data), new SimulateProcessorResult("processor[mock]-1", data)));
         executionService.execute(request, listener);
         SimulatePipelineResponse response = new SimulatePipelineResponse("_id", Collections.singletonList(itemResponse));

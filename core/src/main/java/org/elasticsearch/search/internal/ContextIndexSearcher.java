@@ -107,13 +107,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // tree
             ProfileBreakdown profile = profiler.getQueryBreakdown(query);
             profile.startTime(ProfileBreakdown.TimingType.WEIGHT);
-            // nocommit: is it ok to not delegate to in?
             Weight weight = super.createWeight(query, needsScores);
             profile.stopAndRecordTime(ProfileBreakdown.TimingType.WEIGHT);
             profiler.pollLastQuery();
             return new ProfileWeight(query, weight, profile);
         } else {
-            return in.createWeight(query, needsScores);
+            // needs to be 'super', not 'in' in order to use aggregated DFS
+            return super.createWeight(query, needsScores);
         }
     }
 

@@ -95,6 +95,10 @@ public class PipelineStore extends AbstractLifecycleComponent {
         }
     }
 
+    public Map<String, Processor.Factory> getProcessorFactoryRegistry() {
+        return processorFactoryRegistry;
+    }
+
     public List<PipelineReference> getReference(String... ids) {
         List<PipelineReference> result = new ArrayList<>(ids.length);
         for (String id : ids) {

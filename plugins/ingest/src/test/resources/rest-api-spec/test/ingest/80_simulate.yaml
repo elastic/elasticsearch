@@ -1,0 +1,274 @@
+---
+"Test simulate with stored ingest pipeline":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "mutate" : {
+                  "update" : {
+                    "field2" : "_value"
+                  }
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.simulate:
+        id: "my_pipeline"
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - is_true: docs.0.doc.modified
+  - match: { docs.0.doc._source.foo: "bar" }
+  - match: { docs.0.doc._source.field2: "_value" }
+
+
+---
+"Test simulate with provided pipeline definition":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "mutate" : {
+                    "update" : {
+                      "field2" : "_value"
+                    }
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+
+---
+"Test simulate with no provided pipeline or pipeline_id":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      catch: request
+      ingest.simulate:
+        body: >
+          {
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { error: 3 }
+  - match: { status: 400 }
+  - match: { error.type: "illegal_argument_exception" }
+  - match: { error.reason: "required property [pipeline] is missing" }
+
+---
+"Test simulate with verbose flag":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "mutate" : {
+                    "update" : {
+                      "field2" : "_value"
+                    }
+                  }
+                },
+                {
+                  "mutate" : {
+                    "update" : {
+                      "field3" : "third_val"
+                    }
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 1 }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.processor_id: "processor[mutate]-0" }
+  - is_true: docs.0.processor_results.0.doc.modified
+  - length: { docs.0.processor_results.0.doc._source: 2 }
+  - match: { docs.0.processor_results.0.doc._source.foo: "bar" }
+  - match: { docs.0.processor_results.0.doc._source.field2: "_value" }
+  - length: { docs.0.processor_results.1.doc._source: 3 }
+  - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
+  - match: { docs.0.processor_results.1.doc._source.field2: "_value" }
+  - match: { docs.0.processor_results.1.doc._source..field3: "third_val" }
+
+---
+"Test simulate with exception thrown":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.simulate:
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "mutate" : {
+                    "uppercase" : ["foo"]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "not_foo": "bar"
+                }
+              },
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id2",
+                "_source": {
+                  "foo": "bar"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - match: { docs.0.error.type: "null_pointer_exception" }
+  - is_true: docs.1.doc.modified
+  - match: { docs.1.doc._source.foo: "BAR" }
+
+---
+"Test verbose simulate with exception thrown":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.simulate:
+        verbose: true
+        body: >
+          {
+            "pipeline": {
+              "description": "_description",
+              "processors": [
+                {
+                  "mutate" : {
+                    "convert" : {
+                      "foo": "integer"
+                    }
+                  }
+                },
+                {
+                  "mutate" : {
+                    "uppercase" : ["bar"]
+                  }
+                }
+              ]
+            },
+            "docs": [
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id",
+                "_source": {
+                  "foo": "bar",
+                  "bar": "hello"
+                }
+              },
+              {
+                "_index": "index",
+                "_type": "type",
+                "_id": "id2",
+                "_source": {
+                  "foo": "5",
+                  "bar": "hello"
+                }
+              }
+            ]
+          }
+  - length: { docs: 2 }
+  - length: { docs.0.processor_results: 2 }
+  - match: { docs.0.processor_results.0.error.type: "number_format_exception" }
+  - match: { docs.0.processor_results.1.doc._index: "index" }
+  - match: { docs.0.processor_results.1.doc._type: "type" }
+  - match: { docs.0.processor_results.1.doc._id: "id" }
+  - match: { docs.0.processor_results.1.doc._source.foo: "bar" }
+  - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }
+  - match: { docs.1.processor_results.0.doc._source.foo: 5 }
+  - match: { docs.1.processor_results.0.doc._source.bar: "hello" }
+  - match: { docs.1.processor_results.1.doc._source.foo: 5 }
+  - match: { docs.1.processor_results.1.doc._source.bar: "HELLO" }

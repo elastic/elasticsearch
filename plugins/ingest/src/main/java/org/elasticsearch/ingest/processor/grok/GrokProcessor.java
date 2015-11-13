@@ -56,6 +56,11 @@ public final class GrokProcessor implements Processor {
         }
     }
 
+    @Override
+    public String getType() {
+        return TYPE;
+    }
+
     String getMatchField() {
         return matchField;
     }

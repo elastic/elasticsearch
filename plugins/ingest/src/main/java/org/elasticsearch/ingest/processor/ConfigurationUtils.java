@@ -77,37 +77,53 @@ public final class ConfigurationUtils {
      * Returns and removes the specified property of type list from the specified configuration map.
      *
      * If the property value isn't of type list an {@link IllegalArgumentException} is thrown.
-     * If the property is missing an {@link IllegalArgumentException} is thrown
      */
-    public static List<String> readStringList(Map<String, Object> configuration, String propertyName) {
+    public static <T> List<T> readOptionalList(Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
-            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
+            return null;
         }
-        return readStringList(propertyName, value);
+        return readList(propertyName, value);
     }
 
     /**
      * Returns and removes the specified property of type list from the specified configuration map.
      *
      * If the property value isn't of type list an {@link IllegalArgumentException} is thrown.
+     * If the property is missing an {@link IllegalArgumentException} is thrown
      */
-    public static List<String> readOptionalStringList(Map<String, Object> configuration, String propertyName) {
+    public static <T> List<T> readList(Map<String, Object> configuration, String propertyName) {
         Object value = configuration.remove(propertyName);
         if (value == null) {
-            return null;
+            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
         }
-        return readStringList(propertyName, value);
+
+        return readList(propertyName, value);
     }
 
-    private static List<String> readStringList(String propertyName, Object value) {
+    private static <T> List<T> readList(String propertyName, Object value) {
         if (value instanceof List) {
             @SuppressWarnings("unchecked")
-            List<String> stringList = (List<String>) value;
+            List<T> stringList = (List<T>) value;
             return stringList;
         } else {
             throw new IllegalArgumentException("property [" + propertyName + "] isn't a list, but of type [" + value.getClass().getName() + "]");
         }
+    }
+
+    /**
+     * Returns and removes the specified property of type map from the specified configuration map.
+     *
+     * If the property value isn't of type map an {@link IllegalArgumentException} is thrown.
+     * If the property is missing an {@link IllegalArgumentException} is thrown
+     */
+    public static <T> Map<String, T> readMap(Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
+        }
+
+        return readMap(propertyName, value);
     }
 
     /**
@@ -120,6 +136,11 @@ public final class ConfigurationUtils {
         if (value == null) {
             return null;
         }
+
+        return readMap(propertyName, value);
+    }
+
+    private static <T> Map<String, T> readMap(String propertyName, Object value) {
         if (value instanceof Map) {
             @SuppressWarnings("unchecked")
             Map<String, T> map = (Map<String, T>) value;
@@ -128,4 +149,5 @@ public final class ConfigurationUtils {
             throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
         }
     }
+
 }

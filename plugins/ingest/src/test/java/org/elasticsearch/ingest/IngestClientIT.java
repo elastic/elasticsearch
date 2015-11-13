@@ -30,15 +30,20 @@ import org.elasticsearch.plugin.ingest.transport.get.GetPipelineRequestBuilder;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineResponse;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequestBuilder;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulateDocumentSimpleResult;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequestBuilder;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -52,7 +57,58 @@ public class IngestClientIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
+    }
 
+    public void testSimulate() throws Exception {
+        new PutPipelineRequestBuilder(client(), PutPipelineAction.INSTANCE)
+                .setId("_id")
+                .setSource(jsonBuilder().startObject()
+                        .field("description", "my_pipeline")
+                        .startArray("processors")
+                        .startObject()
+                        .startObject("grok")
+                        .field("field", "field1")
+                        .field("pattern", "%{NUMBER:val:float} %{NUMBER:status:int} <%{WORD:msg}>")
+                        .endObject()
+                        .endObject()
+                        .endArray()
+                        .endObject().bytes())
+                .get();
+        assertBusy(new Runnable() {
+            @Override
+            public void run() {
+                GetPipelineResponse response = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+                        .setIds("_id")
+                        .get();
+                assertThat(response.isFound(), is(true));
+                assertThat(response.pipelines().get("_id"), notNullValue());
+            }
+        });
+
+        SimulatePipelineResponse response = new SimulatePipelineRequestBuilder(client(), SimulatePipelineAction.INSTANCE)
+                .setId("_id")
+                .setSource(jsonBuilder().startObject()
+                        .startArray("docs")
+                        .startObject()
+                        .field("_index", "index")
+                        .field("_type", "type")
+                        .field("_id", "id")
+                        .startObject("_source")
+                        .field("foo", "bar")
+                        .endObject()
+                        .endObject()
+                        .endArray()
+                        .endObject().bytes())
+                .get();
+
+        assertThat(response.isVerbose(), equalTo(false));
+        assertThat(response.getPipelineId(), equalTo("_id"));
+        assertThat(response.getResults().size(), equalTo(1));
+        assertThat(response.getResults().get(0), instanceOf(SimulateDocumentSimpleResult.class));
+        SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) response.getResults().get(0);
+        Data expectedData = new Data("index", "type", "id", Collections.singletonMap("foo", "bar"));
+        assertThat(simulateDocumentSimpleResult.getData(), equalTo(expectedData));
+        assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
     }
 
     public void test() throws Exception {

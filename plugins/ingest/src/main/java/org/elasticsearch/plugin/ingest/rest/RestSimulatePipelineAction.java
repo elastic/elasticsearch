@@ -20,29 +20,38 @@
 package org.elasticsearch.plugin.ingest.rest;
 
 import org.elasticsearch.client.Client;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugin.ingest.transport.get.GetPipelineAction;
-import org.elasticsearch.plugin.ingest.transport.get.GetPipelineRequest;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestStatusToXContentListener;
+import org.elasticsearch.rest.action.support.RestActions;
+import org.elasticsearch.rest.action.support.RestToXContentListener;
 
-public class RestGetPipelineAction extends BaseRestHandler {
+public class RestSimulatePipelineAction extends BaseRestHandler {
 
     @Inject
-    public RestGetPipelineAction(Settings settings, RestController controller, Client client) {
+    public RestSimulatePipelineAction(Settings settings, RestController controller, Client client) {
         super(settings, controller, client);
-        controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{id}", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_ingest/pipeline/{id}/_simulate", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/{id}/_simulate", this);
+        controller.registerHandler(RestRequest.Method.POST, "/_ingest/pipeline/_simulate", this);
+        controller.registerHandler(RestRequest.Method.GET, "/_ingest/pipeline/_simulate", this);
     }
 
     @Override
     protected void handleRequest(RestRequest restRequest, RestChannel channel, Client client) throws Exception {
-        GetPipelineRequest request = new GetPipelineRequest();
-        request.ids(Strings.splitStringByCommaToArray(restRequest.param("id")));
-        client.execute(GetPipelineAction.INSTANCE, request, new RestStatusToXContentListener<>(channel));
+        SimulatePipelineRequest request = new SimulatePipelineRequest();
+        request.setId(restRequest.param("id"));
+        request.setVerbose(restRequest.paramAsBoolean("verbose", false));
+
+        if (RestActions.hasBodyContent(restRequest)) {
+            request.setSource(RestActions.getRestContent(restRequest));
+        }
+
+        client.execute(SimulatePipelineAction.INSTANCE, request, new RestToXContentListener<>(channel));
     }
 }

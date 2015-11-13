@@ -45,7 +45,7 @@ public final class MutateProcessor implements Processor {
     private final List<String> uppercase;
     private final List<String> lowercase;
 
-    public MutateProcessor(Map<String, Object> update, Map<String, String> rename, Map<String, String> convert,
+    MutateProcessor(Map<String, Object> update, Map<String, String> rename, Map<String, String> convert,
                            Map<String, String> split, List<GsubExpression> gsub, Map<String, String> join,
                            List<String> remove, List<String> trim, List<String> uppercase, List<String> lowercase) {
         this.update = update;
@@ -132,6 +132,11 @@ public final class MutateProcessor implements Processor {
         if (lowercase != null) {
             doLowercase(data);
         }
+    }
+
+    @Override
+    public String getType() {
+        return TYPE;
     }
 
     private void doUpdate(Data data) {
@@ -281,10 +286,10 @@ public final class MutateProcessor implements Processor {
             Map<String, String> split = ConfigurationUtils.readOptionalMap(config, "split");
             Map<String, List<String>> gsubConfig = ConfigurationUtils.readOptionalMap(config, "gsub");
             Map<String, String> join = ConfigurationUtils.readOptionalMap(config, "join");
-            List<String> remove = ConfigurationUtils.readOptionalStringList(config, "remove");
-            List<String> trim = ConfigurationUtils.readOptionalStringList(config, "trim");
-            List<String> uppercase = ConfigurationUtils.readOptionalStringList(config, "uppercase");
-            List<String> lowercase = ConfigurationUtils.readOptionalStringList(config, "lowercase");
+            List<String> remove = ConfigurationUtils.readOptionalList(config, "remove");
+            List<String> trim = ConfigurationUtils.readOptionalList(config, "trim");
+            List<String> uppercase = ConfigurationUtils.readOptionalList(config, "uppercase");
+            List<String> lowercase = ConfigurationUtils.readOptionalList(config, "lowercase");
 
             // pre-compile regex patterns
             List<GsubExpression> gsubExpressions = null;

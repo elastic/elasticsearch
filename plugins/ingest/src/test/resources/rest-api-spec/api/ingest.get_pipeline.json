@@ -3,10 +3,10 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/ingest.html",
     "methods": [ "GET" ],
     "url": {
-      "path": "/_ingest/pipeline/{ids}",
-      "paths": [ "/_ingest/pipeline/{ids}" ],
+      "path": "/_ingest/pipeline/{id}",
+      "paths": [ "/_ingest/pipeline/{id}" ],
       "parts": {
-        "ids": {
+        "id": {
           "type" : "string",
           "description" : "Comma separated list of pipeline ids. Wildcards supported",
           "required" : true

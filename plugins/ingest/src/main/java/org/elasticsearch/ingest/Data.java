@@ -22,11 +22,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
-import java.lang.reflect.Array;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * Represents the data and meta data (like id and type) of a single document that is going to be indexed.
@@ -45,6 +41,10 @@ public final class Data {
         this.type = type;
         this.id = id;
         this.document = document;
+    }
+
+    public Data(Data other) {
+        this(other.index, other.type, other.id, new HashMap<>(other.document));
     }
 
     @SuppressWarnings("unchecked")
@@ -128,5 +128,24 @@ public final class Data {
 
     public boolean isModified() {
         return modified;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == this) { return true; }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+
+        Data other = (Data) obj;
+        return Objects.equals(document, other.document) &&
+                Objects.equals(index, other.index) &&
+                Objects.equals(type, other.type) &&
+                Objects.equals(id, other.id);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(index, type, id, document);
     }
 }

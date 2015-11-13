@@ -71,7 +71,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
                 builder.from(fromValueMeters);
                 break;
             case 1:
-                builder.to(toValue);
+                builder.to(toValueMeters);
                 break;
             case 2:
                 builder.from(fromValueMeters);

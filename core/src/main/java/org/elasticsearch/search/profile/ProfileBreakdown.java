@@ -81,7 +81,6 @@ public final class ProfileBreakdown {
      * stopAndRecordTime(), otherwise the elapsed time will be negative and
      * nonsensical
      *
-     * @param timing    The timing context being profiled
      * @return          The elapsed time
      */
     public long stopAndRecordTime() {

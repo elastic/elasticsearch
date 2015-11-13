@@ -185,7 +185,7 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the customDataPath for this index, if configured. null o.w.
+     * Returns the customDataPath for this index, if configured. null <code>o.w.</code>.
      */
     public String customDataPath() {
         return settings.get(IndexMetaData.SETTING_DATA_PATH);
@@ -194,7 +194,7 @@ public final class IndexSettings {
     /**
      * Returns <code>true</code> iff the given settings indicate that the index
      * associated with these settings allocates it's shards on a shared
-     * filesystem. Otherwise <code>false</code>.
+     * filesystem.
      */
     public boolean isOnSharedFilesystem() {
         return IndexMetaData.isOnSharedFilesystem(getSettings());
@@ -208,8 +208,6 @@ public final class IndexSettings {
     public boolean isIndexUsingShadowReplicas() {
         return IndexMetaData.isOnSharedFilesystem(getSettings());
     }
-
-
 
     /**
      * Returns the version the index was created on.

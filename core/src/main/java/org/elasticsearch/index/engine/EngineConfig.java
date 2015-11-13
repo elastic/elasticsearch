@@ -314,7 +314,7 @@ public final class EngineConfig {
     }
 
     /**
-     * Returns the the index settings for this index.
+     * Returns the index settings for this index.
      */
     public IndexSettings getIndexSettings() {
         return indexSettings;

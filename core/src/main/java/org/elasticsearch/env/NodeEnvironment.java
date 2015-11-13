@@ -614,7 +614,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      * returned paths. The returned array may contain paths to non-existing directories.
      *
      * @see IndexSettings#hasCustomDataPath()
-     * @see #resolveCustomLocation(IndexSettings, org.elasticsearch.index.shard.ShardId)
+     * @see #resolveCustomLocation(IndexSettings, ShardId)
      *
      */
     public Path[] availableShardPaths(ShardId shardId) {

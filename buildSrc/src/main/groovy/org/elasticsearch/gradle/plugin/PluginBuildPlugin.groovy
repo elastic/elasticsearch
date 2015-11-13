@@ -33,7 +33,6 @@ class PluginBuildPlugin extends BuildPlugin {
     @Override
     void apply(Project project) {
         super.apply(project)
-        project.pluginManager.apply(ProvidedBasePlugin)
         // TODO: add target compatibility (java version) to elasticsearch properties and set for the project
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest configure,

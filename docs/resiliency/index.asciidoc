@@ -207,9 +207,10 @@ While we are working on a longer term solution ({GIT}9176[#9176]), we introduced
 [float]
 === Do not allow stale shards to automatically be promoted to primary (STATUS: ONGOING)
 
-In some scenarios, a succession of multiple isolated nodes can cause a stale replica shard to be promoted to primary
-leading to a loss of acknowledged indexing operations. Work is underway ({GIT}14671[#14671]) to prevent the automatic
-promotion of a stale primary and only allow such promotion to occur when a system operator manually intervenes.
+In some scenarios, after loss of all valid copies, a stale replica shard can be assigned as a primary. This can lead to
+a loss of acknowledged writes if the valid copies are not lost but are rather temporarily isolated. Work is underway
+({GIT}14671[#14671]) to prevent the automatic promotion of a stale primary and only allow such promotion to occur when
+a system operator manually intervenes.
 
 == Completed
 

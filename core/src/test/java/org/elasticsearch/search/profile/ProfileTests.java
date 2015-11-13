@@ -84,7 +84,7 @@ public class ProfileTests extends ESTestCase {
     }
 
     public void testBasic() throws IOException {
-        Profiler profiler = new Profiler();
+        Profiler profiler = new Profiler(new InternalProfileCollector());
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
@@ -103,7 +103,7 @@ public class ProfileTests extends ESTestCase {
     }
 
     public void testNoScoring() throws IOException {
-        Profiler profiler = new Profiler();
+        Profiler profiler = new Profiler(new InternalProfileCollector());
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
@@ -122,7 +122,7 @@ public class ProfileTests extends ESTestCase {
     }
 
     public void testUseIndexStats() throws IOException {
-        Profiler profiler = new Profiler();
+        Profiler profiler = new Profiler(new InternalProfileCollector());
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
@@ -134,7 +134,7 @@ public class ProfileTests extends ESTestCase {
     }
 
     public void testApproximations() throws IOException {
-        Profiler profiler = new Profiler();
+        Profiler profiler = new Profiler(new InternalProfileCollector());
         Engine.Searcher engineSearcher = new Engine.Searcher("test", new IndexSearcher(reader));
         // disable query caching since we want to test approximations, which won't
         // be exposed on a cached entry

@@ -32,11 +32,12 @@ import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.profile.CollectorResult;
-import org.elasticsearch.search.profile.Profiler;
+import org.elasticsearch.search.profile.InternalProfileCollector;
 import org.elasticsearch.search.query.QueryPhaseExecutionException;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -87,7 +88,9 @@ public class AggregationPhase implements SearchPhase {
                     Collector collector = BucketCollector.wrap(collectors);
                     ((BucketCollector)collector).preCollection();
                     if (context.getProfilers() != null) {
-                        collector = Profiler.wrapCollector(context.getProfilers(), collector, CollectorResult.REASON_AGGREGATION);
+                        collector = new InternalProfileCollector(collector, CollectorResult.REASON_AGGREGATION,
+                                // TODO: report on child aggs as well
+                                Collections.emptyList());
                     }
                     context.queryCollectors().put(AggregationPhase.class, collector);
                 }
@@ -119,16 +122,9 @@ public class AggregationPhase implements SearchPhase {
 
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
-            Collector globalsCollector = BucketCollector.wrap(globals);
+            BucketCollector globalsCollector = BucketCollector.wrap(globals);
             Query query = Queries.newMatchAllQuery();
             Query searchFilter = context.searchFilter(context.types());
-
-            Profiler profiler = null;
-            if (context.getProfilers() != null) {
-                // If we are profiling, ask the context to start a new one for
-                // the global agg and use the new profiler
-                profiler = context.getProfilers().addProfiler();
-            }
 
             if (searchFilter != null) {
                 BooleanQuery filtered = new BooleanQuery.Builder()
@@ -138,9 +134,19 @@ public class AggregationPhase implements SearchPhase {
                 query = filtered;
             }
             try {
-                ((BucketCollector)globalsCollector).preCollection();
-                globalsCollector = Profiler.wrapGlobalBucketCollector(profiler, globalsCollector);
-                context.searcher().search(query, globalsCollector);
+                final Collector collector;
+                if (context.getProfilers() == null) {
+                    collector = globalsCollector;
+                } else {
+                    InternalProfileCollector profileCollector = new InternalProfileCollector(
+                            globalsCollector, CollectorResult.REASON_AGGREGATION_GLOBAL,
+                            // TODO: report on sub collectors
+                            Collections.emptyList());
+                    context.getProfilers().addProfiler(profileCollector);
+                    collector = profileCollector;
+                }
+                globalsCollector.preCollection();
+                context.searcher().search(query, collector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);
             } finally {

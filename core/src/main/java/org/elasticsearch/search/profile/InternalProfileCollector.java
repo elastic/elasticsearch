@@ -83,12 +83,13 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
      */
     private long globalTime;
 
-    private List<InternalProfileCollector> children = new ArrayList<>(5);
+    private List<InternalProfileCollector> children;
 
-    public InternalProfileCollector(Collector collector, String reason) {
+    public InternalProfileCollector(Collector collector, String reason, List<InternalProfileCollector> children) {
         this.collector = new ProfileCollector(collector);
         this.reason = reason;
         this.collectorName = deriveCollectorName(collector);
+        this.children = children;
     }
 
     /** For serialization. */
@@ -165,17 +166,6 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
             }
         }
         return totalTime;
-    }
-
-    /**
-     * Add a child "nested" Collector to this Collector.
-     * @param child The child Collector to add
-     */
-    public void addChild(InternalProfileCollector child) {
-        if (child == null || children.contains(child)) {
-            return;
-        }
-        children.add(child);
     }
 
     @Override

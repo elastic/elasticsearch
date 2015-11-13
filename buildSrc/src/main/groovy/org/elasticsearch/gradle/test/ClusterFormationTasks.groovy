@@ -264,7 +264,6 @@ class ClusterFormationTasks {
                 args esExecutable
                 args esProps
                 environment esEnv
-                errorOutput = new ByteArrayOutputStream()
                 doLast {
                     esPostStartActions(ant, logger)
                 }

@@ -101,7 +101,28 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.javaHome = project.rootProject.ext.javaHome
     }
 
-    /** Makes dependencies non-transitive by default */
+    /** Return the name
+     */
+    static String transitiveDepConfigName(String groupId, String artifactId, String version) {
+        return "_transitive_${groupId}:${artifactId}:${version}"
+    }
+
+    /**
+     * Makes dependencies non-transitive.
+     *
+     * Gradle allows setting all dependencies as non-transitive very easily.
+     * But this mechanism does not translate into maven pom generation. In order
+     * to effectively make the pom act as if it has no transitive dependencies,
+     * we must exclude each transitive dependency of each direct dependency.
+     *
+     * Determining the transitive deps of a dependency which has been resolved as
+     * non-transitive is difficult because the process of resolving removes the
+     * transitive deps. To sidestep this issue, we create a configuration per
+     * direct dependency version. This specially named and unique configuration
+     * will contain all of the transitive dependencies of this particular
+     * dependency. We can then use this configuration during pom generation
+     * to iterate the transitive dependencies and add excludes.
+     */
     static void configureConfigurations(Project project) {
         // fail on any conflicting dependency versions
         project.configurations.all({ Configuration configuration ->
@@ -119,12 +140,11 @@ class BuildPlugin implements Plugin<Project> {
                 dep.transitive = false
 
                 // also create a configuration just for this dependency version, so that later
-                // we can determine which dependencies it has (for pom generation excludes)
-                String depId = "${dep.getGroup()}:${dep.getName()}:${dep.getVersion()}"
-                String depConfig = "_transitive_${depId}"
+                // we can determine which transitive dependencies it has
+                String depConfig = transitiveDepConfigName(dep.group, dep.name, dep.version)
                 if (project.configurations.findByName(depConfig) == null) {
                     project.configurations.create(depConfig)
-                    project.dependencies.add(depConfig, depId)
+                    project.dependencies.add(depConfig, "${dep.group}:${dep.name}:${dep.version}")
                 }
             }
         }
@@ -149,8 +169,7 @@ class BuildPlugin implements Plugin<Project> {
                     String version = depNode.get('version').get(0).text()
 
                     // collect the transitive deps now that we know what this dependency is
-                    String depId = "${groupId}:${artifactId}:${version}"
-                    String depConfig = "_transitive_${depId}"
+                    String depConfig = transitiveDepConfigName(groupId, artifactId, version)
                     Configuration configuration = project.configurations.findByName(depConfig)
                     if (configuration == null) {
                         continue // we did not make this dep non-transitive

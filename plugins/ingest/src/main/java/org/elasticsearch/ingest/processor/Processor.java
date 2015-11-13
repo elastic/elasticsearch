@@ -59,11 +59,8 @@ public interface Processor {
         default void setConfigDirectory(Path configDirectory) {
         }
 
-
         @Override
         default void close() throws IOException {
         }
-        
     }
-
 }

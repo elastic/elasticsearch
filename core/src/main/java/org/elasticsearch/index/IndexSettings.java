@@ -185,7 +185,7 @@ public final class IndexSettings {
     }
 
     /**
-     * Returns the customDataPath for this index, if configured. null <code>o.w.</code>.
+     * Returns the customDataPath for this index, if configured. <code>null</code> o.w.
      */
     public String customDataPath() {
         return settings.get(IndexMetaData.SETTING_DATA_PATH);

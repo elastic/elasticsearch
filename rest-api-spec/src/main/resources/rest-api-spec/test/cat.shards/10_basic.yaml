@@ -91,12 +91,11 @@
         body:
           settings:
             number_of_shards: 5
-            number_of_replicas: 1
+            number_of_replicas: 0
 
   - do:
       cluster.health:
-        wait_for_status: yellow
-        wait_for_relocating_shards: 0
+        wait_for_status: green
   - do:
       indices.flush_synced:
         index: sync_id_test
@@ -109,7 +108,7 @@
         h: index,state,sync_id
   - match:
       $body: |
-               /^(sync_id_test\s+(STARTED\s+[A-Za-z0-9_\-]{20}|(INITIALIZING|UNASSIGNED)\s+)\s+\n){10}$/
+               /^(sync_id_test\s+STARTED\s+[A-Za-z0-9_\-]{20}\s+\n){5}$/
 
   - do:
       indices.delete:

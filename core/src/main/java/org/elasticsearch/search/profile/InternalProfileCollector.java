@@ -146,26 +146,12 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
      */
     @Override
     public long getTime() {
-        long totalTime;
         if (collector == null) {
-            totalTime = time;
+            return time;
         } else {
             assert time == null;
-            totalTime = collector.getTime();
+            return collector.getTime();
         }
-        for (InternalProfileCollector child : children) {
-            // Global bucket collectors happen after the search, so they won't be
-            // included in the time naturally
-            // nocommit it feels a bit wrong to me to have this special case and display
-            // the global aggregator as a sub aggregator of the root collector. Can we
-            // make it appear as a separate search request instead given that this is how
-            // it is actually implemented: we run a separate search operation on a match_all
-            // query
-            if (child.getReason().equals(REASON_AGGREGATION_GLOBAL)) {
-                totalTime += child.getTime();
-            }
-        }
-        return totalTime;
     }
 
     @Override

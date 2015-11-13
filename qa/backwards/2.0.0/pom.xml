@@ -18,4 +18,17 @@
         <tests.bwc.version>2.0.0</tests.bwc.version>
         <skip.integ.tests>${skipTests}</skip.integ.tests>
     </properties>
+
+    <!-- disable backwards tests with 2.0.0 on java 9, because that
+         version will die instantly under jigsaw -->
+    <profiles>
+        <profile>
+            <activation>
+                <jdk>1.9</jdk>
+            </activation>
+            <properties>
+                <skip.integ.tests>true</skip.integ.tests>
+            </properties>
+        </profile>
+    </profiles>
 </project>

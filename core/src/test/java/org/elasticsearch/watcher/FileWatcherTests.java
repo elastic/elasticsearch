@@ -34,7 +34,6 @@ import java.util.List;
 
 import static org.hamcrest.Matchers.*;
 
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class FileWatcherTests extends ESTestCase {
 
     private class RecordingChangeListener extends FileChangesListener {

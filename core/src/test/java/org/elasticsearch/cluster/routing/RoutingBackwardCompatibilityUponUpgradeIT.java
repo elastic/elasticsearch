@@ -36,7 +36,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, minNumDataNodes = 0, maxNumDataNodes = 0)
-@LuceneTestCase.SuppressFileSystems("*") // extra files break the single data cluster expectation when unzipping the static index
 public class RoutingBackwardCompatibilityUponUpgradeIT extends ESIntegTestCase {
 
     public void testDefaultRouting() throws Exception {

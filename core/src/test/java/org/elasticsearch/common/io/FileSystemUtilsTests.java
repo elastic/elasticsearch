@@ -42,7 +42,6 @@ import static org.hamcrest.CoreMatchers.is;
 /**
  * Unit tests for {@link org.elasticsearch.common.io.FileSystemUtils}.
  */
-@SuppressFileSystems("WindowsFS") // tries to move away open file handles
 public class FileSystemUtilsTests extends ESTestCase {
 
     private Path src;

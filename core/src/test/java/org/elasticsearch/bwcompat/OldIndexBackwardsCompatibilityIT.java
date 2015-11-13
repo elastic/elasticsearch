@@ -82,7 +82,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 // needs at least 2 nodes since it bumps replicas to 1
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     // TODO: test for proper exception on unsupported indexes (maybe via separate test?)
     // We have a 0.20.6.zip etc for this.

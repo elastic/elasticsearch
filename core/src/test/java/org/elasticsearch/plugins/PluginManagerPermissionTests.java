@@ -48,7 +48,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
 import static org.hamcrest.Matchers.*;
 
 // there are some lucene file systems that seem to cause problems (deleted files, dirs instead of files)
-@LuceneTestCase.SuppressFileSystems("*")
 public class PluginManagerPermissionTests extends ESTestCase {
 
     private String pluginName = "my-plugin";

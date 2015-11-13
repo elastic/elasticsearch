@@ -85,7 +85,6 @@ import static org.hamcrest.Matchers.*;
 import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0.0)
-@LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
 // TODO: jimfs is really broken here (throws wrong exception from detection method).
 // if its in your classpath, then do not use plugins!!!!!!
 public class PluginManagerIT extends ESIntegTestCase {

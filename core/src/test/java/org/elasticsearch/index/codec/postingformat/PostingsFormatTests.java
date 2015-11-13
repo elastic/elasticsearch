@@ -34,6 +34,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 })
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@LuceneTestCase.SuppressFileSystems("*") // incompatible with java 9: https://issues.apache.org/jira/browse/LUCENE-6795
 public class PostingsFormatTests extends BasePostingsFormatTestCase {
 
     @Override

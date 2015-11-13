@@ -44,7 +44,6 @@ import java.util.*;
 
 /**
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class MultiDataPathUpgraderTests extends ESTestCase {
 
     public void testUpgradeRandomPaths() throws IOException {

@@ -106,6 +106,7 @@ import static org.hamcrest.Matchers.equalTo;
         "LuceneVarGapFixedInterval", "LuceneVarGapDocFreqInterval", "Lucene50"
 })
 @LuceneTestCase.SuppressReproduceLine
+@LuceneTestCase.SuppressFileSystems("*") // incompatible with java 9: https://issues.apache.org/jira/browse/LUCENE-6795
 @ReproduceInfoPrinter.Properties({ "es.logger.level", "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
         "tests.client.ratio", "tests.heap.size" })
 public abstract class ESTestCase extends LuceneTestCase {

@@ -225,7 +225,6 @@ import static org.hamcrest.Matchers.startsWith;
  * </ul>
  * </p>
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 @ReproduceInfoPrinter.Properties({ "es.node.mode", "es.node.local", ESIntegTestCase.TESTS_CLUSTER,
         ESIntegTestCase.TESTS_ENABLE_MOCK_MODULES })
 public abstract class ESIntegTestCase extends ESTestCase {

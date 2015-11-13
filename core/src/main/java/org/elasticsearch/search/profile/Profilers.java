@@ -35,13 +35,20 @@ public final class Profilers {
     public Profilers(ContextIndexSearcher searcher) {
         this.searcher = searcher;
         this.profilers = new ArrayList<>();
+        addProfiler();
     }
 
     /** Switch to a new profile. */
-    public void addProfiler(InternalProfileCollector collector) {
-        Profiler profiler = new Profiler(collector);
+    public Profiler addProfiler() {
+        Profiler profiler = new Profiler();
         searcher.setProfiler(profiler);
         profilers.add(profiler);
+        return profiler;
+    }
+
+    /** Get the current profiler. */
+    public Profiler getCurrent() {
+        return profilers.get(profilers.size() - 1);
     }
 
     /** Return the list of all created {@link Profiler}s so far. */

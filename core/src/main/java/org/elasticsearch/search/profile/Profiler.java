@@ -37,10 +37,16 @@ public final class Profiler {
     /**
      * The root Collector used in the search
      */
-    private final InternalProfileCollector collector;
+    private InternalProfileCollector collector;
 
-    public Profiler(InternalProfileCollector collector) {
-        this.collector = collector;
+    public Profiler() {}
+
+    /** Set the collector that is associated with this profiler. */
+    public void setCollector(InternalProfileCollector collector) {
+        if (this.collector != null) {
+            throw new IllegalStateException("The collector can only be set once.");
+        }
+        this.collector = Objects.requireNonNull(collector);
     }
 
     /**

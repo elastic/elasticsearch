@@ -375,12 +375,11 @@ public class QueryPhase implements SearchPhase {
                 }
             }
 
-            if (doProfile) {
-                searchContext.getProfilers().addProfiler((InternalProfileCollector) collector);
-            }
-
             try {
                 if (collector != null) {
+                    if (doProfile) {
+                        searchContext.getProfilers().getCurrent().setCollector((InternalProfileCollector) collector);
+                    }
                     searcher.search(query, collector);
                 }
             } catch (TimeLimitingCollector.TimeExceededException e) {

@@ -142,8 +142,9 @@ public class AggregationPhase implements SearchPhase {
                             globalsCollector, CollectorResult.REASON_AGGREGATION_GLOBAL,
                             // TODO: report on sub collectors
                             Collections.emptyList());
-                    context.getProfilers().addProfiler(profileCollector);
                     collector = profileCollector;
+                    // start a new profile with this collector
+                    context.getProfilers().addProfiler().setCollector(profileCollector);
                 }
                 globalsCollector.preCollection();
                 context.searcher().search(query, collector);

@@ -27,32 +27,31 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.util.Collections;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.instanceOf;
 
-public class SimulateProcessorResultTests extends ESTestCase {
+public class SimulateDocumentSimpleResultTests extends ESTestCase {
 
     public void testSerialization() throws IOException {
-        String processorId = randomAsciiOfLengthBetween(1, 10);
         boolean isFailure = randomBoolean();
-        SimulateProcessorResult simulateProcessorResult;
+        SimulateDocumentSimpleResult simulateDocumentSimpleResult;
         if (isFailure) {
-            simulateProcessorResult = new SimulateProcessorResult(processorId, new IllegalArgumentException("test"));
+            simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(new IllegalArgumentException("test"));
         } else {
             Data data = new Data(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
                     Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
-            simulateProcessorResult = new SimulateProcessorResult(processorId, data);
+            simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(data);
         }
 
         BytesStreamOutput out = new BytesStreamOutput();
-        simulateProcessorResult.writeTo(out);
+        simulateDocumentSimpleResult.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
-        SimulateProcessorResult otherSimulateProcessorResult = SimulateProcessorResult.readSimulateProcessorResultFrom(streamInput);
-        assertThat(otherSimulateProcessorResult.getProcessorId(), equalTo(simulateProcessorResult.getProcessorId()));
-        assertThat(otherSimulateProcessorResult.getData(), equalTo(simulateProcessorResult.getData()));
+        SimulateDocumentSimpleResult otherSimulateDocumentSimpleResult = SimulateDocumentSimpleResult.readSimulateDocumentSimpleResult(streamInput);
+
+        assertThat(otherSimulateDocumentSimpleResult.getData(), equalTo(simulateDocumentSimpleResult.getData()));
         if (isFailure) {
-            assertThat(otherSimulateProcessorResult.getFailure(), instanceOf(IllegalArgumentException.class));
-            IllegalArgumentException e = (IllegalArgumentException) otherSimulateProcessorResult.getFailure();
+            assertThat(otherSimulateDocumentSimpleResult.getFailure(), instanceOf(IllegalArgumentException.class));
+            IllegalArgumentException e = (IllegalArgumentException) otherSimulateDocumentSimpleResult.getFailure();
             assertThat(e.getMessage(), equalTo("test"));
         }
     }

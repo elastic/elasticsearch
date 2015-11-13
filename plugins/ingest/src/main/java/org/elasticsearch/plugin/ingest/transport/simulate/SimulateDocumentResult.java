@@ -18,23 +18,9 @@
  */
 package org.elasticsearch.plugin.ingest.transport.simulate;
 
-import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
-import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.io.IOException;
+public interface SimulateDocumentResult<T extends SimulateDocumentResult> extends Writeable<T>, ToXContent {
 
-public abstract class SimulateDocumentResult implements Streamable, ToXContent {
-
-    public int getStreamId() {
-        return -1;
-    }
-
-    public abstract void readFrom(StreamInput in) throws IOException;
-
-    public abstract void writeTo(StreamOutput out) throws IOException;
-
-    public abstract XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException;
 }

@@ -21,35 +21,28 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.plugin.ingest.transport.TransportData;
 
 import java.io.IOException;
 
-public class SimulateProcessorResult implements Writeable<SimulateProcessorResult>, ToXContent {
+public class SimulateDocumentSimpleResult implements SimulateDocumentResult<SimulateDocumentSimpleResult> {
 
-    private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult(null, (Data)null);
+    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult((Data)null);
 
-    private String processorId;
     private TransportData data;
     private Exception failure;
 
-    public SimulateProcessorResult(String processorId, Data data) {
-        this.processorId = processorId;
+    public SimulateDocumentSimpleResult(Data data) {
         this.data = new TransportData(data);
     }
 
-    private SimulateProcessorResult(String processorId, TransportData data) {
-        this.processorId = processorId;
+    private SimulateDocumentSimpleResult(TransportData data) {
         this.data = data;
     }
 
-    public SimulateProcessorResult(String processorId, Exception failure) {
-        this.processorId = processorId;
+    public SimulateDocumentSimpleResult(Exception failure) {
         this.failure = failure;
     }
 
@@ -60,31 +53,25 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         return data.get();
     }
 
-    public String getProcessorId() {
-        return processorId;
-    }
-
     public Exception getFailure() {
         return failure;
     }
 
-    public static SimulateProcessorResult readSimulateProcessorResultFrom(StreamInput in) throws IOException {
+    public static SimulateDocumentSimpleResult readSimulateDocumentSimpleResult(StreamInput in) throws IOException {
         return PROTOTYPE.readFrom(in);
     }
 
     @Override
-    public SimulateProcessorResult readFrom(StreamInput in) throws IOException {
-        String processorId = in.readString();
+    public SimulateDocumentSimpleResult readFrom(StreamInput in) throws IOException {
         if (in.readBoolean()) {
             Exception exception = in.readThrowable();
-            return new SimulateProcessorResult(processorId, exception);
+            return new SimulateDocumentSimpleResult(exception);
         }
-        return new SimulateProcessorResult(processorId, TransportData.readTransportDataFrom(in));
+        return new SimulateDocumentSimpleResult(TransportData.readTransportDataFrom(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(processorId);
         if (failure == null) {
             out.writeBoolean(false);
             data.writeTo(out);
@@ -97,7 +84,6 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(Fields.PROCESSOR_ID, processorId);
         if (failure == null) {
             data.toXContent(builder, params);
         } else {
@@ -105,9 +91,5 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         }
         builder.endObject();
         return builder;
-    }
-
-    static final class Fields {
-        static final XContentBuilderString PROCESSOR_ID = new XContentBuilderString("processor_id");
     }
 }

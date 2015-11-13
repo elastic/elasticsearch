@@ -19,25 +19,89 @@
 
 package org.elasticsearch.plugin.ingest.transport;
 
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.ingest.Data;
 import org.elasticsearch.test.ESTestCase;
 
+import java.io.IOException;
 import java.util.Collections;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
 public class TransportDataTests extends ESTestCase {
 
-    public void testEquals() throws Exception {
-        Data data = new Data("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
-        Data otherData = new Data("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
-        assertThat(data, equalTo(otherData));
+    public void testEqualsAndHashcode() throws Exception {
+        String index = randomAsciiOfLengthBetween(1, 10);
+        String type = randomAsciiOfLengthBetween(1, 10);
+        String id = randomAsciiOfLengthBetween(1, 10);
+        String fieldName = randomAsciiOfLengthBetween(1, 10);
+        String fieldValue = randomAsciiOfLengthBetween(1, 10);
+        Data data = new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue));
+        TransportData transportData = new TransportData(data);
+
+        boolean changed = false;
+        String otherIndex;
+        if (randomBoolean()) {
+            otherIndex = randomAsciiOfLengthBetween(1, 10);
+            changed = true;
+        } else {
+            otherIndex = index;
+        }
+        String otherType;
+        if (randomBoolean()) {
+            otherType = randomAsciiOfLengthBetween(1, 10);
+            changed = true;
+        } else {
+            otherType = type;
+        }
+        String otherId;
+        if (randomBoolean()) {
+            otherId = randomAsciiOfLengthBetween(1, 10);
+            changed = true;
+        } else {
+            otherId = id;
+        }
+        Map<String, Object> document;
+        if (randomBoolean()) {
+            document = Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10));
+            changed = true;
+        } else {
+            document = Collections.singletonMap(fieldName, fieldValue);
+        }
+
+        Data otherData = new Data(otherIndex, otherType, otherId, document);
+        TransportData otherTransportData = new TransportData(otherData);
+        if (changed) {
+            assertThat(data, not(equalTo(otherData)));
+            assertThat(otherData, not(equalTo(data)));
+            assertThat(transportData, not(equalTo(otherTransportData)));
+            assertThat(otherTransportData, not(equalTo(transportData)));
+        } else {
+            assertThat(data, equalTo(otherData));
+            assertThat(otherData, equalTo(data));
+            assertThat(transportData, equalTo(otherTransportData));
+            assertThat(otherTransportData, equalTo(transportData));
+            Data thirdData = new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue));
+            TransportData thirdTransportData = new TransportData(thirdData);
+            assertThat(thirdData, equalTo(data));
+            assertThat(data, equalTo(thirdData));
+            assertThat(thirdTransportData, equalTo(transportData));
+            assertThat(transportData, equalTo(thirdTransportData));
+        }
     }
 
-    public void testNotEquals() throws Exception {
-        Data data = new Data("_index", "_type", "_id", Collections.singletonMap("foo", "bar"));
-        Data otherData = new Data("_index2", "_type", "_id", Collections.emptyMap());
-        assertThat(data, not(equalTo(otherData)));
+    public void testSerialization() throws IOException {
+        Data data = new Data(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
+                Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
+        TransportData transportData = new TransportData(data);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        transportData.writeTo(out);
+        StreamInput streamInput = StreamInput.wrap(out.bytes());
+        TransportData otherTransportData = TransportData.readTransportDataFrom(streamInput);
+        assertThat(otherTransportData, equalTo(transportData));
     }
 }

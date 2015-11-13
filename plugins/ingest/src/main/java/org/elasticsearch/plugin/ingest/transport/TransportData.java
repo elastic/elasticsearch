@@ -21,7 +21,7 @@ package org.elasticsearch.plugin.ingest.transport;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
@@ -31,12 +31,11 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-public class TransportData implements Streamable, ToXContent {
-    private Data data;
+public class TransportData implements Writeable<TransportData>, ToXContent {
 
-    public TransportData() {
+    private static final TransportData PROTOTYPE = new TransportData(null);
 
-    }
+    private final Data data;
 
     public TransportData(Data data) {
         this.data = data;
@@ -46,13 +45,17 @@ public class TransportData implements Streamable, ToXContent {
         return data;
     }
 
+    public static TransportData readTransportDataFrom(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
+    }
+
     @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public TransportData readFrom(StreamInput in) throws IOException {
         String index = in.readString();
         String type = in.readString();
         String id = in.readString();
         Map<String, Object> doc = in.readMap();
-        this.data = new Data(index, type, id, doc);
+        return new TransportData(new Data(index, type, id, doc));
     }
 
     @Override

@@ -40,18 +40,16 @@ public class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-
     SimulateDocumentResult executeItem(Pipeline pipeline, Data data) {
         try {
             pipeline.execute(data);
-            return new SimulateSimpleDocumentResult(data);
+            return new SimulateDocumentSimpleResult(data);
         } catch (Exception e) {
-            return new SimulateFailedDocumentResult(e);
+            return new SimulateDocumentSimpleResult(e);
         }
-
     }
 
-    SimulateDocumentResult executeVerboseItem(Pipeline pipeline, Data data) {
+    SimulateDocumentVerboseResult executeVerboseItem(Pipeline pipeline, Data data) {
         List<SimulateProcessorResult> processorResultList = new ArrayList<>();
         Data currentData = new Data(data);
         for (int i = 0; i < pipeline.getProcessors().size(); i++) {
@@ -67,7 +65,7 @@ public class SimulateExecutionService {
 
             currentData = new Data(currentData);
         }
-        return new SimulateVerboseDocumentResult(processorResultList);
+        return new SimulateDocumentVerboseResult(processorResultList);
     }
 
     public void execute(ParsedSimulateRequest request, ActionListener<SimulatePipelineResponse> listener) {
@@ -82,7 +80,7 @@ public class SimulateExecutionService {
                         responses.add(executeItem(request.getPipeline(), data));
                     }
                 }
-                listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), responses));
+                listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
             }
         });
     }

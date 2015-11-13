@@ -25,45 +25,39 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
-public class SimulateVerboseDocumentResult extends SimulateDocumentResult {
-    public static final int STREAM_ID = 1;
+public class SimulateDocumentVerboseResult implements SimulateDocumentResult<SimulateDocumentVerboseResult> {
 
-    private List<SimulateProcessorResult> processorResults;
+    private static final SimulateDocumentVerboseResult PROTOTYPE = new SimulateDocumentVerboseResult(Collections.emptyList());
 
-    public SimulateVerboseDocumentResult() {
+    private final List<SimulateProcessorResult> processorResults;
 
-    }
-
-    public SimulateVerboseDocumentResult(List<SimulateProcessorResult> processorResults) {
+    public SimulateDocumentVerboseResult(List<SimulateProcessorResult> processorResults) {
         this.processorResults = processorResults;
     }
 
-    @Override
-    public int getStreamId() {
-        return STREAM_ID;
+    public List<SimulateProcessorResult> getProcessorResults() {
+        return processorResults;
+    }
+
+    public static SimulateDocumentVerboseResult readSimulateDocumentVerboseResultFrom(StreamInput in) throws IOException {
+        return PROTOTYPE.readFrom(in);
     }
 
     @Override
-    public void readFrom(StreamInput in) throws IOException {
-        int streamId = in.readVInt();
-        if (streamId != STREAM_ID) {
-            throw new IOException("stream_id [" + streamId + "] does not match " + getClass().getName() + " [stream_id=" + STREAM_ID + "]");
-        }
+    public SimulateDocumentVerboseResult readFrom(StreamInput in) throws IOException {
         int size = in.readVInt();
-        processorResults = new ArrayList<>();
+        List<SimulateProcessorResult> processorResults = new ArrayList<>();
         for (int i = 0; i < size; i++) {
-            SimulateProcessorResult processorResult = new SimulateProcessorResult();
-            processorResult.readFrom(in);
-            processorResults.add(processorResult);
+            processorResults.add(SimulateProcessorResult.readSimulateProcessorResultFrom(in));
         }
+        return new SimulateDocumentVerboseResult(processorResults);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeVInt(STREAM_ID);
         out.writeVInt(processorResults.size());
         for (SimulateProcessorResult result : processorResults) {
             result.writeTo(out);
@@ -80,19 +74,6 @@ public class SimulateVerboseDocumentResult extends SimulateDocumentResult {
         builder.endArray();
         builder.endObject();
         return builder;
-    }
-
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
-        SimulateVerboseDocumentResult that = (SimulateVerboseDocumentResult) o;
-        return Objects.equals(processorResults, that.processorResults);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(processorResults);
     }
 
     static final class Fields {

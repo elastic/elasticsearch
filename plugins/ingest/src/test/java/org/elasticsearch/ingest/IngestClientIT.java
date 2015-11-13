@@ -30,16 +30,20 @@ import org.elasticsearch.plugin.ingest.transport.get.GetPipelineRequestBuilder;
 import org.elasticsearch.plugin.ingest.transport.get.GetPipelineResponse;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineAction;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequestBuilder;
-import org.elasticsearch.plugin.ingest.transport.simulate.*;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulateDocumentSimpleResult;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineAction;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequestBuilder;
+import org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.*;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNull.notNullValue;
 
@@ -53,7 +57,6 @@ public class IngestClientIT extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
         return nodePlugins();
-
     }
 
     public void testSimulate() throws Exception {
@@ -98,14 +101,14 @@ public class IngestClientIT extends ESIntegTestCase {
                         .endObject().bytes())
                 .get();
 
-        Map<String, Object> expectedDoc = new HashMap<>();
-        expectedDoc.put("foo", "bar");
-        Data expectedData = new Data("index", "type", "id", expectedDoc);
-        SimulateDocumentResult expectedResponse = new SimulateSimpleDocumentResult(expectedData);
-        List<SimulateDocumentResult> expectedResponses = Arrays.asList(expectedResponse);
-        SimulatePipelineResponse expected = new SimulatePipelineResponse("_id", expectedResponses);
-
-        assertThat(response, equalTo(expected));
+        assertThat(response.isVerbose(), equalTo(false));
+        assertThat(response.getPipelineId(), equalTo("_id"));
+        assertThat(response.getResults().size(), equalTo(1));
+        assertThat(response.getResults().get(0), instanceOf(SimulateDocumentSimpleResult.class));
+        SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) response.getResults().get(0);
+        Data expectedData = new Data("index", "type", "id", Collections.singletonMap("foo", "bar"));
+        assertThat(simulateDocumentSimpleResult.getData(), equalTo(expectedData));
+        assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
     }
 
     public void test() throws Exception {

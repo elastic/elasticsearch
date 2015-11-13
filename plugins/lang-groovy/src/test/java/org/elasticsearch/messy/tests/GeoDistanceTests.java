@@ -137,9 +137,8 @@ public class GeoDistanceTests extends ESIntegTestCase {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5"), equalTo("6")));
         }
 
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
         GeoDistanceQueryBuilder qb = geoDistanceQuery("location").distance("3km").point(40.7143528, -74.0059731);
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             qb = qb.optimizeBbox("indexed");
         }
 
@@ -172,9 +171,8 @@ public class GeoDistanceTests extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
         qb = geoDistanceQuery("location").distance("2km").point(40.7143528, -74.0059731);
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             qb = qb.optimizeBbox("indexed");
         }
         searchResponse = client().prepareSearch() // from NY
@@ -193,9 +191,8 @@ public class GeoDistanceTests extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("1"), equalTo("3"), equalTo("4"), equalTo("5")));
         }
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
         qb =  geoDistanceQuery("location").distance("1.242mi").point(40.7143528, -74.0059731);
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             qb = qb.optimizeBbox("indexed");
         }
         searchResponse = client().prepareSearch() // from NY
@@ -215,9 +212,8 @@ public class GeoDistanceTests extends ESIntegTestCase {
         for (SearchHit hit : searchResponse.getHits()) {
             assertThat(hit.id(), anyOf(equalTo("4"), equalTo("5")));
         }
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
         GeoDistanceRangeQueryBuilder rqb = geoDistanceRangeQuery("location").from("1.0km").to("2.0km").point(40.7143528, -74.0059731);
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             rqb = rqb.optimizeBbox("indexed");
         }
         searchResponse = client().prepareSearch() // from NY
@@ -768,8 +764,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
         for (int i = 0; i < 10; ++i) {
             origin.reset(randomLat(), randomLon());
             final String distance;
-            // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-            if (version.onOrBefore(Version.CURRENT)) {
+            if (version.before(Version.V_2_2_0)) {
                 distance = DistanceUnit.KILOMETERS.toString(randomInt(10000));
             } else {
                 final double maxRadius = GeoUtils.maxRadialDistance(origin);
@@ -778,8 +773,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
             // test geodistance methods
             for (GeoDistance geoDistance : Arrays.asList(GeoDistance.ARC, GeoDistance.SLOPPY_ARC)) {
                 logger.info("Now testing GeoDistance={}, distance={}, origin=({}, {})", geoDistance, distance, origin.lat(), origin.lon());
-                // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-                if (version.onOrBefore(Version.CURRENT)) {
+                if (version.before(Version.V_2_2_0)) {
                     for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
                         assertDuelOptimizationSearchResponse(origin, geoDistance, distance, optimizeBbox);
                     }

@@ -9,9 +9,15 @@ import com.squareup.okhttp.mockwebserver.MockResponse;
 import com.squareup.okhttp.mockwebserver.MockWebServer;
 import com.squareup.okhttp.mockwebserver.QueueDispatcher;
 import com.squareup.okhttp.mockwebserver.RecordedRequest;
+import okio.Buffer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
+import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -35,7 +41,9 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.net.BindException;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -84,10 +92,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         String agentNode = internalCluster().startNode(builder);
         HttpExporter exporter = getExporter(agentNode);
-        MarvelDoc doc = newRandomMarvelDoc();
-        exporter.export(Collections.singletonList(doc));
 
-        assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(4));
+        final int nbDocs = randomIntBetween(1, 25);
+        exporter.export(newRandomMarvelDocs(nbDocs));
+
+        assertThat(webServer.getRequestCount(), equalTo(4));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
@@ -105,6 +114,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("POST"));
         assertThat(recordedRequest.getPath(), equalTo("/_bulk"));
+
+        assertBulkRequest(recordedRequest.getBody(), nbDocs);
     }
 
     public void testDynamicHostChange() {
@@ -149,9 +160,10 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
         logger.info("--> exporting data");
         HttpExporter exporter = getExporter(agentNode);
-        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        final int nbDocs = randomIntBetween(1, 25);
+        exporter.export(newRandomMarvelDocs(nbDocs));
 
-        assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(4));
+        assertThat(webServer.getRequestCount(), equalTo(4));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
@@ -169,6 +181,8 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("POST"));
         assertThat(recordedRequest.getPath(), equalTo("/_bulk"));
+
+        assertBulkRequest(recordedRequest.getBody(), nbDocs);
     }
 
     public void testHostChangeReChecksTemplate() throws Exception {
@@ -194,7 +208,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         assertThat(exporter.supportedClusterVersion, is(true));
-        assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(4));
+        assertThat(webServer.getRequestCount(), equalTo(4));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
@@ -247,7 +261,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
             logger.info("--> exporting a second event");
             exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
-            assertThat(secondWebServer.getRequestCount(), greaterThanOrEqualTo(4));
+            assertThat(secondWebServer.getRequestCount(), equalTo(4));
 
             recordedRequest = secondWebServer.takeRequest();
             assertThat(recordedRequest.getMethod(), equalTo("GET"));
@@ -295,7 +309,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         assertThat(exporter.supportedClusterVersion, is(true));
-        assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(3));
+        assertThat(webServer.getRequestCount(), equalTo(3));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
@@ -304,6 +318,11 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
         assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
+
+        recordedRequest = webServer.takeRequest();
+        assertThat(recordedRequest.getMethod(), equalTo("PUT"));
+        assertThat(recordedRequest.getPath(), equalTo("/_template/.marvel-es"));
+        assertThat(recordedRequest.getBody().readByteArray(), equalTo(MarvelTemplateUtils.loadDefaultTemplate()));
     }
 
     public void testUnsupportedClusterVersion() throws Exception {
@@ -326,7 +345,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         exporter.export(Collections.singletonList(newRandomMarvelDoc()));
 
         assertThat(exporter.supportedClusterVersion, is(false));
-        assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(1));
+        assertThat(webServer.getRequestCount(), equalTo(1));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
@@ -354,7 +373,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         MarvelDoc doc = newRandomMarvelDoc();
         exporter.export(Collections.singletonList(doc));
 
-        assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(4));
+        assertThat(webServer.getRequestCount(), equalTo(4));
 
         RecordedRequest recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
@@ -401,7 +420,7 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         String expectedMarvelIndex = MarvelSettings.MARVEL_INDICES_PREFIX
                 + DateTimeFormat.forPattern(newTimeFormat).withZoneUTC().print(doc.timestamp());
 
-        assertThat(webServer.getRequestCount(), greaterThanOrEqualTo(4));
+        assertThat(webServer.getRequestCount(), equalTo(4 + 4));
 
         recordedRequest = webServer.takeRequest();
         assertThat(recordedRequest.getMethod(), equalTo("GET"));
@@ -465,6 +484,14 @@ public class HttpExporterTests extends MarvelIntegTestCase {
         }
     }
 
+    private List<MarvelDoc> newRandomMarvelDocs(int nb) {
+        List<MarvelDoc> docs = new ArrayList<>(nb);
+        for (int i = 0; i < nb; i++) {
+            docs.add(newRandomMarvelDoc());
+        }
+        return docs;
+    }
+
     private void enqueueGetClusterVersionResponse(Version v) throws IOException {
         enqueueGetClusterVersionResponse(webServer, v);
     }
@@ -479,5 +506,13 @@ public class HttpExporterTests extends MarvelIntegTestCase {
 
     private void enqueueResponse(MockWebServer mockWebServer, int responseCode, String body) throws IOException {
         mockWebServer.enqueue(new MockResponse().setResponseCode(responseCode).setBody(body));
+    }
+
+    private void assertBulkRequest(Buffer requestBody, int numberOfActions) throws Exception {
+        BulkRequest bulkRequest = Requests.bulkRequest().add(new BytesArray(requestBody.readByteArray()), null, null);
+        assertThat(bulkRequest.numberOfActions(), equalTo(numberOfActions));
+        for (ActionRequest actionRequest : bulkRequest.requests()) {
+            assertThat(actionRequest, instanceOf(IndexRequest.class));
+        }
     }
 }

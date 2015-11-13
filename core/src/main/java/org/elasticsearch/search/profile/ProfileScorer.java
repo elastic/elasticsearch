@@ -56,7 +56,7 @@ final class ProfileScorer extends Scorer {
         try {
             return scorer.advance(target);
         } finally {
-            profile.stopAndRecordTime(ProfileBreakdown.TimingType.ADVANCE);
+            profile.stopAndRecordTime();
         }
     }
 
@@ -66,7 +66,7 @@ final class ProfileScorer extends Scorer {
         try {
             return scorer.nextDoc();
         } finally {
-            profile.stopAndRecordTime(ProfileBreakdown.TimingType.NEXT_DOC);
+            profile.stopAndRecordTime();
         }
     }
 
@@ -76,7 +76,7 @@ final class ProfileScorer extends Scorer {
         try {
             return scorer.score();
         } finally {
-            profile.stopAndRecordTime(ProfileBreakdown.TimingType.SCORE);
+            profile.stopAndRecordTime();
         }
     }
 
@@ -115,7 +115,7 @@ final class ProfileScorer extends Scorer {
                 try {
                     return inApproximation.advance(target);
                 } finally {
-                    profile.stopAndRecordTime(ProfileBreakdown.TimingType.ADVANCE);
+                    profile.stopAndRecordTime();
                 }
             }
 
@@ -125,7 +125,7 @@ final class ProfileScorer extends Scorer {
                 try {
                     return inApproximation.nextDoc();
                 } finally {
-                    profile.stopAndRecordTime(ProfileBreakdown.TimingType.NEXT_DOC);
+                    profile.stopAndRecordTime();
                 }
             }
 
@@ -146,7 +146,7 @@ final class ProfileScorer extends Scorer {
                 try {
                     return in.matches();
                 } finally {
-                    profile.stopAndRecordTime(ProfileBreakdown.TimingType.MATCH);
+                    profile.stopAndRecordTime();
                 }
             }
         };

@@ -51,6 +51,9 @@ public final class ProfileBreakdown {
      */
     private final long[] timings;
 
+    /** Scrach to store the current timing type. */
+    private TimingType currentTimingType;
+
     /**
      * The temporary scratch space for holding start-times
      */
@@ -66,7 +69,9 @@ public final class ProfileBreakdown {
      * @param timing    The timing context being profiled
      */
     public void startTime(TimingType timing) {
+        assert currentTimingType == null;
         assert scratch == 0;
+        currentTimingType = timing;
         scratch = System.nanoTime();
     }
 
@@ -79,9 +84,10 @@ public final class ProfileBreakdown {
      * @param timing    The timing context being profiled
      * @return          The elapsed time
      */
-    public long stopAndRecordTime(TimingType timing) {
+    public long stopAndRecordTime() {
         long time = Math.max(1, System.nanoTime() - scratch);
-        timings[timing.ordinal()] += time;
+        timings[currentTimingType.ordinal()] += time;
+        currentTimingType = null;
         scratch = 0L;
         return time;
     }

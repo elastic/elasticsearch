@@ -107,9 +107,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             // tree
             ProfileBreakdown profile = profiler.getQueryBreakdown(query);
             profile.startTime(ProfileBreakdown.TimingType.WEIGHT);
-            Weight weight = super.createWeight(query, needsScores);
-            profile.stopAndRecordTime(ProfileBreakdown.TimingType.WEIGHT);
-            profiler.pollLastQuery();
+            final Weight weight;
+            try {
+                weight = super.createWeight(query, needsScores);
+            } finally {
+                profile.stopAndRecordTime();
+                profiler.pollLastQuery();
+            }
             return new ProfileWeight(query, weight, profile);
         } else {
             // needs to be 'super', not 'in' in order to use aggregated DFS

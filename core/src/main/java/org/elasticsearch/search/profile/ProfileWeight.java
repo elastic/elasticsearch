@@ -54,7 +54,7 @@ public final class ProfileWeight extends Weight {
         try {
             subQueryScorer = subQueryWeight.scorer(context);
         } finally {
-            profile.stopAndRecordTime(ProfileBreakdown.TimingType.BUILD_SCORER);
+            profile.stopAndRecordTime();
         }
         if (subQueryScorer == null) {
             return null;

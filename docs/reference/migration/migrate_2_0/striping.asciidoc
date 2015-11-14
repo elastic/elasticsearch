@@ -1,7 +1,7 @@
 [[breaking_20_multiple_literal_data_path_literal_striping]]
-=== Multiple `data.path` striping
+=== Multiple `path.data` striping
 
-Previously, if the `data.path` setting listed multiple data paths, then a
+Previously, if the `path.data` setting listed multiple data paths, then a
 shard would be ``striped'' across all paths by writing a whole file to each
 path in turn (in accordance with the `index.store.distributor` setting).  The
 result was that files from a single segment in a shard could be spread across

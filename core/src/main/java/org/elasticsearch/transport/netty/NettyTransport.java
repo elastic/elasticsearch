@@ -802,7 +802,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
         Channel targetChannel = nodeChannel(node, options);
 
         if (compress) {
-            options.withCompress(true);
+            options = TransportRequestOptions.builder(options).withCompress(true).build();
         }
 
         byte status = 0;

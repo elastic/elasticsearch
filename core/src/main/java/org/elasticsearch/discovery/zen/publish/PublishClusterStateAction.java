@@ -191,7 +191,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                                            final BlockingClusterStatePublishResponseHandler publishResponseHandler,
                                            final boolean sendDiffs) {
         try {
-            TransportRequestOptions options = TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withCompress(false);
+            TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withCompress(false).build();
             // no need to put a timeout on the options here, because we want the response to eventually be received
             // and not log an error if it arrives after the timeout
             transportService.sendRequest(node, ACTION_NAME,

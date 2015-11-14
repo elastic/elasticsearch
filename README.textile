@@ -200,7 +200,7 @@ We have just covered a very small portion of what Elasticsearch is all about. Fo
 
 h3. Building from Source
 
-Elasticsearch uses "Gradle":http://gradle.org for its build system. You'll need to have a modern version of Gradle installed - 2.6 should do.
+Elasticsearch uses "Gradle":http://gradle.org for its build system. You'll need to have a modern version of Gradle installed - 2.8 should do.
 
 In order to create a distribution, simply run the @gradle build@ command in the cloned directory.
 

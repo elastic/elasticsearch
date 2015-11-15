@@ -39,7 +39,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;

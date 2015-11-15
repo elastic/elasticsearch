@@ -18,14 +18,12 @@
  */
 package org.elasticsearch.gradle
 
+import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
-import org.gradle.api.artifacts.ProjectDependency
-import org.gradle.api.GradleException
-import org.gradle.api.JavaVersion
-import org.gradle.api.Plugin
-import org.gradle.api.Project
-import org.gradle.api.Task
+import org.gradle.api.*
+import org.gradle.api.artifacts.*
 import org.gradle.api.artifacts.dsl.RepositoryHandler
+import org.gradle.api.artifacts.maven.MavenPom
 import org.gradle.api.tasks.bundling.Jar
 import org.gradle.api.tasks.compile.JavaCompile
 import org.gradle.internal.jvm.Jvm
@@ -48,6 +46,8 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('nebula.info-java')
         project.pluginManager.apply('nebula.info-scm')
         project.pluginManager.apply('nebula.info-jar')
+        project.pluginManager.apply('com.bmuschko.nexus')
+        project.pluginManager.apply(ProvidedBasePlugin)
 
         globalBuildInfo(project)
         configureRepositories(project)
@@ -101,18 +101,97 @@ class BuildPlugin implements Plugin<Project> {
         project.ext.javaHome = project.rootProject.ext.javaHome
     }
 
-    /** Makes dependencies non-transitive by default */
+    /** Return the name
+     */
+    static String transitiveDepConfigName(String groupId, String artifactId, String version) {
+        return "_transitive_${groupId}:${artifactId}:${version}"
+    }
+
+    /**
+     * Makes dependencies non-transitive.
+     *
+     * Gradle allows setting all dependencies as non-transitive very easily.
+     * Sadly this mechanism does not translate into maven pom generation. In order
+     * to effectively make the pom act as if it has no transitive dependencies,
+     * we must exclude each transitive dependency of each direct dependency.
+     *
+     * Determining the transitive deps of a dependency which has been resolved as
+     * non-transitive is difficult because the process of resolving removes the
+     * transitive deps. To sidestep this issue, we create a configuration per
+     * direct dependency version. This specially named and unique configuration
+     * will contain all of the transitive dependencies of this particular
+     * dependency. We can then use this configuration during pom generation
+     * to iterate the transitive dependencies and add excludes.
+     */
     static void configureConfigurations(Project project) {
+        // fail on any conflicting dependency versions
+        project.configurations.all({ Configuration configuration ->
+            if (configuration.name.startsWith('_transitive_')) {
+                // don't force transitive configurations to not conflict with themselves, since
+                // we just have them to find *what* transitive deps exist
+                return
+            }
+            configuration.resolutionStrategy.failOnVersionConflict()
+        })
 
         // force all dependencies added directly to compile/testCompile to be non-transitive, except for ES itself
-        project.configurations.compile.dependencies.all { dep ->
+        Closure disableTransitiveDeps = { ModuleDependency dep ->
             if (!(dep instanceof ProjectDependency) && dep.getGroup() != 'org.elasticsearch') {
                 dep.transitive = false
+
+                // also create a configuration just for this dependency version, so that later
+                // we can determine which transitive dependencies it has
+                String depConfig = transitiveDepConfigName(dep.group, dep.name, dep.version)
+                if (project.configurations.findByName(depConfig) == null) {
+                    project.configurations.create(depConfig)
+                    project.dependencies.add(depConfig, "${dep.group}:${dep.name}:${dep.version}")
+                }
             }
         }
-        project.configurations.testCompile.dependencies.all { dep ->
-            if (!(dep instanceof ProjectDependency) && dep.getGroup() != 'org.elasticsearch') {
-                dep.transitive = false
+
+        project.configurations.compile.dependencies.all(disableTransitiveDeps)
+        project.configurations.testCompile.dependencies.all(disableTransitiveDeps)
+        project.configurations.provided.dependencies.all(disableTransitiveDeps)
+
+        // add exclusions to the pom directly, for each of the transitive deps of this project's deps
+        project.modifyPom { MavenPom pom ->
+            pom.withXml { XmlProvider xml ->
+                // first find if we have dependencies at all, and grab the node
+                NodeList depsNodes = xml.asNode().get('dependencies')
+                if (depsNodes.isEmpty()) {
+                    return
+                }
+
+                // check each dependency for any transitive deps
+                for (Node depNode : depsNodes.get(0).children()) {
+                    String groupId = depNode.get('groupId').get(0).text()
+                    String artifactId = depNode.get('artifactId').get(0).text()
+                    String version = depNode.get('version').get(0).text()
+
+                    // collect the transitive deps now that we know what this dependency is
+                    String depConfig = transitiveDepConfigName(groupId, artifactId, version)
+                    Configuration configuration = project.configurations.findByName(depConfig)
+                    if (configuration == null) {
+                        continue // we did not make this dep non-transitive
+                    }
+                    Set<ResolvedArtifact> artifacts = configuration.resolvedConfiguration.resolvedArtifacts
+                    if (artifacts.size() <= 1) {
+                        // this dep has no transitive deps (or the only artifact is itself)
+                        continue
+                    }
+
+                    // we now know we have something to exclude, so add the exclusion elements
+                    Node exclusions = depNode.appendNode('exclusions')
+                    for (ResolvedArtifact transitiveArtifact : artifacts) {
+                        ModuleVersionIdentifier transitiveDep = transitiveArtifact.moduleVersion.id
+                        if (transitiveDep.group == groupId && transitiveDep.name == artifactId) {
+                            continue; // don't exclude the dependency itself!
+                        }
+                        Node exclusion = exclusions.appendNode('exclusion')
+                        exclusion.appendNode('groupId', transitiveDep.group)
+                        exclusion.appendNode('artifactId', transitiveDep.name)
+                    }
+                }
             }
         }
     }

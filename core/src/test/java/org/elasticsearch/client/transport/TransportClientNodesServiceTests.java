@@ -129,7 +129,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
                             throw new IllegalArgumentException();
                         }
 
-                        iteration.transportService.sendRequest(node, "action", new TestRequest(), new TransportRequestOptions(), new BaseTransportResponseHandler<TestResponse>() {
+                        iteration.transportService.sendRequest(node, "action", new TestRequest(), TransportRequestOptions.EMPTY, new BaseTransportResponseHandler<TestResponse>() {
                             @Override
                             public TestResponse newInstance() {
                                 return new TestResponse();

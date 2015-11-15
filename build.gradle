@@ -20,15 +20,6 @@
 import com.bmuschko.gradle.nexus.NexusPlugin
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
-buildscript {
-  repositories {
-    mavenCentral()
-  }
-  dependencies {
-    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
-  }
-}
-
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
@@ -110,8 +101,6 @@ subprojects {
   configurations {
     all {
       resolutionStrategy {
-        failOnVersionConflict()
-
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
           substitute module("org.elasticsearch:elasticsearch:${version}") with project("${projectsPrefix}:core")

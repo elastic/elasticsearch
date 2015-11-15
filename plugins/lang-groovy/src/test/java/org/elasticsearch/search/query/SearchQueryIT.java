@@ -243,7 +243,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         int num = scaledRandomIntBetween(100, 200);
         IndexRequestBuilder[] builders = new IndexRequestBuilder[num];
         for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "type", "" + i).setSource("f", English.intToEnglish(i));
+            builders[i] = client().prepareIndex("test_1", "type", "" + i).setSource("f", English.intToEnglish(i));
         }
         createIndex("test_1");
         indexRandom(true, builders);
@@ -251,7 +251,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         int queryRounds = scaledRandomIntBetween(10, 20);
         for (int i = 0; i < queryRounds; i++) {
             MatchQueryBuilder matchQuery = matchQuery("f", English.intToEnglish(between(0, num)));
-            searchResponse = client().prepareSearch("test_1").setQuery(matchQuery).setSize(num).get();
+            searchResponse = client().prepareSearch("test_1").setQuery(constantScoreQuery(matchQuery)).setSize(num).get();
             long totalHits = searchResponse.getHits().totalHits();
             SearchHits hits = searchResponse.getHits();
             for (SearchHit searchHit : hits) {

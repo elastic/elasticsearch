@@ -39,7 +39,6 @@ import static com.google.common.collect.Maps.newHashMap;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.notNullValue;
 
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BlobStoreTests extends ESTestCase {
 
     @Test

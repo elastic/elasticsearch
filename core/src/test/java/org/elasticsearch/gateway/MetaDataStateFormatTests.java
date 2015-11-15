@@ -67,7 +67,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
 
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to work with ExtrasFS
 public class MetaDataStateFormatTests extends ESTestCase {
 
 

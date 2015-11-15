@@ -60,7 +60,6 @@ import static org.hamcrest.Matchers.notNullValue;
  * Note, when talking to tribe client, no need to set the local flag on master read operations, it
  * does it by default.
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class TribeIT extends ESIntegTestCase {
 
     public static final String SECOND_CLUSTER_NODE_PREFIX = "node_tribe2";

@@ -68,7 +68,6 @@ import static org.hamcrest.Matchers.*;
 /**
  *
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class TranslogTests extends ESTestCase {
 
     private static final Pattern PARSE_LEGACY_ID_PATTERN = Pattern.compile("^" + Translog.TRANSLOG_FILE_PREFIX + "(\\d+)((\\.recovering))?$");

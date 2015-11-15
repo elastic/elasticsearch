@@ -38,7 +38,6 @@ import static org.hamcrest.Matchers.hasEntry;
  * Basic test that ensure that the internal cluster reproduces the same
  * configuration given the same seed / input.
  */
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // doesn't work with potential multi data path from test cluster yet
 public class InternalTestClusterTests extends ESTestCase {
 
     public void testInitializiationIsConsistent() {

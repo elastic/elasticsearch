@@ -43,7 +43,6 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.CoreMatchers.equalTo;
 
-@LuceneTestCase.SuppressFileSystems("ExtrasFS") // TODO: fix test to allow extras
 public class NodeEnvironmentTests extends ESTestCase {
 
     private final Settings idxSettings = Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).build();

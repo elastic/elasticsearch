@@ -37,6 +37,7 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
@@ -106,6 +107,7 @@ import static org.hamcrest.Matchers.equalTo;
         "LuceneVarGapFixedInterval", "LuceneVarGapDocFreqInterval", "Lucene50"
 })
 @LuceneTestCase.SuppressReproduceLine
+@LuceneTestCase.SuppressFileSystems("*") // incompatible with java 9: https://issues.apache.org/jira/browse/LUCENE-6795
 @ReproduceInfoPrinter.Properties({ "es.logger.level", "tests.assertion.disabled", "tests.security.manager", "tests.nightly", "tests.jvms",
         "tests.client.ratio", "tests.heap.size" })
 public abstract class ESTestCase extends LuceneTestCase {
@@ -630,5 +632,22 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Returns the suite failure marker: internal use only! */
     public static TestRuleMarkFailure getSuiteFailureMarker() {
         return suiteFailureMarker;
+    }
+
+    /** Compares two stack traces, ignoring module (which is not yet serialized) */
+    public static void assertArrayEquals(StackTraceElement expected[], StackTraceElement actual[]) {
+        assertEquals(expected.length, actual.length);
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals(expected[i], actual[i]);
+        }
+    }
+
+    /** Compares two stack trace elements, ignoring module (which is not yet serialized) */
+    public static void assertEquals(StackTraceElement expected, StackTraceElement actual) {
+        assertEquals(expected.getClassName(), actual.getClassName());
+        assertEquals(expected.getMethodName(), actual.getMethodName());
+        assertEquals(expected.getFileName(), actual.getFileName());
+        assertEquals(expected.getLineNumber(), actual.getLineNumber());
+        assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
     }
 }

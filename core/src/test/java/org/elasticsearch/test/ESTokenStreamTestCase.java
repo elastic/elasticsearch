@@ -37,6 +37,7 @@ import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 @TimeoutSuite(millis = TimeUnits.HOUR)
 @LuceneTestCase.SuppressReproduceLine
 @LuceneTestCase.SuppressSysoutChecks(bugUrl = "we log a lot on purpose")
+@LuceneTestCase.SuppressFileSystems("*") // incompatible with java 9: https://issues.apache.org/jira/browse/LUCENE-6795
 /**
  * Basic test case for token streams. the assertion methods in this class will
  * run basic checks to enforce correct behavior of the token streams.

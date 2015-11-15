@@ -219,9 +219,9 @@ class BuildPlugin implements Plugin<Project> {
     static void configureCompile(Project project) {
         project.afterEvaluate {
             // fail on all javac warnings
-            project.tasks.withType(JavaCompile) {
-                options.compilerArgs << '-Werror' << '-Xlint:all' << '-Xdoclint:all/private' << '-Xdoclint:-missing'
-                options.encoding = 'UTF-8'
+            project.tasks.withType(JavaCompile) { JavaCompile compile ->
+                compile.options.compilerArgs << '-Werror' << '-Xlint:all' << '-Xdoclint:all/private,-missing'
+                compile.options.encoding = 'UTF-8'
             }
         }
     }

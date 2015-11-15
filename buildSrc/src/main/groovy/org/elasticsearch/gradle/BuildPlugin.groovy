@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.gradle
 
+import java.time.ZonedDateTime
+import java.time.ZoneOffset
+
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.*
@@ -41,6 +44,7 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
+        configureJarManifest(project) // jar config must be added before info broker
         project.pluginManager.apply('nebula.info-broker')
         project.pluginManager.apply('nebula.info-basic')
         project.pluginManager.apply('nebula.info-java')
@@ -54,7 +58,7 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
-        configureJarManifest(project)
+
         configureTest(project)
         PrecommitTasks.configure(project)
     }
@@ -228,12 +232,14 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds additional manifest info to jars */
     static void configureJarManifest(Project project) {
-        project.afterEvaluate {
-            project.tasks.withType(Jar) { Jar jarTask ->
-                manifest {
-                    attributes('X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
-                               'X-Compile-Lucene-Version': VersionProperties.lucene)
-                }
+        project.tasks.withType(Jar) { Jar jarTask ->
+            jarTask.doFirst {
+                // this doFirst is added before the info plugin, therefore it will run
+                // after the doFirst added by the info plugin, and we can override attributes
+                jarTask.manifest.attributes(
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
+                        'X-Compile-Lucene-Version': VersionProperties.lucene,
+                        'Build-Date': ZonedDateTime.now(ZoneOffset.UTC))
             }
         }
     }

@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.marvel.agent.exporter.MarvelDoc;
 
 public class ClusterStateMarvelDoc extends MarvelDoc {

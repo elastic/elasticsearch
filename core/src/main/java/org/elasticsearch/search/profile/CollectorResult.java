@@ -28,7 +28,6 @@ import java.util.List;
  */
 public interface CollectorResult {
 
-    public static final String REASON_GENERAL = "general";
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
     public static final String REASON_SEARCH_TERMINATE_AFTER_COUNT = "search_terminate_after_count";

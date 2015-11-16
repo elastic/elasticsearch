@@ -175,7 +175,7 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
         assertThat(serializedMap.get("_timestamp"), instanceOf(Map.class));
         Map<String, Object> timestampConfiguration = (Map<String, Object>) serializedMap.get("_timestamp");
         assertThat(timestampConfiguration, hasKey("index"));
-        assertThat(timestampConfiguration.get("index").toString(), is("no"));
+        assertThat(timestampConfiguration.get("index").toString(), is("false"));
     }
 
     // Issue 4718: was throwing a TimestampParsingException: failed to parse timestamp [null]

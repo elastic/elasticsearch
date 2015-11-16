@@ -76,13 +76,13 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                 .startObject().startObject("template_raw")
                 .field("match", "*_raw")
                 .field("match_mapping_type", "string")
-                .startObject("mapping").field("type", "string").field("index", "not_analyzed").endObject()
+                .startObject("mapping").field("type", "keyword").endObject()
                 .endObject().endObject()
 
                 .startObject().startObject("template_all")
                 .field("match", "*")
                 .field("match_mapping_type", "string")
-                .startObject("mapping").field("type", "string").field("copy_to", "{name}_raw").endObject()
+                .startObject("mapping").field("type", "text").field("copy_to", "{name}_raw").endObject()
                 .endObject().endObject()
 
                 .endArray();

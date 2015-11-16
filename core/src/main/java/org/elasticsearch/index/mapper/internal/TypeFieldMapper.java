@@ -113,7 +113,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     static final class TypeFieldType extends MappedFieldType {
 
         public TypeFieldType() {
-            setFieldDataType(new FieldDataType("string"));
+            setFieldDataType(new FieldDataType("keyword"));
         }
 
         protected TypeFieldType(TypeFieldType ref) {
@@ -219,7 +219,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
             builder.field("store", fieldType().stored());
         }
         if (includeDefaults || indexed != defaultIndexed) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
+            builder.field("index", indexed);
         }
         builder.endObject();
         return builder;

@@ -51,7 +51,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_default() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+                .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -70,7 +70,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_bm25() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+                .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -93,7 +93,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_DFR() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+                .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -118,7 +118,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_IB() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+                .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -143,7 +143,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_LMDirichlet() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+                .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -162,7 +162,7 @@ public class SimilarityTests extends ESSingleNodeTestCase {
     public void testResolveSimilaritiesFromMapping_LMJelinekMercer() throws IOException {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("similarity", "my_similarity").endObject()
+                .startObject("field1").field("type", "text").field("similarity", "my_similarity").endObject()
                 .endObject()
                 .endObject().endObject().string();
 

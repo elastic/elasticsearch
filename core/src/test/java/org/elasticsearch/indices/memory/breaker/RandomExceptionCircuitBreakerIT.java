@@ -72,8 +72,7 @@ public class RandomExceptionCircuitBreakerIT extends ESIntegTestCase {
                 .startObject("type")
                 .startObject("properties")
                 .startObject("test-str")
-                .field("type", "string")
-                .field("index", "not_analyzed")
+                .field("type", "keyword")
                 .field("doc_values", randomBoolean())
                 .endObject() // test-str
                 .startObject("test-num")

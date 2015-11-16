@@ -81,7 +81,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
             if (randomBoolean()) {
                 fields.put(randomAsciiOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
-                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
+                fields.put(randomBoolean() ? TEXT_FIELD_NAME : randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
             }
         }
         result.fields(fields);
@@ -149,7 +149,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
     // Check operator handling, and default field handling.
     public void testDefaultOperatorHandling() throws IOException {
-        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(STRING_FIELD_NAME);
+        SimpleQueryStringBuilder qb = new SimpleQueryStringBuilder("The quick brown fox.").field(TEXT_FIELD_NAME);
         QueryShardContext shardContext = createShardContext();
         shardContext.setAllowUnmappedFields(true); // to avoid occasional cases
                                                    // in setup where we didn't
@@ -310,7 +310,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         QueryShardContext shardContext = createShardContext();
         SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
-        simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
+        simpleQueryStringBuilder.field(TEXT_FIELD_NAME, 5);
         Query query = simpleQueryStringBuilder.toQuery(shardContext);
         assertThat(query, instanceOf(BoostQuery.class));
         BoostQuery boostQuery = (BoostQuery) query;
@@ -318,7 +318,7 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
 
         simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
-        simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
+        simpleQueryStringBuilder.field(TEXT_FIELD_NAME, 5);
         simpleQueryStringBuilder.boost(2);
         query = simpleQueryStringBuilder.toQuery(shardContext);
         boostQuery = (BoostQuery) query;

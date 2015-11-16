@@ -41,7 +41,7 @@ PUT /my_index
     "my_type": {
       "properties": {
         "text": {
-          "type": "string",
+          "type": "text",
           "analyzer": "autocomplete", <2>
           "search_analyzer": "standard" <2>
         }

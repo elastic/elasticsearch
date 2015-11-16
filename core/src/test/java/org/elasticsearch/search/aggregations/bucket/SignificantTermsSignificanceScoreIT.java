@@ -97,7 +97,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testPlugin() throws Exception {
-        String type = randomBoolean() ? "string" : "long";
+        String type = randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -250,7 +250,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testXContentResponse() throws Exception {
-        String type = randomBoolean() ? "string" : "long";
+        String type = randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
@@ -284,7 +284,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     public void testDeletesIssue7951() throws Exception {
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"string\",\"index\":\"not_analyzed\"}}}}";
+        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"keyword\"}}}}";
         assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
         String[] cat1v1 = {"constant", "one"};
         String[] cat1v2 = {"constant", "uno"};
@@ -325,7 +325,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testBackgroundVsSeparateSet() throws Exception {
-        String type = randomBoolean() ? "string" : "long";
+        String type = randomBoolean() ? "text" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings);
         testBackgroundVsSeparateSet(new MutualInformation.MutualInformationBuilder(true, true), new MutualInformation.MutualInformationBuilder(true, false));
@@ -443,7 +443,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
     private void indexEqualTestData() throws ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test").setSettings(SETTING_NUMBER_OF_SHARDS, 1, SETTING_NUMBER_OF_REPLICAS, 0).addMapping("doc",
-                "text", "type=string", "class", "type=string"));
+                "text", "type=text", "class", "type=text"));
         createIndex("idx_unmapped");
 
         ensureGreen();
@@ -476,7 +476,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testScriptScore() throws ExecutionException, InterruptedException, IOException {
-        indexRandomFrequencies01(randomBoolean() ? "string" : "long");
+        indexRandomFrequencies01(randomBoolean() ? "text" : "long");
         ScriptHeuristic.ScriptHeuristicBuilder scriptHeuristicBuilder = getScriptSignificanceHeuristicBuilder();
         ensureYellow();
         SearchResponse response = client().prepareSearch(INDEX_NAME)

@@ -67,7 +67,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
 
     public void testRestartNodePercolator1() throws Exception {
         internalCluster().startNode();
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=text").addMapping(PercolatorService.TYPE_NAME, "color", "type=text"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")
@@ -103,7 +103,7 @@ public class RecoveryPercolatorIT extends ESIntegTestCase {
 
     public void testRestartNodePercolator2() throws Exception {
         internalCluster().startNode();
-        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=string").addMapping(PercolatorService.TYPE_NAME, "color", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "field1", "type=text").addMapping(PercolatorService.TYPE_NAME, "color", "type=text"));
 
         logger.info("--> register a query");
         client().prepareIndex("test", PercolatorService.TYPE_NAME, "kuku")

@@ -39,13 +39,13 @@ import static org.hamcrest.Matchers.notNullValue;
 public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuilder> {
     @Override
     protected MatchQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomFrom(STRING_FIELD_NAME, BOOLEAN_FIELD_NAME, INT_FIELD_NAME,
-                DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
+        String fieldName = randomFrom(TEXT_FIELD_NAME, KEYWORD_FIELD_NAME, BOOLEAN_FIELD_NAME,
+                INT_FIELD_NAME, DOUBLE_FIELD_NAME, DATE_FIELD_NAME);
         if (fieldName.equals(DATE_FIELD_NAME)) {
             assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         }
         Object value;
-        if (fieldName.equals(STRING_FIELD_NAME)) {
+        if (fieldName.equals(TEXT_FIELD_NAME)) {
             int terms = randomIntBetween(0, 3);
             StringBuilder builder = new StringBuilder();
             for (int i = 0; i < terms; i++) {
@@ -129,7 +129,7 @@ public class MatchQueryBuilderTests extends AbstractQueryTestCase<MatchQueryBuil
         MappedFieldType fieldType = context.fieldMapper(queryBuilder.fieldName());
         if (query instanceof TermQuery && fieldType != null) {
             String queryValue = queryBuilder.value().toString();
-            if (queryBuilder.analyzer() == null || queryBuilder.analyzer().equals("simple")) {
+            if (queryBuilder.analyzer() != null && queryBuilder.analyzer().equals("simple")) {
                 queryValue = queryValue.toLowerCase(Locale.ROOT);
             }
             Query expectedTermQuery = fieldType.termQuery(queryValue, context);

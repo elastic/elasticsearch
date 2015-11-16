@@ -76,8 +76,7 @@ public class IncludeExcludeAggregationSearchBenchmark {
             client.admin().indices().create(createIndexRequest("index").settings(settings).mapping("type",
                     jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("str")
-                            .field("type", "string")
-                            .field("index", "not_analyzed")
+                            .field("type", "keyword")
                         .endObject()
                     .endObject().endObject().endObject())).actionGet();
 

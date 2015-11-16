@@ -8,12 +8,12 @@ setup:
                   company:
                       properties:
                           companyname:
-                              type: string
+                              type: text
                           employee:
                               type: nested
                               properties:
                                   name:
-                                      type: string
+                                      type: text
 
 
   - do:

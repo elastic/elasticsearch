@@ -100,7 +100,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
                 .field("type", "murmur3")
-                .field("index", "not_analyzed")
+                .field("index", true)
             .endObject().endObject().endObject().endObject().string();
         try {
             parser.parse(mapping);
@@ -147,7 +147,7 @@ public class Murmur3FieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
             .startObject("properties").startObject("field")
             .field("type", "murmur3")
-            .field("index", "not_analyzed")
+            .field("index", true)
             .endObject().endObject().endObject().endObject().string();
 
         DocumentMapper docMapper = parser.parse(mapping);

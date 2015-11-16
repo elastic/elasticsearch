@@ -33,7 +33,7 @@ setup:
               test:
                 properties:
                   text:
-                    type:     string
+                    type:     text
                     analyzer: whitespace
     - do:
         cluster.health:

@@ -56,7 +56,7 @@ public class FunctionScoreBackwardCompatibilityIT extends ESBackcompatTestCase {
                         .startObject("type1")
                         .startObject("properties")
                         .startObject("text")
-                        .field("type", "string")
+                        .field("type", "text")
                         .endObject()
                         .startObject("loc")
                         .field("type", "geo_point")

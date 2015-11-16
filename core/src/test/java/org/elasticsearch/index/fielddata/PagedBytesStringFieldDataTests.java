@@ -28,6 +28,6 @@ public class PagedBytesStringFieldDataTests extends AbstractStringFieldDataTestC
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", Settings.builder().put("format", "paged_bytes").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
+        return new FieldDataType("text", Settings.builder().put("format", "paged_bytes").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
     }
 }

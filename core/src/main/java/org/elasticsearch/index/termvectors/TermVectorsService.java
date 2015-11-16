@@ -33,15 +33,15 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.uid.Versions;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.*;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.dfs.AggregatedDfs;
@@ -159,7 +159,9 @@ public class TermVectorsService  {
 
     private boolean isValidField(MappedFieldType fieldType) {
         // must be a string
-        if (!(fieldType instanceof StringFieldMapper.StringFieldType)) {
+        if (fieldType instanceof TextFieldMapper.TextFieldType == false
+                && fieldType instanceof KeywordFieldMapper.KeywordFieldType == false
+                && fieldType instanceof StringFieldMapper.StringFieldType == false) {
             return false;
         }
         // and must be indexed

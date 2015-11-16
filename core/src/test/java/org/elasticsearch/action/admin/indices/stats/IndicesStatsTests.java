@@ -48,10 +48,12 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
                 .startObject("doc")
                     .startObject("properties")
                         .startObject("foo")
-                            .field("type", "string")
-                            .field("index", "not_analyzed")
-                            .field("doc_values", true)
+                            .field("type", "text")
                             .field("store", true)
+                            .field("term_vector", "with_positions_offsets_payloads")
+                        .endObject()
+                        .startObject("bar")
+                            .field("type", "text")
                             .field("term_vector", "with_positions_offsets_payloads")
                         .endObject()
                     .endObject()
@@ -59,7 +61,7 @@ public class IndicesStatsTests extends ESSingleNodeTestCase {
             .endObject();
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("doc", mapping));
         ensureGreen("test");
-        client().prepareIndex("test", "doc", "1").setSource("foo", "bar").get();
+        client().prepareIndex("test", "doc", "1").setSource("foo", "bar", "bar", "quux").get();
         client().admin().indices().prepareRefresh("test").get();
 
         IndicesStatsResponse rsp = client().admin().indices().prepareStats("test").get();

@@ -52,7 +52,7 @@ import static org.hamcrest.Matchers.notNullValue;
 public class PercolatorFacetsAndAggregationsIT extends ESIntegTestCase {
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testFacetsAndAggregations() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=text"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -114,7 +114,7 @@ public class PercolatorFacetsAndAggregationsIT extends ESIntegTestCase {
 
     // Just test the integration with facets and aggregations, not the facet and aggregation functionality!
     public void testAggregationsAndPipelineAggregations() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=string", "field2", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "field1", "type=text", "field2", "type=text"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);
@@ -196,7 +196,7 @@ public class PercolatorFacetsAndAggregationsIT extends ESIntegTestCase {
 
     public void testSingleShardAggregations() throws Exception {
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put(indexSettings()).put("SETTING_NUMBER_OF_SHARDS", 1))
-                .addMapping("type", "field1", "type=string", "field2", "type=string"));
+                .addMapping("type", "field1", "type=text", "field2", "type=text"));
         ensureGreen();
 
         int numQueries = scaledRandomIntBetween(250, 500);

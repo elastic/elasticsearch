@@ -87,9 +87,9 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 // _timestamp is randomly enabled via templates but we don't want it here to test stored fields behaviour
                 .startObject("_timestamp").field("enabled", false).endObject()
                 .startObject("properties")
-                .startObject("field1").field("type", "string").field("store", "yes").endObject()
-                .startObject("field2").field("type", "string").field("store", "no").endObject()
-                .startObject("field3").field("type", "string").field("store", "yes").endObject()
+                .startObject("field1").field("type", "text").field("store", "yes").endObject()
+                .startObject("field2").field("type", "text").field("store", "no").endObject()
+                .startObject("field3").field("type", "text").field("store", "yes").endObject()
                 .endObject().endObject().endObject().string();
 
         client().admin().indices().preparePutMapping().setType("type1").setSource(mapping).execute().actionGet();
@@ -463,7 +463,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                         .startObject("field1").field("type", "object").startObject("properties")
                         .startObject("field2").field("type", "object").startObject("properties")
                         .startObject("field3").field("type", "object").startObject("properties")
-                        .startObject("field4").field("type", "string").field("store", "yes")
+                        .startObject("field4").field("type", "text").field("store", "yes")
                         .endObject().endObject()
                         .endObject().endObject()
                         .endObject().endObject()
@@ -531,7 +531,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("_source").field("enabled", false).endObject()
-                .startObject("string_field").field("type", "string").endObject()
+                .startObject("string_field").field("type", "text").endObject()
                 .startObject("byte_field").field("type", "byte").endObject()
                 .startObject("short_field").field("type", "short").endObject()
                 .startObject("integer_field").field("type", "integer").endObject()
@@ -591,10 +591,10 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
     public void testScriptFields() throws Exception {
         assertAcked(prepareCreate("index").addMapping("type",
-                "s", "type=string,index=not_analyzed",
+                "s", "type=keyword",
                 "l", "type=long",
                 "d", "type=double",
-                "ms", "type=string,index=not_analyzed",
+                "ms", "type=keyword",
                 "ml", "type=long",
                 "md", "type=double").get());
         final int numDocs = randomIntBetween(3, 8);

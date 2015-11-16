@@ -31,7 +31,7 @@ public class CompoundTypesTests extends ESSingleNodeTestCase {
     public void testStringType() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                .startObject("field1").field("type", "string").endObject()
+                .startObject("field1").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject().string();
 

@@ -99,7 +99,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         settingsBuilder()
                                 .put("index.number_of_shards", 1)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("doc", "{\"doc\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                ).addMapping("doc", "{\"doc\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -111,7 +111,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
         GetMappingsResponse getMappingsResponse = client().admin().indices().prepareGetMappings("test").execute().actionGet();
         assertThat(getMappingsResponse.mappings().get("test").get("doc").source().toString(),
-                equalTo("{\"doc\":{\"properties\":{\"body\":{\"type\":\"string\"},\"date\":{\"type\":\"integer\"}}}}"));
+                equalTo("{\"doc\":{\"properties\":{\"body\":{\"type\":\"text\"},\"date\":{\"type\":\"integer\"}}}}"));
     }
 
     public void testUpdateMappingWithoutTypeMultiObjects() throws Exception {
@@ -140,7 +140,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         settingsBuilder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
@@ -155,11 +155,11 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
     public void testUpdateMappingWithNormsConflicts() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": false }}}}}")
+                .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": { \"enabled\": false }}}}}")
                 .execute().actionGet();
         try {
             client().admin().indices().preparePutMapping("test").setType("type")
-                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": true }}}}}").execute()
+                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\", \"norms\": { \"enabled\": true }}}}}").execute()
                     .actionGet();
             fail("Expected MergeMappingException");
         } catch (MergeMappingException e) {
@@ -176,12 +176,12 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                         settingsBuilder()
                                 .put("index.number_of_shards", 2)
                                 .put("index.number_of_replicas", 0)
-                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                ).addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
         PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\"}}}}")
+                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"text\"}}}}")
                 .execute().actionGet();
 
         //no changes, we return
@@ -219,7 +219,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("Creating _default_ mappings with an analyzed field");
         putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "string").field("index", "analyzed").endObject().endObject()
+                        .startObject("properties").startObject("f").field("type", "text").endObject().endObject()
                         .endObject().endObject()
         ).get();
         assertThat(putResponse.isAcknowledged(), equalTo(true));
@@ -228,7 +228,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         logger.info("Changing _default_ mappings field from analyzed to non-analyzed");
         putResponse = client().admin().indices().preparePutMapping("test").setType(MapperService.DEFAULT_MAPPING).setSource(
                 JsonXContent.contentBuilder().startObject().startObject(MapperService.DEFAULT_MAPPING)
-                        .startObject("properties").startObject("f").field("type", "string").field("index", "not_analyzed").endObject().endObject()
+                        .startObject("properties").startObject("f").field("type", "keyword").endObject().endObject()
                         .endObject().endObject()
         ).get();
         assertThat(putResponse.isAcknowledged(), equalTo(true));
@@ -237,7 +237,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
         getResponse = client().admin().indices().prepareGetMappings("test").addTypes(MapperService.DEFAULT_MAPPING).get();
         defaultMapping = getResponse.getMappings().get("test").get(MapperService.DEFAULT_MAPPING).sourceAsMap();
         Map<String, Object> fieldSettings = (Map<String, Object>) ((Map) defaultMapping.get("properties")).get("f");
-        assertThat(fieldSettings, hasEntry("index", (Object) "not_analyzed"));
+        assertThat(fieldSettings, hasEntry("type", (Object) "keyword"));
 
         // but we still validate the _default_ type
         logger.info("Confirming _default_ mappings validation");
@@ -286,7 +286,7 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
                             PutMappingResponse response = client1.admin().indices().preparePutMapping(indexName).setType(typeName).setSource(
                                     JsonXContent.contentBuilder().startObject().startObject(typeName)
-                                            .startObject("properties").startObject(fieldName).field("type", "string").endObject().endObject()
+                                            .startObject("properties").startObject(fieldName).field("type", "text").endObject().endObject()
                                             .endObject().endObject()
                             ).get();
 

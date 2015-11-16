@@ -7,7 +7,7 @@ setup:
               testtype:
                 properties:
                   text:
-                    type :         "string"
+                    type :         "text"
                     term_vector :  "with_positions_offsets"
   - do:
       index:

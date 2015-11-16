@@ -21,8 +21,7 @@ PUT my_index
     "session": {
       "properties": {
         "user_id": {
-          "type":  "string",
-          "index": "not_analyzed"
+          "type":  "keyword"
         },
         "last_updated": {
           "type": "date"

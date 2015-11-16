@@ -118,26 +118,26 @@ public class AttachmentMapper extends FieldMapper {
 
         private Mapper.Builder contentBuilder;
 
-        private Mapper.Builder titleBuilder = stringField(FieldNames.TITLE);
+        private Mapper.Builder titleBuilder = textField(FieldNames.TITLE);
 
-        private Mapper.Builder nameBuilder = stringField(FieldNames.NAME);
+        private Mapper.Builder nameBuilder = textField(FieldNames.NAME);
 
-        private Mapper.Builder authorBuilder = stringField(FieldNames.AUTHOR);
+        private Mapper.Builder authorBuilder = textField(FieldNames.AUTHOR);
 
-        private Mapper.Builder keywordsBuilder = stringField(FieldNames.KEYWORDS);
+        private Mapper.Builder keywordsBuilder = textField(FieldNames.KEYWORDS);
 
         private Mapper.Builder dateBuilder = dateField(FieldNames.DATE);
 
-        private Mapper.Builder contentTypeBuilder = stringField(FieldNames.CONTENT_TYPE);
+        private Mapper.Builder contentTypeBuilder = textField(FieldNames.CONTENT_TYPE);
 
         private Mapper.Builder contentLengthBuilder = integerField(FieldNames.CONTENT_LENGTH);
 
-        private Mapper.Builder languageBuilder = stringField(FieldNames.LANGUAGE);
+        private Mapper.Builder languageBuilder = textField(FieldNames.LANGUAGE);
 
         public Builder(String name) {
             super(name, new AttachmentFieldType());
             this.builder = this;
-            this.contentBuilder = stringField(FieldNames.CONTENT);
+            this.contentBuilder = textField(FieldNames.CONTENT);
         }
 
         public Builder pathType(ContentPath.Type pathType) {
@@ -292,7 +292,7 @@ public class AttachmentMapper extends FieldMapper {
             if (typeNode != null) {
                 type = typeNode.toString();
             } else {
-                type = "string";
+                type = "text";
             }
             Mapper.TypeParser typeParser = parserContext.typeParser(type);
             Mapper.Builder<?, ?> mapperBuilder = typeParser.parse(propName, (Map<String, Object>) propNode, parserContext);

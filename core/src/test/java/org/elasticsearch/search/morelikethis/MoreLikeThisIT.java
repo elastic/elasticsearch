@@ -65,7 +65,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("text").field("type", "string").endObject()
+                        .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
         logger.info("Running Cluster Health");
@@ -105,7 +105,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("text").field("type", "string").endObject()
+                        .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
         logger.info("Creating aliases alias release");
         client().admin().indices().aliases(indexAliasesRequest().addAlias("release", termQuery("text", "release"), "test")).actionGet();
@@ -218,7 +218,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
                     .startObject().startObject("type")
                     .startObject("properties")
                         .startObject("int_value").field("type", randomFrom(numericTypes)).endObject()
-                        .startObject("string_value").field("type", "string").endObject()
+                        .startObject("string_value").field("type", "text").endObject()
                         .endObject()
                     .endObject().endObject()).execute().actionGet();
         ensureGreen();
@@ -275,7 +275,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("text").field("type", "string").endObject()
+                        .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
         logger.info("Running Cluster Health");
@@ -311,7 +311,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         logger.info("Creating index test");
         assertAcked(prepareCreate("test").addMapping("type1",
                 jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("text").field("type", "string").endObject()
+                        .startObject("text").field("type", "text").endObject()
                         .endObject().endObject().endObject()));
 
         logger.info("Running Cluster Health");
@@ -336,7 +336,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
         CreateIndexRequestBuilder createRequestBuilder = prepareCreate("test");
         for (int i = 0; i < numOfTypes; i++) {
             createRequestBuilder.addMapping("type" + i, jsonBuilder().startObject().startObject("type" + i).startObject("properties")
-                    .startObject("text").field("type", "string").endObject()
+                    .startObject("text").field("type", "text").endObject()
                     .endObject().endObject().endObject());
         }
         assertAcked(createRequestBuilder);
@@ -365,7 +365,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMoreLikeThisMultiValueFields() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=string,analyzer=keyword")
+                .addMapping("type1", "text", "type=text,analyzer=keyword")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
         ensureGreen();
 
@@ -397,7 +397,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMinimumShouldMatch() throws ExecutionException, InterruptedException {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=string,analyzer=whitespace")
+                .addMapping("type1", "text", "type=text,analyzer=whitespace")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1));
         ensureGreen();
 
@@ -460,7 +460,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
     public void testMoreLikeThisMalformedArtificialDocs() throws Exception {
         logger.info("Creating the index ...");
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=string,analyzer=whitespace", "date", "type=date"));
+                .addMapping("type1", "text", "type=text,analyzer=whitespace", "date", "type=date"));
         ensureGreen("test");
 
         logger.info("Creating an index with a single document ...");
@@ -572,7 +572,7 @@ public class MoreLikeThisIT extends ESIntegTestCase {
 
     public void testSelectFields() throws IOException, ExecutionException, InterruptedException {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "text", "type=string,analyzer=whitespace", "text1", "type=string,analyzer=whitespace"));
+                .addMapping("type1", "text", "type=text,analyzer=whitespace", "text1", "type=text,analyzer=whitespace"));
         ensureGreen("test");
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder()

@@ -121,7 +121,7 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
      */
     private void setupGapInMapping(int positionIncrementGap) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("string");
-        mapping.field("type", "string");
+        mapping.field("type", "text");
         mapping.field("position_increment_gap", positionIncrementGap);
         client().admin().indices().prepareCreate("test").addMapping("test", mapping).get();
     }
@@ -133,7 +133,7 @@ public class StringFieldMapperPositionIncrementGapTests extends ESSingleNodeTest
      */
     private void setupAnalyzer(XContentBuilder settings, String analyzer) throws IOException {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("properties").startObject("string");
-        mapping.field("type", "string");
+        mapping.field("type", "text");
         mapping.field("analyzer", analyzer);
         client().admin().indices().prepareCreate("test").addMapping("test", mapping).setSettings(settings).get();
     }

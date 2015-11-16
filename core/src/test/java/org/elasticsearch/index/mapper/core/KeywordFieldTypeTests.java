@@ -21,9 +21,9 @@ package org.elasticsearch.index.mapper.core;
 import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
-public class StringFieldTypeTests extends FieldTypeTestCase {
+public class KeywordFieldTypeTests extends FieldTypeTestCase {
     @Override
     protected MappedFieldType createDefaultFieldType() {
-        return new StringFieldMapper.StringFieldType();
+        return new KeywordFieldMapper.KeywordFieldType();
     }
 }

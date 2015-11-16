@@ -36,7 +36,7 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.Arrays;
@@ -57,16 +57,16 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
     public void testCopyToFieldsParsing() throws Exception {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .array("copy_to", "another_field", "cyclic_test")
                 .endObject()
 
                 .startObject("another_field")
-                .field("type", "string")
+                .field("type", "text")
                 .endObject()
 
                 .startObject("cyclic_test")
-                .field("type", "string")
+                .field("type", "text")
                 .array("copy_to", "copy_test")
                 .endObject()
 
@@ -83,7 +83,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         FieldMapper fieldMapper = docMapper.mappers().getMapper("copy_test");
 
         // Check json serialization
-        StringFieldMapper stringFieldMapper = (StringFieldMapper) fieldMapper;
+        TextFieldMapper stringFieldMapper = (TextFieldMapper) fieldMapper;
         XContentBuilder builder = jsonBuilder().startObject();
         stringFieldMapper.toXContent(builder, ToXContent.EMPTY_PARAMS).endObject();
         builder.close();
@@ -92,7 +92,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
             serializedMap = parser.map();
         }
         Map<String, Object> copyTestMap = (Map<String, Object>) serializedMap.get("copy_test");
-        assertThat(copyTestMap.get("type").toString(), is("string"));
+        assertThat(copyTestMap.get("type").toString(), is("text"));
         List<String> copyToList = (List<String>) copyTestMap.get("copy_to");
         assertThat(copyToList.size(), equalTo(2));
         assertThat(copyToList.get(0).toString(), equalTo("another_field"));
@@ -136,7 +136,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .field("copy_to", "very.inner.field")
                 .endObject()
 
@@ -171,7 +171,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .field("copy_to", "very.inner.field")
                 .endObject()
 
@@ -195,7 +195,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mappingBefore = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .array("copy_to", "foo", "bar")
                 .endObject()
 
@@ -204,7 +204,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
         String mappingAfter = jsonBuilder().startObject().startObject("type1").startObject("properties")
 
                 .startObject("copy_test")
-                .field("type", "string")
+                .field("type", "text")
                 .array("copy_to", "baz", "bar")
                 .endObject()
 

@@ -24,7 +24,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.mapper.attachments.AttachmentMapper;
 import org.junit.Before;
 
@@ -56,7 +56,7 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/language/language-mapping.json");
         docMapper = mapperParser.parse(mapping);
 
-        assertThat(docMapper.mappers().getMapper("file.language"), instanceOf(StringFieldMapper.class));
+        assertThat(docMapper.mappers().getMapper("file.language"), instanceOf(TextFieldMapper.class));
     }
 
     private void testLanguage(String filename, String expected, String... forcedLanguage) throws IOException {

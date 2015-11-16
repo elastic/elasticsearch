@@ -349,7 +349,7 @@ public class TimestampFieldMapper extends MetadataFieldMapper {
             builder.field("enabled", enabledState.enabled);
         }
         if (indexCreatedBefore2x && (includeDefaults || (indexed != indexedDefault) || (fieldType().tokenized() != Defaults.FIELD_TYPE.tokenized()))) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
+            builder.field("index", indexed);
         }
         if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() != Defaults.PRE_20_FIELD_TYPE.stored())) {
             builder.field("store", fieldType().stored());

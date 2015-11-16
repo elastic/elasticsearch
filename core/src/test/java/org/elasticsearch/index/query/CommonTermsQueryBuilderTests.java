@@ -39,7 +39,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
         // mapped or unmapped field
         String text = randomAsciiOfLengthBetween(1, 10);
         if (randomBoolean()) {
-            query = new CommonTermsQueryBuilder(STRING_FIELD_NAME, text);
+            query = new CommonTermsQueryBuilder(TEXT_FIELD_NAME, text);
         } else {
             query = new CommonTermsQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
         }
@@ -134,7 +134,7 @@ public class CommonTermsQueryBuilderTests extends AbstractQueryTestCase<CommonTe
     }
     
     public void testNoTermsFromQueryString() throws IOException {
-        CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(STRING_FIELD_NAME, "");
+        CommonTermsQueryBuilder builder = new CommonTermsQueryBuilder(TEXT_FIELD_NAME, "");
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
         assertNull(builder.toQuery(context));

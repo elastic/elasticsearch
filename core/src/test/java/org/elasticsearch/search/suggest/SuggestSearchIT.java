@@ -113,7 +113,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties")
-                .startObject("text").field("type", "string").field("analyzer", "keyword").endObject()
+                .startObject("text").field("type", "text").field("analyzer", "keyword").endObject()
                 .endObject()
                 .endObject().endObject();
         assertAcked(prepareCreate("test_2").addMapping("type1", mapping));
@@ -185,10 +185,10 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     .field("type", "multi_field")
                     .startObject("fields")
                         .startObject("name")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                         .startObject("shingled")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("analyzer", "biword")
                             .field("search_analyzer", "standard")
                         .endObject()
@@ -259,10 +259,10 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     .field("type", "multi_field")
                     .startObject("fields")
                         .startObject("name")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                         .startObject("shingled")
-                            .field("type", "string")
+                            .field("type", "text")
                             .field("analyzer", "biword")
                             .field("search_analyzer", "standard")
                         .endObject()
@@ -421,7 +421,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
 
     // see #2817
     public void testStopwordsOnlyPhraseSuggest() throws IOException {
-        assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=string,analyzer=stopwd").setSettings(
+        assertAcked(prepareCreate("test").addMapping("typ1", "body", "type=text,analyzer=stopwd").setSettings(
                 settingsBuilder()
                         .put("index.analysis.analyzer.stopwd.tokenizer", "whitespace")
                         .putArray("index.analysis.analyzer.stopwd.filter", "stop")
@@ -453,9 +453,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
                 .startObject("properties")
-                .startObject("body").field("type", "string").field("analyzer", "body").endObject()
-                .startObject("body_reverse").field("type", "string").field("analyzer", "reverse").endObject()
-                .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
+                .startObject("body").field("type", "text").field("analyzer", "body").endObject()
+                .startObject("body_reverse").field("type", "text").field("analyzer", "reverse").endObject()
+                .startObject("bigram").field("type", "text").field("analyzer", "bigram").endObject()
                 .endObject()
                 .endObject().endObject();
         assertAcked(builder.addMapping("type1", mapping));
@@ -500,15 +500,15 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     .endObject()
                     .startObject("properties")
                         .startObject("body").
-                            field("type", "string").
+                            field("type", "text").
                             field("analyzer", "body")
                         .endObject()
                         .startObject("body_reverse").
-                            field("type", "string").
+                            field("type", "text").
                             field("analyzer", "reverse")
                          .endObject()
                          .startObject("bigram").
-                             field("type", "string").
+                             field("type", "text").
                              field("analyzer", "bigram")
                          .endObject()
                      .endObject()
@@ -635,15 +635,15 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .startObject("properties")
                             .startObject("body")
-                                .field("type", "string")
+                                .field("type", "text")
                                 .field("analyzer", "body")
                             .endObject()
                          .startObject("body_reverse")
-                             .field("type", "string")
+                             .field("type", "text")
                              .field("analyzer", "reverse")
                          .endObject()
                          .startObject("bigram")
-                             .field("type", "string")
+                             .field("type", "text")
                              .field("analyzer", "bigram")
                          .endObject()
                      .endObject()
@@ -702,9 +702,9 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     .startObject().startObject("type1")
                     .startObject("_all").field("store", "yes").field("termVector", "with_positions_offsets").endObject()
                 .startObject("properties")
-                .startObject("body").field("type", "string").field("analyzer", "body").endObject()
-                .startObject("bigram").field("type", "string").field("analyzer", "bigram").endObject()
-                .startObject("ngram").field("type", "string").field("analyzer", "ngram").endObject()
+                .startObject("body").field("type", "text").field("analyzer", "body").endObject()
+                .startObject("bigram").field("type", "text").field("analyzer", "bigram").endObject()
+                .startObject("ngram").field("type", "text").field("analyzer", "ngram").endObject()
                 .endObject()
                 .endObject().endObject();
         assertAcked(builder.addMapping("type1", mapping));
@@ -800,7 +800,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .field("type", "multi_field")
                         .startObject("fields")
                             .startObject("name")
-                                .field("type", "string")
+                                .field("type", "text")
                                 .field("analyzer", "suggest")
                             .endObject()
                         .endObject()
@@ -847,7 +847,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                                 field("type", "multi_field").
                                 startObject("fields").
                                     startObject("name").
-                                        field("type", "string").
+                                        field("type", "text").
                                         field("analyzer", "suggest").
                                     endObject().
                                 endObject().
@@ -908,7 +908,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                         .endObject()
                         .startObject("properties")
                             .startObject("body")
-                                .field("type", "string")
+                                .field("type", "text")
                                 .field("analyzer", "body")
                             .endObject()
                         .endObject()
@@ -966,7 +966,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                     .startObject("type1")
                         .startObject("properties")
                             .startObject("title")
-                                .field("type", "string")
+                                .field("type", "text")
                                 .field("analyzer", "text")
                             .endObject()
                         .endObject()
@@ -1111,7 +1111,7 @@ public class SuggestSearchIT extends ESIntegTestCase {
                 .startObject("type1")
                 .startObject("properties")
                 .startObject("title")
-                .field("type", "string")
+                .field("type", "text")
                 .field("analyzer", "text")
                 .endObject()
                 .endObject()

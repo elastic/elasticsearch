@@ -63,7 +63,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class NestedSortingTests extends AbstractFieldDataTestCase {
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", Settings.builder().put("format", "paged_bytes"));
+        return new FieldDataType("text", Settings.builder().put("format", "paged_bytes"));
     }
 
     public void testDuel() throws Exception {

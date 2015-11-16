@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ShardSizeTermsIT extends ShardSizeTestCase {
     public void testNoShardSizeString() throws Exception {
-        createIdx("type=string,index=not_analyzed");
+        createIdx("type=keyword");
 
         indexData();
 
@@ -55,7 +55,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
     }
 
     public void testShardSizeEqualsSizeString() throws Exception {
-        createIdx("type=string,index=not_analyzed");
+        createIdx("type=keyword");
 
         indexData();
 
@@ -79,7 +79,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
 
     public void testWithShardSizeString() throws Exception {
 
-        createIdx("type=string,index=not_analyzed");
+        createIdx("type=keyword");
 
         indexData();
 
@@ -103,7 +103,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
 
     public void testWithShardSizeStringSingleShard() throws Exception {
 
-        createIdx("type=string,index=not_analyzed");
+        createIdx("type=keyword");
 
         indexData();
 
@@ -126,7 +126,7 @@ public class ShardSizeTermsIT extends ShardSizeTestCase {
     }
 
     public void testNoShardSizeTermOrderString() throws Exception {
-        createIdx("type=string,index=not_analyzed");
+        createIdx("type=keyword");
 
         indexData();
 

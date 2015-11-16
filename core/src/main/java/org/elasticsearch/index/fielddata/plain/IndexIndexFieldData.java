@@ -97,7 +97,7 @@ public class IndexIndexFieldData extends AbstractIndexOrdinalsFieldData {
     private final AtomicOrdinalsFieldData atomicFieldData;
 
     private IndexIndexFieldData(IndexSettings indexSettings, MappedFieldType.Names names) {
-        super(indexSettings, names, new FieldDataType("string"), null, null);
+        super(indexSettings, names, new FieldDataType("keyword"), null, null);
         atomicFieldData = new IndexAtomicFieldData(index().name());
     }
 

@@ -50,7 +50,9 @@ import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeMapValue;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseAnalyzers;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseTermVectorSettings;
 
 /**
  *
@@ -136,6 +138,9 @@ public class AllFieldMapper extends MetadataFieldMapper {
             }
             
             parseField(builder, builder.name, node, parserContext);
+            parseTermVectorSettings(builder, builder.name, node, parserContext);
+            parseAnalyzers(builder, name, node, parserContext);
+
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String fieldName = Strings.toUnderscoreCase(entry.getKey());
@@ -160,7 +165,7 @@ public class AllFieldMapper extends MetadataFieldMapper {
     static final class AllFieldType extends MappedFieldType {
 
         public AllFieldType() {
-            setFieldDataType(new FieldDataType("string"));
+            setFieldDataType(new FieldDataType("text"));
         }
 
         protected AllFieldType(AllFieldType ref) {

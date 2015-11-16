@@ -347,6 +347,9 @@ public class XContentMapValues {
         return Long.parseLong(node.toString());
     }
 
+    /**
+     * NOTE: this method is _very_ lenient, avoid using it
+     */
     public static boolean nodeBooleanValue(Object node, boolean defaultValue) {
         if (node == null) {
             return defaultValue;
@@ -354,6 +357,9 @@ public class XContentMapValues {
         return nodeBooleanValue(node);
     }
 
+    /**
+     * NOTE: this method is _very_ lenient, avoid using it
+     */
     public static boolean nodeBooleanValue(Object node) {
         if (node instanceof Boolean) {
             return (Boolean) node;

@@ -35,7 +35,7 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
 
     @Override
     protected PrefixQueryBuilder doCreateTestQueryBuilder() {
-        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+        String fieldName = randomBoolean() ? TEXT_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
         String value = randomAsciiOfLengthBetween(1, 10);
         PrefixQueryBuilder query = new PrefixQueryBuilder(fieldName, value);
 

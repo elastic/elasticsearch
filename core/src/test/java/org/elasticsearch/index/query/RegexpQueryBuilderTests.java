@@ -34,7 +34,7 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
     @Override
     protected RegexpQueryBuilder doCreateTestQueryBuilder() {
         // mapped or unmapped fields
-        String fieldName = randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
+        String fieldName = randomBoolean() ? TEXT_FIELD_NAME : randomAsciiOfLengthBetween(1, 10);
         String value = randomAsciiOfLengthBetween(1, 10);
         RegexpQueryBuilder query = new RegexpQueryBuilder(fieldName, value);
 

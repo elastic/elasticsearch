@@ -153,7 +153,13 @@ public class DynamicTemplate {
     }
 
     public String mappingType(String dynamicType) {
-        return mapping.containsKey("type") ? mapping.get("type").toString().replace("{dynamic_type}", dynamicType).replace("{dynamicType}", dynamicType) : dynamicType;
+        if (mapping.containsKey("type")) {
+            return mapping.get("type").toString()
+                    .replace("{dynamic_type}", dynamicType)
+                    .replace("{dynamicType}", dynamicType);
+        } else {
+            return dynamicType;
+        }
     }
 
     private boolean patternMatch(String pattern, String str) {

@@ -23,14 +23,14 @@ PUT my_index
         "manager": { <2>
           "properties": {
             "age":  { "type": "integer" },
-            "name": { "type": "string"  }
+            "name": { "type": "text"  }
           }
         },
         "employees": { <3>
           "type": "nested",
           "properties": {
             "age":  { "type": "integer" },
-            "name": { "type": "string"  }
+            "name": { "type": "text"  }
           }
         }
       }

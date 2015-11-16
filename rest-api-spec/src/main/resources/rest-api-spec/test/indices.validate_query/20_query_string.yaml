@@ -1,5 +1,5 @@
 ---
-"validate_query with query_string parameters":
+"validate_query with query_text parameters":
   - do:
       indices.create:
           index:  test
@@ -10,7 +10,7 @@
                   enabled: false
                 properties:
                   field:
-                    type: string
+                    type: text
                   number:
                     type: integer
 

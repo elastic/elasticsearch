@@ -141,7 +141,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
     static final class IdFieldType extends MappedFieldType {
 
         public IdFieldType() {
-            setFieldDataType(new FieldDataType("string"));
+            setFieldDataType(new FieldDataType("keyword"));
         }
 
         protected IdFieldType(IdFieldType ref) {
@@ -318,7 +318,7 @@ public class IdFieldMapper extends MetadataFieldMapper {
             builder.field("store", fieldType().stored());
         }
         if (includeDefaults || fieldType().indexOptions() != Defaults.FIELD_TYPE.indexOptions()) {
-            builder.field("index", indexTokenizeOptionToString(fieldType().indexOptions() != IndexOptions.NONE, fieldType().tokenized()));
+            builder.field("index", fieldType().indexOptions() != IndexOptions.NONE);
         }
         if (includeDefaults || path != Defaults.PATH) {
             builder.field("path", path);

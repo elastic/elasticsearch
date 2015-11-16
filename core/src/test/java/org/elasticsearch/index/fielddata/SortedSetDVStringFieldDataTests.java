@@ -26,7 +26,7 @@ public class SortedSetDVStringFieldDataTests extends AbstractStringFieldDataTest
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("string", Settings.builder().put("format", "doc_values").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
+        return new FieldDataType("keyword", Settings.builder().put("format", "doc_values").put(OrdinalsBuilder.FORCE_MULTI_ORDINALS, randomBoolean()));
     }
 
     @Override

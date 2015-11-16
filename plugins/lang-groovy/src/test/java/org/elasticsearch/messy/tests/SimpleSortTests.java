@@ -194,25 +194,6 @@ public class SimpleSortTests extends ESIntegTestCase {
 
     }
 
-    public void testIssue6639() throws ExecutionException, InterruptedException {
-        assertAcked(prepareCreate("$index")
-                .addMapping("$type","{\"$type\": {\"properties\": {\"grantee\": {\"index\": \"not_analyzed\", \"term_vector\": \"with_positions_offsets\", \"type\": \"string\", \"analyzer\": \"snowball\", \"boost\": 1.0, \"store\": \"yes\"}}}}"));
-        indexRandom(true,
-                client().prepareIndex("$index", "$type", "data.activity.5").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 1\"}"),
-                client().prepareIndex("$index", "$type", "data.activity.6").setSource("{\"django_ct\": \"data.activity\", \"grantee\": \"Grantee 2\"}"));
-        ensureYellow();
-        SearchResponse searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("grantee", SortOrder.ASC)
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "data.activity.5", "data.activity.6");
-        searchResponse = client().prepareSearch()
-                .setQuery(matchAllQuery())
-                .addSort("grantee", SortOrder.DESC)
-                .execute().actionGet();
-        assertOrderedSearchHits(searchResponse, "data.activity.6", "data.activity.5");
-    }
-
     public void testTrackScores() throws Exception {
         createIndex("test");
         ensureGreen();
@@ -262,12 +243,10 @@ public class SimpleSortTests extends ESIntegTestCase {
                                 .startObject("type")
                                 .startObject("properties")
                                 .startObject("sparse_bytes")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
+                                .field("type", "keyword")
                                 .endObject()
                                 .startObject("dense_bytes")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
+                                .field("type", "keyword")
                                 .endObject()
                                 .endObject()
                                 .endObject()
@@ -506,7 +485,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         Random random = getRandom();
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("str_value").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("str_value").field("type", "keyword").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .startObject("boolean_value").field("type", "boolean").endObject()
                         .startObject("byte_value").field("type", "byte").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .startObject("short_value").field("type", "short").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
@@ -759,7 +738,7 @@ public class SimpleSortTests extends ESIntegTestCase {
     public void test2920() throws IOException {
         assertAcked(prepareCreate("test").addMapping(
                 "test",
-                jsonBuilder().startObject().startObject("test").startObject("properties").startObject("value").field("type", "string")
+                jsonBuilder().startObject().startObject("test").startObject("properties").startObject("value").field("type", "text")
                         .endObject().endObject().endObject().endObject()));
         ensureGreen();
         for (int i = 0; i < 10; i++) {
@@ -776,7 +755,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
                 .startObject("lvalue").field("type", "long").endObject()
                 .startObject("dvalue").field("type", "double").endObject()
-                .startObject("svalue").field("type", "string").endObject()
+                .startObject("svalue").field("type", "text").endObject()
                 .startObject("gvalue").field("type", "geo_point").endObject()
                 .endObject().endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
@@ -864,7 +843,7 @@ public class SimpleSortTests extends ESIntegTestCase {
         // We have to specify mapping explicitly because by the time search is performed dynamic mapping might not
         // be propagated to all nodes yet and sort operation fail when the sort field is not defined
         String mapping = jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("svalue").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                .startObject("svalue").field("type", "keyword").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                 .endObject().endObject().endObject().string();
         assertAcked(prepareCreate("test").addMapping("type1", mapping));
         ensureGreen();
@@ -1033,8 +1012,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                         .startObject("type1")
                         .startObject("properties")
                         .startObject("value")
-                        .field("type", "string")
-                        .field("index", "not_analyzed")
+                        .field("type", "keyword")
                         .endObject()
                         .endObject()
                         .endObject()
@@ -1139,7 +1117,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
-                .addSort(SortBuilders.fieldSort("kkk").unmappedType("string"))
+                .addSort(SortBuilders.fieldSort("kkk").unmappedType("keyword"))
                 .execute().actionGet();
         assertNoFailures(searchResponse);
     }
@@ -1153,7 +1131,7 @@ public class SimpleSortTests extends ESIntegTestCase {
                         .startObject("byte_values").field("type", "byte").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .startObject("float_values").field("type", "float").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .startObject("double_values").field("type", "double").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
-                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("string_values").field("type", "keyword").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
 
@@ -1461,7 +1439,7 @@ public class SimpleSortTests extends ESIntegTestCase {
     public void testSortOnRareField() throws IOException {
         assertAcked(prepareCreate("test")
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                        .startObject("string_values").field("type", "string").field("index", "not_analyzed").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
+                        .startObject("string_values").field("type", "keyword").startObject("fielddata").field("format", random().nextBoolean() ? "doc_values" : null).endObject().endObject()
                         .endObject().endObject().endObject()));
         ensureGreen();
         client().prepareIndex("test", "type1", Integer.toString(1)).setSource(jsonBuilder().startObject()
@@ -1634,11 +1612,10 @@ public class SimpleSortTests extends ESIntegTestCase {
                                                 .field("type", "nested")
                                                 .startObject("properties")
                                                     .startObject("foo")
-                                                        .field("type", "string")
+                                                        .field("type", "text")
                                                         .startObject("fields")
                                                             .startObject("sub")
-                                                                .field("type", "string")
-                                                                .field("index", "not_analyzed")
+                                                                .field("type", "keyword")
                                                             .endObject()
                                                         .endObject()
                                                     .endObject()
@@ -1943,7 +1920,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
     public void testCrossIndexIgnoreUnmapped() throws Exception {
         assertAcked(prepareCreate("test1").addMapping(
-                "type", "str_field1", "type=string",
+                "type", "str_field1", "type=text",
                 "long_field", "type=long",
                 "double_field", "type=double").get());
         assertAcked(prepareCreate("test2").get());
@@ -1955,8 +1932,8 @@ public class SimpleSortTests extends ESIntegTestCase {
         ensureYellow("test1", "test2");
 
         SearchResponse resp = client().prepareSearch("test1", "test2")
-                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("string"))
-                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("string")).get();
+                .addSort(fieldSort("str_field").order(SortOrder.ASC).unmappedType("keyword"))
+                .addSort(fieldSort("str_field2").order(SortOrder.DESC).unmappedType("keyword")).get();
 
         assertSortValues(resp,
                 new Object[] {new StringAndBytesText("bcd"), null},

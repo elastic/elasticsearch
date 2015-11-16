@@ -64,19 +64,19 @@ public class ExistsMissingIT extends ESIntegTestCase {
                     .endObject()
                     .startObject("properties")
                         .startObject("foo")
-                            .field("type", "string")
+                            .field("type", "text")
                         .endObject()
                         .startObject("bar")
                             .field("type", "object")
                             .startObject("properties")
                                 .startObject("foo")
-                                    .field("type", "string")
+                                    .field("type", "text")
                                 .endObject()
                                 .startObject("bar")
                                     .field("type", "object")
                                     .startObject("properties")
                                         .startObject("bar")
-                                            .field("type", "string")
+                                            .field("type", "text")
                                         .endObject()
                                     .endObject()
                                 .endObject()
@@ -154,7 +154,7 @@ public class ExistsMissingIT extends ESIntegTestCase {
     }
 
     public void testNullValueUnset() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "f", "type=string,index=not_analyzed"));
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "f", "type=keyword"));
         indexRandom(true,
                 client().prepareIndex("idx", "type", "1").setSource("f", "foo"),
                 client().prepareIndex("idx", "type", "2").setSource("f", null),
@@ -179,7 +179,7 @@ public class ExistsMissingIT extends ESIntegTestCase {
     }
 
     public void testNullValueSet() throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "f", "type=string,index=not_analyzed,null_value=bar"));
+        assertAcked(client().admin().indices().prepareCreate("idx").addMapping("type", "f", "type=keyword,null_value=bar"));
         indexRandom(true,
                 client().prepareIndex("idx", "type", "1").setSource("f", "foo"),
                 client().prepareIndex("idx", "type", "2").setSource("f", null),

@@ -12,11 +12,11 @@ PUT my_index
     "my_type": {
       "properties": {
         "title": {
-          "type": "string",
+          "type": "text",
           "boost": 2 <1>
         },
         "content": {
-          "type": "string"
+          "type": "text"
         }
       }
     }

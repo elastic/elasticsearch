@@ -10,7 +10,7 @@
                     type:
                         properties:
                             text:
-                                type:     string
+                                type:     text
                                 analyzer: smartcn
     - do:
        cluster.health:

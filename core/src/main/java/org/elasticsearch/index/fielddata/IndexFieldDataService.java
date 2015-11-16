@@ -79,6 +79,8 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
     static {
         Map<String, IndexFieldData.Builder> buildersByTypeBuilder = new HashMap<>();
         buildersByTypeBuilder.put("string", new PagedBytesIndexFieldData.Builder());
+        buildersByTypeBuilder.put("text", new PagedBytesIndexFieldData.Builder());
+        buildersByTypeBuilder.put("keyword", new PagedBytesIndexFieldData.Builder());
         buildersByTypeBuilder.put("float", MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("double", MISSING_DOC_VALUES_BUILDER);
         buildersByTypeBuilder.put("byte", MISSING_DOC_VALUES_BUILDER);
@@ -95,6 +97,7 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
 
         docValuesBuildersByType = MapBuilder.<String, IndexFieldData.Builder>newMapBuilder()
                 .put("string", new DocValuesIndexFieldData.Builder())
+                .put("keyword", new DocValuesIndexFieldData.Builder())
                 .put("float", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FLOAT))
                 .put("double", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.DOUBLE))
                 .put("byte", new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.BYTE))
@@ -110,6 +113,13 @@ public class IndexFieldDataService extends AbstractIndexComponent implements Clo
                 .put(Tuple.tuple("string", PAGED_BYTES_FORMAT), new PagedBytesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder())
                 .put(Tuple.tuple("string", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+
+                .put(Tuple.tuple("text", PAGED_BYTES_FORMAT), new PagedBytesIndexFieldData.Builder())
+                .put(Tuple.tuple("text", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
+
+                .put(Tuple.tuple("keyword", PAGED_BYTES_FORMAT), new PagedBytesIndexFieldData.Builder())
+                .put(Tuple.tuple("keyword", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder())
+                .put(Tuple.tuple("keyword", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())
 
                 .put(Tuple.tuple("float", DOC_VALUES_FORMAT), new DocValuesIndexFieldData.Builder().numericType(IndexNumericFieldData.NumericType.FLOAT))
                 .put(Tuple.tuple("float", DISABLED_FORMAT), new DisabledIndexFieldData.Builder())

@@ -28,14 +28,14 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.joda.FormatDateTimeFormatter;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.mapper.core.DateFieldMapper.DateFieldType;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.KeywordFieldType;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.StringFieldType;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper.TextFieldType;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
 import org.elasticsearch.index.mapper.object.ArrayValueMapperParser;
@@ -47,7 +47,6 @@ import java.io.IOException;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 /** A parser for documents, given mappings from a DocumentMapper */
@@ -456,10 +455,16 @@ class DocumentParser implements Closeable {
 
     private static Mapper.Builder<?,?> createBuilderFromFieldType(final ParseContext context, MappedFieldType fieldType, String currentFieldName) {
         Mapper.Builder builder = null;
-        if (fieldType instanceof StringFieldType) {
-            builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+        if (fieldType instanceof TextFieldType) {
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "text", "string");
             if (builder == null) {
-                builder = MapperBuilders.stringField(currentFieldName);
+                builder = MapperBuilders.textField(currentFieldName);
+                // TODO: handle default sub field?
+            }
+        } else if (fieldType instanceof KeywordFieldType) {
+            builder = context.root().findTemplateBuilder(context, currentFieldName, "keyword", "string");
+            if (builder == null) {
+                builder = MapperBuilders.keywordField(currentFieldName);
             }
         } else if (fieldType instanceof DateFieldType) {
             builder = context.root().findTemplateBuilder(context, currentFieldName, "date");
@@ -505,7 +510,7 @@ class DocumentParser implements Closeable {
             // we need to do it here so we can handle things like attachment templates, where calling
             // text (to see if its a date) causes the binary value to be cleared
             {
-                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string", null);
+                Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "text", null);
                 if (builder != null) {
                     return builder;
                 }
@@ -552,9 +557,9 @@ class DocumentParser implements Closeable {
                     // not a long number
                 }
             }
-            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "string");
+            Mapper.Builder builder = context.root().findTemplateBuilder(context, currentFieldName, "text", "string");
             if (builder == null) {
-                builder = MapperBuilders.stringField(currentFieldName);
+                builder = MapperBuilders.textField(currentFieldName);
             }
             return builder;
         } else if (token == XContentParser.Token.VALUE_NUMBER) {
@@ -641,22 +646,26 @@ class DocumentParser implements Closeable {
             builder = createBuilderFromFieldType(context, existingFieldType, currentFieldName);
             if (builder != null) {
                 // best-effort to not introduce a conflict
-                if (builder instanceof StringFieldMapper.Builder) {
-                    StringFieldMapper.Builder stringBuilder = (StringFieldMapper.Builder) builder;
-                    stringBuilder.fieldDataSettings(existingFieldType.fieldDataType().getSettings());
-                    stringBuilder.store(existingFieldType.stored());
-                    stringBuilder.indexOptions(existingFieldType.indexOptions());
-                    stringBuilder.tokenized(existingFieldType.tokenized());
-                    stringBuilder.omitNorms(existingFieldType.omitNorms());
-                    stringBuilder.docValues(existingFieldType.hasDocValues());
-                    stringBuilder.indexAnalyzer(existingFieldType.indexAnalyzer());
-                    stringBuilder.searchAnalyzer(existingFieldType.searchAnalyzer());
+                if (builder instanceof TextFieldMapper.Builder) {
+                    TextFieldMapper.Builder textBuilder = (TextFieldMapper.Builder) builder;
+                    textBuilder.fieldDataSettings(existingFieldType.fieldDataType().getSettings());
+                    textBuilder.store(existingFieldType.stored());
+                    textBuilder.indexOptions(existingFieldType.indexOptions());
+                    textBuilder.omitNorms(existingFieldType.omitNorms());
+                    textBuilder.indexAnalyzer(existingFieldType.indexAnalyzer());
+                    textBuilder.searchAnalyzer(existingFieldType.searchAnalyzer());
+                } else if (builder instanceof KeywordFieldMapper.Builder) {
+                    KeywordFieldMapper.Builder keywordBuilder = (KeywordFieldMapper.Builder) builder;
+                    keywordBuilder.fieldDataSettings(existingFieldType.fieldDataType().getSettings());
+                    keywordBuilder.store(existingFieldType.stored());
+                    keywordBuilder.indexOptions(existingFieldType.indexOptions());
+                    keywordBuilder.omitNorms(existingFieldType.omitNorms());
+                    keywordBuilder.docValues(existingFieldType.hasDocValues());
                 } else if (builder instanceof NumberFieldMapper.Builder) {
                     NumberFieldMapper.Builder<?,?> numberBuilder = (NumberFieldMapper.Builder<?, ?>) builder;
                     numberBuilder.fieldDataSettings(existingFieldType.fieldDataType().getSettings());
                     numberBuilder.store(existingFieldType.stored());
                     numberBuilder.indexOptions(existingFieldType.indexOptions());
-                    numberBuilder.tokenized(existingFieldType.tokenized());
                     numberBuilder.omitNorms(existingFieldType.omitNorms());
                     numberBuilder.docValues(existingFieldType.hasDocValues());
                     numberBuilder.precisionStep(existingFieldType.numericPrecisionStep());

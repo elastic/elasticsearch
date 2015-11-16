@@ -26,7 +26,7 @@ PUT my_index/_mapping/my_type
 {
   "properties": {
     "title": {
-      "type": "string",
+      "type": "text",
       "norms": {
         "enabled": false
       }
@@ -57,7 +57,7 @@ PUT my_index/_mapping/my_type
 {
   "properties": {
     "title": {
-      "type": "string",
+      "type": "text",
       "norms": {
         "loading": "eager"
       }

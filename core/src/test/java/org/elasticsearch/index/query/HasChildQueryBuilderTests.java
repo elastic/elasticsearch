@@ -64,7 +64,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         super.setUp();
         MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
-                STRING_FIELD_NAME, "type=string",
+                TEXT_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
                 BOOLEAN_FIELD_NAME, "type=boolean",
@@ -73,7 +73,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         ).string()), false, false);
         mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
-                STRING_FIELD_NAME, "type=string",
+                TEXT_FIELD_NAME, "type=text",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
                 BOOLEAN_FIELD_NAME, "type=boolean",
@@ -121,7 +121,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     protected HasChildQueryBuilder doCreateTestQueryBuilder() {
         int min = randomIntBetween(0, Integer.MAX_VALUE / 2);
         int max = randomIntBetween(min, Integer.MAX_VALUE);
-        InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(STRING_FIELD_NAME, SortOrder.ASC);
+        InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(TEXT_FIELD_NAME, SortOrder.ASC);
         return new HasChildQueryBuilder(CHILD_TYPE,
                 RandomQueryBuilder.createQuery(random()), max, min,
                 RandomPicks.randomFrom(random(), ScoreMode.values()),
@@ -149,7 +149,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 InnerHitsContext.BaseInnerHits innerHits = SearchContext.current().innerHits().getInnerHits().get("inner_hits_name");
                 assertEquals(innerHits.size(), 100);
                 assertEquals(innerHits.sort().getSort().length, 1);
-                assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME);
+                assertEquals(innerHits.sort().getSort()[0].getField(), TEXT_FIELD_NAME);
             } else {
                 assertNull(SearchContext.current().innerHits());
             }

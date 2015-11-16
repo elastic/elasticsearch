@@ -64,10 +64,15 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         return null;
     }
 
+    @Override
+    protected boolean hasDocValues() {
+        return true;
+    }
+
     public void testDuelAllTypesSingleValue() throws Exception {
         final String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
-                    .startObject("bytes").field("type", "string").field("index", "not_analyzed").endObject()
+                    .startObject("bytes").field("type", "keyword").field("index", true).endObject()
                     .startObject("byte").field("type", "byte").endObject()
                     .startObject("short").field("type", "short").endObject()
                     .startObject("integer").field("type", "integer").endObject()
@@ -98,14 +103,14 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
+        typeMap.put(new FieldDataType("text", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
+        typeMap.put(new FieldDataType("keyword", Settings.builder().put("format", "doc_values")), Type.Bytes);
         typeMap.put(new FieldDataType("byte", Settings.builder().put("format", "doc_values")), Type.Integer);
         typeMap.put(new FieldDataType("short", Settings.builder().put("format", "doc_values")), Type.Integer);
         typeMap.put(new FieldDataType("int", Settings.builder().put("format", "doc_values")), Type.Integer);
         typeMap.put(new FieldDataType("long", Settings.builder().put("format", "doc_values")), Type.Long);
         typeMap.put(new FieldDataType("double", Settings.builder().put("format", "doc_values")), Type.Double);
         typeMap.put(new FieldDataType("float", Settings.builder().put("format", "doc_values")), Type.Float);
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "doc_values")), Type.Bytes);
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         Preprocessor pre = new ToDoublePreprocessor();
         while (!list.isEmpty()) {
@@ -119,9 +124,9 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
             }
 
             ifdService.clear();
-            IndexFieldData<?> leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT), true);
+            IndexFieldData<?> leftFieldData = getForField(left.getKey(), left.getValue().name().toLowerCase(Locale.ROOT));
             ifdService.clear();
-            IndexFieldData<?> rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT), true);
+            IndexFieldData<?> rightFieldData = getForField(right.getKey(), right.getValue().name().toLowerCase(Locale.ROOT));
             duelFieldDataBytes(random, context, leftFieldData, rightFieldData, pre);
             duelFieldDataBytes(random, context, rightFieldData, leftFieldData, pre);
 
@@ -318,8 +323,8 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         }
         LeafReaderContext context = refreshReader();
         Map<FieldDataType, Type> typeMap = new HashMap<>();
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "doc_values")), Type.Bytes);
+        typeMap.put(new FieldDataType("text", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
+        typeMap.put(new FieldDataType("keyword", Settings.builder().put("format", "doc_values")), Type.Bytes);
         // TODO add filters
         ArrayList<Entry<FieldDataType, Type>> list = new ArrayList<>(typeMap.entrySet());
         Preprocessor pre = new Preprocessor();
@@ -376,12 +381,12 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         refreshReader();
 
         Map<FieldDataType, Type> typeMap = new HashMap<FieldDataType, DuelFieldDataTests.Type>();
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
-        typeMap.put(new FieldDataType("string", Settings.builder().put("format", "doc_values")), Type.Bytes);
+        typeMap.put(new FieldDataType("text", Settings.builder().put("format", "paged_bytes")), Type.Bytes);
+        typeMap.put(new FieldDataType("keyword", Settings.builder().put("format", "doc_values")), Type.Bytes);
 
         for (Map.Entry<FieldDataType, Type> entry : typeMap.entrySet()) {
             ifdService.clear();
-            IndexOrdinalsFieldData fieldData = getForField(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT));
+            IndexOrdinalsFieldData fieldData = getForField(entry.getKey(), entry.getValue().name().toLowerCase(Locale.ROOT), "keyword".equals(entry.getKey().getType()));
             RandomAccessOrds left = fieldData.load(readerContext).getOrdinalsValues();
             fieldData.clear();
             RandomAccessOrds right = fieldData.loadGlobal(topLevelReader).load(topLevelReader.leaves().get(0)).getOrdinalsValues();
@@ -569,14 +574,14 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         MultiGeoPointValues rightValues = rightData.getGeoPointValues();
         for (int i = 0; i < numDocs; ++i) {
             leftValues.setDocument(i);
-            final int numValues = leftValues.count();
             rightValues.setDocument(i);
-            assertEquals(numValues, rightValues.count());
             List<GeoPoint> leftPoints = new ArrayList<>();
             List<GeoPoint> rightPoints = new ArrayList<>();
-            for (int j = 0; j < numValues; ++j) {
+            for (int j = 0; j < leftValues.count(); ++j) {
                 GeoPoint l = leftValues.valueAt(j);
                 leftPoints.add(new GeoPoint(l.getLat(), l.getLon()));
+            }
+            for (int j = 0; j < rightValues.count(); ++j) {
                 GeoPoint r = rightValues.valueAt(j);
                 rightPoints.add(new GeoPoint(r.getLat(), r.getLon()));
             }

@@ -34,7 +34,8 @@ import static org.hamcrest.Matchers.closeTo;
 public class FieldLevelBoostTests extends ESSingleNodeTestCase {
     public void testFieldLevelBoost() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
-                .startObject("str_field").field("type", "string").endObject()
+                .startObject("txt_field").field("type", "text").endObject()
+                .startObject("kw_field").field("type", "keyword").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("int_field").field("type", "integer").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("byte_field").field("type", "byte").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("date_field").field("type", "date").startObject("norms").field("enabled", true).endObject().endObject()
@@ -46,7 +47,8 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         BytesReference json = XContentFactory.jsonBuilder().startObject()
-                .startObject("str_field").field("boost", 2.0).field("value", "some name").endObject()
+                .startObject("txt_field").field("boost", 2.0).field("value", "some name").endObject()
+                .startObject("kw_field").field("boost", 2.0).field("value", "some name").endObject()
                 .startObject("int_field").field("boost", 3.0).field("value", 10).endObject()
                 .startObject("byte_field").field("boost", 4.0).field("value", 20).endObject()
                 .startObject("date_field").field("boost", 5.0).field("value", "2012-01-10").endObject()
@@ -57,7 +59,10 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
                 .bytes();
         Document doc = docMapper.parse("test", "person", "1", json).rootDoc();
 
-        IndexableField f = doc.getField("str_field");
+        IndexableField f = doc.getField("txt_field");
+        assertThat((double) f.boost(), closeTo(2.0, 0.001));
+
+        f = doc.getField("kw_field");
         assertThat((double) f.boost(), closeTo(2.0, 0.001));
 
         f = doc.getField("int_field");
@@ -84,7 +89,8 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
 
     public void testInvalidFieldLevelBoost() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("person").startObject("properties")
-                .startObject("str_field").field("type", "string").endObject()
+                .startObject("txt_field").field("type", "text").endObject()
+                .startObject("kw_field").field("type", "keyword").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("int_field").field("type", "integer").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("byte_field").field("type", "byte").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("date_field").field("type", "date").startObject("norms").field("enabled", true).endObject().endObject()
@@ -97,7 +103,16 @@ public class FieldLevelBoostTests extends ESSingleNodeTestCase {
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
         try {
             docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
-                    .startObject("str_field").field("foo", "bar")
+                    .startObject("txt_field").field("foo", "bar")
+                    .endObject().bytes()).rootDoc();
+            fail();
+        } catch (MapperParsingException ex) {
+            // Expected
+        }
+
+        try {
+            docMapper.parse("test", "person", "1", XContentFactory.jsonBuilder().startObject()
+                    .startObject("kw_field").field("foo", "bar")
                     .endObject().bytes()).rootDoc();
             fail();
         } catch (MapperParsingException ex) {

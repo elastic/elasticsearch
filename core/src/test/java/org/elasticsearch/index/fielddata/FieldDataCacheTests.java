@@ -34,7 +34,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.plain.PagedBytesIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedSetDVOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
@@ -85,13 +86,13 @@ public class FieldDataCacheTests extends ESTestCase {
     }
 
     private SortedSetDVOrdinalsIndexFieldData createSortedDV(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
+        FieldDataType fieldDataType = new KeywordFieldMapper.KeywordFieldType().fieldDataType();
         MappedFieldType.Names names = new MappedFieldType.Names(fieldName);
         return new SortedSetDVOrdinalsIndexFieldData(createIndexSettings(), indexFieldDataCache, names, new NoneCircuitBreakerService(), fieldDataType);
     }
 
     private PagedBytesIndexFieldData createPagedBytes(String fieldName, IndexFieldDataCache indexFieldDataCache) {
-        FieldDataType fieldDataType = new StringFieldMapper.StringFieldType().fieldDataType();
+        FieldDataType fieldDataType = new TextFieldMapper.TextFieldType().fieldDataType();
         MappedFieldType.Names names = new MappedFieldType.Names(fieldName);
         return new PagedBytesIndexFieldData(createIndexSettings(), names, fieldDataType, indexFieldDataCache, new NoneCircuitBreakerService());
     }

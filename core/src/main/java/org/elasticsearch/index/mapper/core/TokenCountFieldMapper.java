@@ -36,7 +36,6 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.ValueAndBoost;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -136,7 +135,7 @@ public class TokenCountFieldMapper extends IntegerFieldMapper {
 
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
-        ValueAndBoost valueAndBoost = StringFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, fieldType().boost());
+        TextFieldMapper.ValueAndBoost valueAndBoost = TextFieldMapper.parseCreateFieldForString(context, null /* Out null value is an int so we convert*/, fieldType().boost());
         if (valueAndBoost.value() == null && fieldType().nullValue() == null) {
             return;
         }

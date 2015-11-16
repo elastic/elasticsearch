@@ -63,7 +63,7 @@ public class FunctionScorePluginIT extends ESIntegTestCase {
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("test")
-                                .field("type", "string").endObject().startObject("num1").field("type", "date").endObject().endObject()
+                                .field("type", "text").endObject().startObject("num1").field("type", "date").endObject().endObject()
                                 .endObject().endObject()).execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 

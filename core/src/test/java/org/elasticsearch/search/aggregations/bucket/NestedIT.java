@@ -367,12 +367,12 @@ public class NestedIT extends ESIntegTestCase {
                         .field("type", "nested")
                         .startObject("properties")
                             .startObject("cid").field("type", "long").endObject()
-                            .startObject("identifier").field("type", "string").field("index", "not_analyzed").endObject()
+                            .startObject("identifier").field("type", "keyword").endObject()
                             .startObject("tags")
                                 .field("type", "nested")
                                 .startObject("properties")
                                     .startObject("tid").field("type", "long").endObject()
-                                    .startObject("name").field("type", "string").field("index", "not_analyzed").endObject()
+                                    .startObject("name").field("type", "keyword").endObject()
                                 .endObject()
                             .endObject()
                         .endObject()
@@ -386,7 +386,7 @@ public class NestedIT extends ESIntegTestCase {
                                 .startObject("properties")
                                     .startObject("end").field("type", "date").field("format", "dateOptionalTime").endObject()
                                     .startObject("start").field("type", "date").field("format", "dateOptionalTime").endObject()
-                                    .startObject("label").field("type", "string").field("index", "not_analyzed").endObject()
+                                    .startObject("label").field("type", "keyword").endObject()
                                 .endObject()
                             .endObject()
                         .endObject()
@@ -462,7 +462,7 @@ public class NestedIT extends ESIntegTestCase {
         assertAcked(
                 prepareCreate("idx4")
                         .setSettings(Settings.builder().put(SETTING_NUMBER_OF_SHARDS, 1).put(SETTING_NUMBER_OF_REPLICAS, 0))
-                        .addMapping("product", "categories", "type=string", "name", "type=string", "property", "type=nested")
+                        .addMapping("product", "categories", "type=text", "name", "type=text", "property", "type=nested")
         );
         ensureGreen("idx4");
 

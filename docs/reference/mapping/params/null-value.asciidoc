@@ -16,8 +16,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "status_code": {
-          "type":       "string",
-          "index":      "not_analyzed",
+          "type":       "keyword",
           "null_value": "NULL" <1>
         }
       }

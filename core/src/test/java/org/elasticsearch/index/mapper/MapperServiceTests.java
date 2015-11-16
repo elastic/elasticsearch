@@ -45,7 +45,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .admin()
                 .indices()
                 .prepareCreate(index)
-                .addMapping(type, field, "type=string")
+                .addMapping(type, field, "type=text")
                 .execute()
                 .actionGet();
     }
@@ -61,7 +61,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                         .indices()
                         .prepareCreate(index)
                         .setSettings(settings(randomVersionBetween(random(), getFirstVersion(), getPreviousVersion(Version.V_2_0_0_beta1))))
-                        .addMapping(type, field, "type=string")
+                        .addMapping(type, field, "type=text")
                         .execute()
                         .actionGet();
         assertNotNull(response);
@@ -78,7 +78,7 @@ public class MapperServiceTests extends ESSingleNodeTestCase {
                 .admin()
                 .indices()
                 .prepareCreate(index)
-                .addMapping(type, field, "type=string")
+                .addMapping(type, field, "type=text")
                 .execute()
                 .actionGet();
     }

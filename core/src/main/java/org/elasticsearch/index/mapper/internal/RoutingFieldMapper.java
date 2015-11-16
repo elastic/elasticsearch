@@ -129,7 +129,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     static final class RoutingFieldType extends MappedFieldType {
 
         public RoutingFieldType() {
-            setFieldDataType(new FieldDataType("string"));
+            setFieldDataType(new FieldDataType("keyword"));
         }
 
         protected RoutingFieldType(RoutingFieldType ref) {
@@ -234,7 +234,7 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
         builder.startObject(CONTENT_TYPE);
         if (indexCreatedBefore2x && (includeDefaults || indexed != indexedDefault)) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
+            builder.field("index", indexed);
         }
         if (indexCreatedBefore2x && (includeDefaults || fieldType().stored() != Defaults.FIELD_TYPE.stored())) {
             builder.field("store", fieldType().stored());

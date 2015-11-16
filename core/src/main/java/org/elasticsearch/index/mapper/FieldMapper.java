@@ -21,6 +21,7 @@ package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.FieldType;
 import org.apache.lucene.index.IndexOptions;
@@ -32,6 +33,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.fielddata.FieldDataType;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
 import org.elasticsearch.index.mapper.core.TypeParsers;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 import org.elasticsearch.index.similarity.SimilarityProvider;
@@ -137,11 +139,6 @@ public abstract class FieldMapper extends Mapper {
                 this.fieldType.setStoreTermVectors(termVectorPayloads);
             }
             this.fieldType.setStoreTermVectorPayloads(termVectorPayloads);
-            return builder;
-        }
-
-        public T tokenized(boolean tokenized) {
-            this.fieldType.setTokenized(tokenized);
             return builder;
         }
 
@@ -415,11 +412,17 @@ public abstract class FieldMapper extends Mapper {
             builder.field("boost", fieldType().boost());
         }
 
-        boolean indexed =  fieldType().indexOptions() != IndexOptions.NONE;
-        boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
-        if (includeDefaults || indexed != defaultIndexed ||
-            fieldType().tokenized() != defaultFieldType.tokenized()) {
-            builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
+        final boolean indexed =  fieldType().indexOptions() != IndexOptions.NONE;
+        final boolean defaultIndexed = defaultFieldType.indexOptions() != IndexOptions.NONE;
+        if (this instanceof StringFieldMapper) {
+            if (includeDefaults || indexed != defaultIndexed ||
+                    fieldType().tokenized() != defaultFieldType.tokenized()) {
+                builder.field("index", indexTokenizeOptionToString(indexed, fieldType().tokenized()));
+            }
+        } else {
+            if (includeDefaults || indexed != defaultIndexed) {
+                builder.field("index", indexed);
+            }
         }
         if (includeDefaults || fieldType().stored() != defaultFieldType.stored()) {
             builder.field("store", fieldType().stored());
@@ -516,6 +519,10 @@ public abstract class FieldMapper extends Mapper {
         }
     }
 
+    /**
+     * @deprecated only for string fields
+     */
+    @Deprecated
     protected static String indexTokenizeOptionToString(boolean indexed, boolean tokenized) {
         if (!indexed) {
             return "no";

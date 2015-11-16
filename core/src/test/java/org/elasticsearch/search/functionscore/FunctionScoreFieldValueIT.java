@@ -50,7 +50,7 @@ public class FunctionScoreFieldValueIT extends ESIntegTestCase {
                         .field("type", randomFrom(new String[]{"short", "float", "long", "integer", "double"}))
                         .endObject()
                         .startObject("body")
-                        .field("type", "string")
+                        .field("type", "text")
                         .endObject()
                         .endObject()
                         .endObject()

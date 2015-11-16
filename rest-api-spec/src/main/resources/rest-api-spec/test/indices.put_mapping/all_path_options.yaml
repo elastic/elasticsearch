@@ -20,7 +20,7 @@ setup:
           test_type:
             properties:
               text:
-                type:     string
+                type:     text
                 analyzer: whitespace
   - do:
       indices.put_mapping:
@@ -30,17 +30,17 @@ setup:
           test_type:
             properties:
               text:
-                type:     string
+                type:     text
                 analyzer: whitespace
 
 
   - do:
       indices.get_mapping: {}
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     string}
+  - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     string}
+  - match: {test_index2.mappings.test_type.properties.text.type:     text}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
   - match: { foo.mappings: {} }
@@ -56,19 +56,19 @@ setup:
           test_type:
             properties:
               text:
-                type:     string
+                type:     text
                 analyzer: whitespace
 
   - do:
       indices.get_mapping: {}
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     string}
+  - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     string}
+  - match: {test_index2.mappings.test_type.properties.text.type:     text}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {foo.mappings.test_type.properties.text.type:     string}
+  - match: {foo.mappings.test_type.properties.text.type:     text}
   - match: {foo.mappings.test_type.properties.text.analyzer: whitespace}
 
 ---
@@ -81,19 +81,19 @@ setup:
           test_type:
             properties:
               text:
-                type:     string
+                type:     text
                 analyzer: whitespace
 
   - do:
       indices.get_mapping: {}
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     string}
+  - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     string}
+  - match: {test_index2.mappings.test_type.properties.text.type:     text}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {foo.mappings.test_type.properties.text.type:     string}
+  - match: {foo.mappings.test_type.properties.text.type:     text}
   - match: {foo.mappings.test_type.properties.text.analyzer: whitespace}
 
 ---
@@ -106,16 +106,16 @@ setup:
           test_type:
             properties:
               text:
-                type:     string
+                type:     text
                 analyzer: whitespace
 
   - do:
       indices.get_mapping: {}
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     string}
+  - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     string}
+  - match: {test_index2.mappings.test_type.properties.text.type:     text}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
   - match: { foo.mappings: {} }
@@ -130,16 +130,16 @@ setup:
           test_type:
             properties:
               text:
-                type:     string
+                type:     text
                 analyzer: whitespace
 
   - do:
       indices.get_mapping: {}
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     string}
+  - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     string}
+  - match: {test_index2.mappings.test_type.properties.text.type:     text}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
   - match: { foo.mappings: {} }
@@ -153,19 +153,19 @@ setup:
           test_type:
             properties:
               text:
-                type:     string
+                type:     text
                 analyzer: whitespace
 
   - do:
       indices.get_mapping: {}
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     string}
+  - match: {test_index1.mappings.test_type.properties.text.type:     text}
   - match: {test_index1.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {test_index2.mappings.test_type.properties.text.type:     string}
+  - match: {test_index2.mappings.test_type.properties.text.type:     text}
   - match: {test_index2.mappings.test_type.properties.text.analyzer: whitespace}
 
-  - match: {foo.mappings.test_type.properties.text.type:     string}
+  - match: {foo.mappings.test_type.properties.text.type:     text}
   - match: {foo.mappings.test_type.properties.text.analyzer: whitespace}
 
 ---
@@ -188,9 +188,8 @@ setup:
             dynamic: false
             properties:
               text:
-                index:    analyzed
                 analyzer: default
-                type:     string
+                type:     text
 
   - do:
       indices.put_mapping:
@@ -201,12 +200,11 @@ setup:
             dynamic: false
             properties:
               text:
-                index:    analyzed
                 analyzer: default
-                type:     string
+                type:     text
 
   - do:
       indices.get_mapping: {}
 
-  - match: {test_index1.mappings.test_type.properties.text.type:     string}
+  - match: {test_index1.mappings.test_type.properties.text.type:     text}
  

@@ -33,7 +33,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("name")
-                        .field("type", "string")
+                        .field("type", "text")
                         .startObject("fielddata").field("loading", "eager").endObject()
                         .endObject()
                         .endObject().endObject().endObject()));
@@ -50,7 +50,7 @@ public class FieldDataLoadingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test")
                 .addMapping("type", jsonBuilder().startObject().startObject("type").startObject("properties")
                         .startObject("name")
-                        .field("type", "string")
+                        .field("type", "text")
                         .startObject("fielddata").field("loading", "eager_global_ordinals").endObject()
                         .endObject()
                         .endObject().endObject().endObject()));

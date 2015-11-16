@@ -112,7 +112,7 @@ public class UidFieldMapper extends MetadataFieldMapper {
     static final class UidFieldType extends MappedFieldType {
 
         public UidFieldType() {
-            setFieldDataType(new FieldDataType("string"));
+            setFieldDataType(new FieldDataType("keyword"));
         }
 
         protected UidFieldType(UidFieldType ref) {

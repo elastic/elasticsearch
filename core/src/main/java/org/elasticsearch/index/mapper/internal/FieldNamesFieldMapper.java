@@ -139,7 +139,7 @@ public class FieldNamesFieldMapper extends MetadataFieldMapper {
         private boolean enabled = Defaults.ENABLED;
 
         public FieldNamesFieldType() {
-            setFieldDataType(new FieldDataType("string"));
+            setFieldDataType(new FieldDataType("keyword"));
         }
 
         protected FieldNamesFieldType(FieldNamesFieldType ref) {

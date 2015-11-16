@@ -132,7 +132,7 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
         String mapping = jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("location").field("type", "geo_shape").endObject()
-                .startObject("name").field("type", "string").endObject()
+                .startObject("name").field("type", "text").endObject()
                 .endObject()
                 .endObject().endObject().string();
 
@@ -376,7 +376,7 @@ public class ContextAndHeaderTransportTests extends ESIntegTestCase {
                 .startObject("type1")
                 .startObject("properties")
                 .startObject("title")
-                .field("type", "string")
+                .field("type", "text")
                 .field("analyzer", "text")
                 .endObject()
                 .endObject()

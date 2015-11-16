@@ -45,7 +45,8 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
         super.setUp();
         MapperService mapperService = queryShardContext().getMapperService();
         mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
-                STRING_FIELD_NAME, "type=string",
+                TEXT_FIELD_NAME, "type=text",
+                KEYWORD_FIELD_NAME, "type=keyword",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
                 BOOLEAN_FIELD_NAME, "type=boolean",
@@ -92,7 +93,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
      */
     @Override
     protected NestedQueryBuilder doCreateTestQueryBuilder() {
-        InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(STRING_FIELD_NAME, SortOrder.ASC);
+        InnerHitsBuilder.InnerHit innerHit = new InnerHitsBuilder.InnerHit().setSize(100).addSort(TEXT_FIELD_NAME, SortOrder.ASC);
         return new NestedQueryBuilder("nested1", RandomQueryBuilder.createQuery(random()),
                 RandomPicks.randomFrom(random(), ScoreMode.values()),
                 SearchContext.current() == null ? null : new QueryInnerHits("inner_hits_name", innerHit));
@@ -117,7 +118,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 InnerHitsContext.BaseInnerHits innerHits = SearchContext.current().innerHits().getInnerHits().get("inner_hits_name");
                 assertEquals(innerHits.size(), 100);
                 assertEquals(innerHits.sort().getSort().length, 1);
-                assertEquals(innerHits.sort().getSort()[0].getField(), STRING_FIELD_NAME);
+                assertEquals(innerHits.sort().getSort()[0].getField(), TEXT_FIELD_NAME);
             } else {
                 assertNull(SearchContext.current().innerHits());
             }

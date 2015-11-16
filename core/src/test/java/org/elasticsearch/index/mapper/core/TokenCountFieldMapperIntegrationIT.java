@@ -116,7 +116,7 @@ public class TokenCountFieldMapperIntegrationIT extends ESIntegTestCase {
                             .field("type", "multi_field")
                             .startObject("fields")
                                 .startObject("foo")
-                                    .field("type", "string")
+                                    .field("type", "text")
                                     .field("store", storeCountedFields)
                                     .field("analyzer", "simple")
                                 .endObject()

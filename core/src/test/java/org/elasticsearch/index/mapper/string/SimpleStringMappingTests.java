@@ -42,12 +42,12 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper.Builder;
+import org.elasticsearch.index.mapper.core.KeywordFieldMapper.Builder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 import org.junit.Before;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Map;
 
@@ -62,13 +62,104 @@ import static org.hamcrest.Matchers.nullValue;
 public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     private static Settings DOC_VALUES_SETTINGS = Settings.builder().put(FieldDataType.FORMAT_KEY, FieldDataType.DOC_VALUES_FORMAT_VALUE).build();
 
+    Settings indexSettings;
     IndexService indexService;
     DocumentMapperParser parser;
 
     @Before
     public void before() {
-        indexService = createIndex("test");
+        // string is removed in 3.0 so here we need to create an old index for bw compat
+        Version version;
+        do {
+            version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.V_3_0_0);
+        } while (version == Version.V_3_0_0);
+        indexSettings = Settings.settingsBuilder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        indexService = createIndex("test", indexSettings);
         parser = indexService.mapperService().documentMapperParser();
+    }
+
+    public void testDefaultString() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        assertEquals(mapping, docMapper.mapping().toString());
+    }
+
+    public void testAnalyzedString() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                            .field("index", "analyzed")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+        String expectedMapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                .startObject("properties")
+                    .startObject("foo")
+                        .field("type", "string")
+                    .endObject()
+                .endObject()
+            .endObject().endObject().string();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        assertEquals(expectedMapping, docMapper.mapping().toString());
+    }
+
+    public void testNotAnalyzedString() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                            .field("index", "not_analyzed")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        assertEquals(mapping, docMapper.mapping().toString());
+    }
+
+    public void testNotIndexedString() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                            .field("index", "no")
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        assertEquals(mapping, docMapper.mapping().toString());
+    }
+
+    public void testNotIndexedDocValuesString() throws IOException {
+        String mapping = XContentFactory.jsonBuilder().startObject()
+                .startObject("type")
+                    .startObject("properties")
+                        .startObject("foo")
+                            .field("type", "string")
+                            .field("index", "no")
+                            .field("doc_values", true)
+                        .endObject()
+                    .endObject()
+                .endObject().endObject().string();
+
+        DocumentMapper docMapper = parser.parse(mapping);
+        assertEquals(mapping, docMapper.mapping().toString());
     }
 
     public void testLimit() throws Exception {
@@ -363,7 +454,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testDocValuesFielddata() throws Exception {
-        IndexService indexService = createIndex("index");
+        IndexService indexService = createIndex("index", indexSettings);
         DocumentMapperParser parser = indexService.mapperService().documentMapperParser();
         final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
 
@@ -403,19 +494,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
     }
 
     public void testDocValues() throws Exception {
-        // doc values only work on non-analyzed content
-        final BuilderContext ctx = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        try {
-            new StringFieldMapper.Builder("anything").docValues(true).build(ctx);
-            fail();
-        } catch (Exception e) { /* OK */ }
-
-        assertFalse(new Builder("anything").index(false).build(ctx).fieldType().hasDocValues());
-        assertTrue(new Builder("anything").index(true).tokenized(false).build(ctx).fieldType().hasDocValues());
-        assertFalse(new Builder("anything").index(true).tokenized(true).build(ctx).fieldType().hasDocValues());
-        assertFalse(new Builder("anything").index(false).tokenized(false).docValues(false).build(ctx).fieldType().hasDocValues());
-        assertTrue(new Builder("anything").index(false).docValues(true).build(ctx).fieldType().hasDocValues());
-
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties")
                 .startObject("str1")
@@ -428,7 +506,6 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .startObject("str3")
                     .field("type", "string")
-                    .field("index", "analyzed")
                 .endObject()
                 .startObject("str4")
                     .field("type", "string")

@@ -34,7 +34,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 public class DisabledFieldDataFormatTests extends ESSingleNodeTestCase {
 
     public void test() throws Exception {
-        createIndex("test", Settings.EMPTY, "type", "s", "type=string");
+        createIndex("test", Settings.EMPTY, "type", "s", "type=text");
         logger.info("indexing data start");
         for (int i = 0; i < 10; ++i) {
             client().prepareIndex("test", "type", Integer.toString(i)).setSource("s", "value" + i).execute().actionGet();
@@ -101,7 +101,7 @@ public class DisabledFieldDataFormatTests extends ESSingleNodeTestCase {
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                         .startObject("properties")
                             .startObject("s")
-                                .field("type", "string")
+                                .field("type", "text")
                                 .startObject("fielddata")
                                     .field("format", format)
                                 .endObject()

@@ -36,7 +36,7 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         // mapped or unmapped field
         String text = randomAsciiOfLengthBetween(1, 10);
         if (randomBoolean()) {
-            query = new WildcardQueryBuilder(STRING_FIELD_NAME, text);
+            query = new WildcardQueryBuilder(TEXT_FIELD_NAME, text);
         } else {
             query = new WildcardQueryBuilder(randomAsciiOfLengthBetween(1, 10), text);
         }

@@ -132,7 +132,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testFilteringAliases() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type", "user", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "user", "type=text"));
 
         ensureGreen();
 
@@ -159,7 +159,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testSearchingFilteringAliasesSingleIndex() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type1", "id", "type=string", "name", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type1", "id", "type=text", "name", "type=text"));
 
         ensureGreen();
 
@@ -239,9 +239,9 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testSearchingFilteringAliasesTwoIndices() throws Exception {
         logger.info("--> creating index [test1]");
-        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=string"));
+        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=text"));
         logger.info("--> creating index [test2]");
-        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=string"));
+        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -306,7 +306,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
         assertAcked(client().admin().indices().preparePutMapping("test1", "test2", "test3")
                 .setType("type1")
-                .setSource("name", "type=string"));
+                .setSource("name", "type=text"));
 
         ensureGreen();
 
@@ -366,8 +366,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testDeletingByQueryFilteringAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2");
-        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=string"));
-        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=string"));
+        assertAcked(prepareCreate("test1").addMapping("type1", "name", "type=text"));
+        assertAcked(prepareCreate("test2").addMapping("type1", "name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -403,8 +403,8 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testDeleteAliases() throws Exception {
         logger.info("--> creating index [test1] and [test2]");
-        assertAcked(prepareCreate("test1").addMapping("type", "name", "type=string"));
-        assertAcked(prepareCreate("test2").addMapping("type", "name", "type=string"));
+        assertAcked(prepareCreate("test1").addMapping("type", "name", "type=text"));
+        assertAcked(prepareCreate("test2").addMapping("type", "name", "type=text"));
         ensureGreen();
 
         logger.info("--> adding filtering aliases to index [test1]");
@@ -482,7 +482,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testSameAlias() throws Exception {
         logger.info("--> creating index [test]");
-        assertAcked(prepareCreate("test").addMapping("type", "name", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "name", "type=text"));
         ensureGreen();
 
         logger.info("--> creating alias1 ");
@@ -543,7 +543,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         createIndex("bazbar");
 
         assertAcked(client().admin().indices().preparePutMapping("foobar", "test", "test123", "foobarbaz", "bazbar")
-                .setType("type").setSource("field", "type=string"));
+                .setType("type").setSource("field", "type=text"));
         ensureGreen();
 
         logger.info("--> creating aliases [alias1, alias2]");
@@ -863,7 +863,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testCreateIndexWithAliases() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type", "field", "type=string")
+                .addMapping("type", "field", "type=text")
                 .addAlias(new Alias("alias1"))
                 .addAlias(new Alias("alias2").filter(QueryBuilders.missingQuery("field")))
                 .addAlias(new Alias("alias3").indexRouting("index").searchRouting("search")));
@@ -885,7 +885,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
 
     public void testCreateIndexWithAliasesSource() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type", "field", "type=string")
+                .addMapping("type", "field", "type=text")
                 .setAliases("{\n" +
                         "        \"alias1\" : {},\n" +
                         "        \"alias2\" : {\"filter\" : {\"term\": {\"field\":\"value\"}}},\n" +

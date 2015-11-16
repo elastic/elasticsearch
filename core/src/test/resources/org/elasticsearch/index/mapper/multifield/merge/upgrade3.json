@@ -5,9 +5,9 @@
                 type:"multi_field",
                 "fields":{
                     "not_indexed3":{
-                        type:"string",
-                        index:"no",
-                        store:"yes"
+                        type:"text",
+                        index:false,
+                        store:true
                     }
                 }
             }

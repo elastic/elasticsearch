@@ -56,7 +56,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         Map titleFields = ((Map) XContentMapValues.extractValue("properties.title.fields", mappingSource));
         assertThat(titleFields.size(), equalTo(1));
         assertThat(titleFields.get("not_analyzed"), notNullValue());
-        assertThat(((Map)titleFields.get("not_analyzed")).get("index").toString(), equalTo("not_analyzed"));
+        assertThat(((Map)titleFields.get("not_analyzed")).get("type").toString(), equalTo("keyword"));
 
         client().prepareIndex("my-index", "my-type", "1")
                 .setSource("title", "Multi fields")
@@ -85,7 +85,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         titleFields = ((Map) XContentMapValues.extractValue("properties.title.fields", mappingSource));
         assertThat(titleFields.size(), equalTo(2));
         assertThat(titleFields.get("not_analyzed"), notNullValue());
-        assertThat(((Map)titleFields.get("not_analyzed")).get("index").toString(), equalTo("not_analyzed"));
+        assertThat(((Map)titleFields.get("not_analyzed")).get("type").toString(), equalTo("keyword"));
         assertThat(titleFields.get("uncased"), notNullValue());
         assertThat(((Map)titleFields.get("uncased")).get("analyzer").toString(), equalTo("whitespace"));
 
@@ -117,9 +117,8 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(aField.get("fields"), notNullValue());
 
         Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
-        assertThat(bField.size(), equalTo(2));
-        assertThat(bField.get("type").toString(), equalTo("string"));
-        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+        assertThat(bField.size(), equalTo(1));
+        assertThat(bField.get("type").toString(), equalTo("keyword"));
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "51,19").setRefresh(true).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0)
@@ -140,8 +139,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
                                 .field("analyzer", "simple")
                                 .startObject("fields")
                                 .startObject("b")
-                                .field("type", "string")
-                                .field("index", "not_analyzed")
+                                .field("type", "keyword")
                                 .endObject()
                                 .endObject()
                                 .endObject()
@@ -159,9 +157,8 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(aField.get("fields"), notNullValue());
 
         Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
-        assertThat(bField.size(), equalTo(2));
-        assertThat(bField.get("type").toString(), equalTo("string"));
-        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+        assertThat(bField.size(), equalTo(1));
+        assertThat(bField.get("type").toString(), equalTo("keyword"));
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "my tokens").setRefresh(true).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "my tokens")).get();
@@ -184,9 +181,8 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(aField.get("fields"), notNullValue());
 
         Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
-        assertThat(bField.size(), equalTo(2));
-        assertThat(bField.get("type").toString(), equalTo("string"));
-        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+        assertThat(bField.size(), equalTo(1));
+        assertThat(bField.get("type").toString(), equalTo("keyword"));
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "complete me").setRefresh(true).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "complete me")).get();
@@ -209,9 +205,8 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         assertThat(aField.get("fields"), notNullValue());
 
         Map bField = ((Map) XContentMapValues.extractValue("properties.a.fields.b", mappingSource));
-        assertThat(bField.size(), equalTo(2));
-        assertThat(bField.get("type").toString(), equalTo("string"));
-        assertThat(bField.get("index").toString(), equalTo("not_analyzed"));
+        assertThat(bField.size(), equalTo(1));
+        assertThat(bField.get("type").toString(), equalTo("keyword"));
 
         client().prepareIndex("my-index", "my-type", "1").setSource("a", "127.0.0.1").setRefresh(true).get();
         SearchResponse countResponse = client().prepareSearch("my-index").setSize(0).setQuery(matchQuery("a.b", "127.0.0.1")).get();
@@ -225,8 +220,7 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
                 .field("type", fieldType)
                 .startObject("fields")
                 .startObject("b")
-                .field("type", "string")
-                .field("index", "not_analyzed")
+                .field("type", "keyword")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -238,11 +232,10 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         return XContentFactory.jsonBuilder().startObject().startObject("my-type")
                 .startObject("properties")
                 .startObject("title")
-                .field("type", "string")
+                .field("type", "text")
                 .startObject("fields")
                 .startObject("not_analyzed")
-                .field("type", "string")
-                .field("index", "not_analyzed")
+                .field("type", "keyword")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -254,10 +247,10 @@ public class MultiFieldsIntegrationIT extends ESIntegTestCase {
         return XContentFactory.jsonBuilder().startObject().startObject("my-type")
                 .startObject("properties")
                 .startObject("title")
-                .field("type", "string")
+                .field("type", "text")
                 .startObject("fields")
                 .startObject("uncased")
-                .field("type", "string")
+                .field("type", "text")
                 .field("analyzer", "whitespace")
                 .endObject()
                 .endObject()

@@ -12,7 +12,7 @@ PUT twitter <1>
     "tweet": {
       "properties": {
         "message": {
-          "type": "string"
+          "type": "text"
         }
       }
     }
@@ -23,7 +23,7 @@ PUT twitter/_mapping/user <2>
 {
   "properties": {
     "name": {
-      "type": "string"
+      "type": "text"
     }
   }
 }
@@ -32,7 +32,7 @@ PUT twitter/_mapping/tweet <3>
 {
   "properties": {
     "user_name": {
-      "type": "string"
+      "type": "text"
     }
   }
 }
@@ -86,13 +86,12 @@ PUT my_index <1>
         "name": {
           "properties": {
             "first": {
-              "type": "string"
+              "type": "text"
             }
           }
         },
         "user_id": {
-          "type": "string",
-          "index": "not_analyzed"
+          "type": "keyword"
         }
       }
     }
@@ -105,13 +104,12 @@ PUT my_index/_mapping/user
     "name": {
       "properties": {
         "last": { <2>
-          "type": "string"
+          "type": "text"
         }
       }
     },
     "user_id": {
-      "type": "string",
-      "index": "not_analyzed",
+      "type": "keyword",
       "ignore_above": 100 <3>
     }
   }
@@ -149,7 +147,7 @@ PUT my_index
     "type_one": {
       "properties": {
         "text": { <1>
-          "type": "string",
+          "type": "text",
           "analyzer": "standard"
         }
       }
@@ -157,7 +155,7 @@ PUT my_index
     "type_two": {
       "properties": {
         "text": { <1>
-          "type": "string",
+          "type": "text",
           "analyzer": "standard"
         }
       }
@@ -169,7 +167,7 @@ PUT my_index/_mapping/type_one <2>
 {
   "properties": {
     "text": {
-      "type": "string",
+      "type": "text",
       "analyzer": "standard",
       "search_analyzer": "whitespace"
     }
@@ -180,7 +178,7 @@ PUT my_index/_mapping/type_one?update_all_types <3>
 {
   "properties": {
     "text": {
-      "type": "string",
+      "type": "text",
       "analyzer": "standard",
       "search_analyzer": "whitespace"
     }

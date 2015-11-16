@@ -93,7 +93,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         QueryShardContext context = createShardContext();
         context.setAllowUnmappedFields(true);
 
-        FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder(STRING_FIELD_NAME, "text");
+        FuzzyQueryBuilder fuzzyQueryBuilder = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "text");
         fuzzyQueryBuilder.fuzziness(Fuzziness.build(randomFrom("a string which is not auto", "3h", "200s")));
 
         try {
@@ -108,7 +108,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         String query = "{\n" +
                 "    \"fuzzy\":{\n" +
-                "        \"" + STRING_FIELD_NAME + "\":{\n" +
+                "        \"" + TEXT_FIELD_NAME + "\":{\n" +
                 "            \"value\":\"sh\",\n" +
                 "            \"fuzziness\": \"AUTO\",\n" +
                 "            \"prefix_length\":1,\n" +
@@ -122,7 +122,7 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(boostQuery.getBoost(), equalTo(2.0f));
         assertThat(boostQuery.getQuery(), instanceOf(FuzzyQuery.class));
         FuzzyQuery fuzzyQuery = (FuzzyQuery) boostQuery.getQuery();
-        assertThat(fuzzyQuery.getTerm(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
+        assertThat(fuzzyQuery.getTerm(), equalTo(new Term(TEXT_FIELD_NAME, "sh")));
         assertThat(fuzzyQuery.getMaxEdits(), equalTo(Fuzziness.AUTO.asDistance("sh")));
         assertThat(fuzzyQuery.getPrefixLength(), equalTo(1));
 

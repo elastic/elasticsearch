@@ -36,7 +36,7 @@ import java.nio.charset.StandardCharsets;
 import static org.elasticsearch.index.mapper.MapperBuilders.doc;
 import static org.elasticsearch.index.mapper.MapperBuilders.object;
 import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.MapperBuilders.textField;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,7 +51,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         DocumentMapper docMapper = doc(settings,
                 rootObject("person")
-                        .add(object("name").add(stringField("first").store(true).index(false))),
+                        .add(object("name").add(textField("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService(), mapperParser);
 
         BytesReference json = new BytesArray(copyToBytesFromClasspath("/org/elasticsearch/index/mapper/simple/test1.json"));
@@ -113,7 +113,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         DocumentMapper docMapper = doc(settings,
                 rootObject("person")
-                        .add(object("name").add(stringField("first").store(true).index(false))),
+                        .add(object("name").add(textField("first").store(true).index(false))),
             indexService.mapperService()).build(indexService.mapperService(), mapperParser);
 
         BytesReference json = new BytesArray("".getBytes(StandardCharsets.UTF_8));
@@ -129,7 +129,7 @@ public class SimpleMapperTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test");
         DocumentMapperParser mapperParser = indexService.mapperService().documentMapperParser();
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-            .startObject("foo.bar").field("type", "string").endObject()
+            .startObject("foo.bar").field("type", "text").endObject()
             .endObject().endObject().string();
         try {
             mapperParser.parse(mapping);

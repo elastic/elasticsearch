@@ -5,17 +5,15 @@
                 type:"multi_field",
                 "fields":{
                     "name":{
-                        type:"string",
-                        index:"analyzed",
+                        type:"text",
                         store:"yes"
                     },
                     "indexed":{
-                        type:"string",
-                        index:"analyzed"
+                        type:"text"
                     },
                     "not_indexed":{
-                        type:"string",
-                        index:"no",
+                        type:"text",
+                        index:false,
                         store:"yes"
                     }
                 }

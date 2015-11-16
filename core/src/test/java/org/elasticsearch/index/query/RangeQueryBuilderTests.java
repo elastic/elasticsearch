@@ -69,7 +69,7 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
                 break;
             case 2:
             default:
-                query = new RangeQueryBuilder(STRING_FIELD_NAME);
+                query = new RangeQueryBuilder(TEXT_FIELD_NAME);
                 query.from("a" + randomAsciiOfLengthBetween(1, 10));
                 query.to("z" + randomAsciiOfLengthBetween(1, 10));
                 break;

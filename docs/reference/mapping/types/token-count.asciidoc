@@ -15,7 +15,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "name": { <1>
-          "type": "string",
+          "type": "text",
           "fields": {
             "length": { <2>
               "type":     "token_count",
@@ -81,7 +81,7 @@ The following parameters are accepted by `token_count` fields:
 
 <<mapping-index,`index`>>::
 
-    Should the field be searchable? Accepts `not_analyzed` (default) and `no`.
+    Should the field be searchable? Accepts `true` (default) and `false`.
 
 <<include-in-all,`include_in_all`>>::
 

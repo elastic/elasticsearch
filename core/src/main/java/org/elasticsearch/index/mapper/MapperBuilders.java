@@ -46,8 +46,12 @@ public final class MapperBuilders {
         return new BooleanFieldMapper.Builder(name);
     }
 
-    public static StringFieldMapper.Builder stringField(String name) {
-        return new StringFieldMapper.Builder(name);
+    public static TextFieldMapper.Builder textField(String name) {
+        return new TextFieldMapper.Builder(name);
+    }
+
+    public static KeywordFieldMapper.Builder keywordField(String name) {
+        return new KeywordFieldMapper.Builder(name);
     }
 
     public static BinaryFieldMapper.Builder binaryField(String name) {

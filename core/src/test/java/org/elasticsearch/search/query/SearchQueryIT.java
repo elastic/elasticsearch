@@ -196,7 +196,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testIndexOptions() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,index_options=docs"));
+                .addMapping("type1", "field1", "type=text,index_options=docs"));
         indexRandom(true,
                 client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
                 client().prepareIndex("test", "type1", "2").setSource("field1", "quick lazy huge brown fox", "field2", "quick lazy huge brown fox"));
@@ -293,7 +293,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testCommonTermsQueryOnAllField() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "message", "type=string", "comment", "type=string,boost=5.0")
+                .addMapping("type1", "message", "type=text", "comment", "type=text,boost=5.0")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("message", "test message", "comment", "whatever"),
                 client().prepareIndex("test", "type1", "2").setSource("message", "hello world", "comment", "test comment"));
@@ -307,7 +307,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testCommonTermsQuery() throws Exception {
         client().admin().indices().prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,analyzer=whitespace")
+                .addMapping("type1", "field1", "type=text,analyzer=whitespace")
                 .setSettings(SETTING_NUMBER_OF_SHARDS, 1).get();
         indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
@@ -395,7 +395,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         .put("index.analysis.analyzer.syns.tokenizer","whitespace")
                         .put("index.analysis.analyzer.syns.filter","syns")
                         )
-                .addMapping("type1", "field1", "type=string,analyzer=syns", "field2", "type=string,analyzer=syns"));
+                .addMapping("type1", "field1", "type=text,analyzer=syns", "field2", "type=text,analyzer=syns"));
 
         indexRandom(true, client().prepareIndex("test", "type1", "3").setSource("field1", "quick lazy huge brown pidgin", "field2", "the quick lazy huge brown fox jumps over the tree"),
                 client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox"),
@@ -486,7 +486,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             try {
                 // backwards compat test!
                 assertAcked(client().admin().indices().prepareCreate("test")
-                        .addMapping("type1", "field1", "type=string,omit_term_freq_and_positions=true")
+                        .addMapping("type1", "field1", "type=text,omit_term_freq_and_positions=true")
                         .setSettings(settings(version).put(SETTING_NUMBER_OF_SHARDS, 1)));
                 assertThat(version.onOrAfter(Version.V_1_0_0_RC2), equalTo(false));
                 indexRandom(true, client().prepareIndex("test", "type1", "1").setSource("field1", "quick brown fox", "field2", "quick brown fox"),
@@ -637,14 +637,14 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTypeFilterTypeIndexedTests() throws Exception {
-        typeFilterTests("not_analyzed");
+        typeFilterTests(true);
     }
 
     public void testTypeFilterTypeNotIndexedTests() throws Exception {
-        typeFilterTests("no");
+        typeFilterTests(false);
     }
 
-    private void typeFilterTests(String index) throws Exception {
+    private void typeFilterTests(boolean index) throws Exception {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         assertAcked(prepareCreate("test").setSettings(indexSettings)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
@@ -670,14 +670,14 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testIdsQueryTestsIdIndexed() throws Exception {
-        idsQueryTests("not_analyzed");
+        idsQueryTests(true);
     }
 
     public void testIdsQueryTestsIdNotIndexed() throws Exception {
-        idsQueryTests("no");
+        idsQueryTests(false);
     }
 
-    private void idsQueryTests(String index) throws Exception {
+    private void idsQueryTests(boolean index) throws Exception {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         assertAcked(client().admin().indices().prepareCreate("test").setSettings(indexSettings)
                 .addMapping("type1", jsonBuilder().startObject().startObject("type1")
@@ -716,14 +716,14 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTermIndexQueryIndexed() throws Exception {
-        termIndexQueryTests("not_analyzed");
+        termIndexQueryTests(true);
     }
 
     public void testTermIndexQueryNotIndexed() throws Exception {
-        termIndexQueryTests("no");
+        termIndexQueryTests(false);
     }
 
-    private void termIndexQueryTests(String index) throws Exception {
+    private void termIndexQueryTests(boolean index) throws Exception {
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
         String[] indexNames = { "test1", "test2" };
         for (String indexName : indexNames) {
@@ -953,7 +953,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,analyzer=classic", "field2", "type=string,analyzer=classic"));
+                .addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1").get();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value2").get();
         refresh();
@@ -977,7 +977,7 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMultiMatchQueryZeroTermsQuery() {
         assertAcked(prepareCreate("test")
-                .addMapping("type1", "field1", "type=string,analyzer=classic", "field2", "type=string,analyzer=classic"));
+                .addMapping("type1", "field1", "type=text,analyzer=classic", "field2", "type=text,analyzer=classic"));
         client().prepareIndex("test", "type1", "1").setSource("field1", "value1", "field2", "value2").get();
         client().prepareIndex("test", "type1", "2").setSource("field1", "value3", "field2", "value4").get();
         refresh();
@@ -1119,7 +1119,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testEmptytermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
 
         indexRandom(true, client().prepareIndex("test", "type", "1").setSource("term", "1"),
                 client().prepareIndex("test", "type", "2").setSource("term", "2"),
@@ -1135,7 +1135,7 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTermsQuery() throws Exception {
-        assertAcked(prepareCreate("test").addMapping("type", "str", "type=string", "lng", "type=long", "dbl", "type=double"));
+        assertAcked(prepareCreate("test").addMapping("type", "str", "type=text", "lng", "type=long", "dbl", "type=double"));
 
         indexRandom(true,
                 client().prepareIndex("test", "type", "1").setSource("str", "1", "lng", 1l, "dbl", 1.0d),
@@ -1202,12 +1202,12 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     public void testTermsLookupFilter() throws Exception {
-        assertAcked(prepareCreate("lookup").addMapping("type", "terms","type=string", "other", "type=string"));
+        assertAcked(prepareCreate("lookup").addMapping("type", "terms","type=text", "other", "type=text"));
         assertAcked(prepareCreate("lookup2").addMapping("type",
                 jsonBuilder().startObject().startObject("type").startObject("properties")
-                        .startObject("arr").startObject("properties").startObject("term").field("type", "string")
+                        .startObject("arr").startObject("properties").startObject("term").field("type", "text")
                         .endObject().endObject().endObject().endObject().endObject().endObject()));
-        assertAcked(prepareCreate("test").addMapping("type", "term", "type=string"));
+        assertAcked(prepareCreate("test").addMapping("type", "term", "type=text"));
 
         indexRandom(true,
                 client().prepareIndex("lookup", "type", "1").setSource("terms", new String[]{"1", "3"}),
@@ -1572,8 +1572,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .field("format", "epoch_millis")
                 .endObject()
                 .startObject("bs")
-                .field("type", "string")
-                .field("index", "not_analyzed")
+                .field("type", "keyword")
                 .endObject()
                 .endObject()
                 .endObject()
@@ -1640,7 +1639,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
         refresh();
@@ -1670,7 +1669,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "keyword_repeat", "porterStem", "unique_stem")
                 .put("index.analysis.filter.unique_stem.type", "unique")
                 .put("index.analysis.filter.unique_stem.only_on_same_position", true));
-        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "the fox runs across the street").get();
         refresh();
@@ -1694,7 +1693,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .putArray("index.analysis.analyzer.search.filter", "lowercase", "synonym")
                 .put("index.analysis.filter.synonym.type", "synonym")
                 .putArray("index.analysis.filter.synonym.synonyms", "fast, quick"));
-        assertAcked(builder.addMapping("test", "text", "type=string,analyzer=index,search_analyzer=search"));
+        assertAcked(builder.addMapping("test", "text", "type=text,analyzer=index,search_analyzer=search"));
 
         client().prepareIndex("test", "test", "1").setSource("text", "quick brown fox").get();
         refresh();
@@ -1729,7 +1728,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                         "analysis.filter.custom_word_delimiter.split_on_case_change", "false",
                         "analysis.filter.custom_word_delimiter.split_on_numerics", "false",
                         "analysis.filter.custom_word_delimiter.stem_english_possessive", "false")
-                .addMapping("type1", "field1", "type=string,analyzer=my_analyzer", "field2", "type=string,analyzer=my_analyzer"));
+                .addMapping("type1", "field1", "type=text,analyzer=my_analyzer", "field2", "type=text,analyzer=my_analyzer"));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "foo bar baz", "field2", "not needed").get();
         refresh();
@@ -2079,7 +2078,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.min_gram", "1")
                 .put("index.analysis.tokenizer.my_ngram_tokenizer.max_gram", "10")
                 .putArray("index.analysis.tokenizer.my_ngram_tokenizer.token_chars", new String[0]));
-        assertAcked(builder.addMapping("test", "origin", "type=string,copy_to=meta", "meta", "type=string,analyzer=my_ngram_analyzer"));
+        assertAcked(builder.addMapping("test", "origin", "type=text,copy_to=meta", "meta", "type=text,analyzer=my_ngram_analyzer"));
         // we only have ngrams as the index analyzer so searches will get standard analyzer
 
 

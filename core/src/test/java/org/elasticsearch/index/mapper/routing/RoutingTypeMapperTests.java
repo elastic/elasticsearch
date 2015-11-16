@@ -91,7 +91,7 @@ public class RoutingTypeMapperTests extends ESSingleNodeTestCase {
         assertThat(routingConfiguration, hasKey("store"));
         assertThat(routingConfiguration.get("store").toString(), is("false"));
         assertThat(routingConfiguration, hasKey("index"));
-        assertThat(routingConfiguration.get("index").toString(), is("no"));
+        assertThat(routingConfiguration.get("index").toString(), is("false"));
     }
 
     public void testPathBackcompat() throws Exception {

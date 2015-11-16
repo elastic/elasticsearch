@@ -111,8 +111,9 @@ import static org.hamcrest.Matchers.*;
 public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>> extends ESTestCase {
 
     private static final GeohashGenerator geohashGenerator = new GeohashGenerator();
-    protected static final String STRING_FIELD_NAME = "mapped_string";
-    protected static final String STRING_FIELD_NAME_2 = "mapped_string_2";
+    protected static final String TEXT_FIELD_NAME = "mapped_text";
+    protected static final String TEXT_FIELD_NAME_2 = "mapped_text_2";
+    protected static final String KEYWORD_FIELD_NAME = "mapped_keyword";
     protected static final String INT_FIELD_NAME = "mapped_int";
     protected static final String DOUBLE_FIELD_NAME = "mapped_double";
     protected static final String BOOLEAN_FIELD_NAME = "mapped_boolean";
@@ -120,9 +121,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     protected static final String OBJECT_FIELD_NAME = "mapped_object";
     protected static final String GEO_POINT_FIELD_NAME = "mapped_geo_point";
     protected static final String GEO_SHAPE_FIELD_NAME = "mapped_geo_shape";
-    protected static final String[] MAPPED_FIELD_NAMES = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME,
+    protected static final String[] MAPPED_FIELD_NAMES = new String[] { TEXT_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME,
             BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, OBJECT_FIELD_NAME, GEO_POINT_FIELD_NAME, GEO_SHAPE_FIELD_NAME };
-    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] { STRING_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME,
+    protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] { TEXT_FIELD_NAME, INT_FIELD_NAME, DOUBLE_FIELD_NAME,
             BOOLEAN_FIELD_NAME, DATE_FIELD_NAME, GEO_POINT_FIELD_NAME };
     private static final int NUMBER_OF_TESTQUERIES = 20;
 
@@ -262,8 +263,9 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAsciiOfLengthBetween(1, 10);
             mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
-                    STRING_FIELD_NAME, "type=string",
-                    STRING_FIELD_NAME_2, "type=string",
+                    TEXT_FIELD_NAME, "type=text",
+                    TEXT_FIELD_NAME_2, "type=text",
+                    KEYWORD_FIELD_NAME, "type=keyword",
                     INT_FIELD_NAME, "type=integer",
                     DOUBLE_FIELD_NAME, "type=double",
                     BOOLEAN_FIELD_NAME, "type=boolean",
@@ -683,13 +685,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
 
     /**
      * create a random value for either {@link AbstractQueryTestCase#BOOLEAN_FIELD_NAME}, {@link AbstractQueryTestCase#INT_FIELD_NAME},
-     * {@link AbstractQueryTestCase#DOUBLE_FIELD_NAME}, {@link AbstractQueryTestCase#STRING_FIELD_NAME} or
+     * {@link AbstractQueryTestCase#DOUBLE_FIELD_NAME}, {@link AbstractQueryTestCase#TEXT_FIELD_NAME} or
      * {@link AbstractQueryTestCase#DATE_FIELD_NAME}, or a String value by default
      */
     protected static Object getRandomValueForFieldName(String fieldName) {
         Object value;
         switch (fieldName) {
-            case STRING_FIELD_NAME:
+            case TEXT_FIELD_NAME:
+            case KEYWORD_FIELD_NAME:
                 if (rarely()) {
                     // unicode in 10% cases
                     JsonStringEncoder encoder = JsonStringEncoder.getInstance();

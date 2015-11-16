@@ -29,7 +29,8 @@ import static org.hamcrest.Matchers.equalTo;
 public class CustomBoostMappingTests extends ESSingleNodeTestCase {
     public void testCustomBoostValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
-                .startObject("s_field").field("type", "string").endObject()
+                .startObject("t_field").field("type", "text").endObject()
+                .startObject("k_field").field("type", "keyword").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("l_field").field("type", "long").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("i_field").field("type", "integer").startObject("norms").field("enabled", true).endObject().endObject()
                 .startObject("sh_field").field("type", "short").startObject("norms").field("enabled", true).endObject().endObject()
@@ -42,7 +43,8 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
         DocumentMapper mapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = mapper.parse("test", "type", "1", XContentFactory.jsonBuilder().startObject()
-                .startObject("s_field").field("value", "s_value").field("boost", 2.0f).endObject()
+                .startObject("t_field").field("value", "s_value").field("boost", 2.0f).endObject()
+                .startObject("k_field").field("value", "s_value").field("boost", 2.5f).endObject()
                 .startObject("l_field").field("value", 1l).field("boost", 3.0f).endObject()
                 .startObject("i_field").field("value", 1).field("boost", 4.0f).endObject()
                 .startObject("sh_field").field("value", 1).field("boost", 5.0f).endObject()
@@ -52,7 +54,8 @@ public class CustomBoostMappingTests extends ESSingleNodeTestCase {
                 .startObject("date_field").field("value", "20100101").field("boost", 9.0f).endObject()
                 .endObject().bytes());
 
-        assertThat(doc.rootDoc().getField("s_field").boost(), equalTo(2.0f));
+        assertThat(doc.rootDoc().getField("t_field").boost(), equalTo(2.0f));
+        assertThat(doc.rootDoc().getField("k_field").boost(), equalTo(2.5f));
         assertThat(doc.rootDoc().getField("l_field").boost(), equalTo(3.0f));
         assertThat(doc.rootDoc().getField("i_field").boost(), equalTo(4.0f));
         assertThat(doc.rootDoc().getField("sh_field").boost(), equalTo(5.0f));

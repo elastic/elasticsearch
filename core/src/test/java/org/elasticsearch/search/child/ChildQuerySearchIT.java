@@ -824,8 +824,8 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
 
     public void testSimpleQueryRewrite() throws Exception {
         assertAcked(prepareCreate("test")
-                .addMapping("parent", "p_field", "type=string")
-                .addMapping("child", "_parent", "type=parent", "c_field", "type=string"));
+                .addMapping("parent", "p_field", "type=text")
+                .addMapping("child", "_parent", "type=parent", "c_field", "type=text"));
         ensureGreen();
 
         // index simple data
@@ -1084,7 +1084,7 @@ public class ChildQuerySearchIT extends ESIntegTestCase {
     // Issue #3818
     public void testHasChildQueryOnlyReturnsSingleChildType() {
         assertAcked(prepareCreate("grandissue")
-                .addMapping("grandparent", "name", "type=string")
+                .addMapping("grandparent", "name", "type=text")
                 .addMapping("parent", "_parent", "type=grandparent")
                 .addMapping("child_type_one", "_parent", "type=parent")
                 .addMapping("child_type_two", "_parent", "type=parent"));

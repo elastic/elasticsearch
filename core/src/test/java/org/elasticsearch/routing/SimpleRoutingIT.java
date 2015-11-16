@@ -220,7 +220,7 @@ public class SimpleRoutingIT extends ESIntegTestCase {
                 .addAlias(new Alias("alias"))
                 .addMapping("type1", XContentFactory.jsonBuilder().startObject().startObject("type1")
                         .startObject("_routing").field("required", true).field("path", "routing_field").endObject().startObject("properties")
-                        .startObject("routing_field").field("type", "string").field("index", randomBoolean() ? "no" : "not_analyzed").field("doc_values", randomBoolean() ? "yes" : "no").endObject().endObject()
+                        .startObject("routing_field").field("type", "keyword").field("index", randomBoolean()).field("doc_values", randomBoolean()).endObject().endObject()
                         .endObject().endObject())
                 .setSettings(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2_ID)
                 .execute().actionGet();

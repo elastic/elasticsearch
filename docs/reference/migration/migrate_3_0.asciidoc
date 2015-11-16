@@ -187,6 +187,12 @@ ping timeouts remains at three seconds.
 
 The `transform` feature from mappings has been removed. It made issues very hard to debug.
 
+==== `string` removed
+
+The `string` field type is not supported anymore. Instead, a `text` field should be
+used when an `analyzed` string field was used before, and a `keyword` field should
+be used in the `not_anayzed` case.
+
 [[breaking_30_plugins]]
 === Plugin changes
 

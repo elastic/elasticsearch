@@ -24,7 +24,7 @@ PUT /my_index
     "my_type": {
       "properties": {
         "title": {
-          "type": "string",
+          "type": "text",
           "store": true <1>
         },
         "date": {
@@ -32,7 +32,7 @@ PUT /my_index
           "store": true <1>
         },
         "content": {
-          "type": "string"
+          "type": "text"
         }
       }
     }

@@ -509,11 +509,11 @@ public class GeoDistanceTests extends ESIntegTestCase {
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company")
                 .startObject("properties")
-                .startObject("name").field("type", "string").endObject()
+                .startObject("name").field("type", "text").endObject()
                 .startObject("branches")
                 .field("type", "nested")
                 .startObject("properties")
-                .startObject("name").field("type", "string").endObject()
+                .startObject("name").field("type", "text").endObject()
                 .startObject("location").field("type", "geo_point");
         if (version.before(Version.V_2_2_0)) {
             xContentBuilder.field("lat_lon", true);

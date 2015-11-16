@@ -103,7 +103,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
-                                .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
+                                .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
                 .setSettings(Settings.settingsBuilder().put(indexSettings()).put("index.number_of_shards", 1)));
 
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
@@ -152,7 +152,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "string").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
@@ -230,7 +230,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "string").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
@@ -300,7 +300,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         builder.putArray("index.analysis.filter.synonym.synonyms", "ave => ave, avenue", "street => str, street");
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("field1").field("type", "string").field("analyzer", "whitespace").field("search_analyzer", "synonym")
+                .startObject("field1").field("type", "text").field("analyzer", "whitespace").field("search_analyzer", "synonym")
                 .endObject().endObject().endObject().endObject();
 
         assertAcked(client().admin().indices().prepareCreate("test").addMapping("type1", mapping).setSettings(builder.put("index.number_of_shards", 1)));
@@ -493,7 +493,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
-                                .field("analyzer", "whitespace").field("type", "string").endObject().endObject().endObject().endObject())
+                                .field("analyzer", "whitespace").field("type", "text").endObject().endObject().endObject().endObject())
         );
         ensureGreen();
         client().prepareIndex("test", "type1", "1").setSource("field1", "the quick brown fox").execute().actionGet();
@@ -730,7 +730,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .addMapping(
                         "type1",
                         jsonBuilder().startObject().startObject("type1").startObject("properties").startObject("field1")
-                                .field("analyzer", analyzer).field("type", "string").endObject().endObject().endObject().endObject())
+                                .field("analyzer", analyzer).field("type", "text").endObject().endObject().endObject().endObject())
                 .setSettings(builder));
         int numDocs = randomIntBetween(100, 150);
         IndexRequestBuilder[] docs = new IndexRequestBuilder[numDocs];

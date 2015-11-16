@@ -40,7 +40,7 @@ curl -XPUT 'localhost:9200/my-index' -d '{
     "my-type": {
       "properties": {
         "message": {
-          "type": "string"
+          "type": "text"
         }
       }
     }

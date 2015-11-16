@@ -2,7 +2,7 @@
     "type": "string",
     "properties": {
         "foo": {
-            "type": "string"
+            "type": "text"
         }
     }
 }

@@ -81,8 +81,10 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
     public <IFD extends IndexFieldData<?>> IFD getForField(FieldDataType type, String fieldName, boolean docValues) {
         final MappedFieldType fieldType;
         final BuilderContext context = new BuilderContext(indexService.getIndexSettings().getSettings(), new ContentPath(1));
-        if (type.getType().equals("string")) {
-            fieldType = MapperBuilders.stringField(fieldName).tokenized(false).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+        if (type.getType().equals("keyword")) {
+            fieldType = MapperBuilders.keywordField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
+        } else if (type.getType().equals("text")) {
+            fieldType = MapperBuilders.textField(fieldName).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("float")) {
             fieldType = MapperBuilders.floatField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("double")) {

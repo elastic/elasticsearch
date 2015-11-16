@@ -39,7 +39,7 @@ Here we configure the DFRSimilarity so it can be referenced as
 {
   "book" : {
     "properties" : {
-      "title" : { "type" : "string", "similarity" : "my_similarity" }
+      "title" : { "type" : "text", "similarity" : "my_similarity" }
     }
 }
 --------------------------------------------------

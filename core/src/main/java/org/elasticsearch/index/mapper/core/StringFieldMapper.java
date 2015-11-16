@@ -46,10 +46,15 @@ import java.util.List;
 import java.util.Map;
 
 import static org.apache.lucene.index.IndexOptions.NONE;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseAnalyzers;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseField;
 import static org.elasticsearch.index.mapper.core.TypeParsers.parseMultiField;
+import static org.elasticsearch.index.mapper.core.TypeParsers.parseTermVectorSettings;
 
+/**
+ * @deprecated replaced by {@link TextFieldMapper} and {@link KeywordFieldMapper}, will be removed in 4.0
+ */
+@Deprecated
 public class StringFieldMapper extends FieldMapper implements AllFieldMapper.IncludeInAll {
 
     public static final String CONTENT_TYPE = "string";
@@ -65,25 +70,8 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         // NOTE, when adding defaults here, make sure you add them in the builder
         public static final String NULL_VALUE = null;
 
-        /**
-         * Post 2.0 default for position_increment_gap. Set to 100 so that
-         * phrase queries of reasonably high slop will not match across field
-         * values.
-         */
-        public static final int POSITION_INCREMENT_GAP = 100;
-        public static final int POSITION_INCREMENT_GAP_PRE_2_0 = 0;
-
         public static final int IGNORE_ABOVE = -1;
 
-        /**
-         * The default position_increment_gap for a particular version of Elasticsearch.
-         */
-        public static int positionIncrementGap(Version version) {
-            if (version.before(Version.V_2_0_0_beta1)) {
-                return POSITION_INCREMENT_GAP_PRE_2_0;
-            }
-            return POSITION_INCREMENT_GAP;
-        }
     }
 
     public static class Builder extends FieldMapper.Builder<Builder, StringFieldMapper> {
@@ -102,6 +90,11 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
         public Builder(String name) {
             super(name, Defaults.FIELD_TYPE);
             builder = this;
+        }
+
+        public Builder tokenized(boolean tokenized) {
+            this.fieldType.setTokenized(tokenized);
+            return this;
         }
 
         @Override
@@ -159,8 +152,12 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
     public static class TypeParser implements Mapper.TypeParser {
         @Override
         public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
-            StringFieldMapper.Builder builder = stringField(name);
+            StringFieldMapper.Builder builder = new StringFieldMapper.Builder(name);
+            final Object index = node.get("index");
+            builder.tokenized(index == null || Strings.toUnderscoreCase(index.toString()).equals("analyzed"));
             parseField(builder, name, node, parserContext);
+            parseAnalyzers(builder, name, node, parserContext);
+            parseTermVectorSettings(builder, name, node, parserContext);
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
                 String propName = Strings.toUnderscoreCase(entry.getKey());
@@ -250,6 +247,9 @@ public class StringFieldMapper extends FieldMapper implements AllFieldMapper.Inc
                                 int positionIncrementGap, int ignoreAbove,
                                 Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, defaultFieldType, indexSettings, multiFields, copyTo);
+        if (Version.indexCreated(indexSettings).onOrAfter(Version.V_3_0_0)) {
+            throw new MapperParsingException("[string] field is removed as of 3.0. Please use [text] or [keyword] instead for field [" + simpleName + "]");
+        }
         if (fieldType.tokenized() && fieldType.indexOptions() != NONE && fieldType().hasDocValues()) {
             throw new MapperParsingException("Field [" + fieldType.names().fullName() + "] cannot be analyzed and have doc values");
         }

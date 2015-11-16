@@ -33,7 +33,7 @@ cardinality `analyzed` string fields.  Most of the time, it doesn't make sense
 to sort or aggregate on `analyzed` string fields (with the notable exception
 of the
 <<search-aggregations-bucket-significantterms-aggregation,`significant_terms`>>
-aggregation).  Always think about whether a `not_analyzed` field (which can
+aggregation).  Always think about whether a `keyword` field (which can
 use `doc_values`) would be  a better fit for your use case.
 ==============================================================================
 
@@ -57,8 +57,8 @@ PUT my_index
   "mappings": {
     "my_type": {
       "properties": {
-        "text": {
-          "type": "string",
+        "foo": {
+          "type": "keyword",
           "fielddata": {
             "format": "disabled" <1>
           }
@@ -69,7 +69,7 @@ PUT my_index
 }
 --------------------------------------------------
 // AUTOSENSE
-<1> The `text` field cannot be used for sorting, aggregations, or in scripts.
+<1> The `foo` field cannot be used for sorting, aggregations, or in scripts.
 
 .Fielddata and other datatypes
 [NOTE]
@@ -169,7 +169,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "tag": {
-          "type": "string",
+          "type": "text",
           "fielddata": {
             "filter": {
               "frequency": {
@@ -205,7 +205,7 @@ PUT my_index
     "my_type": {
       "properties": {
         "tweet": {
-          "type": "string",
+          "type": "text",
           "analyzer": "whitespace",
           "fielddata": {
             "filter": {

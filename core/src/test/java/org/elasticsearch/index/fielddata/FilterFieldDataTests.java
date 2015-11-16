@@ -62,7 +62,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         for (String format : formats) {
             {
                 ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
+                FieldDataType fieldDataType = new FieldDataType("text", Settings.builder().put("format", format)
                         .put("filter.frequency.min_segment_size", 100).put("filter.frequency.min", 0.0d).put("filter.frequency.max", random.nextBoolean() ? 100 : 0.5d));
                 IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
@@ -73,7 +73,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             }
             {
                 ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
+                FieldDataType fieldDataType = new FieldDataType("text", Settings.builder().put("format", format)
                         .put("filter.frequency.min_segment_size", 100).put("filter.frequency.min",  random.nextBoolean() ? 101 : 101d/200.0d).put("filter.frequency.max", 201));
                 IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
@@ -84,7 +84,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
             {
                 ifdService.clear(); // test # docs with value
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
+                FieldDataType fieldDataType = new FieldDataType("text", Settings.builder().put("format", format)
                         .put("filter.frequency.min_segment_size", 101).put("filter.frequency.min", random.nextBoolean() ? 101 : 101d/200.0d));
                 IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "med_freq");
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
@@ -96,7 +96,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
             {
                 ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
+                FieldDataType fieldDataType = new FieldDataType("text", Settings.builder().put("format", format)
                         .put("filter.frequency.min_segment_size", 101).put("filter.frequency.min", random.nextBoolean() ? 101 : 101d/200.0d));
                 IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "med_freq");
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
@@ -108,7 +108,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
 
             {
                 ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
+                FieldDataType fieldDataType = new FieldDataType("text", Settings.builder().put("format", format)
                         .put("filter.regex.pattern", "\\d{2,3}") // allows 10 & 100
                         .put("filter.frequency.min_segment_size", 0)
                         .put("filter.frequency.min", random.nextBoolean() ? 2 : 1d/200.0d) // 100, 10, 5
@@ -152,7 +152,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
         for (String format : formats) {
             {
                 ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
+                FieldDataType fieldDataType = new FieldDataType("text", Settings.builder().put("format", format)
                         .put("filter.regex.pattern", "\\d"));
                 IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);
@@ -162,7 +162,7 @@ public class FilterFieldDataTests extends AbstractFieldDataTestCase {
             }
             {
                 ifdService.clear();
-                FieldDataType fieldDataType = new FieldDataType("string", Settings.builder().put("format", format)
+                FieldDataType fieldDataType = new FieldDataType("text", Settings.builder().put("format", format)
                         .put("filter.regex.pattern", "\\d{1,2}"));
                 IndexOrdinalsFieldData fieldData = getForField(fieldDataType, "high_freq");
                 AtomicOrdinalsFieldData loadDirect = fieldData.loadDirect(context);

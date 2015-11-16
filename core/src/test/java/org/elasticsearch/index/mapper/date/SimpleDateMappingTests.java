@@ -43,7 +43,7 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.index.mapper.core.TextFieldMapper;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.TestSearchContext;
@@ -90,11 +90,11 @@ public class SimpleDateMappingTests extends ESSingleNodeTestCase {
         assertThat(fieldMapper, instanceOf(DateFieldMapper.class));
 
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date1");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date2");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
         fieldMapper = defaultMapper.mappers().smartNameFieldMapper("wrong_date3");
-        assertThat(fieldMapper, instanceOf(StringFieldMapper.class));
+        assertThat(fieldMapper, instanceOf(TextFieldMapper.class));
     }
 
     public void testParseLocal() {

@@ -61,8 +61,7 @@ public class SearchWithRandomExceptionsIT extends ESIntegTestCase {
                 startObject("type").
                 startObject("properties").
                 startObject("test")
-                .field("type", "string")
-                .field("index", "not_analyzed")
+                .field("type", "keyword")
                 .endObject().
                         endObject().
                         endObject()

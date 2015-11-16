@@ -64,7 +64,7 @@ public class RandomQueryBuilder {
         MultiTermQueryBuilder<?> multiTermQueryBuilder;
         switch(RandomInts.randomIntBetween(r, 0, 5)) {
             case 0:
-                RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME);
+                RangeQueryBuilder stringRangeQuery = new RangeQueryBuilder(AbstractQueryTestCase.TEXT_FIELD_NAME);
                 stringRangeQuery.from("a" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
                 stringRangeQuery.to("z" + RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
                 multiTermQueryBuilder = stringRangeQuery;
@@ -79,7 +79,7 @@ public class RandomQueryBuilder {
                 multiTermQueryBuilder = new FuzzyQueryBuilder(AbstractQueryTestCase.INT_FIELD_NAME, RandomInts.randomInt(r, 1000));
                 break;
             case 3:
-                multiTermQueryBuilder = new FuzzyQueryBuilder(AbstractQueryTestCase.STRING_FIELD_NAME, RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
+                multiTermQueryBuilder = new FuzzyQueryBuilder(AbstractQueryTestCase.TEXT_FIELD_NAME, RandomStrings.randomAsciiOfLengthBetween(r, 1, 10));
                 break;
             case 4:
                 multiTermQueryBuilder = new PrefixQueryBuilderTests().createTestQueryBuilder();

@@ -38,7 +38,7 @@ public abstract class AbstractTermQueryTestCase<QB extends BaseTermQueryBuilder<
                 break;
             case 1:
                 if (randomBoolean()) {
-                    fieldName = STRING_FIELD_NAME;
+                    fieldName = random().nextBoolean() ? TEXT_FIELD_NAME : KEYWORD_FIELD_NAME;
                 }
                 if (frequently()) {
                     value = randomAsciiOfLengthBetween(1, 10);

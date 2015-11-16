@@ -136,7 +136,7 @@ public class IndexLookupTests extends ESIntegTestCase {
         expectedEndOffsetsArray.put("3", ends3);
 
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
+                .startObject("int_payload_field").field("type", "text").field("index_options", "offsets")
                 .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
                 Settings.settingsBuilder()
@@ -399,10 +399,10 @@ public class IndexLookupTests extends ESIntegTestCase {
 
     public void testAllExceptPosAndOffset() throws Exception {
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("float_payload_field").field("type", "string").field("index_options", "offsets").field("term_vector", "no")
-            .field("analyzer", "payload_float").endObject().startObject("string_payload_field").field("type", "string")
+                .startObject("float_payload_field").field("type", "text").field("index_options", "offsets").field("term_vector", "no")
+            .field("analyzer", "payload_float").endObject().startObject("string_payload_field").field("type", "text")
             .field("index_options", "offsets").field("term_vector", "no").field("analyzer", "payload_string").endObject()
-                .startObject("int_payload_field").field("type", "string").field("index_options", "offsets")
+                .startObject("int_payload_field").field("type", "text").field("index_options", "offsets")
             .field("analyzer", "payload_int").endObject().endObject().endObject().endObject();
         assertAcked(prepareCreate("test").addMapping("type1", mapping).setSettings(
                 Settings.settingsBuilder()

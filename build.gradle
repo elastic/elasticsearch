@@ -8,6 +8,10 @@ allprojects {
 subprojects {
   group = 'org.elasticsearch'
   version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+
+  configurations.all {
+    resolutionStrategy.cacheChangingModulesFor(0, 'seconds')
+  }
 }
 
 if (hasProperty('projectsPrefix') == false) {

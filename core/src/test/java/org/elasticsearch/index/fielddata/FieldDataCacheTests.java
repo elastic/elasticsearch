@@ -114,6 +114,10 @@ public class FieldDataCacheTests extends ESTestCase {
         @Override
         public void clear(String fieldName) {
         }
+
+        @Override
+        public void clear(Object coreCacheKey) {
+        }
     }
 
 }

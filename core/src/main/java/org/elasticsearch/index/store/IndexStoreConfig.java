@@ -34,10 +34,6 @@ import org.elasticsearch.node.settings.NodeSettingsService;
  */
 public class IndexStoreConfig implements NodeSettingsService.Listener {
 
-    /** "Effectively" infinite (20 GB/sec) default value, because store throttling is disabled by default since
-     *  we use Lucene's auto-IO throttling instead. */ 
-    private static final ByteSizeValue DEFAULT_THROTTLE = new ByteSizeValue(10240, ByteSizeUnit.MB);
-
     /**
      * Configures the node / cluster level throttle type. See {@link StoreRateLimiting.Type}.
      */
@@ -55,7 +51,7 @@ public class IndexStoreConfig implements NodeSettingsService.Listener {
         // we don't limit by default (we default to CMS's auto throttle instead):
         this.rateLimitingType = settings.get("indices.store.throttle.type", StoreRateLimiting.Type.NONE.name());
         rateLimiting.setType(rateLimitingType);
-        this.rateLimitingThrottle = settings.getAsBytesSize("indices.store.throttle.max_bytes_per_sec", DEFAULT_THROTTLE);
+        this.rateLimitingThrottle = settings.getAsBytesSize("indices.store.throttle.max_bytes_per_sec", new ByteSizeValue(0));
         rateLimiting.setMaxRate(rateLimitingThrottle);
         logger.debug("using indices.store.throttle.type [{}], with index.store.throttle.max_bytes_per_sec [{}]", rateLimitingType, rateLimitingThrottle);
     }

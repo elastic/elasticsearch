@@ -201,7 +201,9 @@ public final class MutateProcessor implements Processor {
     private void doSplit(Data data) {
         for(Map.Entry<String, String> entry : split.entrySet()) {
             Object oldVal = data.getProperty(entry.getKey());
-            if (oldVal instanceof String) {
+            if (oldVal == null) {
+                throw new IllegalArgumentException("Cannot split field. [" + entry.getKey() + "] is null.");
+            } else if (oldVal instanceof String) {
                 data.addField(entry.getKey(), Arrays.asList(((String) oldVal).split(entry.getValue())));
             } else {
                 throw new IllegalArgumentException("Cannot split a field that is not a String type");
@@ -247,7 +249,9 @@ public final class MutateProcessor implements Processor {
     private void doTrim(Data data) {
         for(String field : trim) {
             Object val = data.getProperty(field);
-            if (val instanceof String) {
+            if (val == null) {
+                throw new IllegalArgumentException("Cannot trim field. [" + field + "] is null.");
+            } else if (val instanceof String) {
                 data.addField(field, ((String) val).trim());
             } else {
                 throw new IllegalArgumentException("Cannot trim field:" + field + " with type: " + val.getClass());
@@ -258,7 +262,9 @@ public final class MutateProcessor implements Processor {
     private void doUppercase(Data data) {
         for(String field : uppercase) {
             Object val = data.getProperty(field);
-            if (val instanceof String) {
+            if (val == null) {
+                throw new IllegalArgumentException("Cannot uppercase field. [" + field + "] is null.");
+            } else if (val instanceof String) {
                 data.addField(field, ((String) val).toUpperCase(Locale.ROOT));
             } else {
                 throw new IllegalArgumentException("Cannot uppercase field:" + field + " with type: " + val.getClass());
@@ -269,7 +275,9 @@ public final class MutateProcessor implements Processor {
     private void doLowercase(Data data) {
         for(String field : lowercase) {
             Object val = data.getProperty(field);
-            if (val instanceof String) {
+            if (val == null) {
+                throw new IllegalArgumentException("Cannot lowercase field. [" + field + "] is null.");
+            } else if (val instanceof String) {
                 data.addField(field, ((String) val).toLowerCase(Locale.ROOT));
             } else {
                 throw new IllegalArgumentException("Cannot lowercase field:" + field + " with type: " + val.getClass());

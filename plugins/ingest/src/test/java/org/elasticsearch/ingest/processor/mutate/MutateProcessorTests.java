@@ -110,6 +110,18 @@ public class MutateProcessorTests extends ESTestCase {
         assertThat(data.getProperty("ip"), equalTo(Arrays.asList("127", "0", "0", "1")));
     }
 
+    public void testSplitNullValue() throws IOException {
+        Map<String, String> split = new HashMap<>();
+        split.put("not.found", "\\.");
+        Processor processor = new MutateProcessor(null, null, null, split, null, null, null, null, null, null);
+        try {
+            processor.execute(data);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Cannot split field. [not.found] is null."));
+        }
+    }
+
     public void testGsub() throws IOException {
         List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression("ip", Pattern.compile("\\."), "-"));
         Processor processor = new MutateProcessor(null, null, null, null, gsubExpressions, null, null, null, null, null);
@@ -156,6 +168,17 @@ public class MutateProcessorTests extends ESTestCase {
         assertThat(data.getProperty("to_strip"), equalTo("clean"));
     }
 
+    public void testTrimNullValue() throws IOException {
+        List<String> trim = Collections.singletonList("not.found");
+        Processor processor = new MutateProcessor(null, null, null, null, null, null, null, trim, null, null);
+        try {
+            processor.execute(data);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Cannot trim field. [not.found] is null."));
+        }
+    }
+
     public void testUppercase() throws IOException {
         List<String> uppercase = Collections.singletonList("foo");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, uppercase, null);
@@ -164,11 +187,33 @@ public class MutateProcessorTests extends ESTestCase {
         assertThat(data.getProperty("foo"), equalTo("BAR"));
     }
 
+    public void testUppercaseNullValue() throws IOException {
+        List<String> uppercase = Collections.singletonList("not.found");
+        Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, uppercase, null);
+        try {
+            processor.execute(data);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Cannot uppercase field. [not.found] is null."));
+        }
+    }
+
     public void testLowercase() throws IOException {
         List<String> lowercase = Collections.singletonList("alpha");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, null, lowercase);
         processor.execute(data);
         assertThat(data.getDocument().size(), equalTo(7));
         assertThat(data.getProperty("alpha"), equalTo("abcd"));
+    }
+
+    public void testLowercaseNullValue() throws IOException {
+        List<String> lowercase = Collections.singletonList("not.found");
+        Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, null, lowercase);
+        try {
+            processor.execute(data);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Cannot lowercase field. [not.found] is null."));
+        }
     }
 }

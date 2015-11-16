@@ -207,7 +207,7 @@
             ]
           }
   - length: { docs: 2 }
-  - match: { docs.0.error.type: "null_pointer_exception" }
+  - match: { docs.0.error.type: "illegal_argument_exception" }
   - is_true: docs.1.doc.modified
   - match: { docs.1.doc._source.foo: "BAR" }
 

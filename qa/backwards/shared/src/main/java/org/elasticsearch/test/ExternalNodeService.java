@@ -21,10 +21,12 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.NamedThreadFactory;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.jboss.netty.bootstrap.ServerBootstrap;
@@ -98,11 +100,15 @@ public class ExternalNodeService {
 
     private static final ESLogger logger = ESLoggerFactory.getLogger("external-node-service");
 
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, InterruptedException {
         int arg = 0;
         int port = Integer.parseInt(System.getProperty("ens.port", Integer.toString(DEFAULT_PORT)));
         if (args[arg].equals("shutdown")) {
             sendShutdown(port);
+            return;
+        }
+        if (args[arg].equals("kill")) {
+            killAllBackwardsNodes();
             return;
         }
         Path elasticsearchStable = elasticsearchStable(args[arg++]);
@@ -110,6 +116,9 @@ public class ExternalNodeService {
         if (arg < args.length) {
             block = !"noblock".equals(args[arg++]);
         }
+
+        killAllBackwardsNodes();
+
         Map<String, Path> elasticsearches = new HashMap<>();
         logger.info("Scanning for elasticsearches...");
         try (DirectoryStream<Path> directoryStream = Files.newDirectoryStream(elasticsearchStable)) {
@@ -161,7 +170,7 @@ public class ExternalNodeService {
     /**
      * Running elasticsearch instances indexed by port.
      */
-    private final ConcurrentMap<String, Process> runningElasticsearches = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, ProcessInfo> runningElasticsearches = new ConcurrentHashMap<>();
     /**
      * Port on which the daemon should listen.
      */
@@ -236,6 +245,74 @@ public class ExternalNodeService {
         logger.info("Bound localhost:" + port);
     }
 
+    /**
+     * Called on startup to make sure that all backwards compatibility nodes
+     * that might have been created by previous runs of this are dead, dead,
+     * dead.
+     */
+    private static void killAllBackwardsNodes() throws IOException, InterruptedException {
+        // This method is 1000% hacks and non-portable workarounds.
+        List<String> commandLine = new ArrayList<>();
+        String bwcPathPart = "backwards";
+        String esPattern = "bootstrap.Elasticsearch";
+        if (Constants.WINDOWS) {
+            commandLine.add("wmic");
+            commandLine.add("process");
+            commandLine.add("where");
+            commandLine.add("Name like 'java%%.exe' and CommandLine like '%%" + bwcPathPart + "%%' and CommandLine like '%%"
+                    + esPattern + "%%'");
+            commandLine.add("get");
+            commandLine.add("ProcessId");
+        } else {
+            commandLine.add("bash");
+            commandLine.add("-c");
+            commandLine.add("ps aux | grep java | grep -v grep | grep " + bwcPathPart + " | grep " + esPattern
+                    + " | awk '{print $2}'");
+        }
+        ProcessBuilder builder = new ProcessBuilder(commandLine);
+        builder.redirectErrorStream(true);
+        Process process = null;
+        BufferedReader stdout = null;
+        List<String> lines = new ArrayList<>();
+        List<String> pids = new ArrayList<>();
+        try {
+            process = builder.start();
+            stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+            if (Constants.WINDOWS) {
+                // In windows the first line is a heading or blank line
+                lines.add(stdout.readLine());
+            }
+            String line;
+            while ((line = stdout.readLine()) != null) {
+                lines.add(line);
+                if (line.isEmpty()) {
+                    // Windows outputs a bunch of empty lines
+                    continue;
+                }
+                pids.add(line.trim());
+            }
+            process.waitFor();
+            logger.debug("Process list: [{}]", lines);
+            if (process.exitValue() != 0) {
+                logger.error("Getting pids of backwards nodes failed with output [{}]", lines);
+                throw new RuntimeException("Getting pids of backwards nodes failed with exit code: [" + process.exitValue() + ']');
+            }
+        } finally {
+            if (stdout != null) {
+                stdout.close();
+            }
+            if (process != null) {
+                process.destroy();
+            }
+        }
+        if (pids.isEmpty() == false) {
+            logger.info("Killing backwards nodes running at [{}]", pids);
+        }
+        for (String pid : pids) {
+            new ProcessInfo(null, pid).stop();
+        }
+    }
+
     private class Handler {
         private final MessageEvent e;
         private final Deque<String> commandLine;
@@ -295,18 +372,22 @@ public class ExternalNodeService {
             builder.redirectErrorStream(true);
             Process process = null;
             String port = null;
+            String pid = null;
             BufferedReader stdout = null;
             try {
                 process = builder.start();
                 stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
                 message("process forked");
 
-                Matcher m = readUntilMatches(stdout, "http bound", ".+\\[http .+bound_addresses .*\\{(?:127\\.0\\.0\\.1|\\[::1\\]):(\\d+)\\}.*",
+                Matcher m = readUntilMatches(stdout, "pid", ".+\\[node.+ pid\\[(\\d+)\\].*", timeValueSeconds(10));
+                pid = m.group(1);
+                message("pid is [" + pid + "]");
+                m = readUntilMatches(stdout, "transport address", ".+\\[transport .+bound_addresses .*\\{(?:127\\.0\\.0\\.1|\\[::1\\]):(\\d+)\\}.*",
                         timeValueSeconds(20));
                 port = m.group(1);
                 message("bound to [localhost:" + port + "]");
-                readUntilMatches(stdout, "started", ".+\\] started$", timeValueSeconds(1));
-                runningElasticsearches.put(port, process);
+                readUntilMatches(stdout, "started", ".+\\] started$", timeValueSeconds(20));
+                runningElasticsearches.put(port, new ProcessInfo(process, pid));
                 message("started");
                 process.getInputStream().close();
             } finally {
@@ -315,13 +396,22 @@ public class ExternalNodeService {
                     logger.error("We tried to start it like this: {}", startReproduction);
                     // In Java 1.8 this should be destroyForcibly
                     process.destroy();
+                    if (pid != null) {
+                        try {
+                            new ProcessInfo(null, pid).stop();
+                        } catch (InterruptedException e) {
+                            logger.warn("Failed to stop busted elasticsearch at [{}]", pid);
+                        }
+                    }
                     if (stdout != null) {
                         try {
                             stdout.reset();
                             CharBuffer lines = CharBuffer.allocate(1024 * 1024);
                             stdout.read(lines);
                             lines.flip();
-                            logger.error("We were able to capture some of elasticsearch's output. Hopefully this will be useful in figuring out the failure:\n{}", lines.toString());
+                            logger.error(
+                                    "We were able to capture some of elasticsearch's output. Hopefully this will be useful in figuring out the failure:\n{}",
+                                    lines.toString());
                         } catch (IOException e) {
                             logger.warn("Sadly we couldn't capture any of its output.", e);
                         }
@@ -336,18 +426,21 @@ public class ExternalNodeService {
                 return;
             }
             String port = commandLine.pop();
-            Process elasticsearch = runningElasticsearches.remove(port);
+            ProcessInfo elasticsearch = runningElasticsearches.remove(port);
             if (elasticsearch == null) {
                 message("couldn't find elasticsearch bound to localhost:" + port + "!");
                 return;
             }
             message("killing elasticsearch bound to localhost:" + port);
-            elasticsearch.destroy();
             try {
-                // In Java 1.8 we can use a timeout! We really should have a timeout here....
-                elasticsearch.waitFor();
+                elasticsearch.stop();
             } catch (InterruptedException e) {
                 message("timed out waiting for elasticsearch to stop!");
+                runningElasticsearches.put(port, elasticsearch);
+                return;
+            } catch (IOException e) {
+                message("error waiting for elasticsearch to stop: [" + e.getMessage() + "]");
+                logger.warn("Error waiting for elasticsearch to stop", e);
                 runningElasticsearches.put(port, elasticsearch);
                 return;
             }
@@ -369,7 +462,7 @@ public class ExternalNodeService {
                 command.add(arg);
             }
             // We need at least INFO in http and node
-            command.add("-Des.logger.http=INFO");
+            command.add("-Des.logger.transport=INFO");
             command.add("-Des.logger.node=INFO");
             // It'd be nice to conditionally apply these but that can wait.
             return command;
@@ -426,7 +519,7 @@ public class ExternalNodeService {
         }
 
         private ReadFailedException(String description, Exception cause) {
-            super("failed try to capture " + description, cause);
+            super("failed to capture " + description, cause);
         }
     }
 
@@ -446,22 +539,17 @@ public class ExternalNodeService {
                 try {
                     Runtime.getRuntime().removeShutdownHook(shutdownHook);
                 } catch (IllegalStateException e) {
-                    // Its cool - this is caused by trying to remove the hook during shutdown
+                    // Its cool - this is caused by trying to remove the hook
+                    // during shutdown
                 }
             }
-            for (Map.Entry<String, Process> elasticsearch : runningElasticsearches.entrySet()) {
+            for (Map.Entry<String, ProcessInfo> elasticsearch : runningElasticsearches.entrySet()) {
                 logger.debug("Kill -9ing elasticsearch running at localhost:{}", elasticsearch.getKey());
                 // In Java 1.8 this should be destroyForcibly.
-                elasticsearch.getValue().destroy();
-            }
-            for (Map.Entry<String, Process> elasticsearch : runningElasticsearches.entrySet()) {
                 try {
-                    logger.debug("Waiting for elasticsearch running at localhost:{} to die", elasticsearch.getKey());
-                    elasticsearch.getValue().waitFor();
-                } catch (InterruptedException e) {
-                    logger.warn("Inturrupted waiting for elasticsearch running at localhost:{} to die", elasticsearch.getKey());
-                    Thread.interrupted();
-                    break;
+                    elasticsearch.getValue().stop();
+                } catch (IOException | InterruptedException e) {
+                    logger.error("Error stopping elasticsearch", e);
                 }
             }
             if (server != null) {
@@ -484,6 +572,53 @@ public class ExternalNodeService {
             Thread t = super.newThread(r);
             t.setDaemon(true);
             return t;
+        }
+    }
+
+    private static class ProcessInfo {
+        private final Process process;
+        private final String pid;
+
+        public ProcessInfo(@Nullable Process process, String pid) {
+            this.process = process;
+            this.pid = pid;
+        }
+
+        public void stop() throws IOException, InterruptedException {
+            /*
+             * process.destroy doesn't work properly on windows and sometimes we
+             * want to kill by pid so we just go with the super aggressive
+             * option every time.....
+             */
+            List<String> commandLine = new ArrayList<>();
+            if (Constants.WINDOWS) {
+                commandLine.add("taskkill");
+                commandLine.add("/F"); // Force
+                commandLine.add("/PID");
+                commandLine.add(pid);
+            } else {
+                commandLine.add("kill");
+                commandLine.add("-9"); // Force
+                commandLine.add(pid);
+            }
+            ProcessBuilder builder = new ProcessBuilder(commandLine);
+            Process killProcess = null;
+            try {
+                logger.debug("Killing [{}]", pid);
+                killProcess = builder.start();
+                killProcess.waitFor();
+                if (killProcess.exitValue() != 0) {
+                    throw new RuntimeException(
+                            LoggerMessageFormat.format("Killing [{}] failed with exit code [{}]", pid, killProcess.exitValue()));
+                }
+            } finally {
+                if (killProcess != null) {
+                    killProcess.destroy();
+                }
+            }
+            if (process != null) {
+                process.waitFor();
+            }
         }
     }
 }

@@ -29,10 +29,10 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.junit.listeners.LoggingListener;
-import org.elasticsearch.test.junit.listeners.ReproduceInfoPrinter;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportModule;
 
@@ -45,6 +45,8 @@ import java.lang.annotation.Target;
 import java.util.Map;
 import java.util.Random;
 
+import static org.elasticsearch.test.InternalTestCluster.JVM_BASE_PORT_OFFEST;
+import static org.elasticsearch.test.InternalTestCluster.PORTS_PER_CLUSTER;
 import static org.hamcrest.Matchers.is;
 
 /**
@@ -102,6 +104,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     public static final String TESTS_COMPATIBILITY = "tests.compatibility";
 
     private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
+    private static final int EXTERNAL_NODE_BASE_PORT = 29200;
 
     public static String backwardsCompatibilityVersion() {
         String version = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
@@ -248,6 +251,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         Settings.Builder builder = Settings.builder().put(requiredSettings());
         builder.put(TransportModule.TRANSPORT_TYPE_KEY, "netty"); // run same transport  / disco as external
         builder.put("node.mode", "network");
+        builder.put(UnicastZenPing.DISCOVERY_ZEN_PING_UNICAST_HOSTS, backwardsCluster().unicastHosts());
 
         if (compatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
@@ -258,8 +262,16 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         return builder.build();
     }
 
+    /**
+     * Pushes externalNodes transport ports onto 29300 rather than 9300 or 19300
+     * so they don't collide with "normal" test nodes.
+     */
     protected Settings externalNodeSettings(int nodeOrdinal) {
-        return addLoggerSettings(commonNodeSettings(nodeOrdinal));
+        int basePort = EXTERNAL_NODE_BASE_PORT + JVM_BASE_PORT_OFFEST;
+        String portRange = basePort + "-" + (basePort + PORTS_PER_CLUSTER);
+        return Settings.builder().put(addLoggerSettings(commonNodeSettings(nodeOrdinal)))
+                .put("transport.tcp.port", portRange)
+                .build();
     }
 
     /**

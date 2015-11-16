@@ -74,6 +74,25 @@ public class CompositeTestCluster extends TestCluster {
         cluster.beforeTest(random, transportClientRatio);
         Settings defaultSettings = cluster.getDefaultSettings();
         final Client client = cluster.size() > 0 ? cluster.client() : cluster.clientNodeClient();
+        for (int i = 0; i < externalNodes.length; i++) {
+            if (!externalNodes[i].running()) {
+                try {
+                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i);
+                } catch (InterruptedException e) {
+                    Thread.interrupted();
+                    return;
+                }
+            }
+            externalNodes[i].reset(random.nextLong());
+        }
+        this.client = new ExternalClient();
+        if (size() > 0) {
+            logger.debug("Waiting for {} nodes", size());
+            client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).get();
+        }
+    }
+
+    public String unicastHosts() {
         StringBuilder unicastHosts = new StringBuilder(cluster.unicastHosts());
         boolean first = unicastHosts.length() == 0;
         for (int i = 0; i < externalNodes.length; i++) {
@@ -87,22 +106,7 @@ public class CompositeTestCluster extends TestCluster {
             }
             unicastHosts.append("localhost:").append(externalNodes[i].getTransportAddress().getPort());
         }
-        for (int i = 0; i < externalNodes.length; i++) {
-            if (!externalNodes[i].running()) {
-                try {
-                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i, unicastHosts.toString());
-                    unicastHosts.append(",localhost:").append(externalNodes[i].getTransportAddress().getPort());
-                } catch (InterruptedException e) {
-                    Thread.interrupted();
-                    return;
-                }
-            }
-            externalNodes[i].reset(random.nextLong());
-        }
-        this.client = new ExternalClient();
-        if (size() > 0) {
-            client().admin().cluster().prepareHealth().setWaitForNodes(">=" + Integer.toString(this.size())).get();
-        }
+        return unicastHosts.toString();
     }
 
     private Collection<ExternalNode> runningNodes() {

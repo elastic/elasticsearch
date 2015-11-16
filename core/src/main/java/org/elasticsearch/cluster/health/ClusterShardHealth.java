@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.action.admin.cluster.health;
+package org.elasticsearch.cluster.health;
 
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -27,10 +27,7 @@ import org.elasticsearch.common.io.stream.Streamable;
 
 import java.io.IOException;
 
-/**
- *
- */
-public class ClusterShardHealth implements Streamable {
+public final class ClusterShardHealth implements Streamable {
 
     private int shardId;
 

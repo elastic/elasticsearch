@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Locale;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -173,7 +174,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     rerouting.set(false);
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
+                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, reason);
                     if (!routingResult.changed()) {
                         // no state changed
                         return currentState;

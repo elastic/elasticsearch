@@ -107,12 +107,10 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
             return nodeTime;
         }
 
-        long nodeTime = 0;
+        nodeTime = 0;
         for (long time : timings.values()) {
             nodeTime += time;
         }
-        // Collect our local timings
-        this.nodeTime = nodeTime;
 
         // Then add up our children
         for (InternalProfileResult child : children) {
@@ -178,7 +176,7 @@ public class InternalProfileResult implements ProfileResult, Streamable, ToXCont
         builder = builder.startObject()
                 .field(QUERY_TYPE.getPreferredName(), queryType)
                 .field(LUCENE_DESCRIPTION.getPreferredName(), luceneDescription)
-                .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double)(nodeTime / 1000000.0)))
+                .field(NODE_TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double)(getTime() / 1000000.0)))
                 .field(BREAKDOWN.getPreferredName(), timings);
 
         if (children.isEmpty() == false) {

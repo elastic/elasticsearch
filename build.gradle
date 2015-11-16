@@ -166,5 +166,10 @@ task buildSrcEclipse(type: GradleBuild) {
 }
 tasks.eclipse.dependsOn(buildSrcEclipse)
 
+task clean(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['clean']
+}
+
 task run(dependsOn: ':distribution:run')
 

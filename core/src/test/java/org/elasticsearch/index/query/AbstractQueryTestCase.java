@@ -22,6 +22,7 @@ package org.elasticsearch.index.query;
 import com.carrotsearch.randomizedtesting.generators.CodepointSetGenerator;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.io.JsonStringEncoder;
+
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
@@ -128,6 +129,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static IndicesQueriesRegistry indicesQueriesRegistry;
     private static QueryShardContext queryShardContext;
     private static IndexFieldDataService indexFieldDataService;
+    private static int queryNameId = 0;
 
 
     protected static QueryShardContext queryShardContext() {
@@ -316,10 +318,19 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 query.boost(2.0f / randomIntBetween(1, 20));
             }
             if (randomBoolean()) {
-                query.queryName(randomAsciiOfLengthBetween(1, 10));
+                query.queryName(createUniqueRandomName());
             }
         }
         return query;
+    }
+
+    /**
+     * make sure query names are unique by suffixing them with increasing counter
+     */
+    private static String createUniqueRandomName() {
+        String queryName = randomAsciiOfLengthBetween(1, 10) + queryNameId;
+        queryNameId++;
+        return queryName;
     }
 
     /**

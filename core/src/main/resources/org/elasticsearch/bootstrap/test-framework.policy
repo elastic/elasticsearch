@@ -30,7 +30,7 @@ grant codeBase "${codebase.securemock-1.1.jar}" {
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };
 
-grant codeBase "${codebase.lucene-test-framework-5.4.0-snapshot-1712973.jar}" {
+grant codeBase "${codebase.lucene-test-framework-5.4.0-snapshot-1714615.jar}" {
   // needed by RamUsageTester
   permission java.lang.reflect.ReflectPermission "suppressAccessChecks";
 };

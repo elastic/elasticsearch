@@ -1969,7 +1969,6 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
         booleanClause = booleanQuery.clauses().get(1);
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
-        assertThat(booleanClause.getQuery(), instanceOf(GeoDistanceRangeQuery.class));
         assertGeoDistanceRangeQuery(queryParser, booleanClause.getQuery(), 40, -70, 12, DistanceUnit.DEFAULT);
     }
 
@@ -2035,7 +2034,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
         booleanClause = booleanQuery.clauses().get(1);
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
-        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -80, 30, -70);
+        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -70, 30, -80);
     }
 
     @Test
@@ -2051,7 +2050,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
         booleanClause = booleanQuery.clauses().get(1);
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
-        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -80, 30, -70);
+        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -70, 30, -80);
     }
 
     @Test
@@ -2067,7 +2066,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
         booleanClause = booleanQuery.clauses().get(1);
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
-        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -80, 30, -70);
+        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -70, 30, -80);
     }
 
     @Test
@@ -2083,7 +2082,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
         booleanClause = booleanQuery.clauses().get(1);
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
-        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -80, 30, -70);
+        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -70, 30, -80);
     }
 
     @Test
@@ -2099,7 +2098,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
         booleanClause = booleanQuery.clauses().get(1);
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
-        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -80, 30, -70);
+        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -70, 30, -80);
     }
 
     @Test
@@ -2115,7 +2114,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
         booleanClause = booleanQuery.clauses().get(1);
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
-        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -80, 30, -70);
+        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -70, 30, -80);
     }
 
     @Test
@@ -2131,7 +2130,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
         assertThat(booleanClause.getQuery(), instanceOf(MatchAllDocsQuery.class));
         booleanClause = booleanQuery.clauses().get(1);
         assertThat(booleanClause.getOccur(), equalTo(Occur.FILTER));
-        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -80, 30, -70);
+        assertGeoBBoxQuery(queryParser, booleanClause.getQuery(), 40, -70, 30, -80);
     }
 
 
@@ -2629,6 +2628,13 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
             assertThat(query, instanceOf(InMemoryGeoBoundingBoxQuery.class));
             InMemoryGeoBoundingBoxQuery filter = (InMemoryGeoBoundingBoxQuery) query;
             assertThat(filter.fieldName(), equalTo("location"));
+            // legacy GeoBoundingBox queries "rewrite" on query creation, thus all dateline wrapped tests are swapped
+            // from their original json definition
+            if (minLon > maxLon) {
+                double temp = minLon;
+                minLon = maxLon;
+                maxLon = temp;
+            }
             assertThat(filter.topLeft().lat(), closeTo(maxLat, 1E-5));
             assertThat(filter.topLeft().lon(), closeTo(maxLon, 1E-5));
             assertThat(filter.bottomRight().lat(), closeTo(minLat, 1E-5));
@@ -2637,6 +2643,7 @@ public class SimpleIndexQueryParserTests extends ESSingleNodeTestCase {
             assertThat(query, instanceOf(GeoPointInBBoxQuery.class));
             GeoPointInBBoxQuery q = (GeoPointInBBoxQuery) query;
             assertThat(q.getField(), equalTo("location"));
+            // lucene dateline/pole wrapping occurs at rewrite, which doesn't happen until after parsing
             assertThat(q.getMaxLat(), closeTo(maxLat, 1E-5));
             assertThat(q.getMinLon(), closeTo(minLon, 1E-5));
             assertThat(q.getMinLat(), closeTo(minLat, 1E-5));

@@ -149,5 +149,4 @@ public final class ConfigurationUtils {
             throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
         }
     }
-
 }

@@ -28,9 +28,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,6 +47,8 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
@@ -203,6 +206,23 @@ public class IpFieldMapper extends NumberFieldMapper {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
             NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
             return bytesRef.get();
+        }
+
+        @Override
+        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+            if (value != null) {
+                long[] fromTo;
+                if (value instanceof BytesRef) {
+                    fromTo = InetAddresses.cidrMaskToMinMax(((BytesRef) value).utf8ToString());
+                } else {
+                    fromTo = InetAddresses.cidrMaskToMinMax(value.toString());
+                }
+                if (fromTo != null) {
+                    return rangeQuery(fromTo[0] < 0 ? Double.NEGATIVE_INFINITY : fromTo[0],
+                            fromTo[1] < 0 ? Double.POSITIVE_INFINITY : fromTo[1], true, false);
+                }
+            }
+            return super.termQuery(value, context);
         }
 
         @Override

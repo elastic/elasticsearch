@@ -97,7 +97,7 @@ in a file with a `.repo` suffix, for example `elasticsearch.repo`
 name=Elasticsearch repository for {major-version} packages
 baseurl=http://packages.elastic.co/elasticsearch/{major-version}/centos
 gpgcheck=1
-gpgkey=http://packages.elastic.co/GPG-KEY-elasticsearch
+gpgkey=https://packages.elastic.co/GPG-KEY-elasticsearch
 enabled=1
 --------------------------------------------------
 

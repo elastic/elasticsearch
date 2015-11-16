@@ -2096,6 +2096,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
+    @Target(ElementType.TYPE)
     public @interface SuiteScopeTestCase {
     }
 
@@ -2104,6 +2105,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
+    @Target(ElementType.TYPE)
     public @interface SuppressLocalMode {
     }
 
@@ -2112,6 +2114,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
+    @Target(ElementType.TYPE)
     public @interface SuppressNetworkMode {
     }
 

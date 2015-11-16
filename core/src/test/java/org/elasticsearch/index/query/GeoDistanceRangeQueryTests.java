@@ -44,14 +44,14 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     protected GeoDistanceRangeQueryBuilder doCreateTestQueryBuilder() {
         Version version = queryShardContext().indexVersionCreated();
         GeoDistanceRangeQueryBuilder builder;
+        GeoPoint randomPoint = RandomGeoGenerator.randomPointIn(random(), -180.0, -89.9, 180.0, 89.9);
         if (randomBoolean()) {
-            builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomGeohash(3, 12));
+            builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomPoint.geohash());
         } else {
-            GeoPoint point = RandomGeoGenerator.randomPoint(random());
             if (randomBoolean()) {
-                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, point);
+                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomPoint);
             } else {
-                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, point.lat(), point.lon());
+                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomPoint.lat(), randomPoint.lon());
             }
         }
         GeoPoint point = builder.point();

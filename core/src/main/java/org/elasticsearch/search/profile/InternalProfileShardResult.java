@@ -28,7 +28,10 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.*;
 
-
+/**
+ * A container class to hold the profile results for a single shard in the request.
+ * Contains a list of query profiles, a collector tree and a total rewrite tree.
+ */
 public class InternalProfileShardResult implements ProfileShardResult, Streamable, ToXContent {
 
     private List<InternalProfileResult> profileResults;

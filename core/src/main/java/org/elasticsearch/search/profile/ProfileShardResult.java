@@ -22,6 +22,9 @@ package org.elasticsearch.search.profile;
 
 import java.util.List;
 
+/**
+ * Public interface to access the profiled results of a single shard in the request
+ */
 public interface ProfileShardResult {
 
     List<ProfileResult> getQueryResults();

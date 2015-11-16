@@ -37,7 +37,7 @@ import java.util.Locale;
 import java.util.Map;
 
 /**
- * This class is the internal representation of a profiled query, corresponding
+ * This class is the internal representation of a profiled Query, corresponding
  * to a single node in the query tree.  It is built after the query has finished executing
  * and is merely a structured representation, rather than the entity that collects the timing
  * profile (see InternalProfiler for that)

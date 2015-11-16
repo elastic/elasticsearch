@@ -29,6 +29,10 @@ import java.util.*;
  * "online" as the weights are wrapped by ContextIndexSearcher.  This allows us
  * to know the relationship between nodes in tree without explicitly
  * walking the tree or pre-wrapping everything
+ *
+ * A Profiler is associated with every Search, not per Search-Request. E.g. a
+ * request may execute two searches (query + global agg).  A Profiler just
+ * represents one of those
  */
 public final class Profiler {
 
@@ -59,12 +63,8 @@ public final class Profiler {
     }
 
     /**
-     * Get the {@link ProfileBreakdown} for the rewriting query.  This breakdown is not recorded in the
-     * main query tree, but a separate `rewrite` list because rewrites are too tricky to correctly
-     * integrate
-     *
-     * This should only be used for queries that will be undergoing rewriting.  Do not use it to profile
-     * the scoring phase
+     * Begin timing the rewrite phase of a request.  All rewrites are accumulated together into a
+     * single metric
      */
     public void startRewriteTime() {
         queryTree.startRewriteTime();
@@ -109,6 +109,13 @@ public final class Profiler {
         return collector;
     }
 
+    /**
+     * Helper method to convert Profiler into  InternalProfileShardResults, which can be
+     * serialized to other nodes, emitted as JSON, etc.
+     *
+     * @param profilers A list of Profilers to convert into InternalProfileShardResults
+     * @return          A list of corresponding InternalProfileShardResults
+     */
     public static List<InternalProfileShardResult> buildShardResults(List<Profiler> profilers) {
         List<InternalProfileShardResult> results = new ArrayList<>(profilers.size());
         for (Profiler profiler : profilers) {

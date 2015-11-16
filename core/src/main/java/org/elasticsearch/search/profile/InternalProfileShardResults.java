@@ -10,6 +10,10 @@ import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
+/**
+ * A container class to hold all the profile results across all shards.  Internally
+ * holds a map of shard ID -> Profiled results
+ */
 public final class InternalProfileShardResults implements Streamable, ToXContent{
 
     private Map<String, List<InternalProfileShardResult>> shardResults;

@@ -88,12 +88,11 @@ public class PointBuilder extends ShapeBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeDouble(coordinate.x);
-        out.writeDouble(coordinate.y);
+        writeCoordinateTo(coordinate, out);
     }
 
     @Override
     public ShapeBuilder readFrom(StreamInput in) throws IOException {
-        return new PointBuilder().coordinate(new Coordinate(in.readDouble(), in.readDouble()));
+        return new PointBuilder().coordinate(readCoordinateFrom(in));
     }
 }

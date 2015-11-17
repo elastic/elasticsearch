@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.*;
 
 public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> extends ESTestCase {
 
-    private static final int NUMBER_OF_TESTBUILDERS = 1;
+    private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
 
     /**
@@ -42,6 +42,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     @BeforeClass
     public static void init() {
         namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PointBuilder.PROTOTYPE);
+        namedWriteableRegistry.registerPrototype(ShapeBuilder.class, CircleBuilder.PROTOTYPE);
     }
 
     /**
@@ -52,7 +53,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     /**
      * mutate the given query so the returned query is different
      */
-    protected abstract SB mutate(SB original);
+    protected abstract SB mutate(SB original) throws IOException;
 
     /**
      * Generic test that creates new shape from a random test shape and checks both for equality
@@ -61,8 +62,10 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB testShape = createTestShapeBuilder();
             XContentBuilder builder = toXContent(testShape, randomFrom(XContentType.values()));
+            builder = toXContent(testShape, randomFrom(XContentType.values()));
 
             XContentParser shapeParser = XContentHelper.createParser(builder.bytes());
+            XContentHelper.createParser(builder.bytes());
             shapeParser.nextToken();
             ShapeBuilder parsedShape = ShapeBuilder.parse(shapeParser);
             assertNotSame(testShape, parsedShape);
@@ -120,7 +123,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
         }
     }
 
-    private SB copyShape(SB original) throws IOException {
+    protected SB copyShape(SB original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {

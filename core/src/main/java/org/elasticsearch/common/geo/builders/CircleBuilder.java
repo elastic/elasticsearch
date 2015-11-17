@@ -21,16 +21,22 @@ package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Circle;
 import com.vividsolutions.jts.geom.Coordinate;
+
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Objects;
 
 public class CircleBuilder extends ShapeBuilder {
 
     public static final String FIELD_RADIUS = "radius";
     public static final GeoShapeType TYPE = GeoShapeType.CIRCLE;
+
+    public static final CircleBuilder PROTOTYPE = new CircleBuilder();
 
     private DistanceUnit unit;
     private double radius;
@@ -55,6 +61,13 @@ public class CircleBuilder extends ShapeBuilder {
      */
     public CircleBuilder center(double lon, double lat) {
         return center(new Coordinate(lon, lat));
+    }
+
+    /**
+     * Get the center of the circle
+     */
+    public Coordinate center() {
+        return center;
     }
 
     /**
@@ -97,6 +110,20 @@ public class CircleBuilder extends ShapeBuilder {
         return this;
     }
 
+    /**
+     * Get the radius of the circle without unit
+     */
+    public double radius() {
+        return this.radius;
+    }
+
+    /**
+     * Get the radius unit of the circle
+     */
+    public DistanceUnit unit() {
+        return this.unit;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -115,5 +142,36 @@ public class CircleBuilder extends ShapeBuilder {
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(center, radius, unit.ordinal());
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        CircleBuilder other = (CircleBuilder) obj;
+        return Objects.equals(center, other.center) &&
+                Objects.equals(radius, other.radius) &&
+                Objects.equals(unit.ordinal(), other.unit.ordinal());
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        writeCoordinateTo(center, out);
+        out.writeDouble(radius);
+        DistanceUnit.writeDistanceUnit(out, unit);
+    }
+
+    @Override
+    public ShapeBuilder readFrom(StreamInput in) throws IOException {
+        return new CircleBuilder().center(readCoordinateFrom(in)).radius(in.readDouble(), DistanceUnit.readDistanceUnit(in));
     }
 }

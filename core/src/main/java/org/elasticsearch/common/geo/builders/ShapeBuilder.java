@@ -177,6 +177,15 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
     }
 
+    protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
+        out.writeDouble(coordinate.x);
+        out.writeDouble(coordinate.y);
+    }
+
+    protected Coordinate readCoordinateFrom(StreamInput in) throws IOException {
+        return new Coordinate(in.readDouble(), in.readDouble());
+    }
+
     public static Orientation orientationFromString(String orientation) {
         orientation = orientation.toLowerCase(Locale.ROOT);
         switch (orientation) {

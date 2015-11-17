@@ -68,7 +68,7 @@ final class GeoPointDVAtomicFieldData extends AbstractAtomicGeoPointFieldData {
                     final int previousLength = points.length;
                     points = Arrays.copyOf(points, ArrayUtil.oversize(count, RamUsageEstimator.NUM_BYTES_OBJECT_REF));
                     for (int i = previousLength; i < points.length; ++i) {
-                        points[i] = new GeoPoint();
+                        points[i] = new GeoPoint(Double.NaN, Double.NaN);
                     }
                 }
                 for (int i=0; i<count; ++i) {

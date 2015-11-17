@@ -167,7 +167,7 @@ public class ShardStateAction extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (oldState != newState && newState.getRoutingNodes().hasUnassigned()) {
+                if (oldState != newState && newState.getRoutingNodes().unassigned().size() > 0) {
                     logger.trace("unassigned shards after shard failures. scheduling a reroute.");
                     routingService.reroute("unassigned shards after shard failures, scheduling a reroute");
                 }

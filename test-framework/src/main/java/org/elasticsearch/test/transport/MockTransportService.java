@@ -55,6 +55,14 @@ import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * A mock transport service that allows to simulate different network topology failures.
+ * Internally it maps TransportAddress objects to rules that inject failures.
+ * Adding rules for a node is done by adding rules for all bound addresses of a node
+ * (and the publish address, if different).
+ * Matching requests to rules is based on the transport address associated with the
+ * discovery node of the request, namely by DiscoveryNode.getAddress().
+ * This address is usually the publish address of the node but can also be a different one
+ * (for example, @see org.elasticsearch.discovery.zen.ping.unicast.UnicastZenPing, which constructs
+ * fake DiscoveryNode instances where the publish address is one of the bound addresses).
  */
 public class MockTransportService extends TransportService {
 
@@ -82,7 +90,14 @@ public class MockTransportService extends TransportService {
     public MockTransportService(Settings settings, Transport transport, ThreadPool threadPool) {
         super(settings, new LookupTestTransport(transport), threadPool);
         this.original = transport;
+    }
 
+    public static TransportAddress[] extractTransportAddresses(TransportService transportService) {
+        HashSet<TransportAddress> transportAddresses = new HashSet<>();
+        BoundTransportAddress boundTransportAddress = transportService.boundAddress();
+        transportAddresses.addAll(Arrays.asList(boundTransportAddress.boundAddresses()));
+        transportAddresses.add(boundTransportAddress.publishAddress());
+        return transportAddresses.toArray(new TransportAddress[transportAddresses.size()]);
     }
 
     /**
@@ -93,10 +108,19 @@ public class MockTransportService extends TransportService {
     }
 
     /**
-     * Clears the rule associated with the provided node.
+     * Clears the rule associated with the provided transport service.
      */
-    public void clearRule(DiscoveryNode node) {
-        transport().transports.remove(node.getAddress());
+    public void clearRule(TransportService transportService) {
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            clearRule(transportAddress);
+        }
+    }
+
+    /**
+     * Clears the rule associated with the provided transport address.
+     */
+    public void clearRule(TransportAddress transportAddress) {
+        transport().transports.remove(transportAddress);
     }
 
     /**
@@ -110,8 +134,18 @@ public class MockTransportService extends TransportService {
      * Adds a rule that will cause every send request to fail, and each new connect since the rule
      * is added to fail as well.
      */
-    public void addFailToSendNoConnectRule(DiscoveryNode node) {
-        addDelegate(node, new DelegateTransport(original) {
+    public void addFailToSendNoConnectRule(TransportService transportService) {
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            addFailToSendNoConnectRule(transportAddress);
+        }
+    }
+
+    /**
+     * Adds a rule that will cause every send request to fail, and each new connect since the rule
+     * is added to fail as well.
+     */
+    public void addFailToSendNoConnectRule(TransportAddress transportAddress) {
+        addDelegate(transportAddress, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "DISCONNECT: simulated");
@@ -132,16 +166,32 @@ public class MockTransportService extends TransportService {
     /**
      * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
      */
-    public void addFailToSendNoConnectRule(DiscoveryNode node, final String... blockedActions) {
-        addFailToSendNoConnectRule(node, new HashSet<>(Arrays.asList(blockedActions)));
+    public void addFailToSendNoConnectRule(TransportService transportService, final String... blockedActions) {
+        addFailToSendNoConnectRule(transportService, new HashSet<>(Arrays.asList(blockedActions)));
     }
 
     /**
      * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
      */
-    public void addFailToSendNoConnectRule(DiscoveryNode node, final Set<String> blockedActions) {
+    public void addFailToSendNoConnectRule(TransportAddress transportAddress, final String... blockedActions) {
+        addFailToSendNoConnectRule(transportAddress, new HashSet<>(Arrays.asList(blockedActions)));
+    }
 
-        addDelegate(node, new DelegateTransport(original) {
+    /**
+     * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
+     */
+    public void addFailToSendNoConnectRule(TransportService transportService, final Set<String> blockedActions) {
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            addFailToSendNoConnectRule(transportAddress, blockedActions);
+        }
+    }
+
+    /**
+     * Adds a rule that will cause matching operations to throw ConnectTransportExceptions
+     */
+    public void addFailToSendNoConnectRule(TransportAddress transportAddress, final Set<String> blockedActions) {
+
+        addDelegate(transportAddress, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 original.connectToNode(node);
@@ -167,8 +217,18 @@ public class MockTransportService extends TransportService {
      * Adds a rule that will cause ignores each send request, simulating an unresponsive node
      * and failing to connect once the rule was added.
      */
-    public void addUnresponsiveRule(DiscoveryNode node) {
-        addDelegate(node, new DelegateTransport(original) {
+    public void addUnresponsiveRule(TransportService transportService) {
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            addUnresponsiveRule(transportAddress);
+        }
+    }
+
+    /**
+     * Adds a rule that will cause ignores each send request, simulating an unresponsive node
+     * and failing to connect once the rule was added.
+     */
+    public void addUnresponsiveRule(TransportAddress transportAddress) {
+        addDelegate(transportAddress, new DelegateTransport(original) {
             @Override
             public void connectToNode(DiscoveryNode node) throws ConnectTransportException {
                 throw new ConnectTransportException(node, "UNRESPONSIVE: simulated");
@@ -192,10 +252,22 @@ public class MockTransportService extends TransportService {
      *
      * @param duration the amount of time to delay sending and connecting.
      */
-    public void addUnresponsiveRule(DiscoveryNode node, final TimeValue duration) {
+    public void addUnresponsiveRule(TransportService transportService, final TimeValue duration) {
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            addUnresponsiveRule(transportAddress, duration);
+        }
+    }
+
+    /**
+     * Adds a rule that will cause ignores each send request, simulating an unresponsive node
+     * and failing to connect once the rule was added.
+     *
+     * @param duration the amount of time to delay sending and connecting.
+     */
+    public void addUnresponsiveRule(TransportAddress transportAddress, final TimeValue duration) {
         final long startTime = System.currentTimeMillis();
 
-        addDelegate(node, new DelegateTransport(original) {
+        addDelegate(transportAddress, new DelegateTransport(original) {
 
             TimeValue getDelay() {
                 return new TimeValue(duration.millis() - (System.currentTimeMillis() - startTime));
@@ -280,12 +352,25 @@ public class MockTransportService extends TransportService {
     }
 
     /**
-     * Adds a new delegate transport that is used for communication with the given node.
+     * Adds a new delegate transport that is used for communication with the given transport service.
      *
-     * @return <tt>true</tt> iff no other delegate was registered for this node before, otherwise <tt>false</tt>
+     * @return <tt>true</tt> iff no other delegate was registered for any of the addresses bound by transport service, otherwise <tt>false</tt>
      */
-    public boolean addDelegate(DiscoveryNode node, DelegateTransport transport) {
-        return transport().transports.put(node.getAddress(), transport) == null;
+    public boolean addDelegate(TransportService transportService, DelegateTransport transport) {
+        boolean noRegistered = true;
+        for (TransportAddress transportAddress : extractTransportAddresses(transportService)) {
+            noRegistered &= addDelegate(transportAddress, transport);
+        }
+        return noRegistered;
+    }
+
+    /**
+     * Adds a new delegate transport that is used for communication with the given transport address.
+     *
+     * @return <tt>true</tt> iff no other delegate was registered for this address before, otherwise <tt>false</tt>
+     */
+    public boolean addDelegate(TransportAddress transportAddress, DelegateTransport transport) {
+        return transport().transports.put(transportAddress, transport) == null;
     }
 
     private LookupTestTransport transport() {

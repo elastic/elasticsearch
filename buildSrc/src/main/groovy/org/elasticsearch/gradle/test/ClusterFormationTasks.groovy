@@ -18,21 +18,16 @@
  */
 package org.elasticsearch.gradle.test
 
-import org.gradle.internal.jvm.Jvm
-
-import java.nio.file.Paths
-
+import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.VersionProperties
-import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.Project
-import org.gradle.api.Task
+import org.gradle.api.*
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Copy
 import org.gradle.api.tasks.Delete
 import org.gradle.api.tasks.Exec
+
+import java.nio.file.Paths
 
 /**
  * A helper for creating tasks to build a cluster that is used by a task, and tear down the cluster when the task is finished.
@@ -213,26 +208,60 @@ class ClusterFormationTasks {
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, File cwd, ClusterConfiguration config, String clusterName, File pidFile, File home) {
         Map esEnv = [
-            'JAVA_HOME' : System.getProperty('java.home'),
+            'JAVA_HOME' : project.javaHome,
             'ES_GC_OPTS': config.jvmArgs
         ]
-        List esProps = config.systemProperties.collect { key, value -> "-D${key}=${value}" }
+        List<String> esProps = config.systemProperties.collect { key, value -> "-D${key}=${value}" }
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.getKey().startsWith('es.')) {
                 esProps.add("-D${property.getKey()}=${property.getValue()}")
             }
         }
 
-        Closure esPostStartActions = { ant, logger ->
-            ant.waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name.capitalize()}") {
+        String executable
+        List<String> esArgs = []
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            executable = 'cmd'
+            esArgs.add('/C')
+            esArgs.add('call')
+        } else {
+            executable = 'sh'
+        }
+        // running with cmd on windows will look for this with the .bat extension
+        esArgs.add(new File(home, 'bin/elasticsearch').toString())
+
+        // this closure is converted into ant nodes by groovy's AntBuilder
+        Closure antRunner = {
+            exec(executable: executable, spawn: config.daemonize, dir: cwd, taskname: 'elasticsearch') {
+                esEnv.each { key, value -> env(key: key, value: value) }
+                (esArgs + esProps).each { arg(value: it) }
+            }
+            waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
                 and {
                     resourceexists {
-                        file file: pidFile.toString()
+                        file(file: pidFile.toString())
                     }
                     http(url: "http://localhost:${config.httpPort}")
                 }
             }
+        }
+
+        // this closure is the actual code to run elasticsearch
+        Closure elasticsearchRunner = {
+            ByteArrayOutputStream buffer = new ByteArrayOutputStream()
+            if (logger.isInfoEnabled() || config.daemonize == false) {
+                // run with piping streams directly out (even stderr to stdout since gradle would capture it)
+                runAntCommand(project, antRunner, System.out, System.err)
+            } else {
+                // buffer the output, we may not need to print it
+                PrintStream captureStream = new PrintStream(buffer, true, "UTF-8")
+                runAntCommand(project, antRunner, captureStream, captureStream)
+            }
+
             if (ant.properties.containsKey("failed${name}".toString())) {
+                // the waitfor failed, so dump any output we got (may be empty if info logging, but that is ok)
+                logger.error(buffer.toString('UTF-8'))
+                // also dump the cluster's log file, it may be useful
                 File logFile = new File(home, "logs/${clusterName}.log")
                 if (logFile.exists()) {
                     logFile.eachLine { line -> logger.error(line) }
@@ -240,44 +269,10 @@ class ClusterFormationTasks {
                 throw new GradleException('Failed to start elasticsearch')
             }
         }
-        File esScript = new File(home, 'bin/elasticsearch')
-
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            // elasticsearch.bat is spawned as it has no daemon mode
-            return project.tasks.create(name: name, type: DefaultTask, dependsOn: setup) << {
-                // Fall back to Ant exec task as Gradle Exec task does not support spawning yet
-                ant.exec(executable: 'cmd', spawn: config.daemonize, dir: cwd) {
-                    esEnv.each { key, value -> env(key: key, value: value) }
-                    (['/C', 'call', esScript] + esProps).each { arg(value: it) }
-                }
-                esPostStartActions(ant, logger)
-            }
-        } else {
-            List esExecutable = [esScript]
-            if(config.daemonize) {
-                esExecutable.add("-d")
-            }
-
-            return project.tasks.create(name: name, type: Exec, dependsOn: setup) {
-                workingDir cwd
-                executable 'sh'
-                args esExecutable
-                args esProps
-                environment esEnv
-                errorOutput = new ByteArrayOutputStream()
-                doLast {
-                    if (errorOutput.toString().isEmpty() == false) {
-                        logger.error(errorOutput.toString())
-                        File logFile = new File(home, "logs/${clusterName}.log")
-                        if (logFile.exists()) {
-                            logFile.eachLine { line -> logger.error(line) }
-                        }
-                        throw new GradleException('Failed to start elasticsearch')
-                    }
-                    esPostStartActions(ant, logger)
-                }
-            }
-        }
+        
+        Task start = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
+        start.doLast(elasticsearchRunner)
+        return start
     }
 
     /** Adds a task to check if the process with the given pidfile is actually elasticsearch */
@@ -288,9 +283,9 @@ class ClusterFormationTasks {
             ext.pid = "${ -> pidFile.getText('UTF-8').trim()}"
             File jps
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                jps = getJpsExecutableByName("jps.exe")
+                jps = getJpsExecutableByName(project, "jps.exe")
             } else {
-                jps = getJpsExecutableByName("jps")
+                jps = getJpsExecutableByName(project, "jps")
             }
             if (!jps.exists()) {
                 throw new GradleException("jps executable not found; ensure that you're running Gradle with the JDK rather than the JRE")
@@ -313,8 +308,8 @@ class ClusterFormationTasks {
         }
     }
 
-    private static File getJpsExecutableByName(String jpsExecutableName) {
-        return Paths.get(Jvm.current().javaHome.toString(), "bin/" + jpsExecutableName).toFile()
+    private static File getJpsExecutableByName(Project project, String jpsExecutableName) {
+        return Paths.get(project.javaHome.toString(), "bin/" + jpsExecutableName).toFile()
     }
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
@@ -355,5 +350,17 @@ class ClusterFormationTasks {
 
     static File pidFile(File dir) {
         return new File(dir, 'es.pid')
+    }
+
+    /** Runs an ant command, sending output to the given out and error streams */
+    static void runAntCommand(Project project, Closure command, PrintStream outputStream, PrintStream errorStream) {
+        DefaultLogger listener = new DefaultLogger(
+                errorPrintStream: errorStream,
+                outputPrintStream: outputStream,
+                messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
+
+        project.ant.project.addBuildListener(listener)
+        project.configure(project.ant, command)
+        project.ant.project.removeBuildListener(listener)
     }
 }

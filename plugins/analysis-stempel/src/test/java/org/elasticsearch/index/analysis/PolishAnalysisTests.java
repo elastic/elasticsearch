@@ -38,10 +38,8 @@ import org.elasticsearch.test.IndexSettingsModule;
 import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
-import java.util.Collections;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.elasticsearch.common.settings.Settings.Builder.EMPTY_SETTINGS;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
@@ -61,7 +59,7 @@ public class PolishAnalysisTests extends ESTestCase {
                 new EnvironmentModule(new Environment(settings)), analysisModule)
                 .createInjector();
 
-        final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings, Collections.emptyList()));
+        final AnalysisService analysisService = parentInjector.getInstance(AnalysisRegistry.class).build(IndexSettingsModule.newIndexSettings(index, settings));
         TokenFilterFactory tokenizerFactory = analysisService.tokenFilter("polish_stem");
         MatcherAssert.assertThat(tokenizerFactory, instanceOf(PolishStemTokenFilterFactory.class));
 

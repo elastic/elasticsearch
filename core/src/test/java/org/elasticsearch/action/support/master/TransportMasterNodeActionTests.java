@@ -214,7 +214,17 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         assertTrue(listener.isDone());
-        assertListenerThrows("ClusterBlockException should be thrown", listener, ClusterBlockException.class);
+        if (retryableBlock) {
+            try {
+                listener.get();
+                fail("Expected exception but returned proper result");
+            } catch (ExecutionException ex) {
+                assertThat(ex.getCause(), instanceOf(MasterNotDiscoveredException.class));
+                assertThat(ex.getCause().getCause(), instanceOf(ClusterBlockException.class));
+            }
+        } else {
+            assertListenerThrows("ClusterBlockException should be thrown", listener, ClusterBlockException.class);
+        }
     }
 
     public void testForceLocalOperation() throws ExecutionException, InterruptedException {

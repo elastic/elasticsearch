@@ -31,6 +31,7 @@ import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.util.Locale;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -110,10 +111,6 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
 
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
-        if (event.source().startsWith(CLUSTER_UPDATE_TASK_SOURCE)) {
-            // that's us, ignore this event
-            return;
-        }
         if (event.state().nodes().localNodeMaster()) {
             // figure out when the next unassigned allocation need to happen from now. If this is larger or equal
             // then the last time we checked and scheduled, we are guaranteed to have a reroute until then, so no need
@@ -122,11 +119,17 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             if (nextDelaySetting > 0 && nextDelaySetting < registeredNextDelaySetting) {
                 FutureUtils.cancel(registeredNextDelayFuture);
                 registeredNextDelaySetting = nextDelaySetting;
-                // We use System.currentTimeMillis here because we want the
-                // next delay from the "now" perspective, rather than the
-                // delay from the last time the GatewayAllocator tried to
-                // assign/delay the shard
-                TimeValue nextDelay = TimeValue.timeValueMillis(UnassignedInfo.findNextDelayedAllocationIn(System.currentTimeMillis(), settings, event.state()));
+                // We calculate nextDelay based on System.currentTimeMillis() here because we want the next delay from the "now" perspective
+                // rather than the delay from the last time the GatewayAllocator tried to assign/delay the shard.
+                // The actual calculation is based on the latter though, to account for shards that should have been allocated
+                // between unassignedShardsAllocatedTimestamp and System.currentTimeMillis()
+                long nextDelayBasedOnUnassignedShardsAllocatedTimestamp = UnassignedInfo.findNextDelayedAllocationIn(unassignedShardsAllocatedTimestamp, settings, event.state());
+                // adjust from unassignedShardsAllocatedTimestamp to now
+                long nextDelayMillis = nextDelayBasedOnUnassignedShardsAllocatedTimestamp - (System.currentTimeMillis() - unassignedShardsAllocatedTimestamp);
+                if (nextDelayMillis < 0) {
+                    nextDelayMillis = 0;
+                }
+                TimeValue nextDelay = TimeValue.timeValueMillis(nextDelayMillis);
                 int unassignedDelayedShards = UnassignedInfo.getNumberOfDelayedUnassigned(unassignedShardsAllocatedTimestamp, settings, event.state());
                 if (unassignedDelayedShards > 0) {
                     logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]",
@@ -171,7 +174,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     rerouting.set(false);
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
+                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, reason);
                     if (!routingResult.changed()) {
                         // no state changed
                         return currentState;

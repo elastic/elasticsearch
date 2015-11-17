@@ -39,7 +39,6 @@ import org.elasticsearch.common.lucene.store.InputStreamIndexInput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.store.Store;
@@ -109,10 +108,11 @@ public class RecoverySourceHandler {
         this.shardId = this.request.shardId().id();
 
         this.response = new RecoveryResponse();
-        this.requestOptions = TransportRequestOptions.options()
+        this.requestOptions = TransportRequestOptions.builder()
                 .withCompress(recoverySettings.compress())
                 .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionTimeout());
+                .withTimeout(recoverySettings.internalActionTimeout())
+                .build();
 
     }
 
@@ -244,7 +244,7 @@ public class RecoverySourceHandler {
                             response.phase1FileNames, response.phase1FileSizes, response.phase1ExistingFileNames, response.phase1ExistingFileSizes,
                             translogView.totalOperations());
                     transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FILES_INFO, recoveryInfoFilesRequest,
-                            TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
+                            TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                             EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                 });
                 // How many bytes we've copied since we last called RateLimiter.pause
@@ -263,7 +263,7 @@ public class RecoverySourceHandler {
                     try {
                         transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.CLEAN_FILES,
                                 new RecoveryCleanFilesRequest(request.recoveryId(), shard.shardId(), recoverySourceMetadata, translogView.totalOperations()),
-                                TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()),
+                                TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(),
                                 EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
                     } catch (RemoteTransportException remoteException) {
                         final IOException corruptIndexException;
@@ -332,7 +332,7 @@ public class RecoverySourceHandler {
                 // garbage collection (not the JVM's GC!) of tombstone deletes
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.PREPARE_TRANSLOG,
                         new RecoveryPrepareForTranslogOperationsRequest(request.recoveryId(), request.shardId(), translogView.totalOperations()),
-                        TransportRequestOptions.options().withTimeout(recoverySettings.internalActionTimeout()), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                        TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionTimeout()).build(), EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
             }
         });
 
@@ -390,7 +390,7 @@ public class RecoverySourceHandler {
                 // during this time
                 transportService.submitRequest(request.targetNode(), RecoveryTarget.Actions.FINALIZE,
                         new RecoveryFinalizeRecoveryRequest(request.recoveryId(), request.shardId()),
-                        TransportRequestOptions.options().withTimeout(recoverySettings.internalActionLongTimeout()),
+                        TransportRequestOptions.builder().withTimeout(recoverySettings.internalActionLongTimeout()).build(),
                         EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
             }
         });
@@ -431,10 +431,11 @@ public class RecoverySourceHandler {
             throw new ElasticsearchException("failed to get next operation from translog", ex);
         }
 
-        final TransportRequestOptions recoveryOptions = TransportRequestOptions.options()
+        final TransportRequestOptions recoveryOptions = TransportRequestOptions.builder()
                 .withCompress(recoverySettings.compress())
                 .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionLongTimeout());
+                .withTimeout(recoverySettings.internalActionLongTimeout())
+                .build();
 
         if (operation == null) {
             logger.trace("[{}][{}] no translog operations to send to {}",

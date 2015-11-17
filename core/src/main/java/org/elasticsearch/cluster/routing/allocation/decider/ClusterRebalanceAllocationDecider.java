@@ -51,15 +51,12 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
     public static final String NAME = "cluster_rebalance";
 
     public static final String CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE = "cluster.routing.allocation.allow_rebalance";
-    public static final Validator ALLOCATION_ALLOW_REBALANCE_VALIDATOR = new Validator() {
-        @Override
-        public String validate(String setting, String value, ClusterState clusterState) {
-            try {
-                ClusterRebalanceType.parseString(value);
-                return null;
-            } catch (IllegalArgumentException e) {
-                return "the value of " + setting + " must be one of: [always, indices_primaries_active, indices_all_active]";
-            }
+    public static final Validator ALLOCATION_ALLOW_REBALANCE_VALIDATOR = (setting, value, clusterState) -> {
+        try {
+            ClusterRebalanceType.parseString(value);
+            return null;
+        } catch (IllegalArgumentException e) {
+            return "the value of " + setting + " must be one of: [always, indices_primaries_active, indices_all_active]";
         }
     };
 
@@ -153,7 +150,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         }
         if (type == ClusterRebalanceType.INDICES_ALL_ACTIVE) {
             // check if there are unassigned shards.
-            if ( allocation.routingNodes().hasUnassignedShards() ) {
+            if (allocation.routingNodes().hasUnassignedShards() ) {
                 return allocation.decision(Decision.NO, NAME, "cluster has unassigned shards");
             }
             // in case all indices are assigned, are there initializing shards which

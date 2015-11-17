@@ -45,7 +45,7 @@ class MapperTestUtils {
             .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
             .put(indexSettings)
             .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("test"), indexSettings, Collections.emptyList());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("test"), indexSettings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(nodeSettings)).build(idxSettings);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
         return new MapperService(idxSettings, analysisService, similarityService);

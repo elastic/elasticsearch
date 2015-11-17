@@ -66,7 +66,7 @@ public class AnalysisModuleTests extends ModuleTestCase {
 
     public AnalysisService getAnalysisService(AnalysisRegistry registry, Settings settings) throws IOException {
         Index index = new Index("test");
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         return registry.build(idxSettings);
     }
 

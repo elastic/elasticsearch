@@ -359,7 +359,7 @@ public class TransportClientNodesService extends AbstractComponent {
                 try {
                     LivenessResponse livenessResponse = transportService.submitRequest(listedNode, TransportLivenessAction.NAME,
                             headers.applyTo(new LivenessRequest()),
-                            TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
+                            TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
                             new FutureTransportResponseHandler<LivenessResponse>() {
                                 @Override
                                 public LivenessResponse newInstance() {
@@ -430,7 +430,7 @@ public class TransportClientNodesService extends AbstractComponent {
                             }
                             transportService.sendRequest(listedNode, ClusterStateAction.NAME,
                                     headers.applyTo(Requests.clusterStateRequest().clear().nodes(true).local(true)),
-                                    TransportRequestOptions.options().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout),
+                                    TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).withTimeout(pingTimeout).build(),
                                     new BaseTransportResponseHandler<ClusterStateResponse>() {
 
                                         @Override

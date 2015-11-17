@@ -28,6 +28,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.RAMDirectory;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
@@ -43,6 +44,7 @@ import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.junit.After;
 import org.junit.Before;
 
@@ -94,8 +96,7 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
         } else if (type.getType().equals("byte")) {
             fieldType = MapperBuilders.byteField(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
         } else if (type.getType().equals("geo_point")) {
-            // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-            if (indexService.getIndexSettings().getIndexVersionCreated().onOrBefore(Version.CURRENT)) {
+            if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
                 fieldType =  new GeoPointFieldMapperLegacy.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
             } else {
                 fieldType = new GeoPointFieldMapper.Builder(fieldName).docValues(docValues).fieldDataSettings(type.getSettings()).build(context).fieldType();
@@ -112,7 +113,9 @@ public abstract class AbstractFieldDataTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void setup() throws Exception {
-        Settings settings = Settings.builder().put("index.fielddata.cache", "none").build();
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.builder().put("index.fielddata.cache", "none")
+                .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         indexService = createIndex("test", settings);
         mapperService = indexService.mapperService();
         indicesFieldDataCache = getInstanceFromNode(IndicesFieldDataCache.class);

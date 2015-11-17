@@ -25,10 +25,9 @@ import com.fasterxml.jackson.core.io.JsonStringEncoder;
 
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.spans.SpanBoostQuery;
-import org.elasticsearch.ElasticsearchException;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
@@ -130,6 +129,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
     private static IndicesQueriesRegistry indicesQueriesRegistry;
     private static QueryShardContext queryShardContext;
     private static IndexFieldDataService indexFieldDataService;
+    private static int queryNameId = 0;
 
 
     protected static QueryShardContext queryShardContext() {
@@ -172,7 +172,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         Settings indexSettings = Settings.settingsBuilder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         index = new Index(randomAsciiOfLengthBetween(1, 10));
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.emptyList());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, indexSettings);
         final TestClusterService clusterService = new TestClusterService();
         clusterService.setState(new ClusterState.Builder(clusterService.state()).metaData(new MetaData.Builder().put(
                 new IndexMetaData.Builder(index.name()).settings(indexSettings).numberOfShards(1).numberOfReplicas(0))));
@@ -318,10 +318,19 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 query.boost(2.0f / randomIntBetween(1, 20));
             }
             if (randomBoolean()) {
-                query.queryName(randomAsciiOfLengthBetween(1, 10));
+                query.queryName(createUniqueRandomName());
             }
         }
         return query;
+    }
+
+    /**
+     * make sure query names are unique by suffixing them with increasing counter
+     */
+    private static String createUniqueRandomName() {
+        String queryName = randomAsciiOfLengthBetween(1, 10) + queryNameId;
+        queryNameId++;
+        return queryName;
     }
 
     /**

@@ -36,19 +36,12 @@ import static org.hamcrest.Matchers.*;
  *
  */
 public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImplTestCase {
-    protected Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
-
     @Override
     protected abstract FieldDataType getFieldDataType();
 
-    protected Settings.Builder getFieldDataSettings() {
-        return Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, version);
-    }
-
     protected Field randomGeoPointField(String fieldName, Field.Store store) {
         GeoPoint point = randomPoint(random());
-        // norelease move to .before(Version.2_2_0) once GeoPointV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (indexService.getIndexSettings().getIndexVersionCreated().before(Version.V_2_2_0)) {
             return new StringField(fieldName, point.lat()+","+point.lon(), store);
         }
         return new GeoPointField(fieldName, point.lon(), point.lat(), store);
@@ -90,8 +83,9 @@ public abstract class AbstractGeoFieldDataTestCase extends AbstractFieldDataImpl
         } else {
             assertThat(docCount, greaterThan(0));
             for (int i = 0; i < docCount; ++i) {
-                assertThat(values.valueAt(i).lat(), allOf(greaterThanOrEqualTo(GeoUtils.MIN_LAT_INCL), lessThanOrEqualTo(GeoUtils.MAX_LAT_INCL)));
-                assertThat(values.valueAt(i).lat(), allOf(greaterThanOrEqualTo(GeoUtils.MIN_LON_INCL), lessThanOrEqualTo(GeoUtils.MAX_LON_INCL)));
+                final GeoPoint point = values.valueAt(i);
+                assertThat(point.lat(), allOf(greaterThanOrEqualTo(GeoUtils.MIN_LAT_INCL), lessThanOrEqualTo(GeoUtils.MAX_LAT_INCL)));
+                assertThat(point.lon(), allOf(greaterThanOrEqualTo(GeoUtils.MIN_LON_INCL), lessThanOrEqualTo(GeoUtils.MAX_LON_INCL)));
             }
         }
     }

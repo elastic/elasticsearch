@@ -163,9 +163,6 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
             .put("discovery.zen.join_timeout", "10s")  // still long to induce failures but to long so test won't time out
             .put(DiscoverySettings.PUBLISH_TIMEOUT, "1s") // <-- for hitting simulated network failures quickly
             .put("http.enabled", false) // just to make test quicker
-            .put("transport.host", "127.0.0.1") // only bind on one IF we use v4 here by default
-            .put("transport.bind_host", "127.0.0.1")
-            .put("transport.publish_host", "127.0.0.1")
             .put("gateway.local.list_timeout", "10s") // still long to induce failures but to long so test won't time out
             .build();
 
@@ -844,23 +841,26 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
 
         DiscoveryNodes discoveryNodes = internalCluster().getInstance(ClusterService.class, nonMasterNode).state().nodes();
 
+        TransportService masterTranspotService = internalCluster().getInstance(TransportService.class, discoveryNodes.masterNode().getName());
+
         logger.info("blocking requests from non master [{}] to master [{}]", nonMasterNode, masterNode);
         MockTransportService nonMasterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, nonMasterNode);
-        nonMasterTransportService.addFailToSendNoConnectRule(discoveryNodes.masterNode());
+        nonMasterTransportService.addFailToSendNoConnectRule(masterTranspotService);
 
         assertNoMaster(nonMasterNode);
 
         logger.info("blocking cluster state publishing from master [{}] to non master [{}]", masterNode, nonMasterNode);
         MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
+        TransportService localTransportService = internalCluster().getInstance(TransportService.class, discoveryNodes.localNode().getName());
         if (randomBoolean()) {
-            masterTransportService.addFailToSendNoConnectRule(discoveryNodes.localNode(), PublishClusterStateAction.SEND_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.SEND_ACTION_NAME);
         } else {
-            masterTransportService.addFailToSendNoConnectRule(discoveryNodes.localNode(), PublishClusterStateAction.COMMIT_ACTION_NAME);
+            masterTransportService.addFailToSendNoConnectRule(localTransportService, PublishClusterStateAction.COMMIT_ACTION_NAME);
         }
 
         logger.info("allowing requests from non master [{}] to master [{}], waiting for two join request", nonMasterNode, masterNode);
         final CountDownLatch countDownLatch = new CountDownLatch(2);
-        nonMasterTransportService.addDelegate(discoveryNodes.masterNode(), new MockTransportService.DelegateTransport(nonMasterTransportService.original()) {
+        nonMasterTransportService.addDelegate(masterTranspotService, new MockTransportService.DelegateTransport(nonMasterTransportService.original()) {
             @Override
             public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                 if (action.equals(MembershipAction.DISCOVERY_JOIN_ACTION_NAME)) {
@@ -873,8 +873,8 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         countDownLatch.await();
 
         logger.info("waiting for cluster to reform");
-        masterTransportService.clearRule(discoveryNodes.localNode());
-        nonMasterTransportService.clearRule(discoveryNodes.masterNode());
+        masterTransportService.clearRule(localTransportService);
+        nonMasterTransportService.clearRule(localTransportService);
 
         ensureStableCluster(2);
 
@@ -924,9 +924,9 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         logger.info("blocking request from master [{}] to [{}]", masterNode, nonMasterNode);
         MockTransportService masterTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, masterNode);
         if (randomBoolean()) {
-            masterTransportService.addUnresponsiveRule(internalCluster().getInstance(ClusterService.class, nonMasterNode).localNode());
+            masterTransportService.addUnresponsiveRule(internalCluster().getInstance(TransportService.class, nonMasterNode));
         } else {
-            masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(ClusterService.class, nonMasterNode).localNode());
+            masterTransportService.addFailToSendNoConnectRule(internalCluster().getInstance(TransportService.class, nonMasterNode));
         }
 
         logger.info("waiting for [{}] to be removed from cluster", nonMasterNode);

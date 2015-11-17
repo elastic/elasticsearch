@@ -67,8 +67,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        boolean indexCreatedBefore22 = version.onOrBefore(Version.CURRENT);
+        boolean indexCreatedBefore22 = version.before(Version.V_2_2_0);
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         final boolean stored = indexCreatedBefore22 == false;
         assertThat(doc.rootDoc().getField("point.lat").fieldType().stored(), is(stored));
@@ -168,8 +167,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         // default to normalize
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point");
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             mapping.field("coerce", true);
         }
         mapping.field("ignore_malformed", true).endObject().endObject().endObject().endObject();
@@ -183,8 +181,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("89.0,1.0"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(1.0, 89.0)));
@@ -196,8 +193,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("-89.0,-1.0"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(-1.0, -89.0)));
@@ -209,8 +205,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("-1.0,-179.0"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(-179.0, -1.0)));
@@ -221,8 +216,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true);
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             mapping.field("coerce", false);
         }
         mapping.field("ignore_malformed", false).endObject().endObject().endObject().endObject().string();
@@ -285,8 +279,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true);
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             mapping.field("coerce", false);
         }
         mapping.field("ignore_malformed", true).endObject().endObject().endObject().endObject().string();
@@ -345,8 +338,7 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon").numericValue().doubleValue(), equalTo(1.3));
         assertThat(doc.rootDoc().getField("point.geohash"), nullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
@@ -375,16 +367,14 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.rootDoc().getFields("point.lat")[0].numericValue().doubleValue(), equalTo(1.2));
         assertThat(doc.rootDoc().getFields("point.lon")[0].numericValue().doubleValue(), equalTo(1.3));
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
         }
         assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.4));
         assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.5));
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.5, 1.4)));
@@ -408,11 +398,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
         }
     }
 
@@ -435,11 +424,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("point.lat").numericValue().doubleValue(), equalTo(1.2));
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon").numericValue().doubleValue(), equalTo(1.3));
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
         }
     }
 
@@ -465,16 +453,14 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.rootDoc().getFields("point.lat")[0].numericValue().doubleValue(), equalTo(1.2));
         assertThat(doc.rootDoc().getFields("point.lon")[0].numericValue().doubleValue(), equalTo(1.3));
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getFields("point")[0].stringValue(), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
         }
         assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.4));
         assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.5));
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().getFields("point")[1].stringValue(), equalTo("1.4,1.5"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.5, 1.4)));
@@ -498,11 +484,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
         }
     }
 
@@ -524,11 +509,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
         }
     }
 
@@ -551,11 +535,10 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getField("point.lat").numericValue().doubleValue(), equalTo(1.2));
         assertThat(doc.rootDoc().getField("point.lon"), notNullValue());
         assertThat(doc.rootDoc().getField("point.lon").numericValue().doubleValue(), equalTo(1.3));
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
         }
     }
 
@@ -581,16 +564,14 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
         assertThat(doc.rootDoc().getFields("point.lon").length, equalTo(2));
         assertThat(doc.rootDoc().getFields("point.lat")[0].numericValue().doubleValue(), equalTo(1.2));
         assertThat(doc.rootDoc().getFields("point.lon")[0].numericValue().doubleValue(), equalTo(1.3));
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
-            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+            assertThat(Long.parseLong(doc.rootDoc().getFields("point")[0].stringValue()), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
         }
         assertThat(doc.rootDoc().getFields("point.lat")[1].numericValue().doubleValue(), equalTo(1.4));
         assertThat(doc.rootDoc().getFields("point.lon")[1].numericValue().doubleValue(), equalTo(1.5));
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().getFields("point")[1].stringValue()), equalTo(GeoUtils.mortonHash(1.5, 1.4)));

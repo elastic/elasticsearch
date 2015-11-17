@@ -19,19 +19,24 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
 import org.elasticsearch.common.lucene.search.function.FiltersFunctionScoreQuery;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryBuilder;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -565,12 +570,18 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
     }
 
     public void testManyDocsLin() throws Exception {
-        assertAcked(prepareCreate("test").addMapping(
-                "type",
-                jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
-                        .endObject().startObject("date").field("type", "date").endObject().startObject("num").field("type", "double")
-                        .endObject().startObject("geo").field("type", "geo_point").field("coerce", true).endObject().endObject()
-                        .endObject().endObject()));
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        XContentBuilder xContentBuilder = jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("test").field("type", "string").endObject().startObject("date").field("type", "date")
+                .field("doc_values", true).endObject().startObject("num").field("type", "double")
+                .field("doc_values", true).endObject().startObject("geo").field("type", "geo_point")
+                .field("ignore_malformed", true);
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("coerce", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type", xContentBuilder.string()));
         ensureYellow();
         int numDocs = 200;
         List<IndexRequestBuilder> indexBuilders = new ArrayList<>();

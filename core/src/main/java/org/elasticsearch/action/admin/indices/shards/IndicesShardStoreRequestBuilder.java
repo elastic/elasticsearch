@@ -23,6 +23,7 @@ import org.elasticsearch.action.Action;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadOperationRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 
 /**
  * Request builder for {@link IndicesShardStoresRequest}
@@ -53,7 +54,7 @@ public class IndicesShardStoreRequestBuilder extends MasterNodeReadOperationRequ
     /**
      * Set statuses to filter shards to get stores info on.
      * @param shardStatuses acceptable values are "green", "yellow", "red" and "all"
-     * see {@link org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus} for details
+     * see {@link ClusterHealthStatus} for details
      */
     public IndicesShardStoreRequestBuilder setShardStatuses(String... shardStatuses) {
         request.shardStatuses(shardStatuses);

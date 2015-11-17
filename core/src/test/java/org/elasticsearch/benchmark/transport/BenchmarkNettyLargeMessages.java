@@ -38,8 +38,6 @@ import org.elasticsearch.transport.netty.NettyTransport;
 import java.net.InetAddress;
 import java.util.concurrent.CountDownLatch;
 
-import static org.elasticsearch.transport.TransportRequestOptions.options;
-
 /**
  *
  */
@@ -85,7 +83,7 @@ public class BenchmarkNettyLargeMessages {
                 public void run() {
                     for (int i = 0; i < NUMBER_OF_ITERATIONS; i++) {
                         BenchmarkMessageRequest message = new BenchmarkMessageRequest(1, payload);
-                        transportServiceClient.submitRequest(bigNode, "benchmark", message, options().withType(TransportRequestOptions.Type.BULK), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
+                        transportServiceClient.submitRequest(bigNode, "benchmark", message, TransportRequestOptions.builder().withType(TransportRequestOptions.Type.BULK).build(), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
                             @Override
                             public BenchmarkMessageResponse newInstance() {
                                 return new BenchmarkMessageResponse();
@@ -117,7 +115,7 @@ public class BenchmarkNettyLargeMessages {
                 for (int i = 0; i < 1; i++) {
                     BenchmarkMessageRequest message = new BenchmarkMessageRequest(2, BytesRef.EMPTY_BYTES);
                     long start = System.currentTimeMillis();
-                    transportServiceClient.submitRequest(smallNode, "benchmark", message, options().withType(TransportRequestOptions.Type.STATE), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
+                    transportServiceClient.submitRequest(smallNode, "benchmark", message, TransportRequestOptions.builder().withType(TransportRequestOptions.Type.STATE).build(), new BaseTransportResponseHandler<BenchmarkMessageResponse>() {
                         @Override
                         public BenchmarkMessageResponse newInstance() {
                             return new BenchmarkMessageResponse();

@@ -92,7 +92,7 @@ public final class PercolatorQueriesRegistry extends AbstractIndexShardComponent
         this.indexingService = indexingService;
         this.queryShardContext = queryShardContext;
         this.indexFieldDataService = indexFieldDataService;
-        this.mapUnmappedFieldsAsString = this.indexSettings.getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
+        this.mapUnmappedFieldsAsString = this.indexSettings.getSettings().getAsBoolean(MAP_UNMAPPED_FIELDS_AS_STRING, false);
         mapperService.addTypeListener(percolateTypeListener);
     }
 

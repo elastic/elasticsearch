@@ -34,7 +34,7 @@ public class GeoFieldDataTests extends AbstractGeoFieldDataTestCase {
 
     @Override
     protected FieldDataType getFieldDataType() {
-        return new FieldDataType("geo_point", getFieldDataSettings());
+        return new FieldDataType("geo_point");
     }
 
     @Override

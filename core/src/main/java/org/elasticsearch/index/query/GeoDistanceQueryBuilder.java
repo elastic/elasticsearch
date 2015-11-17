@@ -225,8 +225,7 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
 
         double normDistance = geoDistance.normalize(this.distance, DistanceUnit.DEFAULT);
 
-        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
-        if (shardContext.indexVersionCreated().onOrBefore(Version.CURRENT)) {
+        if (shardContext.indexVersionCreated().before(Version.V_2_2_0)) {
             GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
             IndexGeoPointFieldData indexFieldData = shardContext.getForField(fieldType);
             return new GeoDistanceRangeQuery(center, null, normDistance, true, false, geoDistance, geoFieldType, indexFieldData, optimizeBbox);

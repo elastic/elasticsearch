@@ -21,13 +21,6 @@
 // On startup, BootStrap reads environment and adds additional permissions
 // for configured paths and network binding to these.
 
-//// System code permissions:
-//// These permissions apply to the JDK itself:
-
-grant codeBase "file:${{java.ext.dirs}}/*" {
-  permission java.security.AllPermission;
-};
-
 //// SecurityManager impl:
 //// Must have all permissions to properly perform access checks
 

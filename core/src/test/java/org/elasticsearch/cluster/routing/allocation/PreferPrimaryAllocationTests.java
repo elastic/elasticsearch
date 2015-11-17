@@ -61,7 +61,7 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
 
         logger.info("adding two nodes and performing rerouting till all are allocated");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         while (!clusterState.getRoutingNodes().shardsWithState(INITIALIZING).isEmpty()) {
@@ -74,7 +74,7 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
         metaData = MetaData.builder(clusterState.metaData()).updateNumberOfReplicas(1).build();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).metaData(metaData).build();
 
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("2 replicas should be initializing now for the existing indices (we throttle to 1)");
@@ -92,7 +92,7 @@ public class PreferPrimaryAllocationTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).metaData(metaData).routingTable(routingTable).build();
 
         logger.info("reroute, verify that primaries for the new index primary shards are allocated");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(clusterState.routingTable().index("new_index").shardsWithState(INITIALIZING).size(), equalTo(2));

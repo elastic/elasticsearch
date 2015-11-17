@@ -24,6 +24,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.UnicodeUtil;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
@@ -32,6 +33,7 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.unit.DistanceUnit;
@@ -52,6 +54,7 @@ import org.elasticsearch.search.sort.ScriptSortBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.hamcrest.Matchers;
 
@@ -96,6 +99,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+import static org.apache.lucene.util.GeoUtils.TOLERANCE;
 
 /**
  *
@@ -851,7 +855,7 @@ public class SimpleSortTests extends ESIntegTestCase {
 
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(20l));
         for (int i = 0; i < 10; i++) {
-            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), equalTo((double) i));
+            assertThat("res: " + i + " id: " + searchResponse.getHits().getAt(i).getId(), (Double) searchResponse.getHits().getAt(i).field("min").value(), closeTo((double) i, TOLERANCE));
         }
     }
 
@@ -1732,7 +1736,9 @@ public class SimpleSortTests extends ESIntegTestCase {
          * |___________________________
          * 1   2   3   4   5   6   7
          */
-        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(3, 2), new GeoPoint(4, 1)};
         createShuffeldJSONArray(d1Builder, d1Points);
@@ -1761,32 +1767,32 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
-        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS), 0.01d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS), 0.01d));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("min").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS)));
-        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS)));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 5, 1, DistanceUnit.KILOMETERS), 0.01d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 3, 2, DistanceUnit.KILOMETERS), 0.01d));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.ASC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d1", "d2");
-        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
-        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS), 0.01d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS), 0.01d));
 
         searchResponse = client().prepareSearch()
                 .setQuery(matchAllQuery())
                 .addSort(new GeoDistanceSortBuilder("location").points(q).sortMode("max").order(SortOrder.DESC).geoDistance(GeoDistance.PLANE).unit(DistanceUnit.KILOMETERS))
                 .execute().actionGet();
         assertOrderedSearchHits(searchResponse, "d2", "d1");
-        assertThat(searchResponse.getHits().getAt(0).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS)));
-        assertThat(searchResponse.getHits().getAt(1).getSortValues()[0], equalTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS)));
+        assertThat((Double)searchResponse.getHits().getAt(0).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 1, 6, 2, DistanceUnit.KILOMETERS), 0.01d));
+        assertThat((Double)searchResponse.getHits().getAt(1).getSortValues()[0], closeTo(GeoDistance.PLANE.calculate(2, 2, 4, 1, DistanceUnit.KILOMETERS), 0.01d));
     }
 
     protected void createShuffeldJSONArray(XContentBuilder builder, GeoPoint[] pointsArray) throws IOException {
@@ -1814,7 +1820,9 @@ public class SimpleSortTests extends ESIntegTestCase {
          * |______________________
          * 1   2   3   4   5   6
          */
-        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point"));
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
         XContentBuilder d1Builder = jsonBuilder();
         GeoPoint[] d1Points = {new GeoPoint(2.5, 1), new GeoPoint(2.75, 2), new GeoPoint(3, 3), new GeoPoint(3.25, 4)};
         createShuffeldJSONArray(d1Builder, d1Points);

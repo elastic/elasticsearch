@@ -62,6 +62,7 @@ public class ShieldPlugin extends Plugin {
     public static final String NAME = "shield";
     public static final String ENABLED_SETTING_NAME = NAME + ".enabled";
     public static final String OPT_OUT_QUERY_CACHE = "opt_out_cache";
+    public static final String DLS_FLS_ENABLED_SETTING = "shield.dls_fls.enabled";
 
     private static final boolean DEFAULT_ENABLED_SETTING = true;
 
@@ -159,9 +160,11 @@ public class ShieldPlugin extends Plugin {
             return;
         }
         assert shieldLicenseState != null;
-        module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(),
-                indexService.getQueryShardContext(), indexService.mapperService(),
-                indexService.cache().bitsetFilterCache(), shieldLicenseState));
+        if (flsDlsEnabled(settings)) {
+            module.setSearcherWrapper((indexService) -> new ShieldIndexSearcherWrapper(indexService.getIndexSettings(),
+                    indexService.getQueryShardContext(), indexService.mapperService(),
+                    indexService.cache().bitsetFilterCache(), shieldLicenseState));
+        }
         if (clientMode == false) {
             module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
         }
@@ -303,6 +306,10 @@ public class ShieldPlugin extends Plugin {
 
     public static boolean shieldEnabled(Settings settings) {
         return settings.getAsBoolean(ENABLED_SETTING_NAME, DEFAULT_ENABLED_SETTING);
+    }
+
+    public static boolean flsDlsEnabled(Settings settings) {
+        return settings.getAsBoolean(DLS_FLS_ENABLED_SETTING, true);
     }
 
     private void failIfShieldQueryCacheIsNotActive(Settings settings, boolean nodeSettings) {

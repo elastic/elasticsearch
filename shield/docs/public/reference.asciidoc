@@ -184,6 +184,13 @@ The parameters listed in this section are configured in the `config/elasticsearc
 | `shield.authc.anonymous.authz_exception` | `true`                | When `true`, a HTTP 403 response will be returned when the anonymous user does not have the appropriate permissions for the requested action. The user will not be prompted to provide credentials to access the requested resource. When set to `false`, a HTTP 401 will be returned allowing for credentials to be provided for a user with the appropriate permissions.
 |======
 
+.Shield Document and Field Level Security Settings
+[options="header"]
+|======
+| Name                     | Default | Description
+| `shield.dls_fls.enabled` | `true`  | This setting can be used to completely disable document and field level security regardless of how roles are configured.
+|======
+
 
 [[ref-realm-settings]]
 

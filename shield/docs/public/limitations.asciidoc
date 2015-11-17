@@ -30,6 +30,21 @@ multiple items will fail the entire set of operations if any one operation throw
 expansion resulting in an empty set of authorized indices.
 
 [float]
+=== Field and Document Level Security Limitations
+
+Bulk updates do not work when document and field level security is enabled. If you are not using document and field level
+security, bulk updates can be enabled by setting `shield.dls_fls.enabled` to `false`.
+
+When document level security is enabled for an index:
+
+* The get, multi get, termsvector and multi termsvector APIs aren't executed in real time. The realtime option for these APIs is forcefully set to false.
+* Document level security isn't applied for APIs that aren't document based. An example is the field stats API.
+* Document level security doesn't affect global index statistics that relevancy scoring uses. So this means that scores are computed without taking the role query into account.
+  Note that documents not matching with the role query are never returned.
+* The `has_child` and `has_parent` queries aren't supported as role query in the `roles.yml` file.
+  The `has_child` and `has_parent` queries can be used in the search API with document level security enabled.
+
+[float]
 === Document Expiration (_ttl)
 
 Document expiration handled using the built-in {ref}/mapping-ttl-field.html#mapping-ttl-field[`_ttl` (time to live) mechanism]

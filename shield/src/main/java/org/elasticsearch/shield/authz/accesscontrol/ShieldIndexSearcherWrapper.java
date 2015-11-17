@@ -83,8 +83,8 @@ public class ShieldIndexSearcherWrapper extends IndexSearcherWrapper {
         try {
             RequestContext context = RequestContext.current();
             if (context == null) {
-                logger.debug("couldn't locate the current request, field level security will not be applied");
-                return reader;
+                logger.debug("couldn't locate the current request, field level security will only allow meta fields");
+                return FieldSubsetReader.wrap(reader, allowedMetaFields);
             }
 
             IndicesAccessControl indicesAccessControl = context.getRequest().getFromContext(InternalAuthorizationService.INDICES_PERMISSIONS_KEY);

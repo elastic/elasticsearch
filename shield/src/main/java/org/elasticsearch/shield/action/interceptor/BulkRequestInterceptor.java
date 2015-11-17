@@ -12,6 +12,8 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.User;
 import org.elasticsearch.transport.TransportRequest;
 
 /**
@@ -25,10 +27,20 @@ public class BulkRequestInterceptor extends FieldSecurityRequestInterceptor<Bulk
     }
 
     @Override
+    public void intercept(BulkRequest request, User user) {
+        // FIXME remove this method override once we support bulk updates with DLS and FLS enabled overall. We'll still
+        // need this interceptor because individual users may still have FLS/DLS enabled and we'll want to reject only
+        // their requests. Also update the message to remove "document"
+        if (ShieldPlugin.flsDlsEnabled(this.settings)) {
+            disableFeatures(request);
+        }
+    }
+
+    @Override
     protected void disableFeatures(BulkRequest bulkRequest) {
         for (ActionRequest actionRequest : bulkRequest.requests()) {
             if (actionRequest instanceof UpdateRequest) {
-                throw new ElasticsearchSecurityException("Can't execute an bulk request with update requests embedded if field level security is enabled", RestStatus.BAD_REQUEST);
+                throw new ElasticsearchSecurityException("Can't execute an bulk request with update requests embedded if document and field level security is enabled", RestStatus.BAD_REQUEST);
             }
         }
     }

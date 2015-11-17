@@ -579,7 +579,7 @@ public class DecayFunctionScoreIT extends ESIntegTestCase {
 
         XContentBuilder mapping = jsonBuilder().startObject().startObject("type").startObject("properties").startObject("test").field("type", "string")
                 .endObject().startObject("date").field("type", "date").endObject().startObject("num").field("type", "double")
-                .endObject().startObject("geo").field("type", "geo_point");
+                .endObject().startObject("geo").field("type", "geo_point").field("ignore_malformed", true);
         if (version.before(Version.V_2_2_0)) {
             mapping.field("coerce", true);
         }

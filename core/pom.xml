@@ -285,6 +285,8 @@
                                 <include>org/elasticsearch/cluster/routing/TestShardRouting.class</include>
                                 <include>org/elasticsearch/cluster/routing/TestShardRouting$*.class</include>
                                 <include>org/elasticsearch/index/shard/MockEngineFactoryPlugin.class</include>
+                                <!-- Shared between core and backwards compatibility tests. -->
+                                <include>org/elasticsearch/gateway/ReusePeerRecoverySharedTest.class</include>
                                 <include>org/elasticsearch/search/MockSearchService.class</include>
                                 <include>org/elasticsearch/search/MockSearchService$*.class</include>
                                 <include>org/elasticsearch/search/aggregations/bucket/AbstractTermsTestCase.class</include>

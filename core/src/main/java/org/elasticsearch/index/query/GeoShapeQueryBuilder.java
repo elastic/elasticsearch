@@ -48,7 +48,7 @@ public class GeoShapeQueryBuilder extends QueryBuilder implements BoostableQuery
     private ShapeRelation relation = null;
 
     private float boost = -1;
-    
+
     /**
      * Creates a new GeoShapeQueryBuilder whose Filter will be against the
      * given field name using the given Shape

@@ -33,7 +33,6 @@ import org.elasticsearch.index.query.GeoShapeQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -64,7 +63,6 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(result.getField("location"), nullValue());
     }
 
-    @Test
     public void testIndexPointsFilterRectangle() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -112,9 +110,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
-    @Test
     public void testEdgeCases() throws Exception {
-
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
                 .field("type", "geo_shape")
@@ -150,7 +146,6 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("blakely"));
     }
 
-    @Test
     public void testIndexedShapeReference() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("location")
@@ -175,7 +170,8 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                 .endObject()).setRefresh(true).execute().actionGet();
 
         SearchResponse searchResponse = client().prepareSearch("test").setTypes("type1")
-                .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type")).execute().actionGet();
+                .setQuery(geoIntersectionQuery("location", "Big_Rectangle", "shape_type"))
+                .execute().actionGet();
 
         assertSearchResponse(searchResponse);
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
@@ -192,7 +188,6 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(searchResponse.getHits().getAt(0).id(), equalTo("1"));
     }
 
-    @Test
     public void testReusableBuilder() throws IOException {
         ShapeBuilder polygon = ShapeBuilder.newPolygon()
                 .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
@@ -212,44 +207,6 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
         assertThat(before, equalTo(after));
     }
 
-    @Test
-    public void testParsingMultipleShapes() throws Exception {
-        String mapping = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("type1")
-                .startObject("properties")
-                .startObject("location1")
-                .field("type", "geo_shape")
-                .endObject()
-                .startObject("location2")
-                .field("type", "geo_shape")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject()
-                .string();
-
-        client().admin().indices().prepareCreate("test").addMapping("type1", mapping).execute().actionGet();
-
-        String p1 = "\"location1\" : {\"type\":\"polygon\", \"coordinates\":[[[-10,-10],[10,-10],[10,10],[-10,10],[-10,-10]]]}";
-        String p2 = "\"location2\" : {\"type\":\"polygon\", \"coordinates\":[[[-20,-20],[20,-20],[20,20],[-20,20],[-20,-20]]]}";
-        String o1 = "{" + p1 + ", " + p2 + "}";
-
-       client().prepareIndex("test", "type1", "1").setSource(o1).setRefresh(true).execute().actionGet();
-
-        String filter = "{\"geo_shape\": {\"location2\": {\"indexed_shape\": {"
-                + "\"id\": \"1\","
-                + "\"type\": \"type1\","
-                + "\"index\": \"test\","
-                + "\"path\": \"location2\""
-                + "}}}}";
-
-        SearchResponse result = client().prepareSearch("test").setTypes("type1").setQuery(QueryBuilders.matchAllQuery()).setPostFilter(filter).execute().actionGet();
-        assertSearchResponse(result);
-        assertHitCount(result, 1);
-    }
-
-    @Test
     public void testShapeFetchingPath() throws Exception {
         createIndex("shapes");
         client().admin().indices().prepareCreate("test").addMapping("type", "location", "type=geo_shape").execute().actionGet();
@@ -274,28 +231,28 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
                         .endArray().endArray()
                         .endObject().endObject()).setRefresh(true).execute().actionGet();
 
-        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
+        GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("location");
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.2.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 1);
-        filter = QueryBuilders.geoShapeQuery("location", "1", "type", ShapeRelation.INTERSECTS)
+        filter = QueryBuilders.geoShapeQuery("location", "1", "type").relation(ShapeRelation.INTERSECTS)
                 .indexedShapeIndex("shapes")
                 .indexedShapePath("1.2.3.location");
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())

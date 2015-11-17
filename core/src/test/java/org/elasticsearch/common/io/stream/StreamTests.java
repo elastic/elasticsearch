@@ -25,8 +25,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.List;
+import java.util.*;
 
 public class StreamTests extends ESTestCase {
     public void testRandomVLongSerialization() throws IOException {
@@ -57,6 +56,36 @@ public class StreamTests extends ESTestCase {
             assertArrayEquals(Long.toString(value.v1()), value.v2(), out.bytes().toBytes());
             ByteBufferBytesReference bytes = new ByteBufferBytesReference(ByteBuffer.wrap(value.v2()));
             assertEquals(Arrays.toString(value.v2()), (long)value.v1(), bytes.streamInput().readZLong());
+        }
+    }
+
+    public void testLinkedHashMap() throws IOException {
+        int size = randomIntBetween(1, 1024);
+        boolean accessOrder = randomBoolean();
+        List<Tuple<String, Integer>> list = new ArrayList<>(size);
+        LinkedHashMap<String, Integer> write = new LinkedHashMap<>(size, 0.75f, accessOrder);
+        for (int i = 0; i < size; i++) {
+            int value = randomInt();
+            list.add(new Tuple<>(Integer.toString(i), value));
+            write.put(Integer.toString(i), value);
+        }
+        if (accessOrder) {
+            // randomize access order
+            Collections.shuffle(list, random());
+            for (Tuple<String, Integer> entry : list) {
+                // touch the entries to set the access order
+                write.get(entry.v1());
+            }
+        }
+        BytesStreamOutput out = new BytesStreamOutput();
+        out.writeGenericValue(write);
+        LinkedHashMap<String, Integer> read = (LinkedHashMap<String, Integer>)out.bytes().streamInput().readGenericValue();
+        assertEquals(size, read.size());
+        int index = 0;
+        for (Map.Entry<String, Integer> entry : read.entrySet()) {
+            assertEquals(list.get(index).v1(), entry.getKey());
+            assertEquals(list.get(index).v2(), entry.getValue());
+            index++;
         }
     }
 }

@@ -52,6 +52,7 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
 import static org.elasticsearch.ElasticsearchException.readStackTrace;
@@ -517,8 +518,9 @@ public abstract class StreamInput extends InputStream {
     /**
      * Serializes a potential null value.
      */
-    public <T extends Streamable> T readOptionalStreamable(T streamable) throws IOException {
+    public <T extends Streamable> T readOptionalStreamable(Supplier<T> supplier) throws IOException {
         if (readBoolean()) {
+            T streamable = supplier.get();
             streamable.readFrom(this);
             return streamable;
         } else {

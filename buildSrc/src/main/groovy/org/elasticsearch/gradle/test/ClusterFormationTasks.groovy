@@ -102,7 +102,7 @@ class ClusterFormationTasks {
             String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
             String taskName = "${task.name}#install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}Plugin"
             // delay reading the file location until execution time by wrapping in a closure within a GString
-            String file = "${ -> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString() }"
+            String file = "${-> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString()}"
             Object[] args = [new File(home, 'bin/plugin'), 'install', file]
             setup = configureExecTask(taskName, project, setup, cwd, args)
         }
@@ -115,8 +115,11 @@ class ClusterFormationTasks {
         Task start = configureStartTask("${task.name}#start", project, setup, cwd, config, clusterName, pidFile, home)
         task.dependsOn(start)
 
-        Task stop = configureStopTask("${task.name}#stop", project, [], pidFile)
-        task.finalizedBy(stop)
+        if (config.daemonize) {
+            // if we are running in the background, make sure to stop the server when the task completes
+            Task stop = configureStopTask("${task.name}#stop", project, [], pidFile)
+            task.finalizedBy(stop)
+        }
     }
 
     /** Adds a task to extract the elasticsearch distribution */

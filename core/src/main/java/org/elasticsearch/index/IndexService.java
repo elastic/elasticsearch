@@ -52,12 +52,16 @@ import org.elasticsearch.index.shard.*;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
-import org.elasticsearch.indices.*;
+import org.elasticsearch.indices.AliasFilterParsingException;
+import org.elasticsearch.indices.InvalidAliasNameException;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -343,14 +347,13 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
 
     private void onShardClose(ShardLock lock, boolean ownsShard) {
         if (deleted.get()) { // we remove that shards content if this index has been deleted
-            final Settings indexSettings = this.getIndexSettings().getSettings();
             try {
                 if (ownsShard) {
                     try {
-                        eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings);
+                        eventListener.beforeIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                     } finally {
                         shardStoreDeleter.deleteShardStore("delete index", lock, indexSettings);
-                        eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings);
+                        eventListener.afterIndexShardDeleted(lock.getShardId(), indexSettings.getSettings());
                     }
                 }
             } catch (IOException e) {
@@ -533,8 +536,9 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
     }
 
     public interface ShardStoreDeleter {
-        void deleteShardStore(String reason, ShardLock lock, Settings indexSettings) throws IOException;
-        void addPendingDelete(ShardId shardId, Settings indexSettings);
+        void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException;
+
+        void addPendingDelete(ShardId shardId, IndexSettings indexSettings);
     }
 
     final EngineFactory getEngineFactory() {

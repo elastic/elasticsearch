@@ -74,7 +74,7 @@ public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPoin
         public MultiGeoPointValues getGeoPointValues() {
             final RandomAccessOrds ords = ordinals.ordinals();
             final SortedDocValues singleOrds = DocValues.unwrapSingleton(ords);
-            final GeoPoint point = new GeoPoint();
+            final GeoPoint point = new GeoPoint(Double.NaN, Double.NaN);
             if (singleOrds != null) {
                 final GeoPointValues values = new GeoPointValues() {
                     @Override
@@ -83,8 +83,7 @@ public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPoin
                         if (ord >= 0) {
                             return point.resetFromIndexHash(indexedPoints.get(ord));
                         }
-                        // todo: same issue as in ParentChildIndexFieldData, handle issue upstream?
-                        return null;
+                        return point.reset(Double.NaN, Double.NaN);
                     }
                 };
                 return FieldData.singleton(values, DocValues.docsWithValue(singleOrds, maxDoc));
@@ -139,7 +138,10 @@ public abstract class GeoPointArrayAtomicFieldData extends AbstractAtomicGeoPoin
             final GeoPointValues values = new GeoPointValues() {
                 @Override
                 public GeoPoint get(int docID) {
-                    return point.resetFromIndexHash(indexedPoint.get(docID));
+                    if (set == null || set.get(docID)) {
+                        return point.resetFromIndexHash(indexedPoint.get(docID));
+                    }
+                    return point.reset(Double.NaN, Double.NaN);
                 }
             };
             return FieldData.singleton(values, set);

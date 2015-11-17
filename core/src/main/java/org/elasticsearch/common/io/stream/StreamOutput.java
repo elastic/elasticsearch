@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.elasticsearch.ElasticsearchException;
@@ -172,9 +173,9 @@ public abstract class StreamOutput extends OutputStream {
     }
 
     /**
-     * Writes an long in a variable-length format.  Writes between one and nine
-     * bytes.  Smaller values take fewer bytes.  Negative numbers are not
-     * supported.
+     * Writes a non-negative long in a variable-length format.
+     * Writes between one and nine bytes. Smaller values take fewer bytes.
+     * Negative numbers are not supported.
      */
     public void writeVLong(long i) throws IOException {
         assert i >= 0;
@@ -183,6 +184,23 @@ public abstract class StreamOutput extends OutputStream {
             i >>>= 7;
         }
         writeByte((byte) i);
+    }
+
+    /**
+     * Writes a long in a variable-length format. Writes between one and ten bytes.
+     * Values are remapped by sliding the sign bit into the lsb and then encoded as an unsigned number
+     * e.g., 0 -;&gt; 0, -1 -;&gt; 1, 1 -;&gt; 2, ..., Long.MIN_VALUE -;&gt; -1, Long.MAX_VALUE -;&gt; -2
+     * Numbers with small absolute value will have a small encoding
+     * If the numbers are known to be non-negative, use {@link #writeVLong(long)}
+     */
+    public void writeZLong(long i) throws IOException {
+        // zig-zag encoding cf. https://developers.google.com/protocol-buffers/docs/encoding?hl=en
+        long value = BitUtil.zigZagEncode(i);
+        while ((value & 0xFFFFFFFFFFFFFF80L) != 0L) {
+            writeByte((byte)((value & 0x7F) | 0x80));
+            value >>>= 7;
+        }
+        writeByte((byte) (value & 0x7F));
     }
 
     public void writeOptionalString(@Nullable String str) throws IOException {

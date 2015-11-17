@@ -65,7 +65,7 @@ public class BalanceUnbalancedClusterTests extends CatAllocationTestCase {
                 .build();
 
         ClusterState clusterState = ClusterState.builder(state).metaData(metaData).routingTable(routingTable).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         while (true) {
             if (routingTable.shardsWithState(INITIALIZING).isEmpty()) {

@@ -32,10 +32,11 @@ class StandaloneTestBasePlugin implements Plugin<Project> {
 
     @Override
     void apply(Project project) {
-        BuildPlugin.configureRepositories(project)
-
         project.pluginManager.apply(JavaBasePlugin)
         project.pluginManager.apply(RandomizedTestingPlugin)
+
+        BuildPlugin.globalBuildInfo(project)
+        BuildPlugin.configureRepositories(project)
 
         // remove some unnecessary tasks for a qa test
         project.tasks.removeAll { it.name in ['assemble', 'buildDependents'] }

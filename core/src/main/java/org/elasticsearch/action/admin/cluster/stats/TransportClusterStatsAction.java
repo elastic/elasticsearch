@@ -19,8 +19,7 @@
 
 package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
-import org.elasticsearch.action.admin.cluster.health.ClusterIndexHealth;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
@@ -31,9 +30,8 @@ import org.elasticsearch.action.support.nodes.BaseNodeRequest;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -114,26 +112,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<ClusterSta
 
         ClusterHealthStatus clusterStatus = null;
         if (clusterService.state().nodes().localNodeMaster()) {
-            // populate cluster status
-            clusterStatus = ClusterHealthStatus.GREEN;
-            for (IndexRoutingTable indexRoutingTable : clusterService.state().routingTable()) {
-                IndexMetaData indexMetaData = clusterService.state().metaData().index(indexRoutingTable.index());
-                if (indexRoutingTable == null) {
-                    continue;
-                }
-
-                ClusterIndexHealth indexHealth = new ClusterIndexHealth(indexMetaData, indexRoutingTable);
-                switch (indexHealth.getStatus()) {
-                    case RED:
-                        clusterStatus = ClusterHealthStatus.RED;
-                        break;
-                    case YELLOW:
-                        if (clusterStatus != ClusterHealthStatus.RED) {
-                            clusterStatus = ClusterHealthStatus.YELLOW;
-                        }
-                        break;
-                }
-            }
+            clusterStatus = new ClusterStateHealth(clusterService.state()).getStatus();
         }
 
         return new ClusterStatsNodeResponse(nodeInfo.getNode(), clusterStatus, nodeInfo, nodeStats, shardsStats.toArray(new ShardStats[shardsStats.size()]));

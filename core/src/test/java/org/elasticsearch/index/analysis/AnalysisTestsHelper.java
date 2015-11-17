@@ -49,7 +49,7 @@ public class AnalysisTestsHelper {
         if (settings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
             settings = Settings.builder().put(settings).put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         }
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings, Collections.EMPTY_LIST);
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         Environment environment = new Environment(settings);
         return new AnalysisRegistry(new HunspellService(settings, environment, Collections.EMPTY_MAP), environment).build(idxSettings);
     }

@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.*;
+import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -52,11 +52,10 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
-import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexEventListener;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
-import org.elasticsearch.indices.cache.query.IndicesQueryCache;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsService;
@@ -73,7 +72,6 @@ import java.util.function.Predicate;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
 import static org.elasticsearch.common.collect.MapBuilder.newMapBuilder;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 
 /**
@@ -330,8 +328,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             logger.debug("[{}] closed... (reason [{}])", index, reason);
             listener.afterIndexClosed(indexService.index(), indexService.getIndexSettings().getSettings());
             if (delete) {
-                final Settings indexSettings = indexService.getIndexSettings().getSettings();
-                listener.afterIndexDeleted(indexService.index(), indexSettings);
+                final IndexSettings indexSettings = indexService.getIndexSettings();
+                listener.afterIndexDeleted(indexService.index(), indexSettings.getSettings());
                 // now we are done - try to wipe data on disk if possible
                 deleteIndexStore(reason, indexService.index(), indexSettings, false);
             }
@@ -412,12 +410,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                 }
             }
             Index index = new Index(metaData.getIndex());
-            final Settings indexSettings = buildIndexSettings(metaData);
+            final IndexSettings indexSettings = buildIndexSettings(metaData);
             deleteIndexStore(reason, index, indexSettings, closed);
         }
     }
 
-    private void deleteIndexStore(String reason, Index index, Settings indexSettings, boolean closed) throws IOException {
+    private void deleteIndexStore(String reason, Index index, IndexSettings indexSettings, boolean closed) throws IOException {
         boolean success = false;
         try {
             // we are trying to delete the index store here - not a big deal if the lock can't be obtained
@@ -449,7 +447,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param indexSettings the shards index settings.
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardStore(String reason, ShardLock lock, Settings indexSettings) throws IOException {
+    public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
         ShardId shardId = lock.getShardId();
         logger.trace("{} deleting shard reason [{}]", shardId, reason);
         nodeEnv.deleteShardDirectoryUnderLock(lock, indexSettings);
@@ -470,7 +468,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState) throws IOException {
         final IndexMetaData metaData = clusterState.getMetaData().indices().get(shardId.getIndex());
 
-        final Settings indexSettings = buildIndexSettings(metaData);
+        final IndexSettings indexSettings = buildIndexSettings(metaData);
         if (canDeleteShardContent(shardId, indexSettings) == false) {
             throw new IllegalStateException("Can't delete shard " + shardId);
         }
@@ -498,14 +496,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * given index. If the index uses a shared filesystem this method always
      * returns false.
      * @param index {@code Index} to check whether deletion is allowed
-     * @param indexSettings {@code Settings} for the given index
+     * @param indexSettings {@code IndexSettings} for the given index
      * @return true if the index can be deleted on this node
      */
-    public boolean canDeleteIndexContents(Index index, Settings indexSettings, boolean closed) {
+    public boolean canDeleteIndexContents(Index index, IndexSettings indexSettings, boolean closed) {
         final IndexService indexService = this.indices.get(index.name());
         // Closed indices may be deleted, even if they are on a shared
         // filesystem. Since it is closed we aren't deleting it for relocation
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false || closed) {
+        if (indexSettings.isOnSharedFilesystem() == false || closed) {
             if (indexService == null && nodeEnv.hasNodeFile()) {
                 return true;
             }
@@ -532,17 +530,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         // to decide where the shard content lives. In the future we might even need more info here ie. for shadow replicas
         // The plan was to make it harder to miss-use and ask for metadata instead of simple settings
         assert shardId.getIndex().equals(metaData.getIndex());
-        final Settings indexSettings = buildIndexSettings(metaData);
+        final IndexSettings indexSettings = buildIndexSettings(metaData);
         return canDeleteShardContent(shardId, indexSettings);
     }
 
-    private boolean canDeleteShardContent(ShardId shardId, Settings indexSettings) {
+    private boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
         final IndexService indexService = this.indices.get(shardId.getIndex());
-        if (IndexMetaData.isOnSharedFilesystem(indexSettings) == false) {
+        if (indexSettings.isOnSharedFilesystem() == false) {
             if (indexService != null && nodeEnv.hasNodeFile()) {
                 return indexService.hasShard(shardId.id()) == false;
             } else if (nodeEnv.hasNodeFile()) {
-                if (NodeEnvironment.hasCustomDataPath(indexSettings)) {
+                if (indexSettings.hasCustomDataPath()) {
                     return Files.exists(nodeEnv.resolveCustomLocation(indexSettings, shardId));
                 } else {
                     return FileSystemUtils.exists(nodeEnv.availableShardPaths(shardId));
@@ -554,20 +552,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         return false;
     }
 
-    private Settings buildIndexSettings(IndexMetaData metaData) {
+    private IndexSettings buildIndexSettings(IndexMetaData metaData) {
         // play safe here and make sure that we take node level settings into account.
         // we might run on nodes where we use shard FS and then in the future don't delete
         // actual content.
-        Settings.Builder builder = settingsBuilder();
-        builder.put(settings);
-        builder.put(metaData.getSettings());
-        return builder.build();
+        return new IndexSettings(metaData, settings, Collections.EMPTY_LIST);
     }
 
     /**
      * Adds a pending delete for the given index shard.
      */
-    public void addPendingDelete(ShardId shardId, Settings settings) {
+    public void addPendingDelete(ShardId shardId, IndexSettings settings) {
         if (shardId == null) {
             throw new IllegalArgumentException("shardId must not be null");
         }
@@ -581,7 +576,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     /**
      * Adds a pending delete for the given index.
      */
-    public void addPendingDelete(Index index, Settings settings) {
+    public void addPendingDelete(Index index, IndexSettings settings) {
         PendingDelete pendingDelete = new PendingDelete(index, settings);
         addPendingDelete(index, pendingDelete);
     }
@@ -600,13 +595,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private static final class PendingDelete implements Comparable<PendingDelete> {
         final String index;
         final int shardId;
-        final Settings settings;
+        final IndexSettings settings;
         final boolean deleteIndex;
 
         /**
          * Creates a new pending delete of an index
          */
-        public PendingDelete(ShardId shardId, Settings settings) {
+        public PendingDelete(ShardId shardId, IndexSettings settings) {
             this.index = shardId.getIndex();
             this.shardId = shardId.getId();
             this.settings = settings;
@@ -616,7 +611,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         /**
          * Creates a new pending delete of a shard
          */
-        public PendingDelete(Index index, Settings settings) {
+        public PendingDelete(Index index, IndexSettings settings) {
             this.index = index.getName();
             this.shardId = -1;
             this.settings = settings;
@@ -648,7 +643,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to process the pending deletes for
      * @param timeout the timeout used for processing pending deletes
      */
-    public void processPendingDeletes(Index index, Settings indexSettings, TimeValue timeout) throws IOException {
+    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());

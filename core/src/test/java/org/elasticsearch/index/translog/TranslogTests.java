@@ -20,7 +20,6 @@
 package org.elasticsearch.index.translog;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
-
 import org.apache.lucene.codecs.CodecUtil;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -38,7 +37,6 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
@@ -56,28 +54,14 @@ import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.BrokenBarrierException;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -131,7 +115,7 @@ public class TranslogTests extends ESTestCase {
                 .put(TranslogConfig.INDEX_TRANSLOG_FS_TYPE, TranslogWriter.Type.SIMPLE.name())
                 .put(IndexMetaData.SETTING_VERSION_CREATED, org.elasticsearch.Version.CURRENT)
                 .build();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build, Collections.EMPTY_LIST), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
+        TranslogConfig translogConfig = new TranslogConfig(shardId, path, IndexSettingsModule.newIndexSettings(shardId.index(), build), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, null);
         return new Translog(translogConfig);
     }
 
@@ -1056,7 +1040,109 @@ public class TranslogTests extends ESTestCase {
                 }
             }
         }
+    }
 
+
+    public void testRecoveryUncommittedFileExists() throws IOException {
+        List<Translog.Location> locations = new ArrayList<>();
+        int translogOperations = randomIntBetween(10, 100);
+        final int prepareOp = randomIntBetween(0, translogOperations-1);
+        Translog.TranslogGeneration translogGeneration = null;
+        final boolean sync = randomBoolean();
+        for (int op = 0; op < translogOperations; op++) {
+            locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+            if (op == prepareOp) {
+                translogGeneration = translog.getGeneration();
+                translog.prepareCommit();
+                assertEquals("expected this to be the first commit", 1l, translogGeneration.translogFileGeneration);
+                assertNotNull(translogGeneration.translogUUID);
+            }
+        }
+        if (sync) {
+            translog.sync();
+        }
+        // we intentionally don't close the tlog that is in the prepareCommit stage since we try to recovery the uncommitted
+        // translog here as well.
+        TranslogConfig config = translog.getConfig();
+        config.setTranslogGeneration(translogGeneration);
+        Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
+        Checkpoint read = Checkpoint.read(ckp);
+        Files.copy(ckp, config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)));
+
+        try (Translog translog = new Translog(config)) {
+            assertNotNull(translogGeneration);
+            assertEquals("lastCommitted must be 2 less than current - we never finished the commit", translogGeneration.translogFileGeneration + 2, translog.currentFileGeneration());
+            assertFalse(translog.syncNeeded());
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                int upTo = sync ? translogOperations : prepareOp;
+                for (int i = 0; i < upTo; i++) {
+                    Translog.Operation next = snapshot.next();
+                    assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
+                    assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.toUtf8()));
+                }
+            }
+        }
+
+        if (randomBoolean()) { // recover twice
+            try (Translog translog = new Translog(config)) {
+                assertNotNull(translogGeneration);
+                assertEquals("lastCommitted must be 3 less than current - we never finished the commit and run recovery twice", translogGeneration.translogFileGeneration + 3, translog.currentFileGeneration());
+                assertFalse(translog.syncNeeded());
+                try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                    int upTo = sync ? translogOperations : prepareOp;
+                    for (int i = 0; i < upTo; i++) {
+                        Translog.Operation next = snapshot.next();
+                        assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
+                        assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.toUtf8()));
+                    }
+                }
+            }
+        }
+    }
+
+    public void testRecoveryUncommittedCorryptedCheckpoint() throws IOException {
+        List<Translog.Location> locations = new ArrayList<>();
+        int translogOperations = 100;
+        final int prepareOp = 44;
+        Translog.TranslogGeneration translogGeneration = null;
+        final boolean sync = randomBoolean();
+        for (int op = 0; op < translogOperations; op++) {
+            locations.add(translog.add(new Translog.Index("test", "" + op, Integer.toString(op).getBytes(Charset.forName("UTF-8")))));
+            if (op == prepareOp) {
+                translogGeneration = translog.getGeneration();
+                translog.prepareCommit();
+                assertEquals("expected this to be the first commit", 1l, translogGeneration.translogFileGeneration);
+                assertNotNull(translogGeneration.translogUUID);
+            }
+        }
+        translog.sync();
+        // we intentionally don't close the tlog that is in the prepareCommit stage since we try to recovery the uncommitted
+        // translog here as well.
+        TranslogConfig config = translog.getConfig();
+        config.setTranslogGeneration(translogGeneration);
+        Path ckp = config.getTranslogPath().resolve(Translog.CHECKPOINT_FILE_NAME);
+        Checkpoint read = Checkpoint.read(ckp);
+        Checkpoint corrupted = new Checkpoint(0,0,0);
+        Checkpoint.write(config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), corrupted, StandardOpenOption.WRITE, StandardOpenOption.CREATE_NEW);
+        try (Translog translog = new Translog(config)) {
+          fail("corrupted");
+        } catch (IllegalStateException ex) {
+            assertEquals(ex.getMessage(), "Checkpoint file translog-2.ckp already exists but has corrupted content expected: Checkpoint{offset=2683, numOps=55, translogFileGeneration= 2} but got: Checkpoint{offset=0, numOps=0, translogFileGeneration= 0}");
+        }
+        Checkpoint.write(config.getTranslogPath().resolve(Translog.getCommitCheckpointFileName(read.generation)), read, StandardOpenOption.WRITE, StandardOpenOption.TRUNCATE_EXISTING);
+        try (Translog translog = new Translog(config)) {
+            assertNotNull(translogGeneration);
+            assertEquals("lastCommitted must be 2 less than current - we never finished the commit", translogGeneration.translogFileGeneration + 2, translog.currentFileGeneration());
+            assertFalse(translog.syncNeeded());
+            try (Translog.Snapshot snapshot = translog.newSnapshot()) {
+                int upTo = sync ? translogOperations : prepareOp;
+                for (int i = 0; i < upTo; i++) {
+                    Translog.Operation next = snapshot.next();
+                    assertNotNull("operation " + i + " must be non-null synced: " + sync, next);
+                    assertEquals("payload missmatch, synced: " + sync, i, Integer.parseInt(next.getSource().source.toUtf8()));
+                }
+            }
+        }
     }
 
     public void testSnapshotFromStreamInput() throws IOException {

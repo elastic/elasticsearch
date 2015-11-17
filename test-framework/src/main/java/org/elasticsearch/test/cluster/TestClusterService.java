@@ -51,7 +51,7 @@ import java.util.concurrent.ScheduledFuture;
 public class TestClusterService implements ClusterService {
 
     volatile ClusterState state;
-    private final Collection<ClusterStateListener> listeners = new CopyOnWriteArrayList<>();
+    private final List<ClusterStateListener> listeners = new CopyOnWriteArrayList<>();
     private final Queue<NotifyTimeout> onGoingTimeouts = ConcurrentCollections.newQueue();
     private final ThreadPool threadPool;
     private final ESLogger logger = Loggers.getLogger(getClass(), Settings.EMPTY);
@@ -135,7 +135,7 @@ public class TestClusterService implements ClusterService {
 
     @Override
     public void addFirst(ClusterStateListener listener) {
-        throw new UnsupportedOperationException();
+        listeners.add(0, listener);
     }
 
     @Override

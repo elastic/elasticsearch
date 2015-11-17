@@ -68,6 +68,9 @@ public class GeoUtils {
 
     /** Returns the maximum distance/radius from the point 'center' before overlapping */
     public static double maxRadialDistance(GeoPoint center) {
+        if (Math.abs(center.lat()) == 90.0) {
+            return SloppyMath.haversin(center.lat(), center.lon(), 0, center.lon())*1000.0;
+        }
         return SloppyMath.haversin(center.lat(), center.lon(), center.lat(), (180.0 + center.lon()) % 360)*1000.0;
     }
 
@@ -310,8 +313,8 @@ public class GeoUtils {
     public static void normalizePoint(double[] lonLat, boolean normLon, boolean normLat) {
         assert lonLat != null && lonLat.length == 2;
 
-        normLat = normLat && (lonLat[1] > 90 || lonLat[1] <= -90);
-        normLon = normLon && (lonLat[0] > 180 || lonLat[0] <= -180);
+        normLat = normLat && (lonLat[1] > 90 || lonLat[1] < -90);
+        normLon = normLon && (lonLat[0] > 180 || lonLat[0] < -180);
 
         if (normLat) {
             lonLat[1] = centeredModulus(lonLat[1], 360);

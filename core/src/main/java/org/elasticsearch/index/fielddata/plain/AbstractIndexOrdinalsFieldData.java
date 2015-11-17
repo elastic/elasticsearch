@@ -64,6 +64,24 @@ public abstract class AbstractIndexOrdinalsFieldData extends AbstractIndexFieldD
             // ordinals are already global
             return this;
         }
+        boolean fieldFound = false;
+        for (LeafReaderContext context : indexReader.leaves()) {
+            if (context.reader().getFieldInfos().fieldInfo(getFieldNames().indexName()) != null) {
+                fieldFound = true;
+                break;
+            }
+        }
+        if (fieldFound == false) {
+            // Some directory readers may be wrapped and report different set of fields and use the same cache key.
+            // If a field can't be found then it doesn't mean it isn't there,
+            // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
+            // The next time the field is found, we do cache.
+            try {
+                return GlobalOrdinalsBuilder.buildEmpty(indexSettings, indexReader, this);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
         try {
             return cache.load(indexReader, this);
         } catch (Throwable e) {

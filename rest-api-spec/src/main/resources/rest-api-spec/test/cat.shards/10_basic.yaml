@@ -15,6 +15,7 @@
                     ip                               .+   \n
                     id                               .+   \n
                     node                             .+   \n
+                    sync_id                          .+   \n
                     unassigned.reason                .+   \n
                     unassigned.at                    .+   \n
                     unassigned.for                   .+   \n
@@ -83,6 +84,59 @@
   - match:
       $body: |
                /^$/
+
+  - do:
+      indices.create:
+        index: sync_id_test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+  - do:
+      indices.flush_synced:
+        index: sync_id_test
+
+  - is_false: _shards.failed
+
+  - do:
+      cat.shards:
+        index: sync_id_test
+        h: index,state,sync_id
+  - match:
+      $body: |
+               /^(sync_id_test\s+STARTED\s+[A-Za-z0-9_\-]{20}\s+\n){5}$/
+
+  - do:
+      indices.delete:
+        index: sync_id_test
+
+  - do:
+      indices.create:
+        index: sync_id_no_flush_test
+        body:
+          settings:
+            number_of_shards: 5
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      cat.shards:
+        index: sync_id_no_flush_test
+        h: index,state,sync_id
+  - match:
+      $body: |
+               /^(sync_id_no_flush_test\s+STARTED\s+\n){5}$/
+
+  - do:
+      indices.delete:
+        index: sync_id_no_flush_test
 
   - do:
       indices.create:

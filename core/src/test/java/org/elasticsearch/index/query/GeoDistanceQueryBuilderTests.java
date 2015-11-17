@@ -162,8 +162,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
     @Override
     protected void doAssertLuceneQuery(GeoDistanceQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
         Version version = context.indexVersionCreated();
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertLegacyQuery(queryBuilder, query);
         } else {
             assertGeoPointQuery(queryBuilder, query);
@@ -370,8 +369,7 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
         assumeTrue("test runs only when at least a type is registered", getCurrentTypes().length > 0);
         Query parsedQuery = parseQuery(query).toQuery(createShardContext());
         Version version = queryShardContext().indexVersionCreated();
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             GeoDistanceRangeQuery q = (GeoDistanceRangeQuery) parsedQuery;
             assertThat(q.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
             assertThat(q.lat(), closeTo(lat, 1E-5D));

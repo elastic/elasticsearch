@@ -264,9 +264,9 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        // norelease cut over to .before(Version.2_2_0) once GeoPointFieldV2 is fully merged
-        if (context.indexVersionCreated().after(Version.CURRENT)) {
-            return new GeoPointInBBoxQuery(fieldType.names().fullName(), topLeft.lon(), bottomRight.lat(), bottomRight.lon(), topLeft.lat());
+        if (context.indexVersionCreated().onOrAfter(Version.V_2_2_0)) {
+            return new GeoPointInBBoxQuery(fieldType.names().fullName(), luceneTopLeft.lon(), luceneBottomRight.lat(),
+                    luceneBottomRight.lon(), luceneTopLeft.lat());
         }
 
         Query query;

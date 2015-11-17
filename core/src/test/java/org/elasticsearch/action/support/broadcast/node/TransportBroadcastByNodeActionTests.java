@@ -23,7 +23,6 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.ShardOperationFailedException;
-import org.elasticsearch.action.support.ActionFilter;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
@@ -85,7 +84,6 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
 
     private TestClusterService clusterService;
     private CapturingTransport transport;
-    private TransportService transportService;
 
     private TestTransportBroadcastByNodeAction action;
 
@@ -184,13 +182,13 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         super.setUp();
         transport = new CapturingTransport();
         clusterService = new TestClusterService(THREAD_POOL);
-        transportService = new TransportService(transport, THREAD_POOL);
+        final TransportService transportService = new TransportService(transport, THREAD_POOL);
         transportService.start();
         setClusterState(clusterService, TEST_INDEX);
         action = new TestTransportBroadcastByNodeAction(
                 Settings.EMPTY,
                 transportService,
-                new ActionFilters(new HashSet<ActionFilter>()),
+                new ActionFilters(new HashSet<>()),
                 new MyResolver(),
                 Request::new,
                 ThreadPool.Names.SAME
@@ -240,13 +238,13 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
 
         ClusterBlocks.Builder block = ClusterBlocks.builder()
-                .addGlobalBlock(new ClusterBlock(1, "", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
+                .addGlobalBlock(new ClusterBlock(1, "test-block", false, true, RestStatus.SERVICE_UNAVAILABLE, ClusterBlockLevel.ALL));
         clusterService.setState(ClusterState.builder(clusterService.state()).blocks(block));
         try {
             action.new AsyncAction(request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
-
+            assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
         }
     }
 
@@ -261,7 +259,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
             action.new AsyncAction(request, listener).start();
             fail("expected ClusterBlockException");
         } catch (ClusterBlockException expected) {
-
+            assertEquals("blocked by: [SERVICE_UNAVAILABLE/1/test-block];", expected.getMessage());
         }
     }
 
@@ -311,7 +309,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         ShardsIterator shardIt = clusterService.state().routingTable().allShards(new String[]{TEST_INDEX});
         Set<String> set = new HashSet<>();
         for (ShardRouting shard : shardIt.asUnordered()) {
-            if (shard.currentNodeId() != masterNode.id()) {
+            if (!shard.currentNodeId().equals(masterNode.id())) {
                 set.add(shard.currentNodeId());
             }
         }
@@ -398,7 +396,7 @@ public class TransportBroadcastByNodeActionTests extends ESTestCase {
         Map<String, List<ShardRouting>> map = new HashMap<>();
         for (ShardRouting shard : shardIt.asUnordered()) {
             if (!map.containsKey(shard.currentNodeId())) {
-                map.put(shard.currentNodeId(), new ArrayList<ShardRouting>());
+                map.put(shard.currentNodeId(), new ArrayList<>());
             }
             map.get(shard.currentNodeId()).add(shard);
         }

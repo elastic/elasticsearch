@@ -20,15 +20,6 @@
 import com.bmuschko.gradle.nexus.NexusPlugin
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
-buildscript {
-  repositories {
-    mavenCentral()
-  }
-  dependencies {
-    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
-  }
-}
-
 // common maven publishing configuration
 subprojects {
   group = 'org.elasticsearch'
@@ -90,10 +81,6 @@ if (hasProperty('projectsPrefix') == false) {
 allprojects {
   // injecting groovy property variables into all projects
   project.ext {
-    // minimum java 8
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = sourceCompatibility
-
     // for eclipse hacks...
     isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
   }
@@ -114,8 +101,6 @@ subprojects {
   configurations {
     all {
       resolutionStrategy {
-        failOnVersionConflict()
-
         dependencySubstitution {
           substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
           substitute module("org.elasticsearch:elasticsearch:${version}") with project("${projectsPrefix}:core")
@@ -136,9 +121,12 @@ allprojects {
 if (projectsPrefix.isEmpty()) {
   idea {
     project {
-      languageLevel = sourceCompatibility
+      languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava
       vcs = 'Git'
     }
+  }
+  tasks.cleanIdea {
+    delete '.idea'
   }
 }
 
@@ -158,19 +146,17 @@ allprojects {
       }
     }
   }
-  task cleanEclipseSettings(type: Delete) {
-    delete '.settings'
-  }
   task copyEclipseSettings(type: Copy) {
     // TODO: "package this up" for external builds
     from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
     into '.settings'
   }
   // otherwise .settings is not nuked entirely
-  tasks.cleanEclipse.dependsOn(cleanEclipseSettings)
+  tasks.cleanEclipse {
+    delete '.settings'
+  }
   // otherwise the eclipse merging is *super confusing*
-  tasks.eclipse.dependsOn(cleanEclipse)
-  tasks.eclipse.dependsOn(copyEclipseSettings)
+  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
 // add buildSrc itself as a groovy project
@@ -179,6 +165,11 @@ task buildSrcEclipse(type: GradleBuild) {
   tasks = ['cleanEclipse', 'eclipse']
 }
 tasks.eclipse.dependsOn(buildSrcEclipse)
+
+task clean(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['clean']
+}
 
 task run(dependsOn: ':distribution:run')
 

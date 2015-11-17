@@ -24,6 +24,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.Version;
@@ -232,6 +233,20 @@ public abstract class StreamInput extends InputStream {
         b = readByte();
         assert (b & 0x80) == 0;
         return i | ((b & 0x7FL) << 56);
+    }
+
+    public long readZLong() throws IOException {
+        long accumulator = 0L;
+        int i = 0;
+        long currentByte;
+        while (((currentByte = readByte()) & 0x80L) != 0) {
+            accumulator |= (currentByte & 0x7F) << i;
+            i += 7;
+            if (i > 63) {
+                throw new IOException("variable-length stream is too long");
+            }
+        }
+        return BitUtil.zigZagDecode(accumulator | (currentByte << i));
     }
 
     @Nullable

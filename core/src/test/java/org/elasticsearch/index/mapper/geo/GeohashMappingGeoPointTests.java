@@ -59,8 +59,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), nullValue());
         assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
@@ -84,8 +83,7 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
 
         assertThat(doc.rootDoc().getField("point.lat"), nullValue());
         assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        // norelease update to .before(Version.V_2_2_0 once GeoPointFieldV2 is fully merged
-        if (version.onOrBefore(Version.CURRENT)) {
+        if (version.before(Version.V_2_2_0)) {
             assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
         } else {
             assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(1.3, 1.2)));

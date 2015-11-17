@@ -25,7 +25,6 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
 
 import java.util.ArrayList;
@@ -182,7 +181,32 @@ public final class IndexSettings {
      * Returns <code>true</code> if the index has a custom data path
      */
     public boolean hasCustomDataPath() {
-        return NodeEnvironment.hasCustomDataPath(settings);
+        return customDataPath() != null;
+    }
+
+    /**
+     * Returns the customDataPath for this index, if configured. <code>null</code> o.w.
+     */
+    public String customDataPath() {
+        return settings.get(IndexMetaData.SETTING_DATA_PATH);
+    }
+
+    /**
+     * Returns <code>true</code> iff the given settings indicate that the index
+     * associated with these settings allocates it's shards on a shared
+     * filesystem.
+     */
+    public boolean isOnSharedFilesystem() {
+        return IndexMetaData.isOnSharedFilesystem(getSettings());
+    }
+
+    /**
+     * Returns <code>true</code> iff the given settings indicate that the index associated
+     * with these settings uses shadow replicas. Otherwise <code>false</code>. The default
+     * setting for this is <code>false</code>.
+     */
+    public boolean isIndexUsingShadowReplicas() {
+        return IndexMetaData.isOnSharedFilesystem(getSettings());
     }
 
     /**

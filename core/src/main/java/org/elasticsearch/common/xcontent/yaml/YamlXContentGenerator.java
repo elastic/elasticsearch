@@ -19,10 +19,10 @@
 
 package org.elasticsearch.common.xcontent.yaml;
 
+import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLParser;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentType;
-import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
 import org.elasticsearch.common.xcontent.json.JsonXContentGenerator;
 
 import java.io.IOException;
@@ -34,8 +34,8 @@ import java.io.OutputStream;
  */
 public class YamlXContentGenerator extends JsonXContentGenerator {
 
-    public YamlXContentGenerator(BaseJsonGenerator generator) {
-        super(generator);
+    public YamlXContentGenerator(JsonGenerator jsonGenerator, String... filters) {
+        super(jsonGenerator, filters);
     }
 
     @Override
@@ -49,7 +49,7 @@ public class YamlXContentGenerator extends JsonXContentGenerator {
     }
 
     @Override
-    public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
+    public void writeRawField(String fieldName, InputStream content, OutputStream bos, XContentType contentType) throws IOException {
         writeFieldName(fieldName);
         try (YAMLParser parser = YamlXContent.yamlFactory.createParser(content)) {
             parser.nextToken();

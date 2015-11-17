@@ -25,6 +25,7 @@ import org.apache.lucene.index.RandomAccessOrds;
 import org.apache.lucene.index.Terms;
 import org.apache.lucene.util.BitSet;
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.util.BigArrays;
@@ -54,8 +55,9 @@ public class GeoPointArrayIndexFieldData extends AbstractIndexGeoPointFieldData 
         public IndexFieldData<?> build(IndexSettings indexSettings, MappedFieldType fieldType, IndexFieldDataCache cache,
                                        CircuitBreakerService breakerService, MapperService mapperService) {
             return new GeoPointArrayIndexFieldData(indexSettings, fieldType.names(), fieldType.fieldDataType(), cache,
-                    // norelease change to .before(Version.V_2_2_0) once GeoPointFieldV2 is completely merged
-                    breakerService, indexSettings.getIndexVersionCreated().onOrBefore(Version.CURRENT));
+                    breakerService, fieldType.fieldDataType().getSettings()
+                    .getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).before(Version.V_2_2_0) ||
+                    indexSettings.getIndexVersionCreated().before(Version.V_2_2_0));
         }
     }
 

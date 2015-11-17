@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 
+import java.net.SocketPermission;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
@@ -40,12 +41,18 @@ final class ESPolicy extends Policy {
     
     final Policy template;
     final Policy untrusted;
+    final Policy system;
     final PermissionCollection dynamic;
     final Map<String,Policy> plugins;
 
-    public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins) {
+    public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), JarHell.parseClassPath());
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), new URL[0]);
+        if (filterBadDefaults) {
+            this.system = new SystemPolicy(Policy.getPolicy());
+        } else {
+            this.system = Policy.getPolicy();
+        }
         this.dynamic = dynamic;
         this.plugins = plugins;
     }
@@ -75,7 +82,7 @@ final class ESPolicy extends Policy {
         }
 
         // otherwise defer to template + dynamic file permissions
-        return template.implies(domain, permission) || dynamic.implies(permission);
+        return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
     }
 
     @Override
@@ -91,5 +98,40 @@ final class ESPolicy extends Policy {
         }
         // return UNSUPPORTED_EMPTY_COLLECTION since it is safe.
         return super.getPermissions(codesource);
+    }
+
+    // TODO: remove this hack when insecure defaults are removed from java
+
+    // default policy file states:
+    // "It is strongly recommended that you either remove this permission
+    //  from this policy file or further restrict it to code sources
+    //  that you specify, because Thread.stop() is potentially unsafe."
+    // not even sure this method still works...
+    static final Permission BAD_DEFAULT_NUMBER_ONE = new RuntimePermission("stopThread");
+
+    // default policy file states:
+    // "allows anyone to listen on dynamic ports"
+    // specified exactly because that is what we want, and fastest since it won't imply any
+    // expensive checks for the implicit "resolve"
+    static final Permission BAD_DEFAULT_NUMBER_TWO = new SocketPermission("localhost:0", "listen");
+
+    /**
+     * Wraps the Java system policy, filtering out bad default permissions that
+     * are granted to all domains. Note, before java 8 these were even worse.
+     */
+    static class SystemPolicy extends Policy {
+        final Policy delegate;
+
+        SystemPolicy(Policy delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public boolean implies(ProtectionDomain domain, Permission permission) {
+            if (BAD_DEFAULT_NUMBER_ONE.equals(permission) || BAD_DEFAULT_NUMBER_TWO.equals(permission)) {
+                return false;
+            }
+            return delegate.implies(domain, permission);
+        }
     }
 }

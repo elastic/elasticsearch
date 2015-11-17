@@ -28,8 +28,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESTokenStreamTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 
-import java.util.Collections;
-
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.containsString;
 
@@ -42,7 +40,7 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .build();
 
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings, Collections.emptyList());
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("index"), settings);
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
 
         NamedAnalyzer analyzer1 = analysisService.analyzer("single");
@@ -60,7 +58,7 @@ public class PatternCaptureTokenFilterTests extends ESTokenStreamTestCase {
 
     public void testNoPatterns() {
         try {
-            new PatternCaptureGroupTokenFilterFactory(IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY, Collections.EMPTY_LIST), null, "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
+            new PatternCaptureGroupTokenFilterFactory(IndexSettingsModule.newIndexSettings(new Index("test"), Settings.EMPTY), null, "pattern_capture", settingsBuilder().put("pattern", "foobar").build());
             fail ("Expected IllegalArgumentException");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), containsString("required setting 'patterns' is missing"));

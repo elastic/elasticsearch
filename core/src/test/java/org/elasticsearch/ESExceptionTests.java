@@ -336,12 +336,7 @@ public class ESExceptionTests extends ESTestCase {
             } else {
                 assertEquals(e.getCause().getClass(), NotSerializableExceptionWrapper.class);
             }
-            // TODO: fix this test
-            // on java 9, expected:<sun.reflect.NativeMethodAccessorImpl.invoke0(Native Method)>
-            //            but was:<sun.reflect.NativeMethodAccessorImpl.invoke0(java.base@9.0/Native Method)>
-            if (!Constants.JRE_IS_MINIMUM_JAVA9) {
-                assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
-            }
+            assertArrayEquals(e.getStackTrace(), ex.getStackTrace());
             assertTrue(e.getStackTrace().length > 1);
             ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), t);
             ElasticsearchAssertions.assertVersionSerializable(VersionUtils.randomVersion(getRandom()), ex);

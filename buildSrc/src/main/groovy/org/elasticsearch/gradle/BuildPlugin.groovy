@@ -240,6 +240,10 @@ class BuildPlugin implements Plugin<Project> {
                         'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC))
+                if (jarTask.manifest.attributes.containsKey('Change') == false) {
+                    logger.warn('Building without git revision id.')
+                    jarTask.manifest.attributes('Change': 'N/A')
+                }
             }
         }
     }

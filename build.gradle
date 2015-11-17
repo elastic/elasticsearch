@@ -171,5 +171,9 @@ task clean(type: GradleBuild) {
   tasks = ['clean']
 }
 
-task run(dependsOn: ':distribution:run')
+task run() {
+  dependsOn ':distribution:run'
+  description = 'Runs elasticsearch in the foreground'
+  group = 'Verification'
+}
 

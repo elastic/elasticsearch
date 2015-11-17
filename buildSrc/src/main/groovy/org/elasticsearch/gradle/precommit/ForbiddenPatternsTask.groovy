@@ -21,6 +21,7 @@ package org.elasticsearch.gradle.precommit
 import org.gradle.api.DefaultTask
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.InputFiles
+import org.gradle.api.tasks.OutputFile
 import org.gradle.api.tasks.OutputFiles
 import org.gradle.api.tasks.SourceSet
 import org.gradle.api.tasks.TaskAction
@@ -35,6 +36,9 @@ import java.util.regex.Pattern
 class ForbiddenPatternsTask extends DefaultTask {
     Map<String,String> patterns = new LinkedHashMap<>()
     PatternFilterable filesFilter = new PatternSet()
+
+    @OutputFile
+    File outputMarker = new File(project.buildDir, "markers/forbiddenPatterns")
 
     ForbiddenPatternsTask() {
         // we always include all source files, and exclude what should not be checked
@@ -94,6 +98,7 @@ class ForbiddenPatternsTask extends DefaultTask {
         if (failures.isEmpty() == false) {
             throw new IllegalArgumentException('Found invalid patterns:\n' + failures.join('\n'))
         }
+        outputMarker.setText('done', 'UTF-8')
     }
 
     // iterate through patterns to find the right ones for nice error messages

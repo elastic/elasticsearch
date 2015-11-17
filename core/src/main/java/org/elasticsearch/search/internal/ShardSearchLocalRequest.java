@@ -180,7 +180,7 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
         types = in.readStringArray();
         filteringAliases = in.readStringArray();
         nowInMillis = in.readVLong();
-        template = in.readOptionalStreamable(new Template());
+        template = in.readOptionalStreamable(Template::new);
         requestCache = in.readOptionalBoolean();
     }
 

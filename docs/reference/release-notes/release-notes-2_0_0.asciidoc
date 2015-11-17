@@ -1,0 +1,143 @@
+[[release-notes-2_0_0]]
+== 2.0.0 Release Notes
+
+[float]
+=== Breaking Changes
+
+For the complete list of breaking changes, see <<breaking-changes-2.0, Breaking Changes in 2.0>>.
+
+[float]
+=== Deprecations
+
+Mapping:
+
+* Deprecate index.analysis.analyzer.default_index in favor of index.analysis.analyzer.default. {pr}/14027[#14027] (issue: {issue}/11861[#11861])
+
+[float]
+=== Enhancements
+
+Core:
+
+* Make PerThreadIDAndVersionLookup per-segment {pr}/14070[#14070]
+
+Internal:
+
+* TransportNodesAction shouldn't hold on to cluster state {pr}/13948[#13948]
+
+Packaging:
+
+* Packaging: change permissions/ownership of config dir {pr}/14017[#14017] (issue: {issue}/11016[#11016])
+* Release: Fix package repo path to only consist of major version {pr}/13971[#13971] (issue: {issue}/12493[#12493])
+
+Plugin Cloud GCE:
+* Add _gce_ network host setting {pr}/13612[#13612] (issues: {issue}/13590[#13590], {issue}/13605[#13605])
+
+Plugins:
+
+* Check "plugin already installed" before jar hell check. {pr}/14207[#14207] (issue: {issue}/14205[#14205])
+* Plugin script to set proper plugin bin dir attributes {pr}/14088[#14088] (issue: {issue}/11016[#11016])
+* Plugin script to set proper plugin config dir attributes {pr}/14048[#14048] (issue: {issue}/11016[#11016])
+
+[float]
+=== Bug Fixes
+
+CRUD:
+
+* Send response for update request when it timed out {pr}/13101[#13101]
+
+Engine:
+
+* Never wrap searcher for internal engine operations {pr}/14071[#14071]
+Fielddata:
+* Add GeoPoint in StreamInput/StreamOutput {pr}/13632[#13632] (issue: {issue}/13340[#13340])
+
+Internal:
+
+* Properly bind ClassSet extensions as singletons {pr}/14232[#14232] (issue: {issue}/14194[#14194])
+* Streamline top level reader close listeners and forbid general usage {pr}/14084[#14084]
+
+Logging:
+
+* Settings in log config file should not overwrite custom parameters {pr}/13934[#13934]
+* Plugin cli tool should not create empty log files {pr}/13933[#13933]
+
+Mapping:
+
+* Enforce metadata fields are not passed in documents {pr}/14003[#14003] (issues: {issue}/11074[#11074], {issue}/13740[#13740])
+Plugin Cloud AWS:
+* Discovery-ec2 plugin should check discovery.type {pr}/13814[#13814] (issues: {issue}/13581[#13581], {issue}/13809[#13809])
+
+Plugins:
+
+* Parse Java system properties in plugin.bat {pr}/13989[#13989] (issue: {issue}/13616[#13616])
+* PluginManager: Dont leave leftover files on unsuccessful installs #12851 (issue: {issue}/12749[#12749])
+
+REST:
+
+* Restore support for escaped '/' as part of document {pr}/14216[#14216] (issues: {issue}/13665[#13665], {issue}/13691[#13691], {issue}/14177[#14177])
+* Add missing REST spec for detect_noop {pr}/14004[#14004]
+* Expose nodes operation timeout in REST API {pr}/13981[#13981]
+* Ensure XContent is consistent across platforms {pr}/13816[#13816]
+
+Shadow Replicas:
+
+* Don't pull translog from shadow engine {pr}/14000[#14000] (issue: {issue}/12730[#12730])
+Snapshot/Restore:
+* Snapshot restore operations throttle more than specified {pr}/13828[#13828] (issue: {issue}/6018[#6018])
+
+[float]
+=== Upgrades
+
+Network:
+
+* Upgrade Netty to 3.10.5.final {pr}/14105[#14105]
+
+[float]
+=== Build
+
+Packaging:
+
+* Make license checks a bit less lenient. {pr}/14020[#14020] (issue: {issue}/13703[#13703])
+
+Plugins:
+
+* Testing and packaging changes for 2.0 (issue: {issue}/12768[#12768])
+
+Not Classified:
+
+* Allow tests to run from eclipse on windows {pr}/14064[#14064]
+* RPM build is broken and should be better tested (issue: {issue}/13138[#13138])
+
+[float]
+=== Tests
+
+Packaging:
+
+* Test that Jayatana is ignored {pr}/13821[#13821] (issue: {issue}/13813[#13813])
+
+REST:
+
+* [test] remove index= from catch: /regex/ in date math tests {pr}/13950[#13950]
+
+[float]
+=== Docs
+
+* Terminate_after is not experimental anymore {pr}/14183[#14183]
+* Changed ben to been {pr}/14066[#14066]
+* Document ES_CLASSPATH removal in breaking changes {pr}/14026[#14026] (issue: {issue}/14008[#14008])
+* Rewrite native script documentation {pr}/13996[#13996] (issue: {issue}/13811[#13811])
+* Update repository docs with new major version structure {pr}/13992[#13992]
+* Add a note about shard failure in the api {pr}/13977[#13977] (issue: {issue}/13674[#13674])
+* Add paragraph about removal of conf file option {pr}/13973[#13973]
+* Add "Best Practices" section to the cloud-aws docs [OPEN] {pr}/14212[#14212]
+* Enhance plugin-descriptor.properties guide {pr}/13927[#13927]
+* network.host must be set for discovery-ec2 plugin {pr}/13602[#13602] (issue: {issue}/13589[#13589])
+
+[float]
+=== Not Classified
+
+* Remove unused clear(IndexReader) method from IndexFieldData {pr}/14072[#14072]
+* Move render search template methods to cluster admin client {pr}/14030[#14030] (issue: {issue}/13971[#13971])
+* Rename the RenderSearchTemplateAction to be a cluster level action {pr}/13791[#13791]
+* Test Failure: SearchQueryIT.testIssue3177 - forced merged attempted on closed index (issue: {issue}/13266[#13266])
+* Roadmap for 2.0 (issue: {issue}/9970[#9970])

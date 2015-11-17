@@ -1,0 +1,11 @@
+[[es-release-notes]]
+= Release Notes
+
+[partintro]
+--
+This section summarizes the changes in each release.
+
+* <<release-notes-2_0_0>>
+
+--
+include::release-notes/2_0_0-release-notes.asciidoc[]

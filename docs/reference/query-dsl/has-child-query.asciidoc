@@ -9,7 +9,7 @@ an example:
 --------------------------------------------------
 {
     "has_child" : {
-        "type" : "blog_tag",
+        "child_type" : "blog_tag",
         "query" : {
             "term" : {
                 "tag" : "something"
@@ -34,8 +34,8 @@ inside the `has_child` query:
 --------------------------------------------------
 {
     "has_child" : {
-        "type" : "blog_tag",
-        "score_mode" : "sum",
+        "child_type" : "blog_tag",
+        "score_mode" : "min",
         "query" : {
             "term" : {
                 "tag" : "something"
@@ -56,8 +56,8 @@ a match:
 --------------------------------------------------
 {
     "has_child" : {
-        "type" : "blog_tag",
-        "score_mode" : "sum",
+        "child_type" : "blog_tag",
+        "score_mode" : "min",
         "min_children": 2, <1>
         "max_children": 10, <1>
         "query" : {

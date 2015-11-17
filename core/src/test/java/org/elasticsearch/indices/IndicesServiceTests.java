@@ -33,7 +33,6 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
-import java.io.IOException;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -132,7 +131,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         ensureGreen("test");
     }
 
-    public void testPendingTasks() throws IOException {
+    public void testPendingTasks() throws Exception {
         IndicesService indicesService = getIndicesService();
         IndexService test = createIndex("test");
 

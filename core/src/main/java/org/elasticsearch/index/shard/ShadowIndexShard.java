@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.index.shard;
 
-import java.io.IOException;
-
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.index.IndexSettings;
@@ -31,9 +29,12 @@ import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.TranslogStats;
+
+import java.io.IOException;
 
 /**
  * ShadowIndexShard extends {@link IndexShard} to add file synchronization
@@ -65,6 +66,11 @@ public final class ShadowIndexShard extends IndexShard {
     @Override
     public MergeStats mergeStats() {
         return new MergeStats();
+    }
+
+    @Override
+    public SeqNoStats seqNoStats() {
+        return null;
     }
 
     @Override

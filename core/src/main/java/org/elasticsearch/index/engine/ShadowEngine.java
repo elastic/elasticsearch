@@ -30,6 +30,7 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
@@ -230,5 +231,10 @@ public class ShadowEngine extends Engine {
     public long indexWriterRAMBytesUsed() {
         // No IndexWriter
         throw new UnsupportedOperationException("ShadowEngine has no IndexWriter");
+    }
+
+    @Override
+    public SeqNoStats seqNoStats() {
+        throw new UnsupportedOperationException("ShadowEngine doesn't track sequence numbers");
     }
 }

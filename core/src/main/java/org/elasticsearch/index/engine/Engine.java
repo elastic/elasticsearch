@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -324,6 +325,9 @@ public abstract class Engine implements Closeable {
     public CommitStats commitStats() {
         return new CommitStats(getLastCommittedSegmentInfos());
     }
+
+    /** get sequence number related stats */
+    public abstract SeqNoStats seqNoStats();
 
     /**
      * Read the last segments info from the commit pointed to by the searcher manager

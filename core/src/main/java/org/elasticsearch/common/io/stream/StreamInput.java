@@ -40,19 +40,9 @@ import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
-import java.io.ByteArrayInputStream;
-import java.io.EOFException;
-import java.io.FileNotFoundException;
-import java.io.FilterInputStream;
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.file.NoSuchFileException;
-import java.util.ArrayList;
-import java.util.Date;
-import java.util.HashMap;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.ElasticsearchException.readException;
@@ -538,6 +528,17 @@ public abstract class StreamInput extends InputStream {
             T streamable = supplier.get();
             streamable.readFrom(this);
             return streamable;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Serializes a potential null value.
+     */
+    public <T extends StreamableReader<T>> T readOptionalStreamable(StreamableReader<T> streamableReader) throws IOException {
+        if (readBoolean()) {
+            return streamableReader.readFrom(this);
         } else {
             return null;
         }

@@ -92,7 +92,7 @@ public class PointBuilder extends ShapeBuilder {
     }
 
     @Override
-    public ShapeBuilder readFrom(StreamInput in) throws IOException {
+    public PointBuilder readFrom(StreamInput in) throws IOException {
         return new PointBuilder().coordinate(readCoordinateFrom(in));
     }
 }

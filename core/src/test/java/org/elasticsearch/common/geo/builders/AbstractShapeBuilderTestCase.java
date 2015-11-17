@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -34,36 +35,47 @@ import static org.hamcrest.Matchers.*;
 public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> extends ESTestCase {
 
     private static final int NUMBER_OF_TESTBUILDERS = 20;
-    private static final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry();
+    private static NamedWriteableRegistry namedWriteableRegistry;
 
     /**
-     * Setup for the whole base test class.
+     * setup for the whole base test class
      */
     @BeforeClass
     public static void init() {
-        namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PointBuilder.PROTOTYPE);
-        namedWriteableRegistry.registerPrototype(ShapeBuilder.class, CircleBuilder.PROTOTYPE);
+        if (namedWriteableRegistry == null) {
+            namedWriteableRegistry = new NamedWriteableRegistry();
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PointBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, CircleBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, EnvelopeBuilder.PROTOTYPE);
+        }
+    }
+
+    @AfterClass
+    public static void afterClass() throws Exception {
+        namedWriteableRegistry = null;
     }
 
     /**
-     * Create the shape that under test
+     * create random shape that is put under test
      */
     protected abstract SB createTestShapeBuilder();
 
     /**
-     * mutate the given query so the returned query is different
+     * mutate the given shape so the returned shape is different
      */
     protected abstract SB mutate(SB original) throws IOException;
 
     /**
-     * Generic test that creates new shape from a random test shape and checks both for equality
+     * Test that creates new shape from a random test shape and checks both for equality
      */
     public void testFromXContent() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB testShape = createTestShapeBuilder();
-            XContentBuilder builder = toXContent(testShape, randomFrom(XContentType.values()));
-            builder = toXContent(testShape, randomFrom(XContentType.values()));
-
+            XContentBuilder contentBuilder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
+            if (randomBoolean()) {
+                contentBuilder.prettyPrint();
+            }
+            XContentBuilder builder = testShape.toXContent(contentBuilder, ToXContent.EMPTY_PARAMS);
             XContentParser shapeParser = XContentHelper.createParser(builder.bytes());
             XContentHelper.createParser(builder.bytes());
             shapeParser.nextToken();
@@ -72,14 +84,6 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
             assertEquals(testShape, parsedShape);
             assertEquals(testShape.hashCode(), parsedShape.hashCode());
         }
-    }
-
-    protected static XContentBuilder toXContent(ShapeBuilder shape, XContentType contentType) throws IOException {
-        XContentBuilder builder = XContentFactory.contentBuilder(contentType);
-        if (randomBoolean()) {
-            builder.prettyPrint();
-        }
-        return shape.toXContent(builder, ToXContent.EMPTY_PARAMS);
     }
 
     /**
@@ -95,6 +99,9 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
         }
     }
 
+    /**
+     * Test equality and hashCode properties
+     */
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB firstShape = createTestShapeBuilder();

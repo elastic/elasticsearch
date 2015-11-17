@@ -171,7 +171,9 @@ public class CircleBuilder extends ShapeBuilder {
     }
 
     @Override
-    public ShapeBuilder readFrom(StreamInput in) throws IOException {
-        return new CircleBuilder().center(readCoordinateFrom(in)).radius(in.readDouble(), DistanceUnit.readDistanceUnit(in));
+    public CircleBuilder readFrom(StreamInput in) throws IOException {
+        return new CircleBuilder()
+                    .center(readCoordinateFrom(in))
+                    .radius(in.readDouble(), DistanceUnit.readDistanceUnit(in));
     }
 }

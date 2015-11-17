@@ -101,10 +101,21 @@ public final class Data {
         Map<String, Object> inner = document;
 
         for (int i = 0; i < pathElements.length - 1; i++) {
-            if (!inner.containsKey(pathElements[i])) {
-                inner.put(pathElements[i], new HashMap<String, Object>());
+            String pathElement = pathElements[i];
+            if (inner.containsKey(pathElement)) {
+                Object object = inner.get(pathElement);
+                if (object instanceof Map) {
+                    @SuppressWarnings("unchecked")
+                    Map<String, Object> stringObjectMap = (Map<String, Object>) object;
+                    inner = stringObjectMap;
+                } else {
+                    throw new IllegalArgumentException("cannot add field to parent [" + pathElement + "] of type [" + object.getClass().getName() + "], [" + Map.class.getName() + "] expected instead.");
+                }
+            } else {
+                Map<String, Object> newInnerMap = new HashMap<>();
+                inner.put(pathElement, newInnerMap);
+                inner = newInnerMap;
             }
-            inner = (Map<String, Object>) inner.get(pathElements[i]);
         }
 
         inner.put(writeKey, value);

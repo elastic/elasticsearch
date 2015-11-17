@@ -26,9 +26,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class DataTests extends ESTestCase {
 
@@ -53,7 +51,6 @@ public class DataTests extends ESTestCase {
     }
 
     public void testGetPropertyNotFound() {
-        data.getProperty("not.here");
         assertThat(data.getProperty("not.here"), nullValue());
     }
 
@@ -61,15 +58,15 @@ public class DataTests extends ESTestCase {
         assertTrue(data.containsProperty("fizz"));
     }
 
-    public void testContainsProperty_Nested() {
+    public void testContainsPropertyNested() {
         assertTrue(data.containsProperty("fizz.buzz"));
     }
 
-    public void testContainsProperty_NotFound() {
+    public void testContainsPropertyNotFound() {
         assertFalse(data.containsProperty("doesnotexist"));
     }
 
-    public void testContainsProperty_NestedNotFound() {
+    public void testContainsPropertyNestedNotFound() {
         assertFalse(data.containsProperty("fizz.doesnotexist"));
     }
 
@@ -78,19 +75,41 @@ public class DataTests extends ESTestCase {
         assertThat(data.getDocument().get("new_field"), equalTo("foo"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testNestedAddField() {
         data.addField("a.b.c.d", "foo");
-        assertThat(data.getProperty("a.b.c.d"), equalTo("foo"));
+        assertThat(data.getDocument().get("a"), instanceOf(Map.class));
+        Map<String, Object> a = (Map<String, Object>) data.getDocument().get("a");
+        assertThat(a.get("b"), instanceOf(Map.class));
+        Map<String, Object> b = (Map<String, Object>) a.get("b");
+        assertThat(b.get("c"), instanceOf(Map.class));
+        Map<String, Object> c = (Map<String, Object>) b.get("c");
+        assertThat(c.get("d"), instanceOf(String.class));
+        String d = (String) c.get("d");
+        assertThat(d, equalTo("foo"));
     }
 
     public void testAddFieldOnExistingField() {
         data.addField("foo", "newbar");
-        assertThat(data.getProperty("foo"), equalTo("newbar"));
+        assertThat(data.getDocument().get("foo"), equalTo("newbar"));
     }
 
+    @SuppressWarnings("unchecked")
     public void testAddFieldOnExistingParent() {
         data.addField("fizz.new", "bar");
-        assertThat(data.getProperty("fizz.new"), equalTo("bar"));
+        assertThat(data.getDocument().get("fizz"), instanceOf(Map.class));
+        Map<String, Object> innerMap = (Map<String, Object>) data.getDocument().get("fizz");
+        assertThat(innerMap.get("new"), instanceOf(String.class));
+        String value = (String) innerMap.get("new");
+        assertThat(value, equalTo("bar"));
+    }
+
+    public void testAddFieldOnExistingParentTypeMismatch() {
+        try {
+            data.addField("fizz.buzz.new", "bar");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("cannot add field to parent [buzz] of type [java.lang.String], [java.util.Map] expected instead."));
+        }
     }
 
     public void testEqualsAndHashcode() throws Exception {

@@ -29,7 +29,8 @@ public enum ShapeRelation {
 
     INTERSECTS("intersects"),
     DISJOINT("disjoint"),
-    WITHIN("within");
+    WITHIN("within"),
+    CONTAINS("contains");
 
     private final String relationName;
 

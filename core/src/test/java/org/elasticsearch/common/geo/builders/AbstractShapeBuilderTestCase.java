@@ -44,9 +44,10 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     public static void init() {
         if (namedWriteableRegistry == null) {
             namedWriteableRegistry = new NamedWriteableRegistry();
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PointBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, CircleBuilder.PROTOTYPE);
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, EnvelopeBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, new PointBuilder());
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, new CircleBuilder());
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, new EnvelopeBuilder());
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, new MultiPointBuilder());
         }
     }
 

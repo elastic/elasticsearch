@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
@@ -96,7 +97,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
                         .endObject()
                         .endObject()));
 
-        ShapeBuilder shape = ShapeBuilder.newEnvelope().topLeft(-45, 45).bottomRight(45, -45);
+        ShapeBuilder shape = ShapeBuilders.newEnvelope().topLeft(-45, 45).bottomRight(45, -45);
 
         SearchResponse searchResponse = client().prepareSearch()
                 .setQuery(geoIntersectionQuery("location", shape))
@@ -141,7 +142,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
                 .endObject()));
 
 
-        ShapeBuilder query = ShapeBuilder.newEnvelope().topLeft(-122.88, 48.62).bottomRight(-122.82, 48.54);
+        ShapeBuilder query = ShapeBuilders.newEnvelope().topLeft(-122.88, 48.62).bottomRight(-122.82, 48.54);
 
         // This search would fail if both geoshape indexing and geoshape filtering
         // used the bottom-level optimization in SpatialPrefixTree#recursiveGetNodes.
@@ -166,7 +167,7 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         createIndex("shapes");
         ensureGreen();
 
-        ShapeBuilder shape = ShapeBuilder.newEnvelope().topLeft(-45, 45).bottomRight(45, -45);
+        ShapeBuilder shape = ShapeBuilders.newEnvelope().topLeft(-45, 45).bottomRight(45, -45);
 
         indexRandom(true,
             client().prepareIndex("shapes", "shape_type", "Big_Rectangle").setSource(jsonBuilder().startObject()
@@ -199,13 +200,13 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
     }
 
     public void testReusableBuilder() throws IOException {
-        ShapeBuilder polygon = ShapeBuilder.newPolygon()
+        ShapeBuilder polygon = ShapeBuilders.newPolygon()
                 .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
                 .hole().point(175, -5).point(185, -5).point(185, 5).point(175, 5).close()
                 .close();
         assertUnmodified(polygon);
 
-        ShapeBuilder linestring = ShapeBuilder.newLineString()
+        ShapeBuilder linestring = ShapeBuilders.newLineString()
                 .point(170, -10).point(190, -10).point(190, 10).point(170, 10);
         assertUnmodified(linestring);
     }
@@ -355,9 +356,9 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
 
         GeoShapeQueryBuilder filter = QueryBuilders.geoShapeQuery(
                 "location",
-                ShapeBuilder.newGeometryCollection()
+                ShapeBuilders.newGeometryCollection()
                         .polygon(
-                                ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0)
+                                ShapeBuilders.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0)
                                         .point(99.0, -1.0))).relation(ShapeRelation.INTERSECTS);
         SearchResponse result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
@@ -365,17 +366,17 @@ public class GeoShapeIntegrationIT extends ESIntegTestCase {
         assertHitCount(result, 1);
         filter = QueryBuilders.geoShapeQuery(
                 "location",
-                ShapeBuilder.newGeometryCollection().polygon(
-                        ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0)
+                ShapeBuilders.newGeometryCollection().polygon(
+                        ShapeBuilders.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0)
                                 .point(199.0, -11.0))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();
         assertSearchResponse(result);
         assertHitCount(result, 0);
-        filter = QueryBuilders.geoShapeQuery("location", ShapeBuilder.newGeometryCollection()
-                .polygon(ShapeBuilder.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0))
+        filter = QueryBuilders.geoShapeQuery("location", ShapeBuilders.newGeometryCollection()
+                .polygon(ShapeBuilders.newPolygon().point(99.0, -1.0).point(99.0, 3.0).point(103.0, 3.0).point(103.0, -1.0).point(99.0, -1.0))
                         .polygon(
-                                ShapeBuilder.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0)
+                                ShapeBuilders.newPolygon().point(199.0, -11.0).point(199.0, 13.0).point(193.0, 13.0).point(193.0, -11.0)
                                         .point(199.0, -11.0))).relation(ShapeRelation.INTERSECTS);
         result = client().prepareSearch("test").setQuery(QueryBuilders.matchAllQuery())
                 .setPostFilter(filter).get();

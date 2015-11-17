@@ -13,12 +13,14 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.termvectors.MultiTermVectorsResponse;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.children.Children;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -67,6 +69,14 @@ public class DocumentLevelSecurityTests extends ShieldIntegTestCase {
                 "    '*':\n" +
                 "      privileges: ALL\n" +
                 "      query: '{\"term\" : {\"field2\" : \"value2\"}}'"; // <-- query defined as json in a string
+    }
+
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true)
+                .build();
     }
 
     public void testSimpleQuery() throws Exception {

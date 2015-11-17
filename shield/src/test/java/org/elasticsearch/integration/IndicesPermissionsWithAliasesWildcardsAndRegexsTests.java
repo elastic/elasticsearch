@@ -7,6 +7,8 @@ package org.elasticsearch.integration;
 
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -34,6 +36,7 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Shield
         return super.configUsersRoles() +
                 "role1:user1\n";
     }
+
     @Override
     protected String configRoles() {
         return super.configRoles() +
@@ -49,6 +52,14 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Shield
                 "     '/an_.*/':\n" +
                 "        privileges: ALL\n" +
                 "        fields: field3\n";
+    }
+
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true)
+                .build();
     }
 
     public void testResolveWildcardsRegexs() throws Exception {

@@ -7,6 +7,7 @@ package org.elasticsearch.shield.authz.store;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.audit.logfile.CapturingLogger;
 import org.elasticsearch.shield.authc.support.RefreshListener;
 import org.elasticsearch.shield.authz.Permission;
@@ -29,6 +30,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singleton;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -46,9 +48,10 @@ import static org.hamcrest.Matchers.startsWith;
 public class FileRolesStoreTests extends ESTestCase {
     public void testParseFile() throws Exception {
         Path path = getDataPath("roles.yml");
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(),
+                logger, Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true).build());
         assertThat(roles, notNullValue());
-        assertThat(roles.size(), is(7));
+        assertThat(roles.size(), is(10));
 
         Permission.Global.Role role = roles.get("role1");
         assertThat(role, notNullValue());
@@ -140,6 +143,80 @@ public class FileRolesStoreTests extends ESTestCase {
         assertThat(role.runAs().check("user1"), is(true));
         assertThat(role.runAs().check("user2"), is(true));
         assertThat(role.runAs().check("user" + randomIntBetween(3, 9)), is(false));
+
+        role = roles.get("role_fields");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role_fields"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.indices().groups(), notNullValue());
+        assertThat(role.indices().groups().length, is(1));
+
+        group = role.indices().groups()[0];
+        assertThat(group.indices(), notNullValue());
+        assertThat(group.indices().length, is(1));
+        assertThat(group.indices()[0], equalTo("field_idx"));
+        assertThat(group.privilege(), notNullValue());
+        assertThat(group.privilege().isAlias(Privilege.Index.READ), is(true));
+        assertThat(group.getFields(), contains("foo", "boo"));
+
+        role = roles.get("role_query");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role_query"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.indices().groups(), notNullValue());
+        assertThat(role.indices().groups().length, is(1));
+
+        group = role.indices().groups()[0];
+        assertThat(group.indices(), notNullValue());
+        assertThat(group.indices().length, is(1));
+        assertThat(group.indices()[0], equalTo("query_idx"));
+        assertThat(group.privilege(), notNullValue());
+        assertThat(group.privilege().isAlias(Privilege.Index.READ), is(true));
+        assertThat(group.getFields(), nullValue());
+        assertThat(group.getQuery(), notNullValue());
+
+        role = roles.get("role_query_fields");
+        assertThat(role, notNullValue());
+        assertThat(role.name(), equalTo("role_query_fields"));
+        assertThat(role.cluster(), notNullValue());
+        assertThat(role.cluster(), is(Permission.Cluster.Core.NONE));
+        assertThat(role.runAs(), is(Permission.RunAs.Core.NONE));
+        assertThat(role.indices(), notNullValue());
+        assertThat(role.indices().groups(), notNullValue());
+        assertThat(role.indices().groups().length, is(1));
+
+        group = role.indices().groups()[0];
+        assertThat(group.indices(), notNullValue());
+        assertThat(group.indices().length, is(1));
+        assertThat(group.indices()[0], equalTo("query_fields_idx"));
+        assertThat(group.privilege(), notNullValue());
+        assertThat(group.privilege().isAlias(Privilege.Index.READ), is(true));
+        assertThat(group.getFields(), contains("foo", "boo"));
+        assertThat(group.getQuery(), notNullValue());
+    }
+
+    public void testParseFileWithFLSAndDLSDisabled() throws Exception {
+        Path path = getDataPath("roles.yml");
+        CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(),
+                logger, randomBoolean() ? Settings.builder().put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, false).build() : Settings.EMPTY);
+        assertThat(roles, notNullValue());
+        assertThat(roles.size(), is(7));
+        assertThat(roles.get("role_fields"), nullValue());
+        assertThat(roles.get("role_query"), nullValue());
+        assertThat(roles.get("role_query_fields"), nullValue());
+
+        List<CapturingLogger.Msg> entries = logger.output(CapturingLogger.Level.ERROR);
+        assertThat(entries, hasSize(3));
+        assertThat(entries.get(0).text, startsWith("invalid role definition [role_fields] in roles file [" + path.toAbsolutePath() + "]. document and field level security is not enabled."));
+        assertThat(entries.get(1).text, startsWith("invalid role definition [role_query] in roles file [" + path.toAbsolutePath() + "]. document and field level security is not enabled."));
+        assertThat(entries.get(2).text, startsWith("invalid role definition [role_query_fields] in roles file [" + path.toAbsolutePath() + "]. document and field level security is not enabled."));
     }
 
     /**
@@ -147,7 +224,7 @@ public class FileRolesStoreTests extends ESTestCase {
      */
     public void testDefaultRolesFile() throws Exception {
         Path path = getDataPath("default_roles.yml");
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(8));
 
@@ -225,14 +302,14 @@ public class FileRolesStoreTests extends ESTestCase {
     public void testThatEmptyFileDoesNotResultInLoop() throws Exception {
         Path file = createTempFile();
         Files.write(file, Collections.singletonList("#"), StandardCharsets.UTF_8);
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, Collections.<Permission.Global.Role>emptySet(), logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(file, Collections.<Permission.Global.Role>emptySet(), logger, Settings.EMPTY);
         assertThat(roles.keySet(), is(empty()));
     }
 
     public void testThatInvalidRoleDefinitions() throws Exception {
         Path path = getDataPath("invalid_roles.yml");
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.ERROR);
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, Settings.EMPTY);
         assertThat(roles.size(), is(1));
         assertThat(roles, hasKey("valid_role"));
         Permission.Global.Role role = roles.get("valid_role");
@@ -268,7 +345,7 @@ public class FileRolesStoreTests extends ESTestCase {
         CapturingLogger logger = new CapturingLogger(CapturingLogger.Level.INFO);
 
         Path path = getDataPath("reserved_roles.yml");
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(2));
 
@@ -300,7 +377,7 @@ public class FileRolesStoreTests extends ESTestCase {
         Path path = createTempFile();
         Files.delete(path);
         assertThat(Files.exists(path), is(false));
-        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger);
+        Map<String, Permission.Global.Role> roles = FileRolesStore.parseFile(path, reservedRoles, logger, Settings.EMPTY);
         assertThat(roles, notNullValue());
         assertThat(roles.size(), is(1));
 

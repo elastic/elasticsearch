@@ -8,7 +8,9 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -49,6 +51,7 @@ public class DocumentLevelSecurityRandomTests extends ShieldIntegTestCase {
         }
         return builder.toString();
     }
+
     @Override
     protected String configRoles() {
         StringBuilder builder = new StringBuilder(super.configRoles());
@@ -64,6 +67,14 @@ public class DocumentLevelSecurityRandomTests extends ShieldIntegTestCase {
             builder.append("          field1: value").append(i).append('\n');
         }
         return builder.toString();
+    }
+
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true)
+                .build();
     }
 
     public void testDuelWithAliasFilters() throws Exception {

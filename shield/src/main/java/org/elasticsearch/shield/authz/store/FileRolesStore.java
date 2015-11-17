@@ -90,7 +90,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         } catch (IOException e) {
             throw new ElasticsearchException("failed to setup roles file watcher", e);
         }
-        permissions = parseFile(file, reservedRoles, logger);
+        permissions = parseFile(file, reservedRoles, logger, settings);
     }
 
     @Override
@@ -116,18 +116,18 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
     }
 
     public static Set<String> parseFileForRoleNames(Path path, ESLogger logger) {
-        Map<String, Permission.Global.Role> roleMap = parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, false);
+        Map<String, Permission.Global.Role> roleMap = parseFile(path, Collections.<Permission.Global.Role>emptySet(), logger, false, Settings.EMPTY);
         if (roleMap == null) {
             return emptySet();
         }
         return roleMap.keySet();
     }
 
-    public static Map<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger) {
-        return parseFile(path, reservedRoles, logger, true);
+    public static Map<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger, Settings settings) {
+        return parseFile(path, reservedRoles, logger, true, settings);
     }
 
-    public static Map<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger, boolean resolvePermission) {
+    public static Map<String, Permission.Global.Role> parseFile(Path path, Set<Permission.Global.Role> reservedRoles, ESLogger logger, boolean resolvePermission, Settings settings) {
         if (logger == null) {
             logger = NoOpLogger.INSTANCE;
         }
@@ -138,7 +138,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
             try {
                 List<String> roleSegments = roleSegments(path);
                 for (String segment : roleSegments) {
-                    Permission.Global.Role role = parseRole(segment, path, logger, resolvePermission);
+                    Permission.Global.Role role = parseRole(segment, path, logger, resolvePermission, settings);
                     if (role != null) {
                         if (SystemRole.NAME.equals(role.name())) {
                             logger.warn("role [{}] is reserved to the system. the relevant role definition in the mapping file will be ignored", SystemRole.NAME);
@@ -164,7 +164,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         return unmodifiableMap(roles);
     }
 
-    private static Permission.Global.Role parseRole(String segment, Path path, ESLogger logger, boolean resolvePermissions) {
+    private static Permission.Global.Role parseRole(String segment, Path path, ESLogger logger, boolean resolvePermissions, Settings settings) {
         String roleName = null;
         try {
             XContentParser parser = YamlXContent.yamlXContent.createParser(segment);
@@ -301,6 +301,11 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
                                                     }
                                                 }
                                                 if (name != null) {
+                                                    if ((query != null || (fields != null && fields.isEmpty() == false)) && ShieldPlugin.flsDlsEnabled(settings) == false) {
+                                                        logger.error("invalid role definition [{}] in roles file [{}]. document and field level security is not enabled. set [{}] to [true] in the configuration file. skipping role...", roleName, path.toAbsolutePath(), ShieldPlugin.DLS_FLS_ENABLED_SETTING);
+                                                        return null;
+                                                    }
+
                                                     try {
                                                         permission.add(fields, query, Privilege.Index.get(name), indices);
                                                     } catch (IllegalArgumentException e) {
@@ -417,7 +422,7 @@ public class FileRolesStore extends AbstractLifecycleComponent<RolesStore> imple
         public void onFileChanged(Path file) {
             if (file.equals(FileRolesStore.this.file)) {
                 try {
-                    permissions = parseFile(file, reservedRoles, logger);
+                    permissions = parseFile(file, reservedRoles, logger, settings);
                     logger.info("updated roles (roles file [{}] changed)", file.toAbsolutePath());
                 } catch (Throwable t) {
                     logger.error("could not reload roles file [{}]. Current roles remain unmodified", t, file.toAbsolutePath());

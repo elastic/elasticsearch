@@ -8,6 +8,7 @@ package org.elasticsearch.integration;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ShieldIntegTestCase;
@@ -39,6 +40,7 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
                 "role2:user2\n" +
                 "role3:user3\n";
     }
+
     @Override
     protected String configRoles() {
         return super.configRoles() +
@@ -63,6 +65,14 @@ public class DocumentAndFieldLevelSecurityTests extends ShieldIntegTestCase {
                 "      privileges: ALL\n" +
                 "      fields: field1\n" +
                 "      query: '{\"term\" : {\"field2\" : \"value2\"}}'\n";
+    }
+
+    @Override
+    public Settings nodeSettings(int nodeOrdinal) {
+        return Settings.builder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put(ShieldPlugin.DLS_FLS_ENABLED_SETTING, true)
+                .build();
     }
 
     public void testSimpleQuery() throws Exception {

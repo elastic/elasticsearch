@@ -30,3 +30,26 @@ role_run_as:
 # role with more than run_as
 role_run_as1:
   run_as: [user1, user2]
+
+role_fields:
+  indices:
+    'field_idx':
+      privileges: READ
+      fields:
+        - foo
+        - boo
+
+role_query:
+  indices:
+    'query_idx':
+      privileges: READ
+      query: '{ "match_all": {} }'
+
+role_query_fields:
+  indices:
+    'query_fields_idx':
+      privileges: READ
+      query: '{ "match_all": {} }'
+      fields:
+        - foo
+        - boo

@@ -27,7 +27,7 @@ import java.io.IOException;
 
 public class EnvelopeBuilder extends ShapeBuilder {
 
-    public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE; 
+    public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
     protected Coordinate topLeft;
     protected Coordinate bottomRight;
@@ -61,7 +61,7 @@ public class EnvelopeBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapename);
+        builder.field(FIELD_TYPE, TYPE.shapeName());
         builder.startArray(FIELD_COORDINATES);
         toXContent(builder, topLeft);
         toXContent(builder, bottomRight);

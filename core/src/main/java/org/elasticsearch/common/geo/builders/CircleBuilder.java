@@ -35,10 +35,10 @@ public class CircleBuilder extends ShapeBuilder {
     private DistanceUnit unit;
     private double radius;
     private Coordinate center;
-    
+
     /**
      * Set the center of the circle
-     * 
+     *
      * @param center coordinate of the circles center
      * @return this
      */
@@ -100,7 +100,7 @@ public class CircleBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapename);
+        builder.field(FIELD_TYPE, TYPE.shapeName());
         builder.field(FIELD_RADIUS, unit.toString(radius));
         builder.field(FIELD_COORDINATES);
         toXContent(builder, center);

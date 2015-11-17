@@ -14,3 +14,16 @@ your application to Elasticsearch 2.2.
 The field stats response format has been changed for number based and date fields. The `min_value` and
 `max_value` elements now return values as number and the new `min_value_as_string` and `max_value_as_string`
 return the values as string.
+
+==== Adding system CPU percent to OS stats
+
+The recent CPU usage (as a percent) has been added to the OS stats reported under the node stats API and the cat nodes
+API. If you send an appropriate nodes stats request to a node running version 2.2.0 or later of Elasticsearch, the CPU
+usage will be shown for any nodes in the response that are also running version 2.2.0 or later of Elasticsearch. Do
+note that if you send a node stats request to a node running a version of Elasticsearch earlier than 2.2.0, the CPU
+usage will not be shown for any nodes. The "cpu" field in the cat nodes API is not output by default. If you send an
+appropriate cat nodes request to a node running version 2.2.0 or later of Elasticsearch, the CPU usage will be shown
+for any nodes in the response that are also running version 2.2.0 or later of Elasticsearch and will be null for any
+other node in the response. Do note that if you send a cat nodes request to a node running a version of Elasticsearch
+earlier than 2.2.0, the CPU usage will not be shown for any nodes. Finally, the API for
+org.elasticsearch.monitor.os.OsStats has an additional method `OsStats#getCpuPercent`.

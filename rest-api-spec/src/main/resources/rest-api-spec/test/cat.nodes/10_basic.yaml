@@ -20,6 +20,16 @@
 
   - do:
       cat.nodes:
+          h: cpu
+          v: true
+
+  - match:
+      $body: |
+               /^cpu\s+ \n
+                (\s+(-1|\d+)*\s+ \n)+ $/
+
+  - do:
+      cat.nodes:
           h: heap.current,heap.percent,heap.max
           v: true
 

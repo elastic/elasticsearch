@@ -130,6 +130,7 @@ public class RestNodesAction extends AbstractCatAction {
         table.addCell("file_desc.percent", "default:false;alias:fdp,fileDescriptorPercent;text-align:right;desc:used file descriptor ratio");
         table.addCell("file_desc.max", "default:false;alias:fdm,fileDescriptorMax;text-align:right;desc:max file descriptors");
 
+        table.addCell("cpu", "default:false;alias:cpu;text-align:right;desc:recent cpu usage");
         table.addCell("load", "alias:l;text-align:right;desc:most recent load avg");
         table.addCell("uptime", "default:false;alias:u;text-align:right;desc:node uptime");
         table.addCell("node.role", "alias:r,role,dc,nodeRole;desc:d:data node, c:client node");
@@ -258,6 +259,7 @@ public class RestNodesAction extends AbstractCatAction {
             table.addCell(processStats == null ? null : calculatePercentage(processStats.getOpenFileDescriptors(), processStats.getMaxFileDescriptors()));
             table.addCell(processStats == null ? null : processStats.getMaxFileDescriptors());
 
+            table.addCell(osStats == null || osStats.getCpuPercent() == null ? null : Short.toString(osStats.getCpuPercent()));
             table.addCell(osStats == null ? null : String.format(Locale.ROOT, "%.2f", osStats.getLoadAverage()));
             table.addCell(jvmStats == null ? null : jvmStats.getUptime());
             table.addCell(node.clientNode() ? "c" : node.dataNode() ? "d" : "-");

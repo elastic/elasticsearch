@@ -125,6 +125,9 @@ the operating system:
 `os.timestamp`::
 	Last time the operating system statistics have been refreshed
 
+`os.percent`::
+    Recent CPU usage for the whole system, or -1 if not supported
+
 `os.load_average`::
 	System load average for the last minute, or -1 if not supported
 

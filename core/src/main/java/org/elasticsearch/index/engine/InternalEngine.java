@@ -50,6 +50,7 @@ import org.elasticsearch.index.indexing.ShardIndexingService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
 import org.elasticsearch.index.merge.OnGoingMerge;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ElasticsearchMergePolicy;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
@@ -348,10 +349,6 @@ public class InternalEngine extends Engine {
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("index", t);
             throw new IndexFailedEngineException(shardId, index.type(), index.id(), t);
-        } finally {
-            if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                seqNoService.markSeqNoAsCompleted(index.seqNo());
-            }
         }
         checkVersionMapRefresh();
         return created;
@@ -359,66 +356,71 @@ public class InternalEngine extends Engine {
 
     private boolean innerIndex(Index index) throws IOException {
         synchronized (dirtyLock(index.uid())) {
-            lastWriteNanos  = index.startTime();
-            final long currentVersion;
-            final boolean deleted;
-            VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
-            if (versionValue == null) {
-                currentVersion = loadCurrentVersionFromIndex(index.uid());
-                deleted = currentVersion == Versions.NOT_FOUND;
-            } else {
-                deleted = versionValue.delete();
-                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
-                    currentVersion = Versions.NOT_FOUND; // deleted, and GC
+            try {
+                lastWriteNanos = index.startTime();
+                final long currentVersion;
+                final boolean deleted;
+                VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
+                if (versionValue == null) {
+                    currentVersion = loadCurrentVersionFromIndex(index.uid());
+                    deleted = currentVersion == Versions.NOT_FOUND;
                 } else {
-                    currentVersion = versionValue.version();
+                    deleted = versionValue.delete();
+                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                        currentVersion = Versions.NOT_FOUND; // deleted, and GC
+                    } else {
+                        currentVersion = versionValue.version();
+                    }
+                }
+
+                long expectedVersion = index.version();
+                if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
+                    if (index.origin() == Operation.Origin.RECOVERY) {
+                        return false;
+                    } else {
+                        throw new VersionConflictEngineException(shardId, index.type(), index.id(),
+                                index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
+                    }
+                }
+                long updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
+
+                final boolean created;
+                index.updateVersion(updatedVersion);
+                if (index.origin() == Operation.Origin.PRIMARY) {
+                    index.updateSeqNo(seqNoService.generateSeqNo());
+                }
+                if (currentVersion == Versions.NOT_FOUND) {
+                    // document does not exists, we can optimize for create
+                    created = true;
+                    if (index.docs().size() > 1) {
+                        indexWriter.addDocuments(index.docs());
+                    } else {
+                        indexWriter.addDocument(index.docs().get(0));
+                    }
+                } else {
+                    if (versionValue != null) {
+                        created = versionValue.delete(); // we have a delete which is not GC'ed...
+                    } else {
+                        created = false;
+                    }
+                    if (index.docs().size() > 1) {
+                        indexWriter.updateDocuments(index.uid(), index.docs());
+                    } else {
+                        indexWriter.updateDocument(index.uid(), index.docs().get(0));
+                    }
+                }
+                Translog.Location translogLocation = translog.add(new Translog.Index(index));
+
+                versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
+                index.setTranslogLocation(translogLocation);
+
+                indexingService.postIndexUnderLock(index);
+                return created;
+            } finally {
+                if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    seqNoService.markSeqNoAsCompleted(index.seqNo());
                 }
             }
-
-            long expectedVersion = index.version();
-            if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-                if (index.origin() == Operation.Origin.RECOVERY) {
-                    return false;
-                } else {
-                    throw new VersionConflictEngineException(shardId, index.type(), index.id(),
-                            index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
-                }
-            }
-            long updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
-
-            final boolean created;
-            index.updateVersion(updatedVersion);
-            if (index.origin() == Operation.Origin.PRIMARY) {
-                index.updateSeqNo(seqNoService.generateSeqNo());
-            }
-
-            if (currentVersion == Versions.NOT_FOUND) {
-                // document does not exists, we can optimize for create
-                created = true;
-                if (index.docs().size() > 1) {
-                    indexWriter.addDocuments(index.docs());
-                } else {
-                    indexWriter.addDocument(index.docs().get(0));
-                }
-            } else {
-                if (versionValue != null) {
-                    created = versionValue.delete(); // we have a delete which is not GC'ed...
-                } else {
-                    created = false;
-                }
-                if (index.docs().size() > 1) {
-                    indexWriter.updateDocuments(index.uid(), index.docs());
-                } else {
-                    indexWriter.updateDocument(index.uid(), index.docs().get(0));
-                }
-            }
-            Translog.Location translogLocation = translog.add(new Translog.Index(index));
-
-            versionMap.putUnderLock(index.uid().bytes(), new VersionValue(updatedVersion, translogLocation));
-            index.setTranslogLocation(translogLocation);
-
-            indexingService.postIndexUnderLock(index);
-            return created;
         }
     }
 
@@ -458,10 +460,6 @@ public class InternalEngine extends Engine {
         } catch (OutOfMemoryError | IllegalStateException | IOException t) {
             maybeFailEngine("delete", t);
             throw new DeleteFailedEngineException(shardId, delete, t);
-        } finally {
-            if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
-                seqNoService.markSeqNoAsCompleted(delete.seqNo());
-            }
         }
 
         maybePruneDeletedTombstones();
@@ -478,56 +476,62 @@ public class InternalEngine extends Engine {
 
     private void innerDelete(Delete delete) throws IOException {
         synchronized (dirtyLock(delete.uid())) {
-            lastWriteNanos = delete.startTime();
-            final long currentVersion;
-            final boolean deleted;
-            VersionValue versionValue = versionMap.getUnderLock(delete.uid().bytes());
-            if (versionValue == null) {
-                currentVersion = loadCurrentVersionFromIndex(delete.uid());
-                deleted = currentVersion == Versions.NOT_FOUND;
-            } else {
-                deleted = versionValue.delete();
-                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
-                    currentVersion = Versions.NOT_FOUND; // deleted, and GC
+            try {
+                lastWriteNanos = delete.startTime();
+                final long currentVersion;
+                final boolean deleted;
+                VersionValue versionValue = versionMap.getUnderLock(delete.uid().bytes());
+                if (versionValue == null) {
+                    currentVersion = loadCurrentVersionFromIndex(delete.uid());
+                    deleted = currentVersion == Versions.NOT_FOUND;
                 } else {
-                    currentVersion = versionValue.version();
+                    deleted = versionValue.delete();
+                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                        currentVersion = Versions.NOT_FOUND; // deleted, and GC
+                    } else {
+                        currentVersion = versionValue.version();
+                    }
+                }
+
+                long updatedVersion;
+                long expectedVersion = delete.version();
+                if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
+                    if (delete.origin() == Operation.Origin.RECOVERY) {
+                        return;
+                    } else {
+                        throw new VersionConflictEngineException(shardId, delete.type(), delete.id(),
+                                delete.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
+                    }
+                }
+                updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
+
+                if (delete.origin() == Operation.Origin.PRIMARY) {
+                    delete.updateSeqNo(seqNoService.generateSeqNo());
+                }
+
+                final boolean found;
+                if (currentVersion == Versions.NOT_FOUND) {
+                    // doc does not exist and no prior deletes
+                    found = false;
+                } else if (versionValue != null && versionValue.delete()) {
+                    // a "delete on delete", in this case, we still increment the version, log it, and return that version
+                    found = false;
+                } else {
+                    // we deleted a currently existing document
+                    indexWriter.deleteDocuments(delete.uid());
+                    found = true;
+                }
+
+                delete.updateVersion(updatedVersion, found);
+                Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
+                versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
+                delete.setTranslogLocation(translogLocation);
+                indexingService.postDeleteUnderLock(delete);
+            } finally {
+                if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    seqNoService.markSeqNoAsCompleted(delete.seqNo());
                 }
             }
-
-            long updatedVersion;
-            long expectedVersion = delete.version();
-            if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-                if (delete.origin() == Operation.Origin.RECOVERY) {
-                    return;
-                } else {
-                    throw new VersionConflictEngineException(shardId, delete.type(), delete.id(),
-                            delete.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
-                }
-            }
-            updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
-
-            if (delete.origin() == Operation.Origin.PRIMARY) {
-                delete.updateSeqNo(seqNoService.generateSeqNo());
-            }
-
-            final boolean found;
-            if (currentVersion == Versions.NOT_FOUND) {
-                // doc does not exist and no prior deletes
-                found = false;
-            } else if (versionValue != null && versionValue.delete()) {
-                // a "delete on delete", in this case, we still increment the version, log it, and return that version
-                found = false;
-            } else {
-                // we deleted a currently existing document
-                indexWriter.deleteDocuments(delete.uid());
-                found = true;
-            }
-
-            delete.updateVersion(updatedVersion, found);
-            Translog.Location translogLocation = translog.add(new Translog.Delete(delete));
-            versionMap.putUnderLock(delete.uid().bytes(), new DeleteVersionValue(updatedVersion, engineConfig.getThreadPool().estimatedTimeInMillis(), translogLocation));
-            delete.setTranslogLocation(translogLocation);
-            indexingService.postDeleteUnderLock(delete);
         }
     }
 
@@ -988,7 +992,7 @@ public class InternalEngine extends Engine {
         @Override
         public IndexSearcher newSearcher(IndexReader reader, IndexReader previousReader) throws IOException {
             IndexSearcher searcher = super.newSearcher(reader, previousReader);
-            if (reader instanceof LeafReader && isMergedSegment((LeafReader)reader)) {
+            if (reader instanceof LeafReader && isMergedSegment((LeafReader) reader)) {
                 // we call newSearcher from the IndexReaderWarmer which warms segments during merging
                 // in that case the reader is a LeafReader and all we need to do is to build a new Searcher
                 // and return it since it does it's own warming for that particular reader.
@@ -1177,5 +1181,10 @@ public class InternalEngine extends Engine {
 
     public MergeStats getMergeStats() {
         return mergeScheduler.stats();
+    }
+
+    @Override
+    public SeqNoStats seqNoStats() {
+        return seqNoService.stats();
     }
 }

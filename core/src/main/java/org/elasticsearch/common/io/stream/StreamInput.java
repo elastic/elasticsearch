@@ -143,7 +143,7 @@ public abstract class StreamInput extends InputStream {
      */
     public int readInt() throws IOException {
         return ((readByte() & 0xFF) << 24) | ((readByte() & 0xFF) << 16)
-                | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
+            | ((readByte() & 0xFF) << 8) | (readByte() & 0xFF);
     }
 
     /**
@@ -538,6 +538,17 @@ public abstract class StreamInput extends InputStream {
             T streamable = supplier.get();
             streamable.readFrom(this);
             return streamable;
+        } else {
+            return null;
+        }
+    }
+
+    /**
+     * Serializes a potential null value.
+     */
+    public <T> T readOptionalStreamableReader(StreamableReader<T> streamableReader) throws IOException {
+        if (readBoolean()) {
+            return streamableReader.readFrom(this);
         } else {
             return null;
         }

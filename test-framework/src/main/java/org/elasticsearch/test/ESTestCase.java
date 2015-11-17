@@ -29,14 +29,12 @@ import com.carrotsearch.randomizedtesting.generators.RandomInts;
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 import com.carrotsearch.randomizedtesting.rules.TestRuleAdapter;
-
 import org.apache.lucene.uninverting.UninvertingReader;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
@@ -50,7 +48,6 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -69,14 +66,18 @@ import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BooleanSupplier;
 
-import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -562,13 +563,21 @@ public abstract class ESTestCase extends LuceneTestCase {
      * Returns size random values
      */
     public static <T> List<T> randomSubsetOf(int size, T... values) {
-        if (size > values.length) {
-            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.length + " objects");
+        return randomSubsetOf(size, Arrays.asList(values));
+    }
+
+    /**
+     * Returns size random values
+     */
+    public static <T> List<T> randomSubsetOf(int size, Collection<T> values) {
+        if (size > values.size()) {
+            throw new IllegalArgumentException("Can\'t pick " + size + " random objects from a list of " + values.size() + " objects");
         }
-        List<T> list = arrayAsArrayList(values);
-        Collections.shuffle(list);
+        List<T> list = new ArrayList<>(values);
+        Collections.shuffle(list, random());
         return list.subList(0, size);
     }
+
 
     /**
      * Returns true iff assertions for elasticsearch packages are enabled
@@ -615,7 +624,7 @@ public abstract class ESTestCase extends LuceneTestCase {
         sb.append("]");
         assertThat(count + " files exist that should have been cleaned:\n" + sb.toString(), count, equalTo(0));
     }
-    
+
     /** Returns the suite failure marker: internal use only! */
     public static TestRuleMarkFailure getSuiteFailureMarker() {
         return suiteFailureMarker;

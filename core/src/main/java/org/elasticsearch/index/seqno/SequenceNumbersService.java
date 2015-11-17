@@ -22,39 +22,38 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
-import java.util.concurrent.atomic.AtomicLong;
-
 /** a very light weight implementation. will be replaced with proper machinery later */
 public class SequenceNumbersService extends AbstractIndexShardComponent {
 
     public final static long UNASSIGNED_SEQ_NO = -1L;
-
-    AtomicLong seqNoGenerator = new AtomicLong();
+    final LocalCheckpointService localCheckpointService;
 
     public SequenceNumbersService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
+        localCheckpointService = new LocalCheckpointService(shardId, indexSettings);
     }
 
     /**
      * generates a new sequence number.
      * Note: you must call {@link #markSeqNoAsCompleted(long)} after the operation for which this seq# was generated
-     * was completed (whether successfully or with a failure
+     * was completed (whether successfully or with a failure)
      */
     public long generateSeqNo() {
-        return seqNoGenerator.getAndIncrement();
+        return localCheckpointService.generateSeqNo();
     }
 
+    /**
+     * marks the given seqNo as completed. See {@link LocalCheckpointService#markSeqNoAsCompleted(long)}
+     * more details
+     */
     public void markSeqNoAsCompleted(long seqNo) {
-        // this is temporary to make things semi sane on primary promotion and recovery. will be replaced with better machinery
-        boolean success;
-        do {
-            long maxSeqNo = seqNoGenerator.get();
-            if (seqNo > maxSeqNo) {
-                success = seqNoGenerator.compareAndSet(maxSeqNo, seqNo);
-            } else {
-                success = true;
-            }
-        } while (success == false);
+        localCheckpointService.markSeqNoAsCompleted(seqNo);
     }
 
+    /**
+     * Gets sequence number related stats
+     */
+    public SeqNoStats stats() {
+        return new SeqNoStats(localCheckpointService.getMaxSeqNo(), localCheckpointService.getCheckpoint());
+    }
 }

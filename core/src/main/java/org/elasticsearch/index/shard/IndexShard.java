@@ -79,6 +79,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
@@ -589,6 +590,15 @@ public class IndexShard extends AbstractIndexShardComponent {
     public CommitStats commitStats() {
         Engine engine = getEngineOrNull();
         return engine == null ? null : engine.commitStats();
+    }
+
+    /**
+     * @return {@link SeqNoStats} if engine is open, otherwise null
+     */
+    @Nullable
+    public SeqNoStats seqNoStats() {
+        Engine engine = getEngineOrNull();
+        return engine == null ? null : engine.seqNoStats();
     }
 
     public IndexingStats indexingStats(String... types) {

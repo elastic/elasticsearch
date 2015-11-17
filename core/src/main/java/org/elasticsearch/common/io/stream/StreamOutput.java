@@ -503,6 +503,18 @@ public abstract class StreamOutput extends OutputStream {
         }
     }
 
+    /**
+     * Serializes a potential null value.
+     */
+    public void writeOptionalWritable(@Nullable Writeable writeable) throws IOException {
+        if (writeable != null) {
+            writeBoolean(true);
+            writeable.writeTo(this);
+        } else {
+            writeBoolean(false);
+        }
+    }
+
     public void writeThrowable(Throwable throwable) throws IOException {
         if (throwable == null) {
             writeBoolean(false);

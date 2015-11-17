@@ -227,7 +227,6 @@ public class CommonStatsFlags implements Streamable, Cloneable {
         RequestCache("request_cache"),
         Recovery("recovery");
 
-
         private final String restName;
 
         Flag(String restName) {

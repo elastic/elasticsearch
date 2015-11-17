@@ -45,7 +45,7 @@ import java.util.Map;
  * Each InternalProfileResult has a List of InternalProfileResults, which will contain
  * "children" queries if applicable
  */
-public class InternalProfileResult implements ProfileResult, Streamable, ToXContent {
+final class InternalProfileResult implements ProfileResult, Streamable, ToXContent {
 
     private static final ParseField QUERY_TYPE = new ParseField("query_type");
     private static final ParseField LUCENE_DESCRIPTION = new ParseField("lucene");

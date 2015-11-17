@@ -21,7 +21,6 @@ package org.elasticsearch.search.profile;
 
 
 import org.apache.lucene.search.Query;
-import org.elasticsearch.common.Nullable;
 
 import java.util.*;
 import java.util.concurrent.LinkedBlockingDeque;
@@ -31,7 +30,7 @@ import java.util.concurrent.LinkedBlockingDeque;
  * generates {@link ProfileBreakdown} for each node in the tree.  It also finalizes the tree
  * and returns a list of {@link InternalProfileResult} that can be serialized back to the client
  */
-public class InternalProfileTree {
+final class InternalProfileTree {
 
     private ArrayList<ProfileBreakdown> timings;
 

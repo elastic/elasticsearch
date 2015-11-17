@@ -51,12 +51,19 @@ public final class Data {
     /**
      * Returns the value contained in the document for the provided path
      * @param path The path within the document in dot-notation
+     * @param clazz The expected class of the field value
      * @return the value for the provided path if existing, null otherwise
+     * @throws IllegalArgumentException if the field is present but is not of the type provided as argument.
      */
-    @SuppressWarnings("unchecked")
-    public <T> T getProperty(String path) {
+    public <T> T getProperty(String path, Class<T> clazz) {
         Object property = get(path);
-        return (T) property;
+        if (property == null) {
+            return null;
+        }
+        if (clazz.isInstance(property)) {
+            return clazz.cast(property);
+        }
+        throw new IllegalArgumentException("field [" + path + "] of type [" + property.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
     }
 
     /**
@@ -65,7 +72,7 @@ public final class Data {
      * @return true if the document contains the property, false otherwise
      */
     public boolean containsProperty(String path) {
-        return getProperty(path) != null;
+        return get(path) != null;
     }
 
     private Object get(String path) {

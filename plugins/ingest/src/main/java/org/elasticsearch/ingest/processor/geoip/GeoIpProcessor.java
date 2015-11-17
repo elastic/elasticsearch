@@ -61,7 +61,7 @@ public final class GeoIpProcessor implements Processor {
 
     @Override
     public void execute(Data data) {
-        String ip = data.getProperty(sourceField);
+        String ip = data.getProperty(sourceField, String.class);
         final InetAddress ipAddress;
         try {
             ipAddress = InetAddress.getByName(ip);

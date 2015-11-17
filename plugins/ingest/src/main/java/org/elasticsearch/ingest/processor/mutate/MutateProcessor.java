@@ -148,7 +148,7 @@ public final class MutateProcessor implements Processor {
     private void doRename(Data data) {
         for(Map.Entry<String, String> entry : rename.entrySet()) {
             if (data.containsProperty(entry.getKey())) {
-                Object oldVal = data.getProperty(entry.getKey());
+                Object oldVal = data.getProperty(entry.getKey(), Object.class);
                 data.getDocument().remove(entry.getKey());
                 data.addField(entry.getValue(), oldVal);
             }
@@ -179,7 +179,7 @@ public final class MutateProcessor implements Processor {
         for(Map.Entry<String, String> entry : convert.entrySet()) {
             String toType = entry.getValue();
 
-            Object oldVal = data.getProperty(entry.getKey());
+            Object oldVal = data.getProperty(entry.getKey(), Object.class);
             Object newVal;
 
             if (oldVal instanceof List) {
@@ -200,7 +200,7 @@ public final class MutateProcessor implements Processor {
 
     private void doSplit(Data data) {
         for(Map.Entry<String, String> entry : split.entrySet()) {
-            Object oldVal = data.getProperty(entry.getKey());
+            Object oldVal = data.getProperty(entry.getKey(), Object.class);
             if (oldVal == null) {
                 throw new IllegalArgumentException("Cannot split field. [" + entry.getKey() + "] is null.");
             } else if (oldVal instanceof String) {
@@ -213,7 +213,7 @@ public final class MutateProcessor implements Processor {
 
     private void doGsub(Data data) {
         for (GsubExpression gsubExpression : gsub) {
-            String oldVal = data.getProperty(gsubExpression.getFieldName());
+            String oldVal = data.getProperty(gsubExpression.getFieldName(), String.class);
             if (oldVal == null) {
                 throw new IllegalArgumentException("Field \"" + gsubExpression.getFieldName() + "\" is null, cannot match pattern.");
             }
@@ -226,7 +226,7 @@ public final class MutateProcessor implements Processor {
     @SuppressWarnings("unchecked")
     private void doJoin(Data data) {
         for(Map.Entry<String, String> entry : join.entrySet()) {
-            Object oldVal = data.getProperty(entry.getKey());
+            Object oldVal = data.getProperty(entry.getKey(), Object.class);
             if (oldVal instanceof List) {
                 String joined = (String) ((List) oldVal)
                         .stream()
@@ -248,7 +248,7 @@ public final class MutateProcessor implements Processor {
 
     private void doTrim(Data data) {
         for(String field : trim) {
-            Object val = data.getProperty(field);
+            Object val = data.getProperty(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot trim field. [" + field + "] is null.");
             } else if (val instanceof String) {
@@ -261,7 +261,7 @@ public final class MutateProcessor implements Processor {
 
     private void doUppercase(Data data) {
         for(String field : uppercase) {
-            Object val = data.getProperty(field);
+            Object val = data.getProperty(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot uppercase field. [" + field + "] is null.");
             } else if (val instanceof String) {
@@ -274,7 +274,7 @@ public final class MutateProcessor implements Processor {
 
     private void doLowercase(Data data) {
         for(String field : lowercase) {
-            Object val = data.getProperty(field);
+            Object val = data.getProperty(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot lowercase field. [" + field + "] is null.");
             } else if (val instanceof String) {

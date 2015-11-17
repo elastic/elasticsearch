@@ -46,7 +46,7 @@ public final class GrokProcessor implements Processor {
 
     @Override
     public void execute(Data data) {
-        Object field = data.getProperty(matchField);
+        Object field = data.getProperty(matchField, Object.class);
         // TODO(talevy): handle invalid field types
         if (field instanceof String) {
             Map<String, Object> matches = grok.captures((String) field);

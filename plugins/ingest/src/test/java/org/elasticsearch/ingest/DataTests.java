@@ -36,6 +36,7 @@ public class DataTests extends ESTestCase {
     public void setData() {
         Map<String, Object> document = new HashMap<>();
         document.put("foo", "bar");
+        document.put("int", 123);
         Map<String, Object> innerObject = new HashMap<>();
         innerObject.put("buzz", "hello world");
         document.put("fizz", innerObject);
@@ -43,23 +44,40 @@ public class DataTests extends ESTestCase {
     }
 
     public void testSimpleGetProperty() {
-        assertThat(data.getProperty("foo"), equalTo("bar"));
+        assertThat(data.getProperty("foo", String.class), equalTo("bar"));
+        assertThat(data.getProperty("int", Integer.class), equalTo(123));
+    }
+
+    public void testSimpleGetPropertyTypeMismatch() {
+        try {
+            data.getProperty("int", String.class);
+            fail("getProperty should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
+        }
+
+        try {
+            data.getProperty("foo", Integer.class);
+            fail("getProperty should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));
+        }
     }
 
     public void testNestedGetProperty() {
-        assertThat(data.getProperty("fizz.buzz"), equalTo("hello world"));
+        assertThat(data.getProperty("fizz.buzz", String.class), equalTo("hello world"));
     }
 
     public void testGetPropertyNotFound() {
-        assertThat(data.getProperty("not.here"), nullValue());
+        assertThat(data.getProperty("not.here", String.class), nullValue());
     }
 
     public void testGetPropertyNull() {
-        assertNull(data.getProperty(null));
+        assertNull(data.getProperty(null, String.class));
     }
 
     public void testGetPropertyEmpty() {
-        assertNull(data.getProperty(""));
+        assertNull(data.getProperty("", String.class));
     }
 
     public void testContainsProperty() {

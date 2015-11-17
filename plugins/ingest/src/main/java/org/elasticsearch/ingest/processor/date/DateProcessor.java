@@ -57,7 +57,7 @@ public final class DateProcessor implements Processor {
 
     @Override
     public void execute(Data data) {
-        String value = data.getProperty(matchField);
+        String value = data.getProperty(matchField, String.class);
         // TODO(talevy): handle custom timestamp fields
 
         DateTime dateTime = null;

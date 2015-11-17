@@ -20,9 +20,10 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 
-import java.util.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Represents the data and meta data (like id and type) of a single document that is going to be indexed.
@@ -49,47 +50,44 @@ public final class Data {
 
     @SuppressWarnings("unchecked")
     public <T> T getProperty(String path) {
-        // TODO: we should not rely on any core class, so we should have custom map extract value logic:
-        // also XContentMapValues has no support to get specific values from arrays, see: https://github.com/elastic/elasticsearch/issues/14324
-        return (T) XContentMapValues.extractValue(path, document);
-    }
-
-    public boolean containsProperty(String path) {
-        if (path == null || path.length() == 0) {
-            return false;
-        }
-
-        boolean containsProperty = false;
-        String[] pathElements = Strings.splitStringToArray(path, '.');
-        if (pathElements.length == 0) {
-            return false;
-        }
-
-        Map<String, Object> inner = document;
-
-        for (int i = 0; i < pathElements.length; i++) {
-            if (inner == null) {
-                containsProperty = false;
-                break;
-            }
-            if (i == pathElements.length - 1) {
-                containsProperty = inner.containsKey(pathElements[i]);
-                break;
-            }
-
-            Object obj = inner.get(pathElements[i]);
-            if (obj instanceof Map) {
-                inner = (Map<String, Object>) obj;
-            } else {
-                inner = null;
-            }
-        }
-
-        return containsProperty;
+        Object property = get(path);
+        return (T) property;
     }
 
     /**
-     * add `value` to path in document. If path does not exist,
+     *
+     * @param path The path within the document in dot-notation
+     * @return true if the document contains the property, false otherwise
+     */
+    public boolean containsProperty(String path) {
+        return getProperty(path) != null;
+    }
+
+    private Object get(String path) {
+        if (path == null || path.length() == 0) {
+            return null;
+        }
+        String[] pathElements = Strings.splitStringToArray(path, '.');
+        assert pathElements.length > 0;
+
+        Map<String, Object> innerMap = document;
+        for (int i = 0; i < pathElements.length - 1; i++) {
+            Object obj = innerMap.get(pathElements[i]);
+            if (obj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> stringObjectMap = (Map<String, Object>) obj;
+                innerMap = stringObjectMap;
+            } else {
+                return null;
+            }
+        }
+
+        String leafKey = pathElements[pathElements.length - 1];
+        return innerMap.get(leafKey);
+    }
+
+    /**
+     * Adds the provided value to path in document. If path does not exist,
      * nested maps will be put in as parent key values until
      * leaf key name in path is reached.
      *
@@ -106,9 +104,8 @@ public final class Data {
         modified = true;
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
-        String writeKey = pathElements[pathElements.length - 1];
-        Map<String, Object> inner = document;
 
+        Map<String, Object> inner = document;
         for (int i = 0; i < pathElements.length - 1; i++) {
             String pathElement = pathElements[i];
             if (inner.containsKey(pathElement)) {
@@ -127,7 +124,8 @@ public final class Data {
             }
         }
 
-        inner.put(writeKey, value);
+        String leafKey = pathElements[pathElements.length - 1];
+        inner.put(leafKey, value);
     }
 
     public String getIndex() {

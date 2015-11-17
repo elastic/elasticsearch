@@ -55,6 +55,10 @@ public final class Data {
     }
 
     public boolean containsProperty(String path) {
+        if (path == null || path.length() == 0) {
+            return false;
+        }
+
         boolean containsProperty = false;
         String[] pathElements = Strings.splitStringToArray(path, '.');
         if (pathElements.length == 0) {
@@ -86,17 +90,22 @@ public final class Data {
 
     /**
      * add `value` to path in document. If path does not exist,
-     * nested hashmaps will be put in as parent key values until
+     * nested maps will be put in as parent key values until
      * leaf key name in path is reached.
      *
      * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
      */
     public void addField(String path, Object value) {
+        if (path == null || path.length() == 0) {
+            throw new IllegalArgumentException("cannot add null or empty field");
+        }
+        if (value == null) {
+            throw new IllegalArgumentException("cannot add null value to field [" + path + "]");
+        }
         modified = true;
-
         String[] pathElements = Strings.splitStringToArray(path, '.');
-
+        assert pathElements.length > 0;
         String writeKey = pathElements[pathElements.length - 1];
         Map<String, Object> inner = document;
 

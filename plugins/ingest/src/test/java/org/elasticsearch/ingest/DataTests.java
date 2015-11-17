@@ -54,6 +54,14 @@ public class DataTests extends ESTestCase {
         assertThat(data.getProperty("not.here"), nullValue());
     }
 
+    public void testGetPropertyNull() {
+        assertNull(data.getProperty(null));
+    }
+
+    public void testGetPropertyEmpty() {
+        assertNull(data.getProperty(""));
+    }
+
     public void testContainsProperty() {
         assertTrue(data.containsProperty("fizz"));
     }
@@ -68,6 +76,14 @@ public class DataTests extends ESTestCase {
 
     public void testContainsPropertyNestedNotFound() {
         assertFalse(data.containsProperty("fizz.doesnotexist"));
+    }
+
+    public void testContainsPropertyNull() {
+        assertFalse(data.containsProperty(null));
+    }
+
+    public void testContainsPropertyEmpty() {
+        assertFalse(data.containsProperty(""));
     }
 
     public void testSimpleAddField() {
@@ -107,8 +123,36 @@ public class DataTests extends ESTestCase {
     public void testAddFieldOnExistingParentTypeMismatch() {
         try {
             data.addField("fizz.buzz.new", "bar");
+            fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to parent [buzz] of type [java.lang.String], [java.util.Map] expected instead."));
+        }
+    }
+
+    public void testAddFieldNullName() {
+        try {
+            data.addField(null, "bar");
+            fail("add field should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
+        }
+    }
+
+    public void testAddFieldEmptyName() {
+        try {
+            data.addField("", "bar");
+            fail("add field should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
+        }
+    }
+
+    public void testAddFieldNullValue() {
+        try {
+            data.addField("new_field", null);
+            fail("add field should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("cannot add null value to field [new_field]"));
         }
     }
 

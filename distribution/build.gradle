@@ -19,6 +19,7 @@
 
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
+import org.elasticsearch.gradle.test.RunTask
 import org.elasticsearch.gradle.MavenFilteringHack
 
 // for deb/rpm
@@ -196,4 +197,5 @@ DependencyLicensesTask.configure(project) {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-task run(type:org.elasticsearch.gradle.test.RunTask){}
+RunTask.configure(project)
+

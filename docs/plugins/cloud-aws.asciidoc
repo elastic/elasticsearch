@@ -345,7 +345,7 @@ The following settings are supported:
 
 `read_only`::
 
-    Makes repository read-only. coming[2.1.0]  Defaults to `false`.
+    Makes repository read-only. added[2.1.0]  Defaults to `false`.
 
 `canned_acl`::
 

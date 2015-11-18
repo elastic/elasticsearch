@@ -259,6 +259,9 @@ GET /_snapshot/my_backup/_all
 -----------------------------------
 // AUTOSENSE
 
+The command fails if some of the snapshots are unavailable. The boolean parameter `ignore_unvailable` can be used to
+return all snapshots that are currently available.
+
 A currently running snapshot can be retrieved using the following command:
 
 [source,sh]

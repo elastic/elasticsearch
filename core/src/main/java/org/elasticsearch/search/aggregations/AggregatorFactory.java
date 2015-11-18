@@ -29,6 +29,7 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
@@ -44,7 +45,7 @@ import java.util.Objects;
 public abstract class AggregatorFactory extends ToXContentToBytes implements NamedWriteable<AggregatorFactory> {
 
     protected String name;
-    protected String type;
+    protected Type type;
     protected AggregatorFactory parent;
     protected AggregatorFactories factories = AggregatorFactories.EMPTY;
     protected Map<String, Object> metaData;
@@ -56,7 +57,7 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
      * @param name  The aggregation name
      * @param type  The aggregation type
      */
-    public AggregatorFactory(String name, String type) {
+    public AggregatorFactory(String name, Type type) {
         this.name = name;
         this.type = type;
     }
@@ -74,7 +75,7 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
     /**
      * Allows the {@link AggregatorFactory} to initialize any state prior to
      * using it to create {@link Aggregator}s.
-     * 
+     *
      * @param context
      *            the {@link AggregationContext} to use during initialization.
      */
@@ -170,7 +171,7 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
         if (this.metaData != null) {
             builder.field("meta", this.metaData);
         }
-        builder.field(type);
+        builder.field(type.name());
         internalXContent(builder, params);
 
         if (factories != null && factories.count() > 0) {
@@ -189,7 +190,11 @@ public abstract class AggregatorFactory extends ToXContentToBytes implements Nam
 
     @Override
     public String getWriteableName() {
-        return type;
+        return type.stream().toUtf8();
+    }
+
+    public String getType() {
+        return type.name();
     }
 
     /**

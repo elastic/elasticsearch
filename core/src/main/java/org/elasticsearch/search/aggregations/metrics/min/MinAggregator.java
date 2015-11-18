@@ -121,7 +121,7 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         public Factory(String name) {
-            super(name, InternalMin.TYPE.name(), ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+            super(name, InternalMin.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
         @Override

@@ -85,7 +85,7 @@ public class FilterAggregator extends SingleBucketAggregator {
         private final Query filter;
 
         public Factory(String name, Query filter) {
-            super(name, InternalFilter.TYPE.name());
+            super(name, InternalFilter.TYPE);
             this.filter = filter;
         }
 

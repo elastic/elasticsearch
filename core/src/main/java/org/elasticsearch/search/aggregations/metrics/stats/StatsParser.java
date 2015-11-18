@@ -58,7 +58,7 @@ public class StatsParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory getFactoryPrototype() {
-        return new StatsAggegator.Factory(null);
+    public AggregatorFactory[] getFactoryPrototypes() {
+        return new AggregatorFactory[] { new StatsAggegator.Factory(null) };
     }
 }

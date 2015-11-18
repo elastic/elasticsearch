@@ -147,7 +147,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
             TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude,
                                              String executionHint, Query filter, SignificanceHeuristic significanceHeuristic) {
 
-        super(name, SignificantStringTerms.TYPE.name(), valueSourceInput);
+        super(name, SignificantStringTerms.TYPE, valueSourceInput);
         this.bucketCountThresholds = bucketCountThresholds;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;

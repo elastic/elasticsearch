@@ -16,8 +16,10 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.bucket;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchResponse;
@@ -27,13 +29,21 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.CompiledScript;
+import org.elasticsearch.script.ExecutableScript;
+import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
-import org.elasticsearch.script.groovy.GroovyPlugin;
+import org.elasticsearch.script.ScriptEngineService;
+import org.elasticsearch.script.ScriptModule;
+import org.elasticsearch.script.SearchScript;
+import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram.Bucket;
 import org.elasticsearch.search.aggregations.metrics.max.Max;
 import org.elasticsearch.search.aggregations.metrics.sum.Sum;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
@@ -45,8 +55,9 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
@@ -71,12 +82,7 @@ import static org.hamcrest.core.IsNull.notNullValue;
  *
  */
 @ESIntegTestCase.SuiteScopeTestCase
-public class DateHistogramTests extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Collections.singleton(GroovyPlugin.class);
-    }
+public class DateHistogramIT extends ESIntegTestCase {
 
     private DateTime date(int month, int day) {
         return new DateTime(2012, month, day, 0, 0, DateTimeZone.UTC);
@@ -130,6 +136,13 @@ public class DateHistogramTests extends ESIntegTestCase {
                 indexDoc(3, 23, 6))); // date: Mar 23, dates: Mar 23, Apr 24
         indexRandom(true, builders);
         ensureSearchable();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return Arrays.asList(
+                ExtractFieldScriptPlugin.class,
+                FieldValueScriptPlugin.class);
     }
 
     @After
@@ -523,7 +536,7 @@ public class DateHistogramTests extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("date")
-                        .script(new Script("new DateTime(_value).plusMonths(1).getMillis()"))
+                        .script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))
                         .interval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -556,8 +569,6 @@ public class DateHistogramTests extends ESIntegTestCase {
         assertThat(((DateTime) bucket.getKey()), equalTo(key));
         assertThat(bucket.getDocCount(), equalTo(3l));
     }
-
-
 
     /*
     [ Jan 2, Feb 3]
@@ -659,7 +670,7 @@ public class DateHistogramTests extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script(new Script("new DateTime(_value, DateTimeZone.UTC).plusMonths(1).getMillis()"))
+                        .script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))
                         .interval(DateHistogramInterval.MONTH)).execute().actionGet();
 
         assertSearchResponse(response);
@@ -713,7 +724,7 @@ public class DateHistogramTests extends ESIntegTestCase {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
                         .field("dates")
-                        .script(new Script("new DateTime((long)_value, DateTimeZone.UTC).plusMonths(1).getMillis()"))
+                        .script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))
                         .interval(DateHistogramInterval.MONTH).subAggregation(max("max"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -775,7 +786,7 @@ public class DateHistogramTests extends ESIntegTestCase {
      */
     public void testScriptSingleValue() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script("doc['date'].value")).interval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script("date", ScriptType.INLINE, ExtractFieldScriptEngine.NAME, null)).interval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -811,7 +822,7 @@ public class DateHistogramTests extends ESIntegTestCase {
     public void testScriptSingleValueWithSubAggregatorInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
-                        .script(new Script("doc['date'].value")).interval(DateHistogramInterval.MONTH)
+                        .script(new Script("date", ScriptType.INLINE, ExtractFieldScriptEngine.NAME, null)).interval(DateHistogramInterval.MONTH)
                         .subAggregation(max("max"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -855,7 +866,7 @@ public class DateHistogramTests extends ESIntegTestCase {
 
     public void testScriptMultiValued() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
-                .addAggregation(dateHistogram("histo").script(new Script("doc['dates'].values")).interval(DateHistogramInterval.MONTH))
+                .addAggregation(dateHistogram("histo").script(new Script("dates", ScriptType.INLINE, ExtractFieldScriptEngine.NAME, null)).interval(DateHistogramInterval.MONTH))
                 .execute().actionGet();
 
         assertSearchResponse(response);
@@ -909,7 +920,7 @@ public class DateHistogramTests extends ESIntegTestCase {
     public void testScriptMultiValuedWithAggregatorInherited() throws Exception {
         SearchResponse response = client().prepareSearch("idx")
                 .addAggregation(dateHistogram("histo")
-                        .script(new Script("doc['dates'].values")).interval(DateHistogramInterval.MONTH)
+                        .script(new Script("dates", ScriptType.INLINE, ExtractFieldScriptEngine.NAME, null)).interval(DateHistogramInterval.MONTH)
                         .subAggregation(max("max"))).execute().actionGet();
 
         assertSearchResponse(response);
@@ -1368,5 +1379,259 @@ public class DateHistogramTests extends ESIntegTestCase {
         assertSearchResponse(response);
         Histogram histo = response.getAggregations().get("histo");
         assertThat(histo.getBuckets().size(), greaterThan(0));
+    }
+
+    /**
+     * Mock plugin for the {@link ExtractFieldScriptEngine}
+     */
+    public static class ExtractFieldScriptPlugin extends Plugin {
+
+        @Override
+        public String name() {
+            return ExtractFieldScriptEngine.NAME;
+        }
+
+        @Override
+        public String description() {
+            return "Mock script engine for " + DateHistogramIT.class;
+        }
+
+        public void onModule(ScriptModule module) {
+            module.addScriptEngine(ExtractFieldScriptEngine.class);
+        }
+
+    }
+
+    /**
+     * This mock script returns the field that is specified by name in the script body
+     */
+    public static class ExtractFieldScriptEngine implements ScriptEngineService {
+
+        public static final String NAME = "extract_field";
+
+        @Override
+        public void close() throws IOException {
+        }
+
+        @Override
+        public String[] types() {
+            return new String[] { NAME };
+        }
+
+        @Override
+        public String[] extensions() {
+            return types();
+        }
+
+        @Override
+        public boolean sandboxed() {
+            return true;
+        }
+
+        @Override
+        public Object compile(String script) {
+            return script;
+        }
+
+        @Override
+        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
+            throw new UnsupportedOperationException();
+        }
+        @Override
+        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
+            return new SearchScript() {
+
+                @Override
+                public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+
+                    final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+
+                    return new LeafSearchScript() {
+
+                        @Override
+                        public Object unwrap(Object value) {
+                            return null;
+                        }
+
+                        @Override
+                        public void setNextVar(String name, Object value) {
+                        }
+
+                        @Override
+                        public Object run() {
+                            String fieldName = (String) compiledScript.compiled();
+                            return leafLookup.doc().get(fieldName);
+                        }
+
+                        @Override
+                        public void setScorer(Scorer scorer) {
+                        }
+
+                        @Override
+                        public void setSource(Map<String, Object> source) {
+                        }
+
+                        @Override
+                        public void setDocument(int doc) {
+                            if (leafLookup != null) {
+                                leafLookup.setDocument(doc);
+                            }
+                        }
+
+                        @Override
+                        public long runAsLong() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public float runAsFloat() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public double runAsDouble() {
+                            throw new UnsupportedOperationException();
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public void scriptRemoved(CompiledScript script) {
+        }
+    }
+
+    /**
+     * Mock plugin for the {@link FieldValueScriptEngine}
+     */
+    public static class FieldValueScriptPlugin extends Plugin {
+
+        @Override
+        public String name() {
+            return FieldValueScriptEngine.NAME;
+        }
+
+        @Override
+        public String description() {
+            return "Mock script engine for " + DateHistogramIT.class;
+        }
+
+        public void onModule(ScriptModule module) {
+            module.addScriptEngine(FieldValueScriptEngine.class);
+        }
+
+    }
+
+    /**
+     * This mock script returns the field value and adds one month to the returned date
+     */
+    public static class FieldValueScriptEngine implements ScriptEngineService {
+
+        public static final String NAME = "field_value";
+
+        @Override
+        public void close() throws IOException {
+        }
+
+        @Override
+        public String[] types() {
+            return new String[] { NAME };
+        }
+
+        @Override
+        public String[] extensions() {
+            return types();
+        }
+
+        @Override
+        public boolean sandboxed() {
+            return true;
+        }
+
+        @Override
+        public Object compile(String script) {
+            return script;
+        }
+
+        @Override
+        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
+            throw new UnsupportedOperationException();
+        }
+        @Override
+        public SearchScript search(CompiledScript compiledScript, SearchLookup lookup, Map<String, Object> vars) {
+            return new SearchScript() {
+
+                private Map<String, Object> vars = new HashMap<>(2);
+
+                @Override
+                public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+
+                    final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+
+                    return new LeafSearchScript() {
+
+                        @Override
+                        public Object unwrap(Object value) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public void setNextVar(String name, Object value) {
+                            vars.put(name, value);
+                        }
+
+                        @Override
+                        public Object run() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public void setScorer(Scorer scorer) {
+                        }
+
+                        @Override
+                        public void setSource(Map<String, Object> source) {
+                        }
+
+                        @Override
+                        public void setDocument(int doc) {
+                            if (leafLookup != null) {
+                                leafLookup.setDocument(doc);
+                            }
+                        }
+
+                        @Override
+                        public long runAsLong() {
+                            return new DateTime((long) vars.get("_value"), DateTimeZone.UTC).plusMonths(1).getMillis();
+                        }
+
+                        @Override
+                        public float runAsFloat() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public double runAsDouble() {
+                            return new DateTime(new Double((double) vars.get("_value")).longValue(), DateTimeZone.UTC).plusMonths(1).getMillis();
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public void scriptRemoved(CompiledScript script) {
+        }
     }
 }

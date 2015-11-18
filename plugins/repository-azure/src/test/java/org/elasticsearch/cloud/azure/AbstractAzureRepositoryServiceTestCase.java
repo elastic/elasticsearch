@@ -80,10 +80,6 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
         Settings.Builder builder = Settings.settingsBuilder()
                 .put(Storage.CONTAINER, "snapshots");
 
-        // We use sometime deprecated settings in tests
-        builder.put(Storage.ACCOUNT, "mock_azure_account")
-                .put(Storage.KEY, "mock_azure_key");
-
         return builder.build();
     }
 

@@ -241,6 +241,9 @@
             "fs": {
               "type": "object"
             },
+            "os": {
+              "type": "object"
+            },
             "process": {
               "type": "object"
             },

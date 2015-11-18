@@ -29,7 +29,9 @@
       }
     },
     "os": {
-      "load_average" : 0.66
+      "cpu": {
+        "load_average": 0.66
+      }
     },
     "process": {
       "open_file_descriptors": 235,

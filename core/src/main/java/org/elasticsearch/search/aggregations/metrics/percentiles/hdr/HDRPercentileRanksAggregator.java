@@ -19,19 +19,28 @@
 package org.elasticsearch.search.aggregations.metrics.percentiles.hdr;
 
 import org.HdrHistogram.DoubleHistogram;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.percentiles.AbstractPercentilesParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentileRanksParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -76,16 +85,56 @@ public class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregat
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        private final double[] values;
-        private final int numberOfSignificantValueDigits;
-        private final boolean keyed;
+        private double[] values;
+        private int numberOfSignificantValueDigits = 3;
+        private boolean keyed = false;
 
-        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> valuesSourceInput, double[] values,
-                int numberOfSignificantValueDigits, boolean keyed) {
-            super(name, InternalHDRPercentiles.TYPE.name(), valuesSourceInput);
-            this.values = values;
-            this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
+        public Factory(String name) {
+            super(name, InternalHDRPercentileRanks.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        }
+
+        /**
+         * Set the values to compute percentiles from.
+         */
+        public void values(double[] values) {
+            double[] sortedValues = Arrays.copyOf(values, values.length);
+            Arrays.sort(sortedValues);
+            this.values = sortedValues;
+        }
+
+        /**
+         * Get the values to compute percentiles from.
+         */
+        public double[] values() {
+            return values;
+        }
+
+        /**
+         * Set whether the XContent response should be keyed
+         */
+        public void keyed(boolean keyed) {
             this.keyed = keyed;
+        }
+
+        /**
+         * Get whether the XContent response should be keyed
+         */
+        public boolean keyed() {
+            return keyed;
+        }
+
+        /**
+         * Expert: set the number of significant digits in the values.
+         */
+        public void numberOfSignificantValueDigits(int numberOfSignificantValueDigits) {
+            this.numberOfSignificantValueDigits = numberOfSignificantValueDigits;
+        }
+
+        /**
+         * Expert: set the number of significant digits in the values.
+         */
+        public int numberOfSignificantValueDigits() {
+            return numberOfSignificantValueDigits;
         }
 
         @Override
@@ -101,6 +150,45 @@ public class HDRPercentileRanksAggregator extends AbstractHDRPercentilesAggregat
                 throws IOException {
             return new HDRPercentileRanksAggregator(name, valuesSource, aggregationContext, parent, values, numberOfSignificantValueDigits,
                     keyed, config.formatter(), pipelineAggregators, metaData);
+        }
+
+        @Override
+        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, StreamInput in) throws IOException {
+            Factory factory = new Factory(name);
+            factory.values = in.readDoubleArray();
+            factory.keyed = in.readBoolean();
+            factory.numberOfSignificantValueDigits = in.readVInt();
+            return factory;
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            out.writeDoubleArray(values);
+            out.writeBoolean(keyed);
+            out.writeVInt(numberOfSignificantValueDigits);
+        }
+
+        @Override
+        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(PercentileRanksParser.VALUES_FIELD.getPreferredName(), values);
+            builder.field(AbstractPercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
+            builder.startObject(PercentilesMethod.HDR.getName());
+            builder.field(AbstractPercentilesParser.NUMBER_SIGNIFICANT_DIGITS_FIELD.getPreferredName(), numberOfSignificantValueDigits);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        protected boolean innerEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.deepEquals(values, other.values) && Objects.equals(keyed, other.keyed)
+                    && Objects.equals(numberOfSignificantValueDigits, other.numberOfSignificantValueDigits);
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return Objects.hash(Arrays.hashCode(values), keyed, numberOfSignificantValueDigits);
         }
     }
 }

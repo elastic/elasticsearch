@@ -201,7 +201,7 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         private Query childFilter;
 
         public Factory(String name, String childType) {
-            super(name, InternalChildren.TYPE.name(), new ValuesSourceParser.Input<ValuesSource.Bytes.WithOrdinals.ParentChild>());
+            super(name, InternalChildren.TYPE, new ValuesSourceParser.Input<ValuesSource.Bytes.WithOrdinals.ParentChild>());
             this.childType = childType;
         }
 

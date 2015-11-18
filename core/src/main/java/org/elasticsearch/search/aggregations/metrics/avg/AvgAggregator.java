@@ -121,7 +121,7 @@ public class AvgAggregator extends NumericMetricsAggregator.SingleValue {
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         public Factory(String name) {
-            super(name, InternalAvg.TYPE.name(), ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+            super(name, InternalAvg.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
         @Override

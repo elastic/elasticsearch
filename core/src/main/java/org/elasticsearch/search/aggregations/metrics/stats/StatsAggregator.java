@@ -163,7 +163,7 @@ public class StatsAggregator extends NumericMetricsAggregator.MultiValue {
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         public Factory(String name) {
-            super(name, InternalStats.TYPE.name(), ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+            super(name, InternalStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
         @Override

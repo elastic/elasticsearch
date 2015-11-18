@@ -178,9 +178,9 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         assertEquals(testAgg.name, parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.FIELD_NAME, parser.nextToken());
-        assertEquals(testAgg.type, parser.currentName());
+        assertEquals(testAgg.type.name(), parser.currentName());
         assertSame(XContentParser.Token.START_OBJECT, parser.nextToken());
-        AggregatorFactory newAgg = aggParsers.parser(testAgg.getWriteableName()).parse(testAgg.name, parser, SearchContext.current());
+        AggregatorFactory newAgg = aggParsers.parser(testAgg.getType()).parse(testAgg.name, parser, SearchContext.current());
         assertSame(XContentParser.Token.END_OBJECT, parser.currentToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
         assertSame(XContentParser.Token.END_OBJECT, parser.nextToken());
@@ -200,7 +200,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             testAgg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorFactory prototype = aggParsers.parser(testAgg.getWriteableName()).getFactoryPrototype();
+                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class, testAgg.getWriteableName());
                 AggregatorFactory deserializedQuery = prototype.readFrom(in);
                 assertEquals(deserializedQuery, testAgg);
                 assertEquals(deserializedQuery.hashCode(), testAgg.hashCode());
@@ -241,7 +241,7 @@ public abstract class BaseAggregationTestCase<AF extends AggregatorFactory> exte
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             agg.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
-                AggregatorFactory prototype = aggParsers.parser(agg.getWriteableName()).getFactoryPrototype();
+                AggregatorFactory prototype = (AggregatorFactory) namedWriteableRegistry.getPrototype(AggregatorFactory.class, agg.getWriteableName());
                 @SuppressWarnings("unchecked")
                 AF secondAgg = (AF) prototype.readFrom(in);
                 return secondAgg;

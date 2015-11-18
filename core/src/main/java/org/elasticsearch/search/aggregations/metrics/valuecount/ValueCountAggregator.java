@@ -115,7 +115,7 @@ public class ValueCountAggregator extends NumericMetricsAggregator.SingleValue {
     public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
 
         public Factory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
-            super(name, InternalValueCount.TYPE.name(), valuesSourceType, valueType);
+            super(name, InternalValueCount.TYPE, valuesSourceType, valueType);
         }
 
         @Override

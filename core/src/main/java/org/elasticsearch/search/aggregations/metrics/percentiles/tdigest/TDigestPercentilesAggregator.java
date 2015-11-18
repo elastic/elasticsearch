@@ -18,19 +18,28 @@
  */
 package org.elasticsearch.search.aggregations.metrics.percentiles.tdigest;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
+import org.elasticsearch.search.aggregations.metrics.percentiles.AbstractPercentilesParser;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesMethod;
+import org.elasticsearch.search.aggregations.metrics.percentiles.PercentilesParser;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSource.Numeric;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
@@ -71,16 +80,58 @@ public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggr
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
-        private final double[] percents;
-        private final double compression;
-        private final boolean keyed;
+        private double[] percents = PercentilesParser.DEFAULT_PERCENTS;
+        private double compression = 100.0;
+        private boolean keyed = false;
 
-        public Factory(String name, ValuesSourceParser.Input<ValuesSource.Numeric> valuesSourceInput,
-                double[] percents, double compression, boolean keyed) {
-            super(name, InternalTDigestPercentiles.TYPE.name(), valuesSourceInput);
-            this.percents = percents;
-            this.compression = compression;
+        public Factory(String name) {
+            super(name, InternalTDigestPercentiles.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+        }
+
+        /**
+         * Set the percentiles to compute.
+         */
+        public void percents(double[] percents) {
+            double[] sortedPercents = Arrays.copyOf(percents, percents.length);
+            Arrays.sort(sortedPercents);
+            this.percents = sortedPercents;
+        }
+
+        /**
+         * Get the percentiles to compute.
+         */
+        public double[] percents() {
+            return percents;
+        }
+
+        /**
+         * Set whether the XContent response should be keyed
+         */
+        public void keyed(boolean keyed) {
             this.keyed = keyed;
+        }
+
+        /**
+         * Get whether the XContent response should be keyed
+         */
+        public boolean keyed() {
+            return keyed;
+        }
+
+        /**
+         * Expert: set the compression. Higher values improve accuracy but also
+         * memory usage.
+         */
+        public void compression(double compression) {
+            this.compression = compression;
+        }
+
+        /**
+         * Expert: set the compression. Higher values improve accuracy but also
+         * memory usage.
+         */
+        public double compression() {
+            return compression;
         }
 
         @Override
@@ -96,6 +147,45 @@ public class TDigestPercentilesAggregator extends AbstractTDigestPercentilesAggr
                 throws IOException {
             return new TDigestPercentilesAggregator(name, valuesSource, aggregationContext, parent, percents, compression, keyed,
                     config.formatter(), pipelineAggregators, metaData);
+        }
+
+        @Override
+        protected ValuesSourceAggregatorFactory<Numeric> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, StreamInput in) throws IOException {
+            Factory factory = new Factory(name);
+            factory.percents = in.readDoubleArray();
+            factory.keyed = in.readBoolean();
+            factory.compression = in.readDouble();
+            return factory;
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            out.writeDoubleArray(percents);
+            out.writeBoolean(keyed);
+            out.writeDouble(compression);
+        }
+
+        @Override
+        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(PercentilesParser.PERCENTS_FIELD.getPreferredName(), percents);
+            builder.field(AbstractPercentilesParser.KEYED_FIELD.getPreferredName(), keyed);
+            builder.startObject(PercentilesMethod.TDIGEST.getName());
+            builder.field(AbstractPercentilesParser.COMPRESSION_FIELD.getPreferredName(), compression);
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        protected boolean innerEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.deepEquals(percents, other.percents) && Objects.equals(keyed, other.keyed)
+                    && Objects.equals(compression, other.compression);
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return Objects.hash(Arrays.hashCode(percents), keyed, compression);
         }
     }
 }

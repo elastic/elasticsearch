@@ -79,8 +79,8 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
                 // fast forward to retrieve the parentDoc this childDoc belongs to
                 final int parentDoc = parentDocs.nextSetBit(childDoc);
                 assert childDoc <= parentDoc && parentDoc != DocIdSetIterator.NO_MORE_DOCS;
-                
-                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket); 
+
+                int keySlot = bucketOrdToLastCollectedParentDoc.indexOf(bucket);
                 if (bucketOrdToLastCollectedParentDoc.indexExists(keySlot)) {
                     int lastCollectedParentDoc = bucketOrdToLastCollectedParentDoc.indexGet(keySlot);
                     if (parentDoc > lastCollectedParentDoc) {
@@ -124,7 +124,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         private final String path;
 
         public Factory(String name, String path) {
-            super(name, InternalReverseNested.TYPE.name());
+            super(name, InternalReverseNested.TYPE);
             this.path = path;
         }
 

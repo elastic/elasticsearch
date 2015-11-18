@@ -187,7 +187,7 @@ public class TopHitsAggregator extends MetricsAggregator {
         private final SubSearchContext subSearchContext;
 
         public Factory(String name, FetchPhase fetchPhase, SubSearchContext subSearchContext) {
-            super(name, InternalTopHits.TYPE.name());
+            super(name, InternalTopHits.TYPE);
             this.fetchPhase = fetchPhase;
             this.subSearchContext = subSearchContext;
         }

@@ -58,8 +58,8 @@ public class AvgParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory getFactoryPrototype() {
-        return new AvgAggregator.Factory(null);
+    public AggregatorFactory[] getFactoryPrototypes() {
+        return new AggregatorFactory[] { new AvgAggregator.Factory(null) };
     }
 
 }

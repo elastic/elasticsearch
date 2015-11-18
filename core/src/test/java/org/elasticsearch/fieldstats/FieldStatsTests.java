@@ -390,4 +390,22 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         }
     }
 
+    public void testEmptyIndex() {
+        createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
+        FieldStatsResponse response = client().prepareFieldStats()
+                .setFields("value")
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "1998-01-01T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(0));
+    }
+
 }

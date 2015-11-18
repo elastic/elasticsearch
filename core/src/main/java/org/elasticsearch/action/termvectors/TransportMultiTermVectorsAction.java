@@ -19,7 +19,6 @@
 
 package org.elasticsearch.action.termvectors;
 
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocumentRequest;
 import org.elasticsearch.action.support.ActionFilters;
@@ -79,8 +78,8 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
                         new IllegalArgumentException("routing is required for [" + concreteSingleIndex + "]/[" + termVectorsRequest.type() + "]/[" + termVectorsRequest.id() + "]"))));
                 continue;
             }
-            ShardId shardId = clusterService.operationRouting().getShards(clusterState, concreteSingleIndex,
-                    termVectorsRequest.type(), termVectorsRequest.id(), termVectorsRequest.routing(), null).shardId();
+            ShardId shardId = clusterService.operationRouting().shardId(clusterState, concreteSingleIndex, termVectorsRequest.type(),
+                termVectorsRequest.id(), termVectorsRequest.routing());
             MultiTermVectorsShardRequest shardRequest = shardRequests.get(shardId);
             if (shardRequest == null) {
                 shardRequest = new MultiTermVectorsShardRequest(request, shardId.index().name(), shardId.id());
@@ -89,12 +88,12 @@ public class TransportMultiTermVectorsAction extends HandledTransportAction<Mult
             }
             shardRequest.add(i, termVectorsRequest);
         }
-        
+
         if (shardRequests.size() == 0) {
             // only failures..
             listener.onResponse(new MultiTermVectorsResponse(responses.toArray(new MultiTermVectorsItemResponse[responses.length()])));
         }
-        
+
         final AtomicInteger counter = new AtomicInteger(shardRequests.size());
         for (final MultiTermVectorsShardRequest shardRequest : shardRequests.values()) {
             shardAction.execute(shardRequest, new ActionListener<MultiTermVectorsShardResponse>() {

@@ -36,13 +36,11 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
-import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
-import org.elasticsearch.index.engine.EngineClosedException;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.IndexShard;
@@ -121,23 +119,18 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     }
 
     @Override
-    protected void resolveRequest(ClusterState state, InternalRequest request, ActionListener<IndexResponse> indexResponseActionListener) {
-        MetaData metaData = clusterService.state().metaData();
-
+    protected void resolveRequest(MetaData metaData, String concreteIndex, IndexRequest request) {
         MappingMetaData mappingMd = null;
-        if (metaData.hasIndex(request.concreteIndex())) {
-            mappingMd = metaData.index(request.concreteIndex()).mappingOrDefault(request.request().type());
+        if (metaData.hasIndex(concreteIndex)) {
+            mappingMd = metaData.index(concreteIndex).mappingOrDefault(request.type());
         }
-        request.request().process(metaData, mappingMd, allowIdGeneration, request.concreteIndex());
+        request.process(metaData, mappingMd, allowIdGeneration, concreteIndex);
+        ShardId shardId = clusterService.operationRouting().shardId(clusterService.state(), concreteIndex, request.type(), request.id(), request.routing());
+        request.setShardId(shardId);
     }
 
     private void innerExecute(final IndexRequest request, final ActionListener<IndexResponse> listener) {
         super.doExecute(request, listener);
-    }
-
-    @Override
-    protected boolean checkWriteConsistency() {
-        return true;
     }
 
     @Override
@@ -146,36 +139,30 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     }
 
     @Override
-    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
-        return clusterService.operationRouting()
-                .indexShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
-    }
-
-    @Override
-    protected Tuple<IndexResponse, IndexRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) throws Throwable {
-        final IndexRequest request = shardRequest.request;
+    protected Tuple<IndexResponse, IndexRequest> shardOperationOnPrimary(MetaData metaData, IndexRequest request) throws Throwable {
 
         // validate, if routing is required, that we got routing
-        IndexMetaData indexMetaData = clusterState.metaData().index(shardRequest.shardId.getIndex());
+        IndexMetaData indexMetaData = metaData.index(request.shardId().getIndex());
         MappingMetaData mappingMd = indexMetaData.mappingOrDefault(request.type());
         if (mappingMd != null && mappingMd.routing().required()) {
             if (request.routing() == null) {
-                throw new RoutingMissingException(shardRequest.shardId.getIndex(), request.type(), request.id());
+                throw new RoutingMissingException(request.shardId().getIndex(), request.type(), request.id());
             }
         }
 
-        IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
-        IndexShard indexShard = indexService.shardSafe(shardRequest.shardId.id());
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        IndexShard indexShard = indexService.shardSafe(request.shardId().id());
 
         final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(null, request, indexShard);
         final IndexResponse response = result.response;
         final Translog.Location location = result.location;
         processAfter(request, indexShard, location);
-        return new Tuple<>(response, shardRequest.request);
+        return new Tuple<>(response, request);
     }
 
     @Override
-    protected void shardOperationOnReplica(ShardId shardId, IndexRequest request) {
+    protected void shardOperationOnReplica(IndexRequest request) {
+        final ShardId shardId = request.shardId();
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.shardSafe(shardId.id());
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndex()).type(request.type()).id(request.id())

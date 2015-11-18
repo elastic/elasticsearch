@@ -25,12 +25,13 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Locale;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 public class InetAddresses {
     private static int IPV4_PART_COUNT = 4;
     private static int IPV6_PART_COUNT = 8;
-    private static final Pattern MASK_PATTERN = Pattern.compile("[\\.|/]");
+    private static final Pattern MASK_PATTERN = Pattern.compile("(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,3})");
 
     public static boolean isInetAddress(String ipString) {
         return ipStringToBytes(ipString) != null;
@@ -375,18 +376,18 @@ public class InetAddresses {
      * </p>
      */
     public static long[] cidrMaskToMinMax(String cidr) {
-        String[] parts = MASK_PATTERN.split(cidr);
-        if (parts.length != 5) {
+        Matcher matcher = MASK_PATTERN.matcher(cidr);
+        if (!matcher.matches()) {
             return null;
         }
-        int addr = (( Integer.parseInt(parts[0]) << 24 ) & 0xFF000000)
-                | (( Integer.parseInt(parts[1]) << 16 ) & 0xFF0000)
-                | (( Integer.parseInt(parts[2]) << 8 ) & 0xFF00)
-                |  ( Integer.parseInt(parts[3]) & 0xFF);
+        int addr = (( Integer.parseInt(matcher.group(1)) << 24 ) & 0xFF000000)
+                | (( Integer.parseInt(matcher.group(2)) << 16 ) & 0xFF0000)
+                | (( Integer.parseInt(matcher.group(3)) << 8 ) & 0xFF00)
+                |  ( Integer.parseInt(matcher.group(4)) & 0xFF);
 
-        int mask = (-1) << (32 - Integer.parseInt(parts[4]));
+        int mask = (-1) << (32 - Integer.parseInt(matcher.group(5)));
 
-        if (Integer.parseInt(parts[4]) == 0) {
+        if (Integer.parseInt(matcher.group(5)) == 0) {
             mask = 0 << 32;
         }
 

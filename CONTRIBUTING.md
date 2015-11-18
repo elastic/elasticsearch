@@ -116,6 +116,11 @@ For CentOS/RHEL/Fedora:
 sudo yum install rpm-build expect gpg2
 ```
 
+Fedora 20 will also need:
+```shell
+sudo yum install rpm-sign
+```
+
 For Debian/Ubuntu:
 ```shell
 sudo apt-get install rpm gnupg2 expect

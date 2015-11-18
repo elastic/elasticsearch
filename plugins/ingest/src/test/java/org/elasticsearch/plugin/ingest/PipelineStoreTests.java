@@ -27,8 +27,6 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.inject.Injector;
-import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.env.Environment;
@@ -81,7 +79,7 @@ public class PipelineStoreTests extends ESTestCase {
     public void testUpdatePipeline() throws Exception {
         List<SearchHit> hits = new ArrayList<>();
         hits.add(new InternalSearchHit(0, "1", new StringText("type"), Collections.emptyMap())
-                .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
+                .sourceRef(new BytesArray("{\"description\": \"_description1\", \"processors\":[]}"))
         );
 
         when(client.search(any())).thenReturn(expectedSearchReponse(hits));
@@ -94,7 +92,7 @@ public class PipelineStoreTests extends ESTestCase {
 
         when(client.get(any())).thenReturn(expectedGetResponse(true));
         hits.add(new InternalSearchHit(0, "2", new StringText("type"), Collections.emptyMap())
-                        .sourceRef(new BytesArray("{\"description\": \"_description2\"}"))
+                        .sourceRef(new BytesArray("{\"description\": \"_description2\", \"processors\":[]}"))
         );
         store.updatePipelines();
         assertThat(store.get("1").getId(), equalTo("1"));
@@ -113,7 +111,7 @@ public class PipelineStoreTests extends ESTestCase {
     public void testPipelineUpdater() throws Exception {
         List<SearchHit> hits = new ArrayList<>();
         hits.add(new InternalSearchHit(0, "1", new StringText("type"), Collections.emptyMap())
-                        .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
+                        .sourceRef(new BytesArray("{\"description\": \"_description1\", \"processors\":[]}"))
         );
         when(client.search(any())).thenReturn(expectedSearchReponse(hits));
         when(client.get(any())).thenReturn(expectedGetResponse(true));
@@ -127,7 +125,7 @@ public class PipelineStoreTests extends ESTestCase {
         });
 
         hits.add(new InternalSearchHit(0, "2", new StringText("type"), Collections.emptyMap())
-                        .sourceRef(new BytesArray("{\"description\": \"_description2\"}"))
+                        .sourceRef(new BytesArray("{\"description\": \"_description2\", \"processors\":[]}"))
         );
         assertBusy(() -> {
             assertThat(store.get("1"), notNullValue());
@@ -142,9 +140,9 @@ public class PipelineStoreTests extends ESTestCase {
     public void testGetReference() throws Exception {
         // fill the store up for the test:
         List<SearchHit> hits = new ArrayList<>();
-        hits.add(new InternalSearchHit(0, "foo", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
-        hits.add(new InternalSearchHit(0, "bar", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
-        hits.add(new InternalSearchHit(0, "foobar", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
+        hits.add(new InternalSearchHit(0, "foo", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\", \"processors\":[]}")));
+        hits.add(new InternalSearchHit(0, "bar", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\", \"processors\":[]}")));
+        hits.add(new InternalSearchHit(0, "foobar", new StringText("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\", \"processors\":[]}")));
         when(client.search(any())).thenReturn(expectedSearchReponse(hits));
         store.updatePipelines();
 

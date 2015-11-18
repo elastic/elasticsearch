@@ -75,25 +75,8 @@ public final class Pipeline {
 
         public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
             String description = ConfigurationUtils.readOptionalStringProperty(config, "description");
-            List<Processor> processors = new ArrayList<>();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Map<String, Object>>> processorConfigs = (List<Map<String, Map<String, Object>>>) config.get("processors");
-            if (processorConfigs != null ) {
-                for (Map<String, Map<String, Object>> processor : processorConfigs) {
-                    for (Map.Entry<String, Map<String, Object>> entry : processor.entrySet()) {
-                        Processor.Factory factory = processorRegistry.get(entry.getKey());
-                        if (factory != null) {
-                            Map<String, Object> processorConfig = entry.getValue();
-                            processors.add(factory.create(processorConfig));
-                            if (processorConfig.isEmpty() == false) {
-                                throw new IllegalArgumentException("processor [" + entry.getKey() + "] doesn't support one or more provided configuration parameters " + Arrays.toString(processorConfig.keySet().toArray()));
-                            }
-                        } else {
-                            throw new IllegalArgumentException("No processor type exist with name [" + entry.getKey() + "]");
-                        }
-                    }
-                }
-            }
+            List<Map<String, Map<String, Object>>> processorConfigs = ConfigurationUtils.readList(config, "processors");
+            List<Processor> processors = ConfigurationUtils.readProcessors(processorConfigs, processorRegistry);
             return new Pipeline(id, description, Collections.unmodifiableList(processors));
         }
 

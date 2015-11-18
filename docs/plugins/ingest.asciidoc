@@ -446,6 +446,59 @@ the `geoip` processor. (for example `city-amsterdam`)
 }
 --------------------------------------------------
 
+==== Field Conditional Processor
+
+This processor enables branching upon a boolean expression consisting of multiple conjunctive or disjunctive
+relational expressions, or a singular relational expression. If the provided conditional expression evaluates
+to `true`, then the processors defined within the `then` processors list will proceed to be executed, otherwise,
+the `else` processors will be executed.
+
+[[conditional-options]]
+.Conditional options
+[options="header"]
+|======
+| Name        | Required  | Default | Description
+| `if`        | yes       | -       | The relational expression, or boolean expression that is tested.
+| `then`      | no        | -       | The processors to execute in order if `condition` evaluates to true.
+| `else`      | no        | -       | The processors to execute in order if `condition` evaluates to false.
+|======
+
+An example with a relational expression,
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "conditional" : {
+        "if" : { "foo" { "gte" : 1990 } },
+        "then" : [ ... processors ... ],
+        "else" : [ ... processors ... ]
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+An example with a boolean expression,
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "conditional" : {
+        "if" : { "all" : [ { "foo" : {"gte" : 1990 } }, { "foo" : { "lt" : 2000 } } ] },
+        "then" : [ ... processors ... ],
+        "else" : [ ... processors ... ]
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
 === Put pipeline API
 
 The put pipeline api adds pipelines and updates existing pipelines in the cluster.

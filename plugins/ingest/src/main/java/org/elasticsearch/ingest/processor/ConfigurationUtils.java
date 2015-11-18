@@ -19,6 +19,9 @@
 
 package org.elasticsearch.ingest.processor;
 
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -148,5 +151,27 @@ public final class ConfigurationUtils {
         } else {
             throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
         }
+    }
+
+    public static List<Processor> readProcessors(List<Map<String, Map<String, Object>>> processorConfigs, Map<String, Processor.Factory> processorRegistry) throws Exception {
+        List<Processor> processors = new ArrayList<>();
+        if (processorConfigs != null) {
+            for (Map<String, Map<String, Object>> processor : processorConfigs) {
+                for (Map.Entry<String, Map<String, Object>> entry : processor.entrySet()) {
+                    Processor.Factory factory = processorRegistry.get(entry.getKey());
+                    if (factory != null) {
+                        Map<String, Object> processorConfig = entry.getValue();
+                        processors.add(factory.create(processorConfig));
+                        if (processorConfig.isEmpty() == false) {
+                            throw new IllegalArgumentException("processor [" + entry.getKey() + "] doesn't support one or more provided configuration parameters " + Arrays.toString(processorConfig.keySet().toArray()));
+                        }
+                    } else {
+                        throw new IllegalArgumentException("No processor type exist with name [" + entry.getKey() + "]");
+                    }
+                }
+            }
+        }
+
+        return processors;
     }
 }

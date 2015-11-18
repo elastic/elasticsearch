@@ -81,10 +81,11 @@ public class PipelineStore extends AbstractComponent {
         this.clientProvider = clientProvider;
         this.scrollTimeout = settings.getAsTime("ingest.pipeline.store.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
+        this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
         for (Processor.Factory factory : processors.values()) {
             factory.setConfigDirectory(environment.configFile());
+            factory.setProcessorRegistry(processorFactoryRegistry);
         }
-        this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
         clusterService.add(new PipelineStoreListener());
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override

@@ -62,6 +62,13 @@ public interface Processor {
         default void setConfigDirectory(Path configDirectory) {
         }
 
+        /**
+         * Sets the processor registry when knowledge of other processors is needed
+         */
+        default void setProcessorRegistry(Map<String, Processor.Factory> processorRegistry) {
+
+        }
+
         @Override
         default void close() throws IOException {
         }

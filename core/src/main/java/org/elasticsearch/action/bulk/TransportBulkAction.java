@@ -275,7 +275,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
                         list.add(new BulkItemRequest(i, new DeleteRequest(deleteRequest)));
                     }
                 } else {
-                    ShardId shardId = clusterService.operationRouting().deleteShards(clusterState, concreteIndex, deleteRequest.type(), deleteRequest.id(), deleteRequest.routing()).shardId();
+                    ShardId shardId = clusterService.operationRouting().indexShards(clusterState, concreteIndex, deleteRequest.type(), deleteRequest.id(), deleteRequest.routing()).shardId();
                     List<BulkItemRequest> list = requestsByShard.get(shardId);
                     if (list == null) {
                         list = new ArrayList<>();
@@ -312,7 +312,7 @@ public class TransportBulkAction extends HandledTransportAction<BulkRequest, Bul
         for (Map.Entry<ShardId, List<BulkItemRequest>> entry : requestsByShard.entrySet()) {
             final ShardId shardId = entry.getKey();
             final List<BulkItemRequest> requests = entry.getValue();
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(bulkRequest, shardId.index().name(), shardId.id(), bulkRequest.refresh(), requests.toArray(new BulkItemRequest[requests.size()]));
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(bulkRequest, shardId, bulkRequest.refresh(), requests.toArray(new BulkItemRequest[requests.size()]));
             bulkShardRequest.consistencyLevel(bulkRequest.consistencyLevel());
             bulkShardRequest.timeout(bulkRequest.timeout());
             shardBulkAction.execute(bulkShardRequest, new ActionListener<BulkShardResponse>() {

@@ -34,7 +34,7 @@ import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
-import org.elasticsearch.cluster.routing.ShardIterator;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -94,31 +94,28 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     }
 
     @Override
-    protected void resolveRequest(final ClusterState state, final InternalRequest request, final ActionListener<DeleteResponse> listener) {
-        request.request().routing(state.metaData().resolveIndexRouting(request.request().routing(), request.request().index()));
-        if (state.metaData().hasIndex(request.concreteIndex())) {
+    protected void resolveRequest(final MetaData metaData, String concreteIndex, DeleteRequest request) {
+        request.routing(metaData.resolveIndexRouting(request.routing(), request.index()));
+        if (metaData.hasIndex(concreteIndex)) {
             // check if routing is required, if so, do a broadcast delete
-            MappingMetaData mappingMd = state.metaData().index(request.concreteIndex()).mappingOrDefault(request.request().type());
+            MappingMetaData mappingMd = metaData.index(concreteIndex).mappingOrDefault(request.type());
             if (mappingMd != null && mappingMd.routing().required()) {
-                if (request.request().routing() == null) {
-                    if (request.request().versionType() != VersionType.INTERNAL) {
+                if (request.routing() == null) {
+                    if (request.versionType() != VersionType.INTERNAL) {
                         // TODO: implement this feature
-                        throw new IllegalArgumentException("routing value is required for deleting documents of type [" + request.request().type()
-                                + "] while using version_type [" + request.request().versionType() + "]");
+                        throw new IllegalArgumentException("routing value is required for deleting documents of type [" + request.type()
+                                + "] while using version_type [" + request.versionType() + "]");
                     }
-                    throw new RoutingMissingException(request.concreteIndex(), request.request().type(), request.request().id());
+                    throw new RoutingMissingException(concreteIndex, request.type(), request.id());
                 }
             }
         }
+        ShardId shardId = clusterService.operationRouting().shardId(clusterService.state(), concreteIndex, request.id(), request.routing());
+        request.setShardId(shardId);
     }
 
     private void innerExecute(final DeleteRequest request, final ActionListener<DeleteResponse> listener) {
         super.doExecute(request, listener);
-    }
-
-    @Override
-    protected boolean checkWriteConsistency() {
-        return true;
     }
 
     @Override
@@ -127,12 +124,11 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     }
 
     @Override
-    protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
-        DeleteRequest request = shardRequest.request;
-        IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).getShard(shardRequest.shardId.id());
+    protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(MetaData metaData, DeleteRequest request) {
+        IndexShard indexShard = indicesService.indexServiceSafe(request.shardId().getIndex()).getShard(request.shardId().id());
         final WriteResult<DeleteResponse> result = executeDeleteRequestOnPrimary(request, indexShard);
         processAfterWrite(request.refresh(), indexShard, result.location);
-        return new Tuple<>(result.response, shardRequest.request);
+        return new Tuple<>(result.response, request);
     }
 
     public static WriteResult<DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard indexShard) {
@@ -154,17 +150,12 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
         return delete;
     }
 
-
     @Override
-    protected void shardOperationOnReplica(ShardId shardId, DeleteRequest request) {
+    protected void shardOperationOnReplica(DeleteRequest request) {
+        final ShardId shardId = request.shardId();
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
         Engine.Delete delete = executeDeleteRequestOnReplica(request, indexShard);
         processAfterWrite(request.refresh(), indexShard, delete.getTranslogLocation());
     }
 
-    @Override
-    protected ShardIterator shards(ClusterState clusterState, InternalRequest request) {
-        return clusterService.operationRouting()
-                .deleteShards(clusterService.state(), request.concreteIndex(), request.request().type(), request.request().id(), request.request().routing());
-    }
 }

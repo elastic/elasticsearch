@@ -33,6 +33,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.shard.ShardNotFoundException;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -93,6 +95,24 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
 
     public ImmutableOpenMap<String, IndexRoutingTable> getIndicesRouting() {
         return indicesRouting();
+    }
+
+    /**
+     * All shards for the provided index and shard id
+     * @return All the shard routing entries for the given index and shard id
+     * @throws IndexNotFoundException if provided index does not exist
+     * @throws ShardNotFoundException if provided shard id is unknown
+     */
+    public IndexShardRoutingTable shardRoutingTable(String index, int shardId) {
+        IndexRoutingTable indexRouting = index(index);
+        if (indexRouting == null) {
+            throw new IndexNotFoundException(index);
+        }
+        IndexShardRoutingTable shard = indexRouting.shard(shardId);
+        if (shard == null) {
+            throw new ShardNotFoundException(new ShardId(index, shardId));
+        }
+        return shard;
     }
 
     public RoutingTable validateRaiseException(MetaData metaData) throws RoutingValidationException {

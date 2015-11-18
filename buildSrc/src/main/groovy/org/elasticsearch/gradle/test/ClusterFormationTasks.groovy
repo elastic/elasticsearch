@@ -275,11 +275,13 @@ class ClusterFormationTasks {
                 File logFile = new File(home, "logs/${clusterName}.log")
                 if (logFile.exists()) {
                     logFile.eachLine { line -> logger.error(line) }
+                } else {
+                    logger.error("Couldn't start elasticsearch and couldn't find ${logFile}")
                 }
                 throw new GradleException('Failed to start elasticsearch')
             }
         }
-        
+
         Task start = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         start.doLast(elasticsearchRunner)
         return start

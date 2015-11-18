@@ -116,7 +116,6 @@ final class ExternalNode implements Closeable {
             switch (entry.getKey()) {
             case "path.home":
             case "node.local":
-            case "path.repo":
             case "path.shared_data":
             case TransportModule.TRANSPORT_TYPE_KEY:
             case DiscoveryModule.DISCOVERY_TYPE_KEY:

@@ -106,7 +106,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
     private static final Version GLOABL_COMPATIBILITY_VERSION = Version.fromString(compatibilityVersionProperty());
     private static final int EXTERNAL_NODE_BASE_PORT = 29200;
 
-    public static String backwardsCompatibilityVersion() {
+    public static Version backwardsCompatibilityVersion() {
         String version = System.getProperty(TESTS_BACKWARDS_COMPATIBILITY_VERSION);
         if (version == null || version.isEmpty()) {
             throw new IllegalArgumentException("Must specify backwards test version with property " + TESTS_BACKWARDS_COMPATIBILITY_VERSION);
@@ -116,7 +116,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
             throw new IllegalArgumentException("Backcompat elasticsearch version must be same major version as current. " +
                 "backcompat: " + version + ", current: " + Version.CURRENT.toString());
         }
-        return version;
+        return v;
     }
 
     @Override
@@ -189,7 +189,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         TestCluster cluster = super.buildTestCluster(scope, seed);
         logger.info("Build internal cluster at {}", new Object[] {cluster.httpAddresses()});
         ExternalNodeServiceClient nodeServiceClient = new ExternalNodeServiceClient();
-        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityVersion(), randomLong(), nodeServiceClient, new NodeConfigurationSource() {
+        ExternalNode externalNode = new ExternalNode(backwardsCompatibilityVersion().toString(), randomLong(), nodeServiceClient, new NodeConfigurationSource() {
             @Override
             public Settings nodeSettings(int nodeOrdinal) {
                 return externalNodeSettings(nodeOrdinal);

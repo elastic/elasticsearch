@@ -123,7 +123,7 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
         private final String path;
 
         public Factory(String name, String path) {
-            super(name, InternalReverseNested.TYPE.name());
+            super(name, InternalReverseNested.TYPE);
             this.path = path;
         }
 

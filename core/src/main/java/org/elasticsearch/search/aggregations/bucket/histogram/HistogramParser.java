@@ -165,7 +165,7 @@ public class HistogramParser extends NumericValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory getFactoryPrototype() {
-        return HistogramAggregator.Factory.PROTOTYPE;
+    public AggregatorFactory[] getFactoryPrototypes() {
+        return new AggregatorFactory[] { HistogramAggregator.Factory.PROTOTYPE };
     }
 }

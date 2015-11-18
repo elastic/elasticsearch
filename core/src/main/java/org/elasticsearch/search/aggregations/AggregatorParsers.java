@@ -60,10 +60,12 @@ public class AggregatorParsers {
         Map<String, Aggregator.Parser> aggParsersBuilder = new HashMap<>(aggParsers.size());
         for (Aggregator.Parser parser : aggParsers) {
             aggParsersBuilder.put(parser.type(), parser);
-            AggregatorFactory factoryPrototype = parser.getFactoryPrototype();
+            AggregatorFactory[] factoryPrototypes = parser.getFactoryPrototypes();
             // NORELEASE remove this check when agg refactoring complete
-            if (factoryPrototype != null) {
-                namedWriteableRegistry.registerPrototype(AggregatorFactory.class, factoryPrototype);
+            if (factoryPrototypes != null) {
+                for (AggregatorFactory factoryPrototype : factoryPrototypes) {
+                    namedWriteableRegistry.registerPrototype(AggregatorFactory.class, factoryPrototype);
+                }
             }
         }
         this.aggParsers = unmodifiableMap(aggParsersBuilder);

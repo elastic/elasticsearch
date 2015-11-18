@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket.children;
 
-import org.apache.lucene.search.Query;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -70,7 +69,7 @@ public class ChildrenParser implements Aggregator.Parser {
 
     // NORELEASE implement this method when refactoring this aggregation
     @Override
-    public AggregatorFactory getFactoryPrototype() {
+    public AggregatorFactory[] getFactoryPrototypes() {
         return null;
     }
 }

@@ -74,7 +74,7 @@ public class GlobalAggregator extends SingleBucketAggregator {
     public static class Factory extends AggregatorFactory {
 
         public Factory(String name) {
-            super(name, InternalGlobal.TYPE.name());
+            super(name, InternalGlobal.TYPE);
         }
 
         @Override

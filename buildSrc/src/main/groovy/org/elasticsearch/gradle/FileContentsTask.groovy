@@ -16,25 +16,35 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gradle
 
-task buildDeb(type: Deb) {
-  dependsOn dependencyFiles, preparePackagingFiles
-  // Follow elasticsearch's deb file naming convention
-  archiveName "${packageName}-${project.version}.deb"
-  packageGroup 'web'
-  requires 'libc6'
-  requires 'adduser'
+import org.gradle.api.DefaultTask
+import org.gradle.api.tasks.*
+import java.io.File
 
-  into('/usr/share/lintian/overrides') {
-    from("${project.packagingFiles}/lintian/elasticsearch")
+/**
+ * Creates a file and sets it contents to something.
+ */
+class FileContentsTask extends DefaultTask {
+  /**
+   * The file to be built. Must be of type File to make @OutputFile happy.
+   */
+  @OutputFile
+  File file
+
+  @Input
+  Object contents
+
+  /**
+   * The file to be built. Takes any objecct and coerces to a file.
+   */
+  void setFile(Object file) {
+    this.file = file as File
   }
-  into('/usr/share/doc/elasticsearch') {
-    from "${project.packagingFiles}/copyright"
+
+  @TaskAction
+  void setContents() {
+    file = file as File
+    file.text = contents.toString()
   }
 }
-
-artifacts {
-  archives buildDeb
-}
-
-integTest.dependsOn buildDeb

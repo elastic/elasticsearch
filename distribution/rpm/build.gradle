@@ -18,7 +18,16 @@
  */
 
 task buildRpm(type: Rpm) {
-  dependsOn dependencyFiles
+  dependsOn dependencyFiles, preparePackagingFiles
+  // Follow elasticsearch's rpm file naming convention
+  archiveName = "${packageName}-${project.version}.rpm"
+  packageGroup 'Application/Internet'
+  prefix '/usr'
+  packager 'Elasticsearch'
+  release '1'
+  arch NOARCH
+  os LINUX
+  // TODO ospackage doesn't support icon but we used to have one
 }
 
 artifacts {

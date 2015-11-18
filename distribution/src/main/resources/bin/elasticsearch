@@ -42,12 +42,9 @@
 # Be aware that you will be entirely responsible for populating the needed
 # environment variables.
 
-# Maven will replace the project.name with elasticsearch below. If that
-# hasn't been done, we assume that this is not a packaged version and the
-# user has forgotten to run Maven to create a package.
-
-IS_PACKAGED_VERSION='${project.parent.artifactId}'
-if [ "$IS_PACKAGED_VERSION" != "distributions" ]; then
+# Check to see if you are trying to run this without building it first. Gradle
+# will replace the project.name with _something_.
+if echo '${project.name}' | grep project.name > /dev/null ; then
     cat >&2 << EOF
 Error: You must build the project with Maven or download a pre-built package
 before you can run Elasticsearch. See 'Building from Source' in README.textile

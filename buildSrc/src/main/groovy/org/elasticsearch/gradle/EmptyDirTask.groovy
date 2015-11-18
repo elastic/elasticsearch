@@ -16,25 +16,33 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+package org.elasticsearch.gradle
 
-task buildDeb(type: Deb) {
-  dependsOn dependencyFiles, preparePackagingFiles
-  // Follow elasticsearch's deb file naming convention
-  archiveName "${packageName}-${project.version}.deb"
-  packageGroup 'web'
-  requires 'libc6'
-  requires 'adduser'
+import org.gradle.api.DefaultTask
+import org.gradle.api.tasks.*
+import org.gradle.internal.nativeintegration.filesystem.Chmod
+import java.io.File
+import javax.inject.Inject
 
-  into('/usr/share/lintian/overrides') {
-    from("${project.packagingFiles}/lintian/elasticsearch")
+/**
+ * Creates an empty directory.
+ */
+class EmptyDirTask extends DefaultTask {
+  @Input
+  Object dir
+
+  @Input
+  int dirMode = 0755
+
+  @TaskAction
+  void create() {
+    dir = dir as File
+    dir.mkdirs()
+    getChmod().chmod(dir, dirMode)
   }
-  into('/usr/share/doc/elasticsearch') {
-    from "${project.packagingFiles}/copyright"
+
+  @Inject
+  Chmod getChmod() {
+    throw new UnsupportedOperationException()
   }
 }
-
-artifacts {
-  archives buildDeb
-}
-
-integTest.dependsOn buildDeb

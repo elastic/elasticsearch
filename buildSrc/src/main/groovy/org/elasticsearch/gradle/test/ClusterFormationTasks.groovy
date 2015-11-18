@@ -212,7 +212,7 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, File cwd, ClusterConfiguration config, String clusterName, File pidFile, File home) {
         Map esEnv = [
             'JAVA_HOME' : project.javaHome,
-            'ES_GC_OPTS': config.jvmArgs
+            'JAVA_OPTS': config.jvmArgs
         ]
         List<String> esProps = config.systemProperties.collect { key, value -> "-D${key}=${value}" }
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -235,6 +235,13 @@ class ClusterFormationTasks {
 
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = {
+            // we must add debug options inside the closure so the config is read at execution time, as
+            // gradle task options are not processed until the end of the configuration phase
+            if (config.debug) {
+                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
+                esEnv['JAVA_OPTS'] += ' -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+            }
+
             exec(executable: executable, spawn: config.daemonize, dir: cwd, taskname: 'elasticsearch') {
                 esEnv.each { key, value -> env(key: key, value: value) }
                 (esArgs + esProps).each { arg(value: it) }

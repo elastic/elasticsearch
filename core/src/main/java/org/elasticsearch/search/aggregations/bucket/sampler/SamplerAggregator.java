@@ -185,7 +185,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         private int shardSize;
 
         public Factory(String name, int shardSize) {
-            super(name, InternalSampler.TYPE.name());
+            super(name, InternalSampler.TYPE);
             this.shardSize = shardSize;
         }
 
@@ -204,7 +204,7 @@ public class SamplerAggregator extends SingleBucketAggregator {
         private String executionHint;
 
         public DiversifiedFactory(String name, int shardSize, String executionHint, ValuesSourceParser.Input vsInput, int maxDocsPerValue) {
-            super(name, InternalSampler.TYPE.name(), vsInput);
+            super(name, InternalSampler.TYPE, vsInput);
             this.shardSize = shardSize;
             this.maxDocsPerValue = maxDocsPerValue;
             this.executionHint = executionHint;

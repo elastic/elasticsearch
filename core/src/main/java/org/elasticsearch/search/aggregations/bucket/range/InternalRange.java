@@ -221,8 +221,8 @@ public class InternalRange<B extends InternalRange.Bucket, R extends InternalRan
 
     public static class Factory<B extends Bucket, R extends InternalRange<B, R>> {
 
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
         }
 
         public R create(String name, List<B> ranges, ValueFormatter formatter, boolean keyed, List<PipelineAggregator> pipelineAggregators,

@@ -67,8 +67,8 @@ public class InternalDateHistogram {
         }
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
         }
 
         @Override

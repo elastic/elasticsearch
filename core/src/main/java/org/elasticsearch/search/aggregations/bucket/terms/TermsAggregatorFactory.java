@@ -165,7 +165,7 @@ public class TermsAggregatorFactory extends ValuesSourceAggregatorFactory<Values
     public TermsAggregatorFactory(String name, ValuesSourceParser.Input input, Terms.Order order,
             TermsAggregator.BucketCountThresholds bucketCountThresholds, IncludeExclude includeExclude, String executionHint,
             SubAggCollectionMode executionMode, boolean showTermDocCountError) {
-        super(name, StringTerms.TYPE.name(), input);
+        super(name, StringTerms.TYPE, input);
         this.order = order;
         this.includeExclude = includeExclude;
         this.executionHint = executionHint;

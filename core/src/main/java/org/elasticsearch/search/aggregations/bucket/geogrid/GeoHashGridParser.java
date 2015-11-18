@@ -72,8 +72,8 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         return InternalGeoHashGrid.TYPE.name();
     }
     @Override
-    public AggregatorFactory getFactoryPrototype() {
-        return new GeoGridFactory(null);
+    public AggregatorFactory[] getFactoryPrototypes() {
+        return new AggregatorFactory[] { new GeoGridFactory(null) };
     }
 
     @Override
@@ -121,7 +121,7 @@ public class GeoHashGridParser extends GeoPointValuesSourceParser {
         private int shardSize = -1;
 
         public GeoGridFactory(String name) {
-            super(name, InternalGeoHashGrid.TYPE.name(), ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+            super(name, InternalGeoHashGrid.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
     }
 
         public void precision(int precision) {

@@ -106,7 +106,7 @@ public class DateHistogramParser extends HistogramParser {
     }
 
     @Override
-    public AggregatorFactory getFactoryPrototype() {
-        return HistogramAggregator.DateHistogramFactory.PROTOTYPE;
+    public AggregatorFactory[] getFactoryPrototypes() {
+        return new AggregatorFactory[] { HistogramAggregator.DateHistogramFactory.PROTOTYPE };
     }
 }

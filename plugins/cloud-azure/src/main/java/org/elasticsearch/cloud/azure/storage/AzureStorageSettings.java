@@ -88,7 +88,8 @@ public class AzureStorageSettings {
                         @SuppressWarnings("unchecked")
                         Map<String, String> map = (Map) storage.getValue();
                         AzureStorageSettings current = new AzureStorageSettings(storage.getKey(), map.get("account"), map.get("key"));
-                        boolean activeByDefault = Boolean.parseBoolean(map.getOrDefault("default", "false"));
+                        String activeStr = map.get("default");
+                        boolean activeByDefault = activeStr == null ? false : Boolean.parseBoolean(activeStr);
                         if (activeByDefault) {
                             if (primaryStorage == null) {
                                 primaryStorage = current;

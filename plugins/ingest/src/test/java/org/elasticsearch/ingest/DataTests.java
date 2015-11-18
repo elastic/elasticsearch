@@ -43,75 +43,75 @@ public class DataTests extends ESTestCase {
         data = new Data("index", "type", "id", document);
     }
 
-    public void testSimpleGetProperty() {
-        assertThat(data.getProperty("foo", String.class), equalTo("bar"));
-        assertThat(data.getProperty("int", Integer.class), equalTo(123));
+    public void testSimpleGetPropertyValue() {
+        assertThat(data.getPropertyValue("foo", String.class), equalTo("bar"));
+        assertThat(data.getPropertyValue("int", Integer.class), equalTo(123));
     }
 
-    public void testSimpleGetPropertyTypeMismatch() {
+    public void testSimpleGetPropertyValueTypeMismatch() {
         try {
-            data.getProperty("int", String.class);
+            data.getPropertyValue("int", String.class);
             fail("getProperty should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
         }
 
         try {
-            data.getProperty("foo", Integer.class);
+            data.getPropertyValue("foo", Integer.class);
             fail("getProperty should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));
         }
     }
 
-    public void testNestedGetProperty() {
-        assertThat(data.getProperty("fizz.buzz", String.class), equalTo("hello world"));
+    public void testNestedGetPropertyValue() {
+        assertThat(data.getPropertyValue("fizz.buzz", String.class), equalTo("hello world"));
     }
 
-    public void testGetPropertyNotFound() {
-        assertThat(data.getProperty("not.here", String.class), nullValue());
+    public void testGetPropertyValueNotFound() {
+        assertThat(data.getPropertyValue("not.here", String.class), nullValue());
     }
 
-    public void testGetPropertyNull() {
-        assertNull(data.getProperty(null, String.class));
+    public void testGetPropertyValueNull() {
+        assertNull(data.getPropertyValue(null, String.class));
     }
 
-    public void testGetPropertyEmpty() {
-        assertNull(data.getProperty("", String.class));
+    public void testGetPropertyValueEmpty() {
+        assertNull(data.getPropertyValue("", String.class));
     }
 
-    public void testContainsProperty() {
-        assertTrue(data.containsProperty("fizz"));
+    public void testHasProperty() {
+        assertTrue(data.hasPropertyValue("fizz"));
     }
 
-    public void testContainsPropertyNested() {
-        assertTrue(data.containsProperty("fizz.buzz"));
+    public void testHasPropertyValueNested() {
+        assertTrue(data.hasPropertyValue("fizz.buzz"));
     }
 
-    public void testContainsPropertyNotFound() {
-        assertFalse(data.containsProperty("doesnotexist"));
+    public void testHasPropertyValueNotFound() {
+        assertFalse(data.hasPropertyValue("doesnotexist"));
     }
 
-    public void testContainsPropertyNestedNotFound() {
-        assertFalse(data.containsProperty("fizz.doesnotexist"));
+    public void testHasPropertyValueNestedNotFound() {
+        assertFalse(data.hasPropertyValue("fizz.doesnotexist"));
     }
 
-    public void testContainsPropertyNull() {
-        assertFalse(data.containsProperty(null));
+    public void testHasPropertyValueNull() {
+        assertFalse(data.hasPropertyValue(null));
     }
 
-    public void testContainsPropertyEmpty() {
-        assertFalse(data.containsProperty(""));
+    public void testHasPropertyValueEmpty() {
+        assertFalse(data.hasPropertyValue(""));
     }
 
-    public void testSimpleAddField() {
-        data.addField("new_field", "foo");
+    public void testSimpleSetPropertyValue() {
+        data.setPropertyValue("new_field", "foo");
         assertThat(data.getDocument().get("new_field"), equalTo("foo"));
     }
 
     @SuppressWarnings("unchecked")
-    public void testNestedAddField() {
-        data.addField("a.b.c.d", "foo");
+    public void testNestedSetPropertyValue() {
+        data.setPropertyValue("a.b.c.d", "foo");
         assertThat(data.getDocument().get("a"), instanceOf(Map.class));
         Map<String, Object> a = (Map<String, Object>) data.getDocument().get("a");
         assertThat(a.get("b"), instanceOf(Map.class));
@@ -123,14 +123,14 @@ public class DataTests extends ESTestCase {
         assertThat(d, equalTo("foo"));
     }
 
-    public void testAddFieldOnExistingField() {
-        data.addField("foo", "newbar");
+    public void testSetPropertyValueOnExistingField() {
+        data.setPropertyValue("foo", "newbar");
         assertThat(data.getDocument().get("foo"), equalTo("newbar"));
     }
 
     @SuppressWarnings("unchecked")
-    public void testAddFieldOnExistingParent() {
-        data.addField("fizz.new", "bar");
+    public void testSetPropertyValueOnExistingParent() {
+        data.setPropertyValue("fizz.new", "bar");
         assertThat(data.getDocument().get("fizz"), instanceOf(Map.class));
         Map<String, Object> innerMap = (Map<String, Object>) data.getDocument().get("fizz");
         assertThat(innerMap.get("new"), instanceOf(String.class));
@@ -138,36 +138,36 @@ public class DataTests extends ESTestCase {
         assertThat(value, equalTo("bar"));
     }
 
-    public void testAddFieldOnExistingParentTypeMismatch() {
+    public void testSetPropertyValueOnExistingParentTypeMismatch() {
         try {
-            data.addField("fizz.buzz.new", "bar");
+            data.setPropertyValue("fizz.buzz.new", "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to parent [buzz] of type [java.lang.String], [java.util.Map] expected instead."));
         }
     }
 
-    public void testAddFieldNullName() {
+    public void testSetPropertyValueNullName() {
         try {
-            data.addField(null, "bar");
+            data.setPropertyValue(null, "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
         }
     }
 
-    public void testAddFieldEmptyName() {
+    public void testSetPropertyValueEmptyName() {
         try {
-            data.addField("", "bar");
+            data.setPropertyValue("", "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
         }
     }
 
-    public void testAddFieldNullValue() {
+    public void testSetPropertyValueNullValue() {
         try {
-            data.addField("new_field", null);
+            data.setPropertyValue("new_field", null);
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null value to field [new_field]"));

@@ -55,7 +55,7 @@ public final class Data {
      * @return the value for the provided path if existing, null otherwise
      * @throws IllegalArgumentException if the field is present but is not of the type provided as argument.
      */
-    public <T> T getProperty(String path, Class<T> clazz) {
+    public <T> T getPropertyValue(String path, Class<T> clazz) {
         Object property = get(path);
         if (property == null) {
             return null;
@@ -69,9 +69,9 @@ public final class Data {
     /**
      * Checks whether the document contains a value for the provided path
      * @param path The path within the document in dot-notation
-     * @return true if the document contains the property, false otherwise
+     * @return true if the document contains a non null value for the property, false otherwise
      */
-    public boolean containsProperty(String path) {
+    public boolean hasPropertyValue(String path) {
         return get(path) != null;
     }
 
@@ -99,13 +99,12 @@ public final class Data {
     }
 
     /**
-     * Adds the provided value to the provided path in the document.
-     * If path does not exist, nested maps will be put in as parent key values until
-     * leaf key name in path is reached.
+     * Sets the provided value to the provided path in the document.
+     * Any non existing path element will be created.
      * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
      */
-    public void addField(String path, Object value) {
+    public void setPropertyValue(String path, Object value) {
         if (path == null || path.length() == 0) {
             throw new IllegalArgumentException("cannot add null or empty field");
         }

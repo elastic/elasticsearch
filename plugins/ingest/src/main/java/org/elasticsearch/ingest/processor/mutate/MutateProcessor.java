@@ -141,16 +141,16 @@ public final class MutateProcessor implements Processor {
 
     private void doUpdate(Data data) {
         for(Map.Entry<String, Object> entry : update.entrySet()) {
-            data.addField(entry.getKey(), entry.getValue());
+            data.setPropertyValue(entry.getKey(), entry.getValue());
         }
     }
 
     private void doRename(Data data) {
         for(Map.Entry<String, String> entry : rename.entrySet()) {
-            if (data.containsProperty(entry.getKey())) {
-                Object oldVal = data.getProperty(entry.getKey(), Object.class);
+            if (data.hasPropertyValue(entry.getKey())) {
+                Object oldVal = data.getPropertyValue(entry.getKey(), Object.class);
                 data.getDocument().remove(entry.getKey());
-                data.addField(entry.getValue(), oldVal);
+                data.setPropertyValue(entry.getValue(), oldVal);
             }
         }
     }
@@ -179,7 +179,7 @@ public final class MutateProcessor implements Processor {
         for(Map.Entry<String, String> entry : convert.entrySet()) {
             String toType = entry.getValue();
 
-            Object oldVal = data.getProperty(entry.getKey(), Object.class);
+            Object oldVal = data.getPropertyValue(entry.getKey(), Object.class);
             Object newVal;
 
             if (oldVal instanceof List) {
@@ -194,17 +194,17 @@ public final class MutateProcessor implements Processor {
                 newVal = parseValueAsType(oldVal, toType);
             }
 
-            data.addField(entry.getKey(), newVal);
+            data.setPropertyValue(entry.getKey(), newVal);
         }
     }
 
     private void doSplit(Data data) {
         for(Map.Entry<String, String> entry : split.entrySet()) {
-            Object oldVal = data.getProperty(entry.getKey(), Object.class);
+            Object oldVal = data.getPropertyValue(entry.getKey(), Object.class);
             if (oldVal == null) {
                 throw new IllegalArgumentException("Cannot split field. [" + entry.getKey() + "] is null.");
             } else if (oldVal instanceof String) {
-                data.addField(entry.getKey(), Arrays.asList(((String) oldVal).split(entry.getValue())));
+                data.setPropertyValue(entry.getKey(), Arrays.asList(((String) oldVal).split(entry.getValue())));
             } else {
                 throw new IllegalArgumentException("Cannot split a field that is not a String type");
             }
@@ -213,27 +213,27 @@ public final class MutateProcessor implements Processor {
 
     private void doGsub(Data data) {
         for (GsubExpression gsubExpression : gsub) {
-            String oldVal = data.getProperty(gsubExpression.getFieldName(), String.class);
+            String oldVal = data.getPropertyValue(gsubExpression.getFieldName(), String.class);
             if (oldVal == null) {
                 throw new IllegalArgumentException("Field \"" + gsubExpression.getFieldName() + "\" is null, cannot match pattern.");
             }
             Matcher matcher = gsubExpression.getPattern().matcher(oldVal);
             String newVal = matcher.replaceAll(gsubExpression.getReplacement());
-            data.addField(gsubExpression.getFieldName(), newVal);
+            data.setPropertyValue(gsubExpression.getFieldName(), newVal);
         }
     }
 
     @SuppressWarnings("unchecked")
     private void doJoin(Data data) {
         for(Map.Entry<String, String> entry : join.entrySet()) {
-            Object oldVal = data.getProperty(entry.getKey(), Object.class);
+            Object oldVal = data.getPropertyValue(entry.getKey(), Object.class);
             if (oldVal instanceof List) {
                 String joined = (String) ((List) oldVal)
                         .stream()
                         .map(Object::toString)
                         .collect(Collectors.joining(entry.getValue()));
 
-                data.addField(entry.getKey(), joined);
+                data.setPropertyValue(entry.getKey(), joined);
             } else {
                 throw new IllegalArgumentException("Cannot join field:" + entry.getKey() + " with type: " + oldVal.getClass());
             }
@@ -248,11 +248,11 @@ public final class MutateProcessor implements Processor {
 
     private void doTrim(Data data) {
         for(String field : trim) {
-            Object val = data.getProperty(field, Object.class);
+            Object val = data.getPropertyValue(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot trim field. [" + field + "] is null.");
             } else if (val instanceof String) {
-                data.addField(field, ((String) val).trim());
+                data.setPropertyValue(field, ((String) val).trim());
             } else {
                 throw new IllegalArgumentException("Cannot trim field:" + field + " with type: " + val.getClass());
             }
@@ -261,11 +261,11 @@ public final class MutateProcessor implements Processor {
 
     private void doUppercase(Data data) {
         for(String field : uppercase) {
-            Object val = data.getProperty(field, Object.class);
+            Object val = data.getPropertyValue(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot uppercase field. [" + field + "] is null.");
             } else if (val instanceof String) {
-                data.addField(field, ((String) val).toUpperCase(Locale.ROOT));
+                data.setPropertyValue(field, ((String) val).toUpperCase(Locale.ROOT));
             } else {
                 throw new IllegalArgumentException("Cannot uppercase field:" + field + " with type: " + val.getClass());
             }
@@ -274,11 +274,11 @@ public final class MutateProcessor implements Processor {
 
     private void doLowercase(Data data) {
         for(String field : lowercase) {
-            Object val = data.getProperty(field, Object.class);
+            Object val = data.getPropertyValue(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot lowercase field. [" + field + "] is null.");
             } else if (val instanceof String) {
-                data.addField(field, ((String) val).toLowerCase(Locale.ROOT));
+                data.setPropertyValue(field, ((String) val).toLowerCase(Locale.ROOT));
             } else {
                 throw new IllegalArgumentException("Cannot lowercase field:" + field + " with type: " + val.getClass());
             }

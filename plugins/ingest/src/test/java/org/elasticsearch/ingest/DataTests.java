@@ -36,6 +36,7 @@ public class DataTests extends ESTestCase {
     public void setData() {
         Map<String, Object> document = new HashMap<>();
         document.put("foo", "bar");
+        document.put("foo_null", null);
         document.put("int", 123);
         Map<String, Object> innerObject = new HashMap<>();
         innerObject.put("buzz", "hello world");
@@ -46,6 +47,10 @@ public class DataTests extends ESTestCase {
     public void testSimpleGetPropertyValue() {
         assertThat(data.getPropertyValue("foo", String.class), equalTo("bar"));
         assertThat(data.getPropertyValue("int", Integer.class), equalTo(123));
+    }
+
+    public void testGetPropertyValueNullValue() {
+        assertThat(data.getPropertyValue("foo_null", Object.class), nullValue());
     }
 
     public void testSimpleGetPropertyValueTypeMismatch() {
@@ -100,6 +105,10 @@ public class DataTests extends ESTestCase {
         assertFalse(data.hasPropertyValue(null));
     }
 
+    public void testHasPropertyValueNullValue() {
+        assertTrue(data.hasPropertyValue("foo_null"));
+    }
+
     public void testHasPropertyValueEmpty() {
         assertFalse(data.hasPropertyValue(""));
     }
@@ -107,6 +116,12 @@ public class DataTests extends ESTestCase {
     public void testSimpleSetPropertyValue() {
         data.setPropertyValue("new_field", "foo");
         assertThat(data.getDocument().get("new_field"), equalTo("foo"));
+    }
+
+    public void testSetPropertyValueNullValue() {
+        data.setPropertyValue("new_field", null);
+        assertThat(data.getDocument().containsKey("new_field"), equalTo(true));
+        assertThat(data.getDocument().get("new_field"), nullValue());
     }
 
     @SuppressWarnings("unchecked")
@@ -162,15 +177,6 @@ public class DataTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
-        }
-    }
-
-    public void testSetPropertyValueNullValue() {
-        try {
-            data.setPropertyValue("new_field", null);
-            fail("add field should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot add null value to field [new_field]"));
         }
     }
 

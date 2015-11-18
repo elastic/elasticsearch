@@ -56,26 +56,6 @@ public final class Data {
      * @throws IllegalArgumentException if the field is present but is not of the type provided as argument.
      */
     public <T> T getPropertyValue(String path, Class<T> clazz) {
-        Object property = get(path);
-        if (property == null) {
-            return null;
-        }
-        if (clazz.isInstance(property)) {
-            return clazz.cast(property);
-        }
-        throw new IllegalArgumentException("field [" + path + "] of type [" + property.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
-    }
-
-    /**
-     * Checks whether the document contains a value for the provided path
-     * @param path The path within the document in dot-notation
-     * @return true if the document contains a non null value for the property, false otherwise
-     */
-    public boolean hasPropertyValue(String path) {
-        return get(path) != null;
-    }
-
-    private Object get(String path) {
         if (path == null || path.length() == 0) {
             return null;
         }
@@ -95,7 +75,42 @@ public final class Data {
         }
 
         String leafKey = pathElements[pathElements.length - 1];
-        return innerMap.get(leafKey);
+        Object property = innerMap.get(leafKey);
+        if (property == null) {
+            return null;
+        }
+        if (clazz.isInstance(property)) {
+            return clazz.cast(property);
+        }
+        throw new IllegalArgumentException("field [" + path + "] of type [" + property.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
+    }
+
+    /**
+     * Checks whether the document contains a value for the provided path
+     * @param path The path within the document in dot-notation
+     * @return true if the document contains a value for the property, false otherwise
+     */
+    public boolean hasPropertyValue(String path) {
+        if (path == null || path.length() == 0) {
+            return false;
+        }
+        String[] pathElements = Strings.splitStringToArray(path, '.');
+        assert pathElements.length > 0;
+
+        Map<String, Object> innerMap = document;
+        for (int i = 0; i < pathElements.length - 1; i++) {
+            Object obj = innerMap.get(pathElements[i]);
+            if (obj instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> stringObjectMap = (Map<String, Object>) obj;
+                innerMap = stringObjectMap;
+            } else {
+                return false;
+            }
+        }
+
+        String leafKey = pathElements[pathElements.length - 1];
+        return innerMap.containsKey(leafKey);
     }
 
     /**
@@ -107,9 +122,6 @@ public final class Data {
     public void setPropertyValue(String path, Object value) {
         if (path == null || path.length() == 0) {
             throw new IllegalArgumentException("cannot add null or empty field");
-        }
-        if (value == null) {
-            throw new IllegalArgumentException("cannot add null value to field [" + path + "]");
         }
         modified = true;
         String[] pathElements = Strings.splitStringToArray(path, '.');

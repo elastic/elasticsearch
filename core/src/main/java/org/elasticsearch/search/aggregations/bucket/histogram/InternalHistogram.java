@@ -238,8 +238,8 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
         protected Factory() {
         }
 
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
         }
 
         public ValueType valueType() {
@@ -514,7 +514,7 @@ public class InternalHistogram<B extends InternalHistogram.Bucket> extends Inter
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {
-        out.writeString(factory.type());
+        out.writeString(factory.type().name());
         InternalOrder.Streams.writeOrder(order, out);
         out.writeVLong(minDocCount);
         if (minDocCount == 0) {

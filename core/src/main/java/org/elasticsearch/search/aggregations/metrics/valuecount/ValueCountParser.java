@@ -58,7 +58,7 @@ public class ValueCountParser extends AnyValuesSourceParser {
     }
 
     @Override
-    public AggregatorFactory getFactoryPrototype() {
-        return new ValueCountAggregator.Factory<ValuesSource>(null, null, null);
+    public AggregatorFactory[] getFactoryPrototypes() {
+        return new AggregatorFactory[] { new ValueCountAggregator.Factory<ValuesSource>(null, null, null) };
     }
 }

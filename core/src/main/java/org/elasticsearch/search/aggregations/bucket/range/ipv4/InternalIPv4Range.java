@@ -113,8 +113,8 @@ public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, I
     public static class Factory extends InternalRange.Factory<InternalIPv4Range.Bucket, InternalIPv4Range> {
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
         }
 
         @Override

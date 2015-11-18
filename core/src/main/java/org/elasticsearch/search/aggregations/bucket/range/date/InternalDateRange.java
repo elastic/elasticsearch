@@ -115,8 +115,8 @@ public class InternalDateRange extends InternalRange<InternalDateRange.Bucket, I
     public static class Factory extends InternalRange.Factory<InternalDateRange.Bucket, InternalDateRange> {
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
         }
 
         @Override

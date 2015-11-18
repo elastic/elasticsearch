@@ -84,7 +84,7 @@ public class MissingAggregator extends SingleBucketAggregator {
     public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
 
         public Factory(String name, ValuesSourceParser.Input valueSourceInput) {
-            super(name, InternalMissing.TYPE.name(), valueSourceInput);
+            super(name, InternalMissing.TYPE, valueSourceInput);
         }
 
         @Override

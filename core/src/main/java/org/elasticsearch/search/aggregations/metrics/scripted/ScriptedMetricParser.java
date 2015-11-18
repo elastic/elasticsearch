@@ -152,7 +152,7 @@ public class ScriptedMetricParser implements Aggregator.Parser {
 
     // NORELEASE implement this method when refactoring this aggregation
     @Override
-    public AggregatorFactory getFactoryPrototype() {
+    public AggregatorFactory[] getFactoryPrototypes() {
         return null;
     }
 

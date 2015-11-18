@@ -20,7 +20,6 @@
 package org.elasticsearch.search.aggregations.metrics.geocentroid;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.GeoHashUtils;
 import org.apache.lucene.util.GeoUtils;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.lease.Releasables;
@@ -125,7 +124,7 @@ public final class GeoCentroidAggregator extends MetricsAggregator {
 
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.GeoPoint> {
         protected Factory(String name, ValuesSourceParser.Input<ValuesSource.GeoPoint> config) {
-            super(name, InternalGeoBounds.TYPE.name(), config);
+            super(name, InternalGeoBounds.TYPE, config);
         }
 
         @Override

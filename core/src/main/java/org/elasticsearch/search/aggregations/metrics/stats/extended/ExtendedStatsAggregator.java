@@ -202,7 +202,7 @@ public class ExtendedStatsAggregator extends NumericMetricsAggregator.MultiValue
         private double sigma = 2.0;
 
         public Factory(String name) {
-            super(name, InternalExtendedStats.TYPE.name(), ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+            super(name, InternalExtendedStats.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
         public void sigma(double sigma) {

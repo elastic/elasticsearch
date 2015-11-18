@@ -279,7 +279,7 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
          },
          "max_value" : {
             "lt" : "2015-01-01",
-            "format" : "date_optional_time" <1>
+            "format" : "date_optional_time"
          }
       }
    }

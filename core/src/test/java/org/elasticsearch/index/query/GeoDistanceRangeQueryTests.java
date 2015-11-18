@@ -146,7 +146,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
             double fromSlop = Math.abs(fromValue) / 1000;
             if (queryBuilder.includeLower() == false) {
-                fromSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(fromValue) + 1L));
+                fromSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(Math.abs(fromValue)) + 1L)) / 1000.0;
             }
             assertThat(geoQuery.minInclusiveDistance(), closeTo(fromValue, fromSlop));
         }
@@ -160,7 +160,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
             double toSlop = Math.abs(toValue) / 1000;
             if (queryBuilder.includeUpper() == false) {
-                toSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(toValue) + 1L));
+                toSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(Math.abs(toValue)) - 1L)) / 1000.0;
             }
             assertThat(geoQuery.maxInclusiveDistance(), closeTo(toValue, toSlop));
         }

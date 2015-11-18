@@ -164,5 +164,4 @@ public class AzureModule extends AbstractModule {
         }
         return false;
     }
-
 }

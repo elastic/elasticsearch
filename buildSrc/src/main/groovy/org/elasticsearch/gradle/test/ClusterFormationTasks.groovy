@@ -278,6 +278,11 @@ class ClusterFormationTasks {
                 } else {
                     logger.error("Couldn't start elasticsearch and couldn't find ${logFile}")
                 }
+                logger.error("Command: ${executable} ${(esArgs + esProps).join(' ')}")
+                if (esEnv.isEmpty() == false) {
+                    logger.error('environment:')
+                    esEnv.each { k, v -> logger.error("  ${k}: ${v}")}
+                }
                 throw new GradleException('Failed to start elasticsearch')
             }
         }

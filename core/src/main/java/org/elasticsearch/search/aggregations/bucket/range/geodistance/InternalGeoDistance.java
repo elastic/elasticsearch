@@ -104,8 +104,8 @@ public class InternalGeoDistance extends InternalRange<InternalGeoDistance.Bucke
     public static class Factory extends InternalRange.Factory<InternalGeoDistance.Bucket, InternalGeoDistance> {
 
         @Override
-        public String type() {
-            return TYPE.name();
+        public Type type() {
+            return TYPE;
         }
 
         @Override

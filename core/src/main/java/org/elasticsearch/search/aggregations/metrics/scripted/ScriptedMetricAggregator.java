@@ -116,7 +116,7 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
 
         public Factory(String name, Script initScript, Script mapScript, Script combineScript, Script reduceScript,
                 Map<String, Object> params) {
-            super(name, InternalScriptedMetric.TYPE.name());
+            super(name, InternalScriptedMetric.TYPE);
             this.initScript = initScript;
             this.mapScript = mapScript;
             this.combineScript = combineScript;

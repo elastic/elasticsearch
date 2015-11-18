@@ -122,7 +122,7 @@ public class MaxAggregator extends NumericMetricsAggregator.SingleValue {
     public static class Factory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource.Numeric> {
 
         public Factory(String name) {
-            super(name, InternalMax.TYPE.name(), ValuesSourceType.NUMERIC, ValueType.NUMERIC);
+            super(name, InternalMax.TYPE, ValuesSourceType.NUMERIC, ValueType.NUMERIC);
         }
 
         @Override

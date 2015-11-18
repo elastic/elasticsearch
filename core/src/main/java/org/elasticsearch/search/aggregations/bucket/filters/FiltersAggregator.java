@@ -150,7 +150,7 @@ public class FiltersAggregator extends BucketsAggregator {
         private String otherBucketKey;
 
         public Factory(String name, List<KeyedFilter> filters, boolean keyed, String otherBucketKey) {
-            super(name, InternalFilters.TYPE.name());
+            super(name, InternalFilters.TYPE);
             this.filters = filters;
             this.keyed = keyed;
             this.otherBucketKey = otherBucketKey;

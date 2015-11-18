@@ -21,9 +21,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
 
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Objects;
+import java.util.*;
 
 /**
  * Represents the data and meta data (like id and type) of a single document that is going to be indexed.
@@ -62,16 +60,9 @@ public final class Data {
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
 
-        Map<String, Object> innerMap = document;
-        for (int i = 0; i < pathElements.length - 1; i++) {
-            Object obj = innerMap.get(pathElements[i]);
-            if (obj instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> stringObjectMap = (Map<String, Object>) obj;
-                innerMap = stringObjectMap;
-            } else {
-                return null;
-            }
+        Map<String, Object> innerMap = getParent(pathElements);
+        if (innerMap == null) {
+            return null;
         }
 
         String leafKey = pathElements[pathElements.length - 1];
@@ -96,7 +87,29 @@ public final class Data {
         }
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
+        Map<String, Object> innerMap = getParent(pathElements);
+        if (innerMap == null) {
+            return false;
+        }
+        String leafKey = pathElements[pathElements.length - 1];
+        return innerMap.containsKey(leafKey);
+    }
 
+    public void removeProperty(String path) {
+        if (path == null || path.length() == 0) {
+            return;
+        }
+        String[] pathElements = Strings.splitStringToArray(path, '.');
+        assert pathElements.length > 0;
+
+        Map<String, Object> parent = getParent(pathElements);
+        if (parent != null) {
+            String leafKey = pathElements[pathElements.length - 1];
+            parent.remove(leafKey);
+        }
+    }
+
+    private Map<String, Object> getParent(String[] pathElements) {
         Map<String, Object> innerMap = document;
         for (int i = 0; i < pathElements.length - 1; i++) {
             Object obj = innerMap.get(pathElements[i]);
@@ -105,12 +118,10 @@ public final class Data {
                 Map<String, Object> stringObjectMap = (Map<String, Object>) obj;
                 innerMap = stringObjectMap;
             } else {
-                return false;
+                return null;
             }
         }
-
-        String leafKey = pathElements[pathElements.length - 1];
-        return innerMap.containsKey(leafKey);
+        return innerMap;
     }
 
     /**
@@ -136,6 +147,8 @@ public final class Data {
                     @SuppressWarnings("unchecked")
                     Map<String, Object> stringObjectMap = (Map<String, Object>) object;
                     inner = stringObjectMap;
+                } else if (object == null ) {
+                    throw new IllegalArgumentException("cannot add field to null parent, [" + Map.class.getName() + "] expected instead.");
                 } else {
                     throw new IllegalArgumentException("cannot add field to parent [" + pathElement + "] of type [" + object.getClass().getName() + "], [" + Map.class.getName() + "] expected instead.");
                 }

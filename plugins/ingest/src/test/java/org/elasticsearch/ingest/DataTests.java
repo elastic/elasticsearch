@@ -36,10 +36,10 @@ public class DataTests extends ESTestCase {
     public void setData() {
         Map<String, Object> document = new HashMap<>();
         document.put("foo", "bar");
-        document.put("foo_null", null);
         document.put("int", 123);
         Map<String, Object> innerObject = new HashMap<>();
         innerObject.put("buzz", "hello world");
+        innerObject.put("foo_null", null);
         document.put("fizz", innerObject);
         data = new Data("index", "type", "id", document);
     }
@@ -50,7 +50,7 @@ public class DataTests extends ESTestCase {
     }
 
     public void testGetPropertyValueNullValue() {
-        assertThat(data.getPropertyValue("foo_null", Object.class), nullValue());
+        assertThat(data.getPropertyValue("fizz.foo_null", Object.class), nullValue());
     }
 
     public void testSimpleGetPropertyValueTypeMismatch() {
@@ -106,7 +106,7 @@ public class DataTests extends ESTestCase {
     }
 
     public void testHasPropertyValueNullValue() {
-        assertTrue(data.hasPropertyValue("foo_null"));
+        assertTrue(data.hasPropertyValue("fizz.foo_null"));
     }
 
     public void testHasPropertyValueEmpty() {
@@ -162,6 +162,15 @@ public class DataTests extends ESTestCase {
         }
     }
 
+    public void testSetPropertyValueOnExistingNullParent() {
+        try {
+            data.setPropertyValue("fizz.foo_null.test", "bar");
+            fail("add field should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("cannot add field to null parent, [java.util.Map] expected instead."));
+        }
+    }
+
     public void testSetPropertyValueNullName() {
         try {
             data.setPropertyValue(null, "bar");
@@ -178,6 +187,47 @@ public class DataTests extends ESTestCase {
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
         }
+    }
+
+    public void testRemoveProperty() {
+        data.removeProperty("foo");
+        assertThat(data.getDocument().size(), equalTo(2));
+        assertThat(data.getDocument().containsKey("foo"), equalTo(false));
+    }
+
+    public void testRemoveInnerProperty() {
+        data.removeProperty("fizz.buzz");
+        assertThat(data.getDocument().size(), equalTo(3));
+        assertThat(data.getDocument().get("fizz"), instanceOf(Map.class));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> map = (Map<String, Object>)data.getDocument().get("fizz");
+        assertThat(map.size(), equalTo(1));
+        assertThat(map.containsKey("buzz"), equalTo(false));
+
+        data.removeProperty("fizz.foo_null");
+        assertThat(map.size(), equalTo(0));
+        assertThat(data.getDocument().size(), equalTo(3));
+        assertThat(data.getDocument().containsKey("fizz"), equalTo(true));
+    }
+
+    public void testRemoveNonExistingProperty() {
+        data.removeProperty("does_not_exist");
+        assertThat(data.getDocument().size(), equalTo(3));
+    }
+
+    public void testRemoveExistingParentTypeMismatch() {
+        data.removeProperty("foo.test");
+        assertThat(data.getDocument().size(), equalTo(3));
+    }
+
+    public void testRemoveNullProperty() {
+        data.removeProperty(null);
+        assertThat(data.getDocument().size(), equalTo(3));
+    }
+
+    public void testRemoveEmptyProperty() {
+        data.removeProperty("");
+        assertThat(data.getDocument().size(), equalTo(3));
     }
 
     public void testEqualsAndHashcode() throws Exception {

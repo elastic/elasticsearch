@@ -114,7 +114,7 @@ public class NestedAggregator extends SingleBucketAggregator {
             }
         };
     }
-        
+
     @Override
     public InternalAggregation buildAggregation(long owningBucketOrdinal) throws IOException {
         return new InternalNested(name, bucketDocCount(owningBucketOrdinal), bucketAggregations(owningBucketOrdinal), pipelineAggregators(),
@@ -142,7 +142,7 @@ public class NestedAggregator extends SingleBucketAggregator {
         private final String path;
 
         public Factory(String name, String path) {
-            super(name, InternalNested.TYPE.name());
+            super(name, InternalNested.TYPE);
             this.path = path;
         }
 

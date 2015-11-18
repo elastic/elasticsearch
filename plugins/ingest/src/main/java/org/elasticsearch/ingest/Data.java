@@ -95,13 +95,16 @@ public final class Data {
         return innerMap.containsKey(leafKey);
     }
 
+    /**
+     * Removes the property identified by the provided path
+     * @param path the path of the property to be removed
+     */
     public void removeProperty(String path) {
         if (path == null || path.length() == 0) {
             return;
         }
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
-
         Map<String, Object> parent = getParent(pathElements);
         if (parent != null) {
             String leafKey = pathElements[pathElements.length - 1];

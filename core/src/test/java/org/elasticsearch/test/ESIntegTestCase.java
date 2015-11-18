@@ -1226,7 +1226,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *   return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
      * </pre>
      */
-    protected final IndexResponse index(String index, String type, String id, Object... source) {
+    public final IndexResponse index(String index, String type, String id, Object... source) {
         return client().prepareIndex(index, type, id).setSource(source).execute().actionGet();
     }
 
@@ -1248,7 +1248,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      *
      * @see #waitForRelocation()
      */
-    protected final RefreshResponse refresh() {
+    public final RefreshResponse refresh() {
         waitForRelocation();
         // TODO RANDOMIZE with flush?
         RefreshResponse actionGet = client().admin().indices().prepareRefresh().execute().actionGet();
@@ -1259,7 +1259,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
     /**
      * Flushes and refreshes all indices in the cluster
      */
-    protected final void flushAndRefresh(String... indices) {
+    public final void flushAndRefresh(String... indices) {
         flush(indices);
         refresh();
     }

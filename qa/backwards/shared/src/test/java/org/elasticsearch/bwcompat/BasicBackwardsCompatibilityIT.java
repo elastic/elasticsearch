@@ -217,7 +217,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
      */
     public void testNoRecoveryFromNewNodes() throws ExecutionException, InterruptedException {
         assumeFalse("Only makes sense if backwards version isn't the current version",
-                Version.fromString(backwardsCompatibilityVersion()).equals(Version.CURRENT));
+                backwardsCompatibilityVersion().equals(Version.CURRENT));
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().backwardsNodePattern()).put(indexSettings())));
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();

@@ -238,7 +238,7 @@ class ClusterFormationTasks {
             // we must add debug options inside the closure so the config is read at execution time, as
             // gradle task options are not processed until the end of the configuration phase
             if (config.debug) {
-                println 'Running elasticsearch in debug mode, connect on port 8000'
+                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
                 esEnv['JAVA_OPTS'] += ' -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
             }
 

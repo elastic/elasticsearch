@@ -119,11 +119,11 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         return remoteIndexing ? remoteClient : client();
     }
 
-    private void initialize(String... excludes) throws IOException {
+    private void initialize(String... excludes) throws IOException, InterruptedException {
         initialize(null, excludes);
     }
 
-    private void initialize(String[] includes, String[] excludes) throws IOException {
+    private void initialize(String[] includes, String[] excludes) throws IOException, InterruptedException {
         rollover = randomFrom(HOURLY, DAILY, WEEKLY, MONTHLY);
         numReplicas = numberOfReplicas();
         numShards = numberOfShards();

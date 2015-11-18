@@ -72,7 +72,7 @@ public class RemoteIndexAuditTrailStartingTests extends ShieldIntegTestCase {
     }
 
     @Before
-    public void startRemoteCluster() throws IOException {
+    public void startRemoteCluster() throws IOException, InterruptedException {
         final List<String> addresses = new ArrayList<>();
         // get addresses for current cluster
         NodesInfoResponse response = client().admin().cluster().prepareNodesInfo().execute().actionGet();

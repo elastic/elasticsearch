@@ -258,6 +258,15 @@ class ClusterFormationTasks {
 
         // this closure is the actual code to run elasticsearch
         Closure elasticsearchRunner = {
+            // Command as string for logging
+            String esCommandString = "Elasticsearch command: ${executable} "
+            esCommandString += (esArgs + esProps).join(' ')
+            if (esEnv.isEmpty() == false) {
+                esCommandString += '\nenvironment:'
+                esEnv.each { k, v -> esCommandString += "\n  ${k}: ${v}" }
+            }
+            logger.info(esCommandString)
+
             ByteArrayOutputStream buffer = new ByteArrayOutputStream()
             if (logger.isInfoEnabled() || config.daemonize == false) {
                 // run with piping streams directly out (even stderr to stdout since gradle would capture it)
@@ -275,11 +284,17 @@ class ClusterFormationTasks {
                 File logFile = new File(home, "logs/${clusterName}.log")
                 if (logFile.exists()) {
                     logFile.eachLine { line -> logger.error(line) }
+                } else {
+                    logger.error("Couldn't start elasticsearch and couldn't find ${logFile}")
+                }
+                if (logger.isInfoEnabled() == false) {
+                    // We already log the command at info level. No need to do it twice.
+                    logger.error(esCommandString)
                 }
                 throw new GradleException('Failed to start elasticsearch')
             }
         }
-        
+
         Task start = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         start.doLast(elasticsearchRunner)
         return start

@@ -171,7 +171,7 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
         private final boolean wrapLongitude;
 
         protected Factory(String name, ValuesSourceParser.Input<ValuesSource.GeoPoint> input, boolean wrapLongitude) {
-            super(name, InternalGeoBounds.TYPE.name(), input);
+            super(name, InternalGeoBounds.TYPE, input);
             this.wrapLongitude = wrapLongitude;
         }
 

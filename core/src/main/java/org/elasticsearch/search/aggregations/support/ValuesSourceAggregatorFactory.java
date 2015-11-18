@@ -38,6 +38,7 @@ import org.elasticsearch.search.aggregations.AggregationInitializationException;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.internal.SearchContext;
@@ -55,11 +56,11 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
 
     public static abstract class LeafOnly<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS> {
 
-        protected LeafOnly(String name, String type, ValuesSourceParser.Input<VS> input) {
+        protected LeafOnly(String name, Type type, ValuesSourceParser.Input<VS> input) {
             super(name, type, input);
         }
 
-        protected LeafOnly(String name, String type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+        protected LeafOnly(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
             super(name, type, valuesSourceType, targetValueType);
         }
 
@@ -86,7 +87,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
      * {@link ValuesSourceParser} to using {@link AbstractValuesSourceParser}.
      */
     @Deprecated
-    protected ValuesSourceAggregatorFactory(String name, String type, ValuesSourceParser.Input<VS> input) {
+    protected ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceParser.Input<VS> input) {
         super(name, type);
         this.valuesSourceType = input.valuesSourceType;
         this.targetValueType = input.targetValueType;
@@ -98,7 +99,7 @@ public abstract class ValuesSourceAggregatorFactory<VS extends ValuesSource> ext
         this.timeZone = input.timezone;
     }
 
-    protected ValuesSourceAggregatorFactory(String name, String type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
+    protected ValuesSourceAggregatorFactory(String name, Type type, ValuesSourceType valuesSourceType, ValueType targetValueType) {
         super(name, type);
         this.valuesSourceType = valuesSourceType;
         this.targetValueType = targetValueType;

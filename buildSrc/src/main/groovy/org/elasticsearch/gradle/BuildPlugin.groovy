@@ -151,7 +151,8 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
-        File tmpScript = File.createTempFile('es-gradle-tmp', '.js');
+        File tmpScript = File.createTempFile('es-gradle-tmp', '.js')
+        tmpScript.deleteOnExit()
         tmpScript.setText(script, 'UTF-8')
         ByteArrayOutputStream output = new ByteArrayOutputStream()
         project.exec {

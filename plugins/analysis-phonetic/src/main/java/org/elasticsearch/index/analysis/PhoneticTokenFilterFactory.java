@@ -102,6 +102,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             this.encoder = new HaasePhonetik();
         } else if ("nysiis".equalsIgnoreCase(encodername)) {
             this.encoder = new Nysiis();
+        } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
+            this.encoder = new DaitchMokotoffSoundex();
         } else {
             throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
         }

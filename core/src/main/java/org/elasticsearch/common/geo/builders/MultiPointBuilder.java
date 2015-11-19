@@ -36,6 +36,8 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
+    final static MultiPointBuilder PROTOTYPE = new MultiPointBuilder();
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -90,7 +92,7 @@ public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
     }
 
     @Override
-    public ShapeBuilder readFrom(StreamInput in) throws IOException {
+    public MultiPointBuilder readFrom(StreamInput in) throws IOException {
         MultiPointBuilder multiPointBuilder = new MultiPointBuilder();
         int size = in.readVInt();
         for (int i=0; i < size; i++) {

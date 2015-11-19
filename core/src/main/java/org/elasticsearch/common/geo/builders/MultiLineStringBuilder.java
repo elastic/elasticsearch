@@ -19,6 +19,8 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
@@ -29,16 +31,23 @@ import com.vividsolutions.jts.geom.LineString;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.Objects;
 
 public class MultiLineStringBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
+
+    static final MultiLineStringBuilder PROTOTYPE = new MultiLineStringBuilder();
 
     private final ArrayList<LineStringBuilder> lines = new ArrayList<>();
 
     public MultiLineStringBuilder linestring(LineStringBuilder line) {
         this.lines.add(line);
         return this;
+    }
+
+    public MultiLineStringBuilder linestring(Coordinate[] coordinates) {
+        return this.linestring(new LineStringBuilder().points(coordinates));
     }
 
     public Coordinate[][] coordinates() {
@@ -91,5 +100,40 @@ public class MultiLineStringBuilder extends ShapeBuilder {
             geometry = FACTORY.createMultiLineString(lineStrings);
         }
         return jtsGeometry(geometry);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(lines);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        MultiLineStringBuilder other = (MultiLineStringBuilder) obj;
+        return Objects.equals(lines, other.lines);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(lines.size());
+        for (LineStringBuilder line : lines) {
+            line.writeTo(out);
+        }
+    }
+
+    @Override
+    public MultiLineStringBuilder readFrom(StreamInput in) throws IOException {
+        MultiLineStringBuilder multiLineStringBuilder = new MultiLineStringBuilder();
+        int size = in.readVInt();
+        for (int i=0; i < size; i++) {
+            multiLineStringBuilder.linestring(LineStringBuilder.PROTOTYPE.readFrom(in));
+        }
+        return multiLineStringBuilder;
     }
 }

@@ -44,10 +44,12 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     public static void init() {
         if (namedWriteableRegistry == null) {
             namedWriteableRegistry = new NamedWriteableRegistry();
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, new PointBuilder());
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, new CircleBuilder());
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, new EnvelopeBuilder());
-            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, new MultiPointBuilder());
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PointBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, CircleBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, EnvelopeBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiPointBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, LineStringBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiLineStringBuilder.PROTOTYPE);
         }
     }
 
@@ -94,9 +96,9 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB testShape = createTestShapeBuilder();
             SB deserializedShape = copyShape(testShape);
-            assertEquals(deserializedShape, testShape);
-            assertEquals(deserializedShape.hashCode(), testShape.hashCode());
-            assertNotSame(deserializedShape, testShape);
+            assertEquals(testShape, deserializedShape);
+            assertEquals(testShape.hashCode(), deserializedShape.hashCode());
+            assertNotSame(testShape, deserializedShape);
         }
     }
 

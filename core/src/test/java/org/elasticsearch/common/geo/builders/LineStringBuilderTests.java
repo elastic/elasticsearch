@@ -31,6 +31,9 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
     @Override
     protected LineStringBuilder createTestShapeBuilder() {
         LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.LINESTRING);
+        if (randomBoolean()) {
+            lsb.close();
+        }
         return lsb;
     }
 

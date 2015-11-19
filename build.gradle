@@ -125,9 +125,6 @@ if (projectsPrefix.isEmpty()) {
       vcs = 'Git'
     }
   }
-  tasks.cleanIdea {
-    delete '.idea'
-  }
 }
 
 // eclipse configuration

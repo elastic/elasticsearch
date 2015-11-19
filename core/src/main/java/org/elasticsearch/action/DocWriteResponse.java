@@ -23,12 +23,13 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
 /**
- * A base class for the response of a write operation that involves are a single doc
+ * A base class for the response of a write operation that involves a single doc
  */
 public abstract class DocWriteResponse extends ReplicationResponse implements ToXContent {
 
@@ -46,8 +47,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements To
         this.version = version;
     }
 
-    public DocWriteResponse() {
-
+    // needed for deserialization
+    protected DocWriteResponse() {
     }
 
     /**
@@ -87,7 +88,7 @@ public abstract class DocWriteResponse extends ReplicationResponse implements To
     }
 
     /**
-     * Returns the sequence number assigned for this change. Returns -1L if the operation wasn't
+     * Returns the sequence number assigned for this change. Returns {@link SequenceNumbersService#UNASSIGNED_SEQ_NO} if the operation wasn't
      * performed (i.e., an update operation that resulted in a NOOP).
      */
     public long getSeqNo() {
@@ -101,8 +102,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements To
         shardId = ShardId.readShardId(in);
         type = in.readString();
         id = in.readString();
-        version = in.readLong();
-        seqNo = in.readLong();
+        version = in.readZLong();
+        seqNo = in.readZLong();
     }
 
     @Override
@@ -111,8 +112,8 @@ public abstract class DocWriteResponse extends ReplicationResponse implements To
         shardId.writeTo(out);
         out.writeString(type);
         out.writeString(id);
-        out.writeLong(version);
-        out.writeLong(seqNo);
+        out.writeZLong(version);
+        out.writeZLong(seqNo);
     }
 
     static final class Fields {

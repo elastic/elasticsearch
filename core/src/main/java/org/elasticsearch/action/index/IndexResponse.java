@@ -39,8 +39,6 @@ public class IndexResponse extends DocWriteResponse {
     private boolean created;
 
     public IndexResponse() {
-        super();
-
     }
 
     public IndexResponse(ShardId shardId, String type, String id, long seqNo, long version, boolean created) {

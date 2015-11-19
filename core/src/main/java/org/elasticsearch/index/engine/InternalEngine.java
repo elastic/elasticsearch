@@ -349,7 +349,7 @@ public class InternalEngine extends Engine {
             maybeFailEngine("index", t);
             throw new IndexFailedEngineException(shardId, index.type(), index.id(), t);
         } finally {
-            if (index.seqNo() != -1) {
+            if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                 seqNoService.markSeqNoAsCompleted(index.seqNo());
             }
         }
@@ -459,7 +459,7 @@ public class InternalEngine extends Engine {
             maybeFailEngine("delete", t);
             throw new DeleteFailedEngineException(shardId, delete, t);
         } finally {
-            if (delete.seqNo() != -1l) {
+            if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
                 seqNoService.markSeqNoAsCompleted(delete.seqNo());
             }
         }

@@ -1047,6 +1047,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         private final AtomicBoolean closed = new AtomicBoolean(false);
 
         IndexShardReference(IndexShard counter, long opPrimaryTerm) {
+            // this enforces primary terms, if we're lagging an exception will be thrown.
             counter.incrementOperationCounter(opPrimaryTerm);
             this.counter = counter;
         }

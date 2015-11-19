@@ -79,6 +79,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
 import org.elasticsearch.index.store.Store;
@@ -450,7 +451,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             if (shardRouting.primary() == false) {
                 throw new IllegalIndexShardStateException(shardId, state, "shard is not a primary");
             }
-            return prepareIndex(docMapper(source.type()), source, -1, version, versionType, Engine.Operation.Origin.PRIMARY);
+            return prepareIndex(docMapper(source.type()), source, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, versionType, Engine.Operation.Origin.PRIMARY);
         } catch (Throwable t) {
             verifyNotClosed(t);
             throw t;
@@ -508,7 +509,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
         final Term uid = documentMapper.uidMapper().term(Uid.createUid(type, id));
-        return prepareDelete(type, id, uid, -1L, version, versionType, Engine.Operation.Origin.PRIMARY);
+        return prepareDelete(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, versionType, Engine.Operation.Origin.PRIMARY);
     }
 
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long seqNo, long version, VersionType versionType) {
@@ -1522,6 +1523,10 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * increments the ongoing operations counter. If the given primary term is lower then the one in {@link #shardRouting}
+     * an {@link IllegalIndexShardStateException} is thrown.
+     */
     public void incrementOperationCounter(long opPrimaryTerm) {
         if (shardRouting.primaryTerm() > opPrimaryTerm) {
             throw new IllegalIndexShardStateException(shardId, state, "operation term [{}] is too old (current [{}])", opPrimaryTerm, shardRouting.primaryTerm());

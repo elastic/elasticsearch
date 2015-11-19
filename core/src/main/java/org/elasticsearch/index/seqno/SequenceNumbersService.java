@@ -27,6 +27,8 @@ import java.util.concurrent.atomic.AtomicLong;
 /** a very light weight implementation. will be replaced with proper machinery later */
 public class SequenceNumbersService extends AbstractIndexShardComponent {
 
+    public final static long UNASSIGNED_SEQ_NO = -1L;
+
     AtomicLong seqNoGenerator = new AtomicLong();
 
     public SequenceNumbersService(ShardId shardId, IndexSettings indexSettings) {

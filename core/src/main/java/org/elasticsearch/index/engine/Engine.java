@@ -45,6 +45,7 @@ import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.merge.MergeStats;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -631,8 +632,8 @@ public abstract class Engine implements Closeable {
 
         public Operation(Term uid, long seqNo, long version, VersionType versionType, Origin origin, long startTime) {
             this.uid = uid;
-            assert origin != Origin.PRIMARY || seqNo == -1l : "seqNo should not be set when origin is PRIMARY";
-            assert origin == Origin.PRIMARY || seqNo > -1l : "seqNo should  be set when origin is not PRIMARY";
+            assert origin != Origin.PRIMARY || seqNo == SequenceNumbersService.UNASSIGNED_SEQ_NO : "seqNo should not be set when origin is PRIMARY";
+            assert origin == Origin.PRIMARY || seqNo >= 0 : "seqNo should  be set when origin is not PRIMARY";
             this.seqNo = seqNo;
             this.version = version;
             this.versionType = versionType;
@@ -715,7 +716,7 @@ public abstract class Engine implements Closeable {
         }
 
         public Index(Term uid, ParsedDocument doc, long version) {
-            this(uid, doc, -1, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
+            this(uid, doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime());
         }
 
         public ParsedDocument parsedDoc() {
@@ -780,7 +781,7 @@ public abstract class Engine implements Closeable {
         }
 
         public Delete(String type, String id, Term uid) {
-            this(type, id, uid, -1, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), false);
+            this(type, id, uid, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.MATCH_ANY, VersionType.INTERNAL, Origin.PRIMARY, System.nanoTime(), false);
         }
 
         public String type() {

@@ -27,6 +27,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.FieldDataType;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 
 import java.io.IOException;
 import java.util.List;
@@ -112,7 +113,7 @@ public class SeqNoFieldMapper extends MetadataFieldMapper {
     @Override
     protected void parseCreateField(ParseContext context, List<Field> fields) throws IOException {
         // see InternalEngine.updateVersion to see where the real version value is set
-        final Field seqNo = new NumericDocValuesField(NAME, -1L);
+        final Field seqNo = new NumericDocValuesField(NAME, SequenceNumbersService.UNASSIGNED_SEQ_NO);
         context.seqNo(seqNo);
         fields.add(seqNo);
     }

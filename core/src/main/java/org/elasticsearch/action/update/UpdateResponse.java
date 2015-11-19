@@ -25,6 +25,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.index.get.GetResult;
+import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
@@ -44,7 +45,7 @@ public class UpdateResponse extends DocWriteResponse {
      * For example: update script with operation set to none
      */
     public UpdateResponse(ShardId shardId, String type, String id, long version, boolean created) {
-        this(new ShardInfo(0, 0), shardId, type, id, -1l, version, created);
+        this(new ShardInfo(0, 0), shardId, type, id, SequenceNumbersService.UNASSIGNED_SEQ_NO, version, created);
     }
 
     public UpdateResponse(ShardInfo shardInfo, ShardId shardId, String type, String id, long seqNo, long version, boolean created) {

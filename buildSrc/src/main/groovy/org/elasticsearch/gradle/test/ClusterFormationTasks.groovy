@@ -102,7 +102,7 @@ class ClusterFormationTasks {
             String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
             String taskName = "${task.name}#install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}Plugin"
             // delay reading the file location until execution time by wrapping in a closure within a GString
-            String file = "${ -> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString() }"
+            String file = "${-> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString()}"
             Object[] args = [new File(home, 'bin/plugin'), 'install', file]
             setup = configureExecTask(taskName, project, setup, cwd, args)
         }
@@ -115,8 +115,11 @@ class ClusterFormationTasks {
         Task start = configureStartTask("${task.name}#start", project, setup, cwd, config, clusterName, pidFile, home)
         task.dependsOn(start)
 
-        Task stop = configureStopTask("${task.name}#stop", project, [], pidFile)
-        task.finalizedBy(stop)
+        if (config.daemonize) {
+            // if we are running in the background, make sure to stop the server when the task completes
+            Task stop = configureStopTask("${task.name}#stop", project, [], pidFile)
+            task.finalizedBy(stop)
+        }
     }
 
     /** Adds a task to extract the elasticsearch distribution */
@@ -209,7 +212,7 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, File cwd, ClusterConfiguration config, String clusterName, File pidFile, File home) {
         Map esEnv = [
             'JAVA_HOME' : project.javaHome,
-            'ES_GC_OPTS': config.jvmArgs
+            'JAVA_OPTS': config.jvmArgs
         ]
         List<String> esProps = config.systemProperties.collect { key, value -> "-D${key}=${value}" }
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -232,6 +235,13 @@ class ClusterFormationTasks {
 
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = {
+            // we must add debug options inside the closure so the config is read at execution time, as
+            // gradle task options are not processed until the end of the configuration phase
+            if (config.debug) {
+                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
+                esEnv['JAVA_OPTS'] += ' -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+            }
+
             exec(executable: executable, spawn: config.daemonize, dir: cwd, taskname: 'elasticsearch') {
                 esEnv.each { key, value -> env(key: key, value: value) }
                 (esArgs + esProps).each { arg(value: it) }
@@ -248,6 +258,15 @@ class ClusterFormationTasks {
 
         // this closure is the actual code to run elasticsearch
         Closure elasticsearchRunner = {
+            // Command as string for logging
+            String esCommandString = "Elasticsearch command: ${executable} "
+            esCommandString += (esArgs + esProps).join(' ')
+            if (esEnv.isEmpty() == false) {
+                esCommandString += '\nenvironment:'
+                esEnv.each { k, v -> esCommandString += "\n  ${k}: ${v}" }
+            }
+            logger.info(esCommandString)
+
             ByteArrayOutputStream buffer = new ByteArrayOutputStream()
             if (logger.isInfoEnabled() || config.daemonize == false) {
                 // run with piping streams directly out (even stderr to stdout since gradle would capture it)
@@ -265,11 +284,17 @@ class ClusterFormationTasks {
                 File logFile = new File(home, "logs/${clusterName}.log")
                 if (logFile.exists()) {
                     logFile.eachLine { line -> logger.error(line) }
+                } else {
+                    logger.error("Couldn't start elasticsearch and couldn't find ${logFile}")
+                }
+                if (logger.isInfoEnabled() == false) {
+                    // We already log the command at info level. No need to do it twice.
+                    logger.error(esCommandString)
                 }
                 throw new GradleException('Failed to start elasticsearch')
             }
         }
-        
+
         Task start = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         start.doLast(elasticsearchRunner)
         return start

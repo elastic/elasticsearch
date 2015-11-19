@@ -137,7 +137,7 @@ public abstract class CatAllocationTestCase extends ESAllocationTestCase {
     private ClusterState rebalance(ClusterState clusterState) {
         RoutingTable routingTable;AllocationService strategy = createAllocationService(settingsBuilder()
                 .build());
-        RoutingAllocation.Result reroute = strategy.reroute(clusterState);
+        RoutingAllocation.Result reroute = strategy.reroute(clusterState, "reroute");
         routingTable = reroute.routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingTable = clusterState.routingTable();

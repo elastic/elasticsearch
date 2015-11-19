@@ -27,10 +27,12 @@ import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardsIterator;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.TestClusterService;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.ReceiveTimeoutTransportException;
 import org.elasticsearch.transport.TransportException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.After;
@@ -38,6 +40,7 @@ import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
@@ -139,6 +142,38 @@ public class ShardStateActionTests extends ESTestCase {
         transport.handleResponse(capturedRequests[0].requestId, new TransportException("simulated"));
 
         assertTrue(failure.get());
+    }
+
+    public void testTimeout() throws InterruptedException {
+        final String index = "test";
+
+        clusterService.setState(stateWithStartedPrimary(index, true, randomInt(5)));
+
+        String indexUUID = clusterService.state().metaData().index(index).getIndexUUID();
+
+        AtomicBoolean progress = new AtomicBoolean();
+        AtomicBoolean timedOut = new AtomicBoolean();
+
+        TimeValue timeout = new TimeValue(1, TimeUnit.MILLISECONDS);
+        CountDownLatch latch = new CountDownLatch(1);
+        shardStateAction.shardFailed(getRandomShardRouting(index), indexUUID, "test", getSimulatedFailure(), timeout, new ShardStateAction.Listener() {
+            @Override
+            public void onShardFailedFailure(DiscoveryNode master, TransportException e) {
+                if (e instanceof ReceiveTimeoutTransportException) {
+                    assertFalse(progress.get());
+                    timedOut.set(true);
+                }
+                latch.countDown();
+            }
+        });
+
+        latch.await();
+        progress.set(true);
+        assertTrue(timedOut.get());
+
+        final CapturingTransport.CapturedRequest[] capturedRequests = transport.capturedRequests();
+        transport.clear();
+        assertThat(capturedRequests.length, equalTo(1));
     }
 
     private ShardRouting getRandomShardRouting(String index) {

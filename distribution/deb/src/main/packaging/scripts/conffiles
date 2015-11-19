@@ -1,5 +1,0 @@
-${packaging.env.file}
-${packaging.elasticsearch.conf.dir}/elasticsearch.yml
-${packaging.elasticsearch.conf.dir}/logging.yml
-/etc/init.d/elasticsearch
-/usr/lib/systemd/system/elasticsearch.service

@@ -643,7 +643,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param index the index to process the pending deletes for
      * @param timeout the timeout used for processing pending deletes
      */
-    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException {
+    public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException, InterruptedException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
         final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
@@ -695,14 +695,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     }
                     if (remove.isEmpty() == false) {
                         logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
-                        try {
-                            Thread.sleep(sleepTime);
-                            sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
-                            logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
-                        } catch (InterruptedException e) {
-                            Thread.interrupted();
-                            return;
-                        }
+                        Thread.sleep(sleepTime);
+                        sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
+                        logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);
                     }
                 } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
             }

@@ -22,6 +22,7 @@ package org.elasticsearch.repositories.azure;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.LocationMode;
 
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
@@ -472,7 +473,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
             @Override
             public void run()  {
                 try {
-                    storageService.createContainer(container);
+                    storageService.createContainer(null, LocationMode.PRIMARY_ONLY, container);
                     logger.debug(" -> container created...");
                 } catch (URISyntaxException e) {
                     // Incorrect URL. This should never happen.
@@ -484,7 +485,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
                 }
             }
         }, 30, TimeUnit.SECONDS);
-        storageService.removeContainer(container);
+        storageService.removeContainer(null, LocationMode.PRIMARY_ONLY, container);
 
         ClusterAdminClient client = client().admin().cluster();
         logger.info("-->  creating azure repository while container is being removed");
@@ -523,7 +524,7 @@ public class AzureSnapshotRestoreTests extends AbstractAzureWithThirdPartyTestCa
         Settings settings = readSettingsFromFile();
         AzureStorageService client = new AzureStorageServiceImpl(settings);
         for (String container : containers) {
-            client.removeContainer(container);
+            client.removeContainer(null, LocationMode.PRIMARY_ONLY, container);
         }
     }
 }

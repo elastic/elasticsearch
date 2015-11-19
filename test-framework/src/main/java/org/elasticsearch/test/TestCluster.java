@@ -63,7 +63,7 @@ public abstract class TestCluster implements Iterable<Client>, Closeable {
     /**
      * This method should be executed before each test to reset the cluster to its initial state.
      */
-    public void beforeTest(Random random, double transportClientRatio) throws IOException {
+    public void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
         assert transportClientRatio >= 0.0 && transportClientRatio <= 1.0;
         logger.debug("Reset test cluster with transport client ratio: [{}]", transportClientRatio);
         this.transportClientRatio = transportClientRatio;

@@ -20,15 +20,11 @@
 package org.elasticsearch.common.xcontent.yaml;
 
 import com.fasterxml.jackson.core.JsonEncoding;
-import com.fasterxml.jackson.core.JsonGenerator;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FastStringReader;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.*;
-import org.elasticsearch.common.xcontent.json.BaseJsonGenerator;
-import org.elasticsearch.common.xcontent.support.filtering.FilteringJsonGenerator;
 
 import java.io.*;
 
@@ -62,27 +58,19 @@ public class YamlXContent implements XContent {
         throw new ElasticsearchParseException("yaml does not support stream parsing...");
     }
 
-    private XContentGenerator newXContentGenerator(JsonGenerator jsonGenerator) {
-        return new YamlXContentGenerator(new BaseJsonGenerator(jsonGenerator));
-    }
-
     @Override
     public XContentGenerator createGenerator(OutputStream os) throws IOException {
-        return newXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8));
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8));
     }
 
     @Override
     public XContentGenerator createGenerator(OutputStream os, String[] filters) throws IOException {
-        if (CollectionUtils.isEmpty(filters)) {
-            return createGenerator(os);
-        }
-        FilteringJsonGenerator yamlGenerator = new FilteringJsonGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), filters);
-        return new YamlXContentGenerator(yamlGenerator);
+        return new YamlXContentGenerator(yamlFactory.createGenerator(os, JsonEncoding.UTF8), filters);
     }
 
     @Override
     public XContentGenerator createGenerator(Writer writer) throws IOException {
-        return newXContentGenerator(yamlFactory.createGenerator(writer));
+        return new YamlXContentGenerator(yamlFactory.createGenerator(writer));
     }
 
     @Override

@@ -323,7 +323,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                 ClusterState updatedState = ClusterState.builder(currentState).metaData(metaDataBuilder).routingTable(routingTableBuilder.build()).blocks(blocks).build();
 
                 // now, reroute in case things change that require it (like number of replicas)
-                RoutingAllocation.Result routingResult = allocationService.reroute(updatedState);
+                RoutingAllocation.Result routingResult = allocationService.reroute(updatedState, "settings update");
                 updatedState = ClusterState.builder(updatedState).routingResult(routingResult).build();
 
                 return updatedState;

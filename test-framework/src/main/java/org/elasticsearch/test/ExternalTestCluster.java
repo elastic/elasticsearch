@@ -81,26 +81,33 @@ public final class ExternalTestCluster extends TestCluster {
         for (Class<? extends Plugin> pluginClass : pluginClasses) {
             transportClientBuilder.addPlugin(pluginClass);
         }
-        this.client = transportClientBuilder.build().addTransportAddresses(transportAddresses);
+        TransportClient client = transportClientBuilder.build();
 
-        NodesInfoResponse nodeInfos = this.client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
-        httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
-        this.clusterName = nodeInfos.getClusterName().value();
-        int dataNodes = 0;
-        int masterAndDataNodes = 0;
-        for (int i = 0; i < nodeInfos.getNodes().length; i++) {
-            NodeInfo nodeInfo = nodeInfos.getNodes()[i];
-            httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
-            if (DiscoveryNode.dataNode(nodeInfo.getSettings())) {
-                dataNodes++;
-                masterAndDataNodes++;
-            } else if (DiscoveryNode.masterNode(nodeInfo.getSettings())) {
-                masterAndDataNodes++;
+        try {
+            client.addTransportAddresses(transportAddresses);
+            NodesInfoResponse nodeInfos = client.admin().cluster().prepareNodesInfo().clear().setSettings(true).setHttp(true).get();
+            httpAddresses = new InetSocketAddress[nodeInfos.getNodes().length];
+            this.clusterName = nodeInfos.getClusterName().value();
+            int dataNodes = 0;
+            int masterAndDataNodes = 0;
+            for (int i = 0; i < nodeInfos.getNodes().length; i++) {
+                NodeInfo nodeInfo = nodeInfos.getNodes()[i];
+                httpAddresses[i] = ((InetSocketTransportAddress) nodeInfo.getHttp().address().publishAddress()).address();
+                if (DiscoveryNode.dataNode(nodeInfo.getSettings())) {
+                    dataNodes++;
+                    masterAndDataNodes++;
+                } else if (DiscoveryNode.masterNode(nodeInfo.getSettings())) {
+                    masterAndDataNodes++;
+                }
             }
+            this.numDataNodes = dataNodes;
+            this.numMasterAndDataNodes = masterAndDataNodes;
+            this.client = client;
+            logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
+        } catch (Exception e) {
+            client.close();
+            throw e;
         }
-        this.numDataNodes = dataNodes;
-        this.numMasterAndDataNodes = masterAndDataNodes;
-        logger.info("Setup ExternalTestCluster [{}] made of [{}] nodes", nodeInfos.getClusterName().value(), size());
     }
 
     @Override

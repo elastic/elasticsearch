@@ -59,11 +59,11 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
-        RoutingAllocation.Result result = strategy.reroute(clusterState);
+        RoutingAllocation.Result result = strategy.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(result).build();
 
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
-        result = strategy.reroute(clusterState);
+        result = strategy.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(result).build();
 
         logger.info("Start the primary shard (on node1)");
@@ -79,7 +79,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         logger.info("Adding third node and reroute and kill first node");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3")).remove("node1")).build();
         RoutingTable prevRoutingTable = clusterState.routingTable();
-        result = strategy.reroute(clusterState);
+        result = strategy.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(result).build();
         routingNodes = clusterState.getRoutingNodes();
         routingTable = clusterState.routingTable();
@@ -112,7 +112,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
 
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState);
+        RoutingAllocation.Result rerouteResult = allocation.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingTable(rerouteResult.routingTable()).build();
 
         logger.info("Start the primary shards");
@@ -131,7 +131,7 @@ public class PrimaryElectionRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(newNode(nodeIdRemaining))
         ).build();
-        rerouteResult = allocation.reroute(clusterState);
+        rerouteResult = allocation.reroute(clusterState, "reroute");
         clusterState = ClusterState.builder(clusterState).routingResult(rerouteResult).build();
         routingNodes = clusterState.getRoutingNodes();
 

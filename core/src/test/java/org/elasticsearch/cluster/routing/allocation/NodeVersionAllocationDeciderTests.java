@@ -88,7 +88,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
         logger.info("start two nodes and fully start the shards");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -129,7 +129,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 .put(newNode("node3", VersionUtils.getPreviousVersion())))
                 .build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -145,7 +145,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
                 .put(newNode("node4")))
                 .build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -288,7 +288,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
     private ClusterState stabilize(ClusterState clusterState, AllocationService service) {
         logger.trace("RoutingNodes: {}", clusterState.getRoutingNodes().prettyPrint());
 
-        RoutingTable routingTable = service.reroute(clusterState).routingTable();
+        RoutingTable routingTable = service.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
         assertRecoveryNodeVersions(routingNodes);

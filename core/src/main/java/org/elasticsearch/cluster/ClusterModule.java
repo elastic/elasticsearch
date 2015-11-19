@@ -21,6 +21,7 @@ package org.elasticsearch.cluster;
 
 import org.elasticsearch.action.admin.indices.close.TransportCloseIndexAction;
 import org.elasticsearch.action.support.DestructiveOperations;
+import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.index.MappingUpdatedAction;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.action.index.NodeMappingRefreshAction;
@@ -86,7 +87,6 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.indices.recovery.RecoverySettings;
-import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.DefaultSearchContext;
@@ -206,6 +206,7 @@ public class ClusterModule extends AbstractModule {
         registerClusterDynamicSetting(TransportService.SETTING_TRACE_LOG_EXCLUDE + ".*", Validator.EMPTY);
         registerClusterDynamicSetting(TransportCloseIndexAction.SETTING_CLUSTER_INDICES_CLOSE_ENABLE, Validator.BOOLEAN);
         registerClusterDynamicSetting(ShardsLimitAllocationDecider.CLUSTER_TOTAL_SHARDS_PER_NODE, Validator.INTEGER);
+        registerClusterDynamicSetting(TransportReplicationAction.SHARD_FAILURE_TIMEOUT, Validator.TIME_NON_NEGATIVE);
     }
 
     private void registerBuiltinIndexSettings() {

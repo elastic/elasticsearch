@@ -94,7 +94,8 @@ public class RoutingTableTests extends ESAllocationTestCase {
             discoBuilder = discoBuilder.put(newNode("node" + i));
         }
         this.clusterState = ClusterState.builder(clusterState).nodes(discoBuilder).build();
-        RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.reroute(clusterState);
+        RoutingAllocation.Result rerouteResult = ALLOCATION_SERVICE.reroute(clusterState, "reroute");
+        this.testRoutingTable = rerouteResult.routingTable();
         assertThat(rerouteResult.changed(), is(true));
         applyRerouteResult(rerouteResult);
         versionsPerIndex.keySet().forEach(this::incrementVersion);

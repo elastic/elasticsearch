@@ -33,9 +33,13 @@ import java.util.jar.JarInputStream;
 import java.util.jar.Manifest;
 
 /**
+ * Information about a build of Elasticsearch.
  */
 public class Build {
-
+    /**
+     * The current build of Elasticsearch. Filled with information scanned at
+     * startup from the jar.
+     */
     public static final Build CURRENT;
 
     static {
@@ -55,6 +59,14 @@ public class Build {
             // not running from a jar (unit tests, IDE)
             shortHash = "Unknown";
             date = "Unknown";
+        }
+        if (shortHash == null) {
+            throw new IllegalStateException("Error finding the build shortHash. " +
+                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
+        }
+        if (date == null) {
+            throw new IllegalStateException("Error finding the build date. " +
+                "Stopping Elasticsearch now so it doesn't run in subtly broken ways. This is likely a build bug.");
         }
 
         CURRENT = new Build(shortHash, date);

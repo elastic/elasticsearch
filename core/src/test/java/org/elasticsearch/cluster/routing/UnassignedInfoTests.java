@@ -81,7 +81,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
 
         UnassignedInfo read = new UnassignedInfo(StreamInput.wrap(out.bytes()));
         assertThat(read.getReason(), equalTo(meta.getReason()));
-        assertThat(read.getTimestampInMillis(), equalTo(meta.getTimestampInMillis()));
+        assertThat(read.getUnassignedTimeInMillis(), equalTo(meta.getUnassignedTimeInMillis()));
         assertThat(read.getMessage(), equalTo(meta.getMessage()));
         assertThat(read.getDetails(), equalTo(meta.getDetails()));
     }
@@ -167,7 +167,7 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         IndexRoutingTable.Builder builder = IndexRoutingTable.builder("test");
@@ -208,21 +208,21 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // verify that NODE_LEAVE is the reason for meta
-        assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(true));
+        assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(true));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.NODE_LEFT));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getTimestampInMillis(), greaterThan(0l));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getUnassignedTimeInMillis(), greaterThan(0l));
     }
 
     /**
@@ -237,23 +237,23 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test")).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // fail shard
         ShardRouting shardToFail = clusterState.getRoutingNodes().shardsWithState(STARTED).get(0);
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyFailedShards(clusterState, Collections.singletonList(new FailedRerouteAllocation.FailedShard(shardToFail, "test fail", null)))).build();
         // verify the reason and details
-        assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(true));
+        assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(true));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).size(), equalTo(1));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo(), notNullValue());
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getReason(), equalTo(UnassignedInfo.Reason.ALLOCATION_FAILED));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getMessage(), equalTo("test fail"));
         assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getDetails(), equalTo("test fail"));
-        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getTimestampInMillis(), greaterThan(0l));
+        assertThat(clusterState.getRoutingNodes().shardsWithState(UNASSIGNED).get(0).unassignedInfo().getUnassignedTimeInMillis(), greaterThan(0l));
     }
 
     /**
@@ -261,17 +261,11 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
      */
     public void testUnassignedDelayedOnlyOnNodeLeft() throws Exception {
         final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null);
-        long delay = unassignedInfo.getAllocationDelayTimeoutSetting(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), Settings.EMPTY);
-        assertThat(delay, equalTo(TimeValue.timeValueHours(10).millis()));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                long delay = unassignedInfo.getDelayAllocationExpirationIn(System.currentTimeMillis(),
-                        Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), Settings.EMPTY);
-                assertThat(delay, greaterThan(0l));
-                assertThat(delay, lessThan(TimeValue.timeValueHours(10).millis()));
-            }
-        });
+        long delay = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
+                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), Settings.EMPTY);
+        long cachedDelay = unassignedInfo.getLastComputedLeftDelayNanos();
+        assertThat(delay, equalTo(cachedDelay));
+        assertThat(delay, equalTo(TimeValue.timeValueHours(10).nanos() - 1));
     }
 
     /**
@@ -281,15 +275,16 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         EnumSet<UnassignedInfo.Reason> reasons = EnumSet.allOf(UnassignedInfo.Reason.class);
         reasons.remove(UnassignedInfo.Reason.NODE_LEFT);
         UnassignedInfo unassignedInfo = new UnassignedInfo(RandomPicks.randomFrom(getRandom(), reasons), null);
-        long delay = unassignedInfo.getAllocationDelayTimeoutSetting(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), Settings.EMPTY);
-        assertThat(delay, equalTo(0l));
-        delay = unassignedInfo.getDelayAllocationExpirationIn(System.currentTimeMillis(),
+        long delay = unassignedInfo.updateDelay(unassignedInfo.getUnassignedTimeInNanos() + 1, // add 1 tick delay
                 Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), Settings.EMPTY);
+        assertThat(delay, equalTo(0l));
+        delay = unassignedInfo.getLastComputedLeftDelayNanos();
         assertThat(delay, equalTo(0l));
     }
 
     public void testNumberOfDelayedUnassigned() throws Exception {
-        AllocationService allocation = createAllocationService();
+        DelayedShardsMockGatewayAllocator mockGatewayAllocator = new DelayedShardsMockGatewayAllocator();
+        AllocationService allocation = createAllocationService(Settings.EMPTY, mockGatewayAllocator);
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
                 .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
@@ -298,49 +293,50 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test1")).addAsNew(metaData.index("test2")).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
-        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(System.currentTimeMillis(),
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState), equalTo(0));
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
+        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
-        assertThat(clusterState.prettyPrint(), UnassignedInfo.getNumberOfDelayedUnassigned(System.currentTimeMillis(),
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState), equalTo(2));
+        // make sure both replicas are marked as delayed (i.e. not reallocated)
+        mockGatewayAllocator.setTimeSource(shard -> shard.unassignedInfo().getUnassignedTimeInNanos() + 1);
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
+        assertThat(clusterState.prettyPrint(), UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(2));
     }
 
     public void testFindNextDelayedAllocation() {
-        AllocationService allocation = createAllocationService();
+        DelayedShardsMockGatewayAllocator mockGatewayAllocator = new DelayedShardsMockGatewayAllocator();
+        AllocationService allocation = createAllocationService(Settings.EMPTY, mockGatewayAllocator);
         MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
-                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT)).numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test1").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h")).numberOfShards(1).numberOfReplicas(1))
+                .put(IndexMetaData.builder("test2").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h")).numberOfShards(1).numberOfReplicas(1))
                 .build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
                 .metaData(metaData)
                 .routingTable(RoutingTable.builder().addAsNew(metaData.index("test1")).addAsNew(metaData.index("test2")).build()).build();
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
-        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(System.currentTimeMillis(),
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState), equalTo(0));
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
+        assertThat(UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), equalTo(0));
         // starting primaries
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.getRoutingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState)).build();
+        // make sure both replicas are marked as delayed (i.e. not reallocated)
+        mockGatewayAllocator.setTimeSource(shard -> shard.unassignedInfo().getUnassignedTimeInNanos() + 1);
+        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
 
         long nextDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState);
         assertThat(nextDelaySetting, equalTo(TimeValue.timeValueHours(10).millis()));
 
-        long nextDelay = UnassignedInfo.findNextDelayedAllocationIn(System.currentTimeMillis(),
-                Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "10h").build(), clusterState);
-        assertThat(nextDelay, greaterThan(TimeValue.timeValueHours(9).millis()));
-        assertThat(nextDelay, lessThanOrEqualTo(TimeValue.timeValueHours(10).millis()));
+        long nextDelay = UnassignedInfo.findNextDelayedAllocationIn(clusterState);
+        assertThat(nextDelay, greaterThan(TimeValue.timeValueHours(9).nanos()));
+        assertThat(nextDelay, lessThanOrEqualTo(TimeValue.timeValueHours(10).nanos()));
     }
 }

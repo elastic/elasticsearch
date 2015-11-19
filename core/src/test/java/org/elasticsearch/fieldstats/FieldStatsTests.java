@@ -24,6 +24,8 @@ import org.elasticsearch.action.fieldstats.FieldStatsResponse;
 import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.joda.time.DateTime;
+import org.joda.time.DateTimeZone;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -357,6 +359,53 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
         assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo("2014-01-01T00:00:00.000Z"));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+    }
+
+    public void testDateFiltering_optionalFormat() {
+        createIndex("test1", Settings.EMPTY, "type", "value", "type=date,format=strict_date_optional_time");
+        client().prepareIndex("test1", "type").setSource("value", "2014-01-01T00:00:00.000Z").get();
+        createIndex("test2", Settings.EMPTY, "type", "value", "type=date,format=strict_date_optional_time");
+        client().prepareIndex("test2", "type").setSource("value", "2014-01-02T00:00:00.000Z").get();
+        client().admin().indices().prepareRefresh().get();
+
+        DateTime dateTime1 = new DateTime(2014, 1, 1, 0, 0, 0, 0, DateTimeZone.UTC);
+        DateTime dateTime2 = new DateTime(2014, 1, 2, 0, 0, 0, 0, DateTimeZone.UTC);
+        FieldStatsResponse response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GT, String.valueOf(dateTime1.getMillis()), "epoch_millis"), new IndexConstraint("value", MAX, LTE, String.valueOf(dateTime2.getMillis()), "epoch_millis"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo("2014-01-02T00:00:00.000Z"));
+
+        try {
+            client().prepareFieldStats()
+                    .setFields("value")
+                    .setIndexContraints(new IndexConstraint("value", MIN, GT, String.valueOf(dateTime1.getMillis()), "xyz"))
+                    .setLevel("indices")
+                    .get();
+            fail("IllegalArgumentException should have been thrown");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Invalid format"));
+        }
+    }
+
+    public void testEmptyIndex() {
+        createIndex("test1", Settings.EMPTY, "type", "value", "type=date");
+        FieldStatsResponse response = client().prepareFieldStats()
+                .setFields("value")
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(0));
+
+        response = client().prepareFieldStats()
+                .setFields("value")
+                .setIndexContraints(new IndexConstraint("value", MIN, GTE, "1998-01-01T00:00:00.000Z"))
+                .setLevel("indices")
+                .get();
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(0));
     }
 
 }

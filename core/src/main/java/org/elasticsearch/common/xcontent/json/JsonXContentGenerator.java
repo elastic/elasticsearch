@@ -19,11 +19,19 @@
 
 package org.elasticsearch.common.xcontent.json;
 
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.core.JsonStreamContext;
+import com.fasterxml.jackson.core.base.GeneratorBase;
+import com.fasterxml.jackson.core.filter.FilteringGeneratorDelegate;
 import com.fasterxml.jackson.core.io.SerializedString;
 import com.fasterxml.jackson.core.util.DefaultIndenter;
 import com.fasterxml.jackson.core.util.DefaultPrettyPrinter;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.Streams;
+import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.*;
+import org.elasticsearch.common.xcontent.support.filtering.FilterPathBasedFilter;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -34,13 +42,40 @@ import java.io.OutputStream;
  */
 public class JsonXContentGenerator implements XContentGenerator {
 
-    protected final BaseJsonGenerator generator;
+    /** Generator used to write content **/
+    protected final JsonGenerator generator;
+
+    /**
+     * Reference to base generator because
+     * writing raw values needs a specific method call.
+     */
+    private final GeneratorBase base;
+
+    /**
+     * Reference to filtering generator because
+     * writing an empty object '{}' when everything is filtered
+     * out needs a specific treatment
+     */
+    private final FilteringGeneratorDelegate filter;
+
     private boolean writeLineFeedAtEnd;
     private static final SerializedString LF = new SerializedString("\n");
-    private  static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
+    private static final DefaultPrettyPrinter.Indenter INDENTER = new DefaultIndenter("  ", LF.getValue());
 
-    public JsonXContentGenerator(BaseJsonGenerator generator) {
-        this.generator = generator;
+    public JsonXContentGenerator(JsonGenerator jsonGenerator, String... filters) {
+        if (jsonGenerator instanceof GeneratorBase) {
+            this.base = (GeneratorBase) jsonGenerator;
+        } else {
+            this.base = null;
+        }
+
+        if (CollectionUtils.isEmpty(filters)) {
+            this.generator = jsonGenerator;
+            this.filter = null;
+        } else {
+            this.filter = new FilteringGeneratorDelegate(jsonGenerator, new FilterPathBasedFilter(filters), true, true);
+            this.generator = this.filter;
+        }
     }
 
     @Override
@@ -68,13 +103,35 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeEndArray();
     }
 
+    protected boolean isFiltered() {
+        return filter != null;
+    }
+
+    protected boolean inRoot() {
+        if (isFiltered()) {
+            JsonStreamContext context = filter.getFilterContext();
+            return ((context != null) && (context.inRoot() && context.getCurrentName() == null));
+        }
+        return false;
+    }
+
     @Override
     public void writeStartObject() throws IOException {
+        if (isFiltered() && inRoot()) {
+            // Bypass generator to always write the root start object
+            filter.getDelegate().writeStartObject();
+            return;
+        }
         generator.writeStartObject();
     }
 
     @Override
     public void writeEndObject() throws IOException {
+        if (isFiltered() && inRoot()) {
+            // Bypass generator to always write the root end object
+            filter.getDelegate().writeEndObject();
+            return;
+        }
         generator.writeEndObject();
     }
 
@@ -253,32 +310,62 @@ public class JsonXContentGenerator implements XContentGenerator {
         generator.writeStartObject();
     }
 
+    private void writeStartRaw(String fieldName) throws IOException {
+        writeFieldName(fieldName);
+        generator.writeRaw(':');
+    }
+
+    public void writeEndRaw() {
+        assert base != null : "JsonGenerator should be of instance GeneratorBase but was: " + generator.getClass();
+        if (base != null) {
+            base.getOutputContext().writeValue();
+        }
+    }
+
     @Override
     public void writeRawField(String fieldName, byte[] content, OutputStream bos) throws IOException {
-        generator.writeStartRaw(fieldName);
-        generator.writeRawValue(content, bos);
-        generator.writeEndRaw();
+        writeRawField(fieldName, new BytesArray(content), bos);
     }
 
     @Override
     public void writeRawField(String fieldName, byte[] content, int offset, int length, OutputStream bos) throws IOException {
-        generator.writeStartRaw(fieldName);
-        generator.writeRawValue(content, offset, length, bos);
-        generator.writeEndRaw();
+        writeRawField(fieldName, new BytesArray(content, offset, length), bos);
     }
 
     @Override
-    public void writeRawField(String fieldName, InputStream content, OutputStream bos) throws IOException {
-        generator.writeStartRaw(fieldName);
-        generator.writeRawValue(content, bos);
-        generator.writeEndRaw();
+    public void writeRawField(String fieldName, InputStream content, OutputStream bos, XContentType contentType) throws IOException {
+        if (isFiltered() || (contentType != contentType())) {
+            // When the current generator is filtered (ie filter != null)
+            // or the content is in a different format than the current generator,
+            // we need to copy the whole structure so that it will be correctly
+            // filtered or converted
+            try (XContentParser parser = XContentFactory.xContent(contentType).createParser(content)) {
+                parser.nextToken();
+                writeFieldName(fieldName);
+                copyCurrentStructure(parser);
+            }
+        } else {
+            writeStartRaw(fieldName);
+            flush();
+            Streams.copy(content, bos);
+            writeEndRaw();
+        }
     }
 
     @Override
     public final void writeRawField(String fieldName, BytesReference content, OutputStream bos) throws IOException {
         XContentType contentType = XContentFactory.xContentType(content);
         if (contentType != null) {
-            writeObjectRaw(fieldName, content, bos);
+            if (isFiltered() || (contentType != contentType())) {
+                // When the current generator is filtered (ie filter != null)
+                // or the content is in a different format than the current generator,
+                // we need to copy the whole structure so that it will be correctly
+                // filtered or converted
+                copyRawField(fieldName, content, contentType.xContent());
+            } else {
+                // Otherwise, the generator is not filtered and has the same type: we can potentially optimize the write
+                writeObjectRaw(fieldName, content, bos);
+            }
         } else {
             writeFieldName(fieldName);
             // we could potentially optimize this to not rely on exception logic...
@@ -296,9 +383,29 @@ public class JsonXContentGenerator implements XContentGenerator {
     }
 
     protected void writeObjectRaw(String fieldName, BytesReference content, OutputStream bos) throws IOException {
-        generator.writeStartRaw(fieldName);
-        generator.writeRawValue(content, bos);
-        generator.writeEndRaw();
+        writeStartRaw(fieldName);
+        flush();
+        content.writeTo(bos);
+        writeEndRaw();
+    }
+
+    protected void copyRawField(String fieldName, BytesReference content, XContent xContent) throws IOException {
+        XContentParser parser = null;
+        try {
+            if (content.hasArray()) {
+                parser = xContent.createParser(content.array(), content.arrayOffset(), content.length());
+            } else {
+                parser = xContent.createParser(content.streamInput());
+            }
+            if (fieldName != null) {
+                writeFieldName(fieldName);
+            }
+            copyCurrentStructure(parser);
+        } finally {
+            if (parser != null) {
+                parser.close();
+            }
+        }
     }
 
     @Override

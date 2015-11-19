@@ -363,7 +363,7 @@ as your buckets:
             "buckets_path": "the_sum",
             "window" : 30,
             "model" : "simple",
-            "predict" 10
+            "predict" : 10
         }
 }
 --------------------------------------------------

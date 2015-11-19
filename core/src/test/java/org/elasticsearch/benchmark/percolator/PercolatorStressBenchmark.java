@@ -19,7 +19,7 @@
 package org.elasticsearch.benchmark.percolator;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.percolate.PercolateResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.StopWatch;
@@ -29,7 +29,6 @@ import org.elasticsearch.node.Node;
 import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.client.Requests.createIndexRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;

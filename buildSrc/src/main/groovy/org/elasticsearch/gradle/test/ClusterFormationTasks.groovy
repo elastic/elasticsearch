@@ -213,7 +213,7 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, File cwd, ClusterConfiguration config, String clusterName, File pidFile, File home) {
         Map esEnv = [
             'JAVA_HOME' : project.javaHome,
-            'JAVA_OPTS': config.jvmArgs
+            'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
         ]
         List<String> esProps = config.systemProperties.collect { key, value -> "-D${key}=${value}" }
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -242,7 +242,7 @@ class ClusterFormationTasks {
             // gradle task options are not processed until the end of the configuration phase
             if (config.debug) {
                 println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
-                esEnv['JAVA_OPTS'] += ' -agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+                esEnv['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
             }
 
             // Due to how ant exec works with the spawn option, we lose all stdout/stderr from the
@@ -309,10 +309,10 @@ class ClusterFormationTasks {
             if (ant.properties.containsKey("failed${name}".toString()) || failedMarker.exists()) {
                 if (logger.isInfoEnabled() == false) {
                     // We already log the command at info level. No need to do it twice.
-                    logger.error(esCommandString)
+                    esCommandString.eachLine { line -> logger.error(line) }
                 }
                 // the waitfor failed, so dump any output we got (may be empty if info logging, but that is ok)
-                logger.error(buffer.toString('UTF-8'))
+                buffer.toString('UTF-8').eachLine { line -> logger.error(line) }
                 // also dump the log file for the startup script (which will include ES logging output to stdout)
                 File startLog = new File(cwd, 'run.log')
                 if (startLog.exists()) {

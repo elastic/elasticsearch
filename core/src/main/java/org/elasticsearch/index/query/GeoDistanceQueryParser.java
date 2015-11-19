@@ -147,7 +147,7 @@ public class GeoDistanceQueryParser implements QueryParser {
             }
         }
 
-        if (coerce) {
+        if (parseContext.indexVersionCreated().onOrAfter(Version.V_2_2_0) || coerce) {
             GeoUtils.normalizePoint(point, coerce, coerce);
         }
 

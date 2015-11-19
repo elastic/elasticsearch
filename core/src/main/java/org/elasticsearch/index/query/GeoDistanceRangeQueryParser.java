@@ -182,7 +182,7 @@ public class GeoDistanceRangeQueryParser implements QueryParser {
             }
         }
 
-        if (coerce) {
+        if (indexCreatedBeforeV2_2 == false || coerce) {
             GeoUtils.normalizePoint(point, coerce, coerce);
         }
 

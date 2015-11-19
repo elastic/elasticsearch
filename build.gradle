@@ -185,5 +185,6 @@ task run(type: Run) {
   dependsOn ':distribution:run'
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
+  impliesSubProjects = true
 }
 

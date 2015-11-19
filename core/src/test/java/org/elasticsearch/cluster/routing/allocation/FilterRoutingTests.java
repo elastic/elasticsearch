@@ -71,7 +71,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
                 .put(newNode("node3", singletonMap("tag1", "value3")))
                 .put(newNode("node4", singletonMap("tag1", "value4")))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
@@ -119,7 +119,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
                 .put(newNode("node3", singletonMap("tag1", "value3")))
                 .put(newNode("node4", singletonMap("tag1", "value4")))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(2));
 
@@ -149,7 +149,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
                         .build()))
                 .build();
         clusterState = ClusterState.builder(clusterState).metaData(metaData).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.STARTED).size(), equalTo(2));
         assertThat(clusterState.getRoutingNodes().shardsWithState(ShardRoutingState.RELOCATING).size(), equalTo(2));
@@ -185,7 +185,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         DiscoveryNode node1 = newNode("node1", singletonMap("tag1", "value1"));
         DiscoveryNode node2 = newNode("node2", singletonMap("tag1", "value2"));
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(node1).put(node2)).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().node(node1.getId()).numberOfShardsWithState(INITIALIZING), equalTo(2));
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(INITIALIZING), equalTo(2));
@@ -204,7 +204,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
                 .build());
 
         logger.info("--> move shards from node1 to node2");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         logger.info("--> check that concurrent rebalance only allows 1 shard to move");
         assertThat(clusterState.getRoutingNodes().node(node1.getId()).numberOfShardsWithState(STARTED), equalTo(1));
@@ -216,7 +216,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("--> move second shard from node1 to node2");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(INITIALIZING), equalTo(1));
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(STARTED), equalTo(3));
@@ -225,7 +225,7 @@ public class FilterRoutingTests extends ESAllocationTestCase {
         routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().node(node2.getId()).numberOfShardsWithState(STARTED), equalTo(4));
     }

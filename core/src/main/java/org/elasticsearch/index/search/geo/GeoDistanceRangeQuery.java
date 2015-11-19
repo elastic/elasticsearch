@@ -172,6 +172,16 @@ public class GeoDistanceRangeQuery extends Query {
                         }
                         return false;
                     }
+
+                    @Override
+                    public float matchCost() {
+                        if (distanceBoundingCheck == GeoDistance.ALWAYS_INSTANCE) {
+                            return 0.0f;
+                        } else {
+                            // TODO: is this right (up to 4 comparisons from GeoDistance.SimpleDistanceBoundingCheck)?
+                            return 4.0f;
+                        }
+                    }
                 };
                 return new ConstantScoreScorer(this, score(), twoPhaseIterator);
             }

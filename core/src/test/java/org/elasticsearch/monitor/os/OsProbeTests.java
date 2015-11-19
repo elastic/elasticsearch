@@ -22,13 +22,7 @@ package org.elasticsearch.monitor.os;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.allOf;
-import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.lessThan;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 
 public class OsProbeTests extends ESTestCase {
     OsProbe probe = OsProbe.getInstance();
@@ -47,12 +41,13 @@ public class OsProbeTests extends ESTestCase {
         OsStats stats = probe.osStats();
         assertNotNull(stats);
         assertThat(stats.getTimestamp(), greaterThan(0L));
+        assertThat(stats.getCpu().getPercent(), anyOf(equalTo((short) -1), is(both(greaterThanOrEqualTo((short) 0)).and(lessThanOrEqualTo((short) 100)))));
         if (Constants.WINDOWS) {
             // Load average is always -1 on Windows platforms
-            assertThat(stats.getLoadAverage(), equalTo((double) -1));
+            assertThat(stats.getCpu().getLoadAverage(), equalTo((double) -1));
         } else {
             // Load average can be negative if not available or not computed yet, otherwise it should be >= 0
-            assertThat(stats.getLoadAverage(), anyOf(lessThan((double) 0), greaterThanOrEqualTo((double) 0)));
+            assertThat(stats.getCpu().getLoadAverage(), anyOf(lessThan((double) 0), greaterThanOrEqualTo((double) 0)));
         }
 
         assertNotNull(stats.getMem());

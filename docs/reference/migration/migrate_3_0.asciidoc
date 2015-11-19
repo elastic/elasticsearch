@@ -226,6 +226,30 @@ Cloud Azure plugin has been split in three plugins:
 * {plugins}/repository-azure.html[Repository Azure plugin]
 * {plugins}/store-smb.html[Store SMB plugin]
 
+If you were using the `cloud-azure` plugin for snapshot and restore, you had in `elasticsearch.yml`:
+
+[source,yaml]
+-----
+cloud:
+    azure:
+        storage:
+            account: your_azure_storage_account
+            key: your_azure_storage_key
+-----
+
+You need to give a unique id to the storage details now as you can define multiple storage accounts:
+
+[source,yaml]
+-----
+cloud:
+    azure:
+        storage:
+            my_account:
+                account: your_azure_storage_account
+                key: your_azure_storage_key
+-----
+
+
 ==== Cloud GCE plugin changes
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
@@ -428,3 +452,15 @@ controls the backing queue for the thread pool and modifying this is an expert s
 and high risk of being misused. The ability to change the thread pool type for any thread pool has been removed; do note
 that it is still possible to adjust relevant thread pool parameters for each of the thread pools (e.g., depending on
 the thread pool type, `keep_alive`, `queue_size`, etc.).
+
+=== Adding system CPU percent to OS stats
+
+The recent CPU usage (as a percent) has been added to the OS stats reported under the node stats API and the cat nodes
+API. The breaking change here is that there is a new object in the "os" object in the node stats response. This object
+is called "cpu" and includes "percent" and "load_average" as fields. This moves the "load_average" field that was
+previously a top-level field in the "os" object to the "cpu" object. Additionally, the "cpu" field in the cat nodes API
+response is output by default.
+
+Finally, the API for org.elasticsearch.monitor.os.OsStats has changed. The `getLoadAverage` method has been removed. The
+value for this can now be obtained from `OsStats.Cpu#getLoadAverage`. Additionally, the recent CPU usage can be obtained
+from `OsStats.Cpu#getPercent`.

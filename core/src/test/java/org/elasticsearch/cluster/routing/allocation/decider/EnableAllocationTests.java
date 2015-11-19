@@ -78,7 +78,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(0));
 
@@ -106,7 +106,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
 
@@ -140,7 +140,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(1));
         logger.info("--> start the shards (primaries)");
@@ -184,7 +184,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(4));
         logger.info("--> start the shards (primaries)");
@@ -205,7 +205,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node3"))
         ).build();
         ClusterState prevState = clusterState;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(8));
         assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(0));
@@ -225,7 +225,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
 
         }
         nodeSettingsService.clusterChanged(new ClusterChangedEvent("foo", clusterState, prevState));
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat("expected 6 shards to be started 2 to relocate useClusterSettings: " + useClusterSetting, clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(6));
         assertThat("expected 2 shards to relocate useClusterSettings: " + useClusterSetting, clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(2));
@@ -284,7 +284,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node1"))
                 .put(newNode("node2"))
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(INITIALIZING).size(), equalTo(6));
         logger.info("--> start the shards (primaries)");
@@ -300,7 +300,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                 .put(newNode("node3"))
         ).build();
         ClusterState prevState = clusterState;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat(clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(6));
         assertThat(clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(0));
@@ -316,7 +316,7 @@ public class EnableAllocationTests extends ESAllocationTestCase {
                     .put(IndexMetaData.builder(meta).settings(settingsBuilder().put(meta.getSettings()).put(EnableAllocationDecider.INDEX_ROUTING_REBALANCE_ENABLE, randomBoolean() ? Rebalance.PRIMARIES : Rebalance.ALL).build()))).build();
         }
         nodeSettingsService.clusterChanged(new ClusterChangedEvent("foo", clusterState, prevState));
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         assertThat("expected 4 primaries to be started and 2 to relocate useClusterSettings: " + useClusterSetting, clusterState.getRoutingNodes().shardsWithState(STARTED).size(), equalTo(4));
         assertThat("expected 2 primaries to relocate useClusterSettings: " + useClusterSetting, clusterState.getRoutingNodes().shardsWithState(RELOCATING).size(), equalTo(2));

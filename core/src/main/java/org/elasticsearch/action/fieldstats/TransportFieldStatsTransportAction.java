@@ -119,6 +119,10 @@ public class TransportFieldStatsTransportAction extends TransportBroadcastAction
                 while (iterator.hasNext()) {
                     Map.Entry<String, Map<String, FieldStats>> entry = iterator.next();
                     FieldStats indexConstraintFieldStats = entry.getValue().get(indexConstraint.getField());
+                    if (indexConstraintFieldStats == null) {
+                        continue;
+                    }
+
                     if (indexConstraintFieldStats.match(indexConstraint)) {
                         // If the field stats didn't occur in the list of fields in the original request we need to remove the
                         // field stats, because it was never requested and was only needed to validate the index constraint

@@ -60,6 +60,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
@@ -595,7 +596,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("path.home", baseDir) // allow overriding path.home
                 .put(settings)
                 .put("name", name)
-                .put("discovery.id.seed", seed)
+                .put(DiscoveryService.SETTING_DISCOVERY_SEED, seed)
                 .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
@@ -842,7 +843,8 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
-            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).build();
+            final long newIdSeed = node.settings().getAsLong(DiscoveryService.SETTING_DISCOVERY_SEED, 0l) + 1; // use a new seed to make sure we have new node id
+            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryService.SETTING_DISCOVERY_SEED, newIdSeed).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
             Version version = node.getVersion();
             node = new MockNode(finalSettings, version, plugins);
@@ -908,7 +910,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException {
+    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
         super.beforeTest(random, transportClientRatio);
         reset(true);
     }

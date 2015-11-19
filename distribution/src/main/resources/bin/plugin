@@ -25,12 +25,12 @@ ES_HOME=`cd "$ES_HOME"; pwd`
 
 # Sets the default values for elasticsearch variables used in this script
 if [ -z "$CONF_DIR" ]; then
-  CONF_DIR="${packaging.plugin.default.config.dir}"
+  CONF_DIR="${path.conf}"
 fi
 
 # The default env file is defined at building/packaging time.
-# For a ${packaging.type} package, the value is "${packaging.env.file}".
-ES_ENV_FILE="${packaging.env.file}"
+# For a ${project.name} package, the value is "${path.env}".
+ES_ENV_FILE="${path.env}"
 
 # If an include is specified with the ES_INCLUDE environment variable, use it
 if [ -n "$ES_INCLUDE" ]; then

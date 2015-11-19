@@ -250,7 +250,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                 .put(newNode("node2", unmodifiableMap(node2Attributes)))
                 .localNodeId("node1")
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
@@ -299,7 +299,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                         .localNodeId("node1")
         ).build();
 
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
@@ -354,7 +354,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                 .put(newNode("node2"))
                 .localNodeId("node1")
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
@@ -418,7 +418,7 @@ public class RoutingIteratorTests extends ESAllocationTestCase {
                         .put(newNode("node3"))
                         .localNodeId("node1")
         ).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingTable = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();

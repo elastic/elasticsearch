@@ -288,7 +288,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
                     RoutingTable rt = rtBuilder.build();
                     ClusterState updatedState = builder.metaData(mdBuilder).blocks(blocks).routingTable(rt).build();
-                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rt).build());
+                    RoutingAllocation.Result routingResult = allocationService.reroute(
+                            ClusterState.builder(updatedState).routingTable(rt).build(),
+                            "restored snapshot [" + snapshotId + "]");
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }
 

@@ -18,9 +18,9 @@
  */
 package org.elasticsearch.gradle.plugin
 
-import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.BuildPlugin
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.bundling.Zip
@@ -33,26 +33,21 @@ class PluginBuildPlugin extends BuildPlugin {
     @Override
     void apply(Project project) {
         super.apply(project)
-        // TODO: add target compatibility (java version) to elasticsearch properties and set for the project
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest configure,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
-            project.jar.configure {
-                baseName project.pluginProperties.extension.name
-            }
-            project.bundlePlugin.configure {
-                baseName project.pluginProperties.extension.name
-            }
-            project.integTest.configure {
-                dependsOn project.bundlePlugin
-                cluster {
-                    plugin project.pluginProperties.extension.name, project.bundlePlugin.outputs.files
-                }
-            }
+            String name = project.pluginProperties.extension.name
+            project.jar.baseName = name
+            project.bundlePlugin.baseName = name
+            project.integTest.dependsOn(project.bundlePlugin)
+            project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+            project.tasks.run.dependsOn(project.bundlePlugin)
+            project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
         }
-        Task bundle = configureBundleTask(project)
         RestIntegTestTask.configure(project)
+        RunTask.configure(project)
+        Task bundle = configureBundleTask(project)
         project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }
         project.configurations.getByName('default').extendsFrom = []
         project.artifacts {

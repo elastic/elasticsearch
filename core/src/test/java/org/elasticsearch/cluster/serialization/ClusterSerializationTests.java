@@ -51,7 +51,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(new ClusterName("clusterName1")).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
         AllocationService strategy = createAllocationService();
-        clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState).routingTable()).build();
+        clusterState = ClusterState.builder(clusterState).routingTable(strategy.reroute(clusterState, "reroute").routingTable()).build();
 
         ClusterState serializedClusterState = ClusterState.Builder.fromBytes(ClusterState.Builder.toBytes(clusterState), newNode("node1"));
 
@@ -74,7 +74,7 @@ public class ClusterSerializationTests extends ESAllocationTestCase {
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
 
         AllocationService strategy = createAllocationService();
-        RoutingTable source = strategy.reroute(clusterState).routingTable();
+        RoutingTable source = strategy.reroute(clusterState, "reroute").routingTable();
 
         BytesStreamOutput outStream = new BytesStreamOutput();
         source.writeTo(outStream);

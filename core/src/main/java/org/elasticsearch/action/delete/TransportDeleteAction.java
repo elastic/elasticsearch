@@ -132,7 +132,7 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).getShard(shardRequest.shardId.id());
         Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
         indexShard.delete(delete);
-        // update the request with teh version so it will go to the replicas
+        // update the request with the version so it will go to the replicas
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         request.version(delete.version());
 

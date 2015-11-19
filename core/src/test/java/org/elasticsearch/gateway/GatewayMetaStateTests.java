@@ -77,7 +77,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
         // new cluster state will have initializing shards on node 1
-        RoutingTable routingTableNewClusterState = strategy.reroute(init).routingTable();
+        RoutingTable routingTableNewClusterState = strategy.reroute(init, "reroute").routingTable();
         if (initializing == false) {
             // pretend all initialized, nothing happened
             ClusterState temp = ClusterState.builder(init).routingTable(routingTableNewClusterState).metaData(metaDataOldClusterState).build();
@@ -130,7 +130,7 @@ public class GatewayMetaStateTests extends ESAllocationTestCase {
                 .routingTable(routingTableIndexCreated)
                 .nodes(generateDiscoveryNodes(masterEligible))
                 .build();
-        RoutingTable routingTableInitializing = strategy.reroute(init).routingTable();
+        RoutingTable routingTableInitializing = strategy.reroute(init, "reroute").routingTable();
         ClusterState temp = ClusterState.builder(init).routingTable(routingTableInitializing).build();
         RoutingTable routingTableStarted = strategy.applyStartedShards(temp, temp.getRoutingNodes().shardsWithState(INITIALIZING)).routingTable();
 

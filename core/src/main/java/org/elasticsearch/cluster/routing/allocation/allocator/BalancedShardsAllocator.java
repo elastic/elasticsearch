@@ -353,7 +353,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     logger.trace("Start assigning unassigned shards");
                 }
             }
-            final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned().transactionBegin();
+            final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
             boolean changed = initialize(routingNodes, unassigned);
             if (onlyAssign == false && changed == false && allocation.deciders().canRebalance(allocation).type() == Type.YES) {
                 NodeSorter sorter = newNodeSorter();
@@ -433,7 +433,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     }
                 }
             }
-            routingNodes.unassigned().transactionEnd(unassigned);
             return changed;
         }
 
@@ -508,7 +507,7 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
             if (logger.isTraceEnabled()) {
                 logger.trace("Try moving shard [{}] from [{}]", shard, node);
             }
-            final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned().transactionBegin();
+            final RoutingNodes.UnassignedShards unassigned = routingNodes.unassigned();
             boolean changed = initialize(routingNodes, unassigned);
             if (!changed) {
                 final ModelNode sourceNode = nodes.get(node.nodeId());
@@ -544,7 +543,6 @@ public class BalancedShardsAllocator extends AbstractComponent implements Shards
                     }
                 }
             }
-            routingNodes.unassigned().transactionEnd(unassigned);
             return changed;
         }
 

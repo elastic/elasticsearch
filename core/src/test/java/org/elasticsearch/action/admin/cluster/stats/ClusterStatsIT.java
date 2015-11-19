@@ -21,7 +21,7 @@ package org.elasticsearch.action.admin.cluster.stats;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
@@ -171,7 +171,7 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getNodesStats().getOs().getAllocatedProcessors(), equalTo(7));
     }
 
-    public void testClusterStatus() throws Exception {
+    public void testClusterStatusWhenStateNotRecovered() throws Exception {
         // stop all other nodes
         internalCluster().ensureAtMostNumDataNodes(0);
 
@@ -180,6 +180,8 @@ public class ClusterStatsIT extends ESIntegTestCase {
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.RED));
 
         internalCluster().ensureAtLeastNumDataNodes(3);
+        // wait for the cluster status to settle
+        ensureGreen();
         response = client().admin().cluster().prepareClusterStats().get();
         assertThat(response.getStatus(), equalTo(ClusterHealthStatus.GREEN));
     }

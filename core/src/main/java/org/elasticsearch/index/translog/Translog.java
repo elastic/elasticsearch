@@ -186,11 +186,11 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /** recover all translog files found on disk */
-    private ArrayList<ImmutableTranslogReader> recoverFromFiles(TranslogGeneration translogGeneration, Checkpoint checkpoint) throws IOException {
+    private final ArrayList<ImmutableTranslogReader> recoverFromFiles(TranslogGeneration translogGeneration, Checkpoint checkpoint) throws IOException {
         boolean success = false;
         ArrayList<ImmutableTranslogReader> foundTranslogs = new ArrayList<>();
+        final Path tempFile = Files.createTempFile(location, TRANSLOG_FILE_PREFIX, TRANSLOG_FILE_SUFFIX); // a temp file to copy checkpoint to - note it must be in on the same FS otherwise atomic move won't work
         try (ReleasableLock lock = writeLock.acquire()) {
-
             logger.debug("open uncommitted translog checkpoint {}", checkpoint);
             final String checkpointTranslogFile = getFilename(checkpoint.generation);
             for (long i = translogGeneration.translogFileGeneration; i < checkpoint.generation; i++) {
@@ -204,13 +204,29 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             }
             foundTranslogs.add(openReader(location.resolve(checkpointTranslogFile), checkpoint));
             Path commitCheckpoint = location.resolve(getCommitCheckpointFileName(checkpoint.generation));
-            Files.copy(location.resolve(CHECKPOINT_FILE_NAME), commitCheckpoint);
-            IOUtils.fsync(commitCheckpoint, false);
-            IOUtils.fsync(commitCheckpoint.getParent(), true);
+            if (Files.exists(commitCheckpoint)) {
+                Checkpoint checkpointFromDisk = Checkpoint.read(commitCheckpoint);
+                if (checkpoint.equals(checkpointFromDisk) == false) {
+                    throw new IllegalStateException("Checkpoint file " + commitCheckpoint.getFileName() + " already exists but has corrupted content expected: " + checkpoint + " but got: " + checkpointFromDisk);
+                }
+            } else {
+                // we first copy this into the temp-file and then fsync it followed by an atomic move into the target file
+                // that way if we hit a disk-full here we are still in an consistent state.
+                Files.copy(location.resolve(CHECKPOINT_FILE_NAME), tempFile, StandardCopyOption.REPLACE_EXISTING);
+                IOUtils.fsync(tempFile, false);
+                Files.move(tempFile, commitCheckpoint, StandardCopyOption.ATOMIC_MOVE);
+                // we only fsync the directory the tempFile was already fsynced
+                IOUtils.fsync(commitCheckpoint.getParent(), true);
+            }
             success = true;
         } finally {
             if (success == false) {
                 IOUtils.closeWhileHandlingException(foundTranslogs);
+            }
+            try {
+                Files.delete(tempFile);
+            } catch (IOException ex) {
+                logger.warn("failed to delete temp file {}", ex, tempFile);
             }
         }
         return foundTranslogs;

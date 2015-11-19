@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.*;
 
 public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> extends ESTestCase {
 
-    private static final int NUMBER_OF_TESTBUILDERS = 1;
+    private static final int NUMBER_OF_TESTBUILDERS = 20;
     private static NamedWriteableRegistry namedWriteableRegistry;
 
     /**
@@ -51,6 +51,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
             namedWriteableRegistry.registerPrototype(ShapeBuilder.class, LineStringBuilder.PROTOTYPE);
             namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiLineStringBuilder.PROTOTYPE);
             namedWriteableRegistry.registerPrototype(ShapeBuilder.class, PolygonBuilder.PROTOTYPE);
+            namedWriteableRegistry.registerPrototype(ShapeBuilder.class, MultiPolygonBuilder.PROTOTYPE);
         }
     }
 

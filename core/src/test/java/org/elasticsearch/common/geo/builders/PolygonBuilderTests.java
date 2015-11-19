@@ -32,6 +32,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
     @Override
     protected PolygonBuilder createTestShapeBuilder() {
         PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON);
+        pgb.orientation = randomFrom(Orientation.values());
         // NORELEASE translated might have been changed by createShape, but won't survive xContent->Parse roundtrip
         pgb.shell().translated = false;
         return pgb;
@@ -40,16 +41,20 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
     @Override
     protected PolygonBuilder mutate(PolygonBuilder original) throws IOException {
         PolygonBuilder mutation = copyShape(original);
+        return mutatePolygonBuilder(mutation);
+    }
+
+    static PolygonBuilder mutatePolygonBuilder(PolygonBuilder pb) {
         if (randomBoolean()) {
             // toggle orientation
-            mutation.orientation = (original.orientation == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
+            pb.orientation = (pb.orientation == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
         } else {
             // change either point in shell or in random hole
             LineStringBuilder lineToChange;
-            if (randomBoolean() || mutation.holes().size() == 0) {
-                lineToChange = mutation.shell();
+            if (randomBoolean() || pb.holes().size() == 0) {
+                lineToChange = pb.shell();
             } else {
-                lineToChange = randomFrom(mutation.holes());
+                lineToChange = randomFrom(pb.holes());
             }
             Coordinate coordinate = randomFrom(lineToChange.coordinates(false));
             if (randomBoolean()) {
@@ -66,6 +71,6 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
                 }
             }
         }
-        return mutation;
+        return pb;
     }
 }

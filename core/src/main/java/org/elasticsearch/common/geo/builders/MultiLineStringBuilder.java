@@ -22,7 +22,6 @@ package org.elasticsearch.common.geo.builders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
-import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.LineString;
@@ -35,15 +34,9 @@ public class MultiLineStringBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTILINESTRING;
 
-    private final ArrayList<BaseLineStringBuilder<?>> lines = new ArrayList<>();
+    private final ArrayList<LineStringBuilder> lines = new ArrayList<>();
 
-    public InternalLineStringBuilder linestring() {
-        InternalLineStringBuilder line = new InternalLineStringBuilder(this);
-        this.lines.add(line);
-        return line;
-    }
-
-    public MultiLineStringBuilder linestring(BaseLineStringBuilder<?> line) {
+    public MultiLineStringBuilder linestring(LineStringBuilder line) {
         this.lines.add(line);
         return this;
     }
@@ -67,7 +60,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         builder.field(FIELD_TYPE, TYPE.shapename);
         builder.field(FIELD_COORDINATES);
         builder.startArray();
-        for(BaseLineStringBuilder<?> line : lines) {
+        for(BaseLineStringBuilder line : lines) {
             line.coordinatesToXcontent(builder, false);
         }
         builder.endArray();
@@ -80,7 +73,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
         final Geometry geometry;
         if(wrapdateline) {
             ArrayList<LineString> parts = new ArrayList<>();
-            for (BaseLineStringBuilder<?> line : lines) {
+            for (BaseLineStringBuilder line : lines) {
                 BaseLineStringBuilder.decompose(FACTORY, line.coordinates(false), parts);
             }
             if(parts.size() == 1) {
@@ -91,35 +84,12 @@ public class MultiLineStringBuilder extends ShapeBuilder {
             }
         } else {
             LineString[] lineStrings = new LineString[lines.size()];
-            Iterator<BaseLineStringBuilder<?>> iterator = lines.iterator();
+            Iterator<LineStringBuilder> iterator = lines.iterator();
             for (int i = 0; iterator.hasNext(); i++) {
                 lineStrings[i] = FACTORY.createLineString(iterator.next().coordinates(false));
             }
             geometry = FACTORY.createMultiLineString(lineStrings);
         }
         return jtsGeometry(geometry);
-    }
-
-    public static class InternalLineStringBuilder extends BaseLineStringBuilder<InternalLineStringBuilder> {
-
-        private final MultiLineStringBuilder collection;
-        
-        public InternalLineStringBuilder(MultiLineStringBuilder collection) {
-            super();
-            this.collection = collection;
-        }
-        
-        public MultiLineStringBuilder end() {
-            return collection;
-        }
-
-        public Coordinate[] coordinates() {
-            return super.coordinates(false);
-        }
-
-        @Override
-        public GeoShapeType type() {
-            return null;
-        }
     }
 }

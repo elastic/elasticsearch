@@ -25,6 +25,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
+import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -193,7 +194,7 @@ public class GeoShapeQueryTests extends ESSingleNodeTestCase {
     public void testReusableBuilder() throws IOException {
         ShapeBuilder polygon = ShapeBuilders.newPolygon()
                 .point(170, -10).point(190, -10).point(190, 10).point(170, 10)
-                .hole().point(175, -5).point(185, -5).point(185, 5).point(175, 5).close()
+                .hole(new LineStringBuilder().point(175, -5).point(185, -5).point(185, 5).point(175, 5).close())
                 .close();
         assertUnmodified(polygon);
 

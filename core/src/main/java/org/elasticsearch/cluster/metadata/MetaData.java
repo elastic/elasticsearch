@@ -41,6 +41,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.loader.SettingsLoader;
@@ -1029,12 +1030,18 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
 
                 for (ObjectObjectCursor<String, AliasMetaData> aliasCursor : indexMetaData.getAliases()) {
                     AliasMetaData aliasMetaData = aliasCursor.value;
-                    AliasOrIndex.Alias aliasOrIndex = (AliasOrIndex.Alias) aliasAndIndexLookup.get(aliasMetaData.getAlias());
+                    AliasOrIndex aliasOrIndex = aliasAndIndexLookup.get(aliasMetaData.getAlias());
                     if (aliasOrIndex == null) {
                         aliasOrIndex = new AliasOrIndex.Alias(aliasMetaData, indexMetaData);
                         aliasAndIndexLookup.put(aliasMetaData.getAlias(), aliasOrIndex);
+                    } else if (aliasOrIndex instanceof AliasOrIndex.Alias) {
+                        AliasOrIndex.Alias alias = (AliasOrIndex.Alias) aliasOrIndex;
+                        alias.addIndex(indexMetaData);
+                    } else if (aliasOrIndex instanceof AliasOrIndex.Index) {
+                        AliasOrIndex.Index index = (AliasOrIndex.Index) aliasOrIndex;
+                        throw new IllegalStateException("index and alias names need to be unique, but alias [" + aliasMetaData.getAlias() + "] and index [" + index.getIndex().getIndex() + "] have the same name");
                     } else {
-                        aliasOrIndex.addIndex(indexMetaData);
+                        throw new IllegalStateException("unexpected alias [" + aliasMetaData.getAlias() + "][" + aliasOrIndex + "]");
                     }
                 }
             }

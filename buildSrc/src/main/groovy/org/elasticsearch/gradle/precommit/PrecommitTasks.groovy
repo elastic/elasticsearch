@@ -95,6 +95,13 @@ class PrecommitTasks {
         }
     }
 
+    /**
+     * Adds a task to run jar hell before on the test classpath.
+     *
+     * We use a simple "marker" file that we touch when the task succeeds
+     * as the task output. This is compared against the modified time of the
+     * inputs (ie the jars/class files).
+     */
     static Task configureJarHell(Project project) {
         File successMarker = new File(project.buildDir, 'markers/jarHell')
         Exec task = project.tasks.create(name: 'jarHell', type: Exec)
@@ -115,10 +122,12 @@ class PrecommitTasks {
                     logger.error(standardOutput.toString())
                     throw new GradleException("JarHell failed")
                 }
-                successMarker.parentFile.mkdirs()
-                successMarker.setText("", 'UTF-8')
             })
         }
+        task.doLast({
+            successMarker.parentFile.mkdirs()
+            successMarker.setText("", 'UTF-8')
+        })
         return task
     }
 }

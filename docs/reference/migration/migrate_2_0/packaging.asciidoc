@@ -7,7 +7,7 @@ Elasticsearch 2.0 runs with the Java security manager enabled and is much more
 restrictive about which paths it is allowed to access.  Various paths can be
 configured, e.g. `path.data`, `path.scripts`, `path.repo`.  A configured path
 may itself be a symbolic link, but no symlinks under that path will be
-followed (with the exception of `path.scripts`, which does follow symlinks).
+followed.
 
 ==== Running `bin/elasticsearch`
 

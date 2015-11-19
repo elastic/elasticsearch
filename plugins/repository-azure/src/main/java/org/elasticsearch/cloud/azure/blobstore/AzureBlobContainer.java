@@ -63,7 +63,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public boolean blobExists(String blobName) {
         try {
-            return blobStore.client().blobExists(blobStore.container(), buildKey(blobName));
+            return blobStore.blobExists(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore.container(), e.getMessage());
         }
@@ -73,7 +73,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public InputStream readBlob(String blobName) throws IOException {
         try {
-            return blobStore.client().getInputStream(blobStore.container(), buildKey(blobName));
+            return blobStore.getInputStream(blobStore.container(), buildKey(blobName));
         } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new FileNotFoundException(e.getMessage());
@@ -100,7 +100,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
     private OutputStream createOutput(String blobName) throws IOException {
         try {
-            return new AzureOutputStream(blobStore.client().getOutputStream(blobStore.container(), buildKey(blobName)));
+            return new AzureOutputStream(blobStore.getOutputStream(blobStore.container(), buildKey(blobName)));
         } catch (StorageException e) {
             if (e.getHttpStatusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                 throw new FileNotFoundException(e.getMessage());
@@ -116,7 +116,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     @Override
     public void deleteBlob(String blobName) throws IOException {
         try {
-            blobStore.client().deleteBlob(blobStore.container(), buildKey(blobName));
+            blobStore.deleteBlob(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore.container(), e.getMessage());
             throw new IOException(e);
@@ -127,7 +127,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
     public Map<String, BlobMetaData> listBlobsByPrefix(@Nullable String prefix) throws IOException {
 
         try {
-            return blobStore.client().listBlobsByPrefix(blobStore.container(), keyPath, prefix);
+            return blobStore.listBlobsByPrefix(blobStore.container(), keyPath, prefix);
         } catch (URISyntaxException | StorageException e) {
             logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore.container(), e.getMessage());
             throw new IOException(e);
@@ -142,7 +142,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
             logger.debug("moving blob [{}] to [{}] in container {{}}", source, target, blobStore.container());
 
-            blobStore.client().moveBlob(blobStore.container(), source, target);
+            blobStore.moveBlob(blobStore.container(), source, target);
         } catch (URISyntaxException e) {
             logger.warn("can not move blob [{}] to [{}] in container {{}}: {}", sourceBlobName, targetBlobName, blobStore.container(), e.getMessage());
             throw new IOException(e);

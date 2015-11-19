@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.fieldstats;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
@@ -121,22 +122,24 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
                         currentName = parser.currentName();
                     } else if (fieldToken == Token.START_OBJECT) {
                         IndexConstraint.Property property = IndexConstraint.Property.parse(currentName);
-                        Token propertyToken = parser.nextToken();
-                        if (propertyToken != Token.FIELD_NAME) {
-                            throw new IllegalArgumentException("unexpected token [" + propertyToken + "]");
+                        String value = null;
+                        String optionalFormat = null;
+                        IndexConstraint.Comparison comparison = null;
+                        for (Token propertyToken = parser.nextToken(); propertyToken != Token.END_OBJECT; propertyToken = parser.nextToken()) {
+                            if (propertyToken.isValue()) {
+                                if ("format".equals(parser.currentName())) {
+                                    optionalFormat = parser.text();
+                                } else {
+                                    comparison = IndexConstraint.Comparison.parse(parser.currentName());
+                                    value = parser.text();
+                                }
+                            } else {
+                                if (propertyToken != Token.FIELD_NAME) {
+                                    throw new IllegalArgumentException("unexpected token [" + propertyToken + "]");
+                                }
+                            }
                         }
-                        IndexConstraint.Comparison comparison = IndexConstraint.Comparison.parse(parser.currentName());
-                        propertyToken = parser.nextToken();
-                        if (propertyToken.isValue() == false) {
-                            throw new IllegalArgumentException("unexpected token [" + propertyToken + "]");
-                        }
-                        String value = parser.text();
-                        indexConstraints.add(new IndexConstraint(field, property, comparison, value));
-
-                        propertyToken = parser.nextToken();
-                        if (propertyToken != Token.END_OBJECT) {
-                            throw new IllegalArgumentException("unexpected token [" + propertyToken + "]");
-                        }
+                        indexConstraints.add(new IndexConstraint(field, property, comparison, value, optionalFormat));
                     } else {
                         throw new IllegalArgumentException("unexpected token [" + fieldToken + "]");
                     }
@@ -189,6 +192,9 @@ public class FieldStatsRequest extends BroadcastRequest<FieldStatsRequest> {
             out.writeByte(indexConstraint.getProperty().getId());
             out.writeByte(indexConstraint.getComparison().getId());
             out.writeString(indexConstraint.getValue());
+            if (out.getVersion().onOrAfter(Version.V_2_0_1)) {
+                out.writeOptionalString(indexConstraint.getOptionalFormat());
+            }
         }
         out.writeString(level);
     }

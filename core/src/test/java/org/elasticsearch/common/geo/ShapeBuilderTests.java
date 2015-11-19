@@ -31,6 +31,7 @@ import com.vividsolutions.jts.geom.Polygon;
 
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.test.ESTestCase;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchGeoAssertions.assertMultiLineString;
@@ -43,13 +44,13 @@ import static org.hamcrest.Matchers.containsString;
 public class ShapeBuilderTests extends ESTestCase {
 
     public void testNewPoint() {
-        Point point = ShapeBuilder.newPoint(-100, 45).build();
+        Point point = ShapeBuilders.newPoint(-100, 45).build();
         assertEquals(-100D, point.getX(), 0.0d);
         assertEquals(45D, point.getY(), 0.0d);
     }
 
     public void testNewRectangle() {
-        Rectangle rectangle = ShapeBuilder.newEnvelope().topLeft(-45, 30).bottomRight(45, -30).build();
+        Rectangle rectangle = ShapeBuilders.newEnvelope().topLeft(-45, 30).bottomRight(45, -30).build();
         assertEquals(-45D, rectangle.getMinX(), 0.0d);
         assertEquals(-30D, rectangle.getMinY(), 0.0d);
         assertEquals(45D, rectangle.getMaxX(), 0.0d);
@@ -57,7 +58,7 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testNewPolygon() {
-        Polygon polygon = ShapeBuilder.newPolygon()
+        Polygon polygon = ShapeBuilders.newPolygon()
                 .point(-45, 30)
                 .point(45, 30)
                 .point(45, -30)
@@ -72,7 +73,7 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testNewPolygon_coordinate() {
-        Polygon polygon = ShapeBuilder.newPolygon()
+        Polygon polygon = ShapeBuilders.newPolygon()
                 .point(new Coordinate(-45, 30))
                 .point(new Coordinate(45, 30))
                 .point(new Coordinate(45, -30))
@@ -87,7 +88,7 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testNewPolygon_coordinates() {
-        Polygon polygon = ShapeBuilder.newPolygon()
+        Polygon polygon = ShapeBuilders.newPolygon()
                 .points(new Coordinate(-45, 30), new Coordinate(45, 30), new Coordinate(45, -30), new Coordinate(-45, -30), new Coordinate(-45, 30)).toPolygon();
 
         LineString exterior = polygon.getExteriorRing();
@@ -99,7 +100,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testLineStringBuilder() {
         // Building a simple LineString
-        ShapeBuilder.newLineString()
+        ShapeBuilders.newLineString()
             .point(-130.0, 55.0)
             .point(-130.0, -40.0)
             .point(-15.0, -40.0)
@@ -110,7 +111,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .point(-110.0, 55.0).build();
 
         // Building a linestring that needs to be wrapped
-        ShapeBuilder.newLineString()
+        ShapeBuilders.newLineString()
         .point(100.0, 50.0)
         .point(110.0, -40.0)
         .point(240.0, -40.0)
@@ -122,7 +123,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .build();
 
         // Building a lineString on the dateline
-        ShapeBuilder.newLineString()
+        ShapeBuilders.newLineString()
         .point(-180.0, 80.0)
         .point(-180.0, 40.0)
         .point(-180.0, -40.0)
@@ -130,7 +131,7 @@ public class ShapeBuilderTests extends ESTestCase {
         .build();
 
         // Building a lineString on the dateline
-        ShapeBuilder.newLineString()
+        ShapeBuilders.newLineString()
         .point(180.0, 80.0)
         .point(180.0, 40.0)
         .point(180.0, -40.0)
@@ -139,7 +140,7 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testMultiLineString() {
-        ShapeBuilder.newMultiLinestring()
+        ShapeBuilders.newMultiLinestring()
             .linestring()
                 .point(-100.0, 50.0)
                 .point(50.0, 50.0)
@@ -156,7 +157,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
 
         // LineString that needs to be wrappped
-        ShapeBuilder.newMultiLinestring()
+        ShapeBuilders.newMultiLinestring()
             .linestring()
                 .point(150.0, 60.0)
                 .point(200.0, 60.0)
@@ -174,7 +175,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testPolygonSelfIntersection() {
         try {
-            ShapeBuilder.newPolygon()
+            ShapeBuilders.newPolygon()
                     .point(-40.0, 50.0)
                     .point(40.0, 50.0)
                     .point(-40.0, -50.0)
@@ -188,31 +189,31 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testGeoCircle() {
         double earthCircumference = 40075016.69;
-        Circle circle = ShapeBuilder.newCircleBuilder().center(0, 0).radius("100m").build();
+        Circle circle = ShapeBuilders.newCircleBuilder().center(0, 0).radius("100m").build();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(0, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
-        circle = ShapeBuilder.newCircleBuilder().center(+180, 0).radius("100m").build();
+        circle = ShapeBuilders.newCircleBuilder().center(+180, 0).radius("100m").build();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(180, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
-        circle = ShapeBuilder.newCircleBuilder().center(-180, 0).radius("100m").build();
+        circle = ShapeBuilders.newCircleBuilder().center(-180, 0).radius("100m").build();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(-180, 0, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
-        circle = ShapeBuilder.newCircleBuilder().center(0, 90).radius("100m").build();
+        circle = ShapeBuilders.newCircleBuilder().center(0, 90).radius("100m").build();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(0, 90, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
-        circle = ShapeBuilder.newCircleBuilder().center(0, -90).radius("100m").build();
+        circle = ShapeBuilders.newCircleBuilder().center(0, -90).radius("100m").build();
         assertEquals((360 * 100) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(0, -90, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
         double randomLat = (randomDouble() * 180) - 90;
         double randomLon = (randomDouble() * 360) - 180;
         double randomRadius = randomIntBetween(1, (int) earthCircumference / 4);
-        circle = ShapeBuilder.newCircleBuilder().center(randomLon, randomLat).radius(randomRadius + "m").build();
+        circle = ShapeBuilders.newCircleBuilder().center(randomLon, randomLat).radius(randomRadius + "m").build();
         assertEquals((360 * randomRadius) / earthCircumference, circle.getRadius(), 0.00000001);
         assertEquals(new PointImpl(randomLon, randomLat, ShapeBuilder.SPATIAL_CONTEXT), circle.getCenter());
     }
 
     public void testPolygonWrapping() {
-        Shape shape = ShapeBuilder.newPolygon()
+        Shape shape = ShapeBuilders.newPolygon()
             .point(-150.0, 65.0)
             .point(-250.0, 65.0)
             .point(-250.0, -65.0)
@@ -223,7 +224,7 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testLineStringWrapping() {
-        Shape shape = ShapeBuilder.newLineString()
+        Shape shape = ShapeBuilders.newLineString()
             .point(-150.0, 65.0)
             .point(-250.0, 65.0)
             .point(-250.0, -65.0)
@@ -238,7 +239,7 @@ public class ShapeBuilderTests extends ESTestCase {
         // expected results: 3 polygons, 1 with a hole
 
         // a giant c shape
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
             .point(174,0)
             .point(-176,0)
             .point(-176,3)
@@ -279,7 +280,7 @@ public class ShapeBuilderTests extends ESTestCase {
         // expected results: 3 polygons, 1 with a hole
 
         // a giant c shape
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(-186,0)
                 .point(-176,0)
                 .point(-176,3)
@@ -315,7 +316,7 @@ public class ShapeBuilderTests extends ESTestCase {
     }
 
     public void testComplexShapeWithHole() {
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
             .point(-85.0018514,37.1311314)
             .point(-85.0016645,37.1315293)
             .point(-85.0016246,37.1317069)
@@ -388,7 +389,7 @@ public class ShapeBuilderTests extends ESTestCase {
      }
 
     public void testShapeWithHoleAtEdgeEndPoints() {
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(-4, 2)
                 .point(4, 2)
                 .point(6, 0)
@@ -409,7 +410,7 @@ public class ShapeBuilderTests extends ESTestCase {
      }
 
     public void testShapeWithPointOnDateline() {
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(180, 0)
                 .point(176, 4)
                 .point(176, -4)
@@ -421,7 +422,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testShapeWithEdgeAlongDateline() {
         // test case 1: test the positive side of the dateline
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(180, 0)
                 .point(176, 4)
                 .point(180, -4)
@@ -431,7 +432,7 @@ public class ShapeBuilderTests extends ESTestCase {
         assertPolygon(shape);
 
         // test case 2: test the negative side of the dateline
-        builder = ShapeBuilder.newPolygon()
+        builder = ShapeBuilders.newPolygon()
                 .point(-176, 4)
                 .point(-180, 0)
                 .point(-180, -4)
@@ -443,7 +444,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testShapeWithBoundaryHoles() {
         // test case 1: test the positive side of the dateline
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(-177, 10)
                 .point(176, 15)
                 .point(172, 0)
@@ -460,7 +461,7 @@ public class ShapeBuilderTests extends ESTestCase {
         assertMultiPolygon(shape);
 
         // test case 2: test the negative side of the dateline
-        builder = ShapeBuilder.newPolygon()
+        builder = ShapeBuilders.newPolygon()
                 .point(-176, 15)
                 .point(179, 10)
                 .point(179, -10)
@@ -478,7 +479,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testShapeWithTangentialHole() {
         // test a shape with one tangential (shared) vertex (should pass)
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(179, 10)
                 .point(168, 15)
                 .point(164, 0)
@@ -497,7 +498,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testShapeWithInvalidTangentialHole() {
         // test a shape with one invalid tangential (shared) vertex (should throw exception)
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(179, 10)
                 .point(168, 15)
                 .point(164, 0)
@@ -520,7 +521,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testBoundaryShapeWithTangentialHole() {
         // test a shape with one tangential (shared) vertex for each hole (should pass)
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(-177, 10)
                 .point(176, 15)
                 .point(172, 0)
@@ -544,7 +545,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testBoundaryShapeWithInvalidTangentialHole() {
         // test shape with two tangential (shared) vertices (should throw exception)
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(-177, 10)
                 .point(176, 15)
                 .point(172, 0)
@@ -569,7 +570,7 @@ public class ShapeBuilderTests extends ESTestCase {
      * Test an enveloping polygon around the max mercator bounds
      */
     public void testBoundaryShape() {
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(-180, 90)
                 .point(180, 90)
                 .point(180, -90)
@@ -582,7 +583,7 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testShapeWithAlternateOrientation() {
         // cw: should produce a multi polygon spanning hemispheres
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(180, 0)
                 .point(176, 4)
                 .point(-176, 4)
@@ -592,7 +593,7 @@ public class ShapeBuilderTests extends ESTestCase {
         assertPolygon(shape);
 
         // cw: geo core will convert to ccw across the dateline
-        builder = ShapeBuilder.newPolygon()
+        builder = ShapeBuilders.newPolygon()
                 .point(180, 0)
                 .point(-176, 4)
                 .point(176, 4)
@@ -604,7 +605,7 @@ public class ShapeBuilderTests extends ESTestCase {
      }
 
     public void testInvalidShapeWithConsecutiveDuplicatePoints() {
-        PolygonBuilder builder = ShapeBuilder.newPolygon()
+        PolygonBuilder builder = ShapeBuilders.newPolygon()
                 .point(180, 0)
                 .point(176, 4)
                 .point(176, 4)

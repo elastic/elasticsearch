@@ -300,6 +300,10 @@ class BuildPlugin implements Plugin<Project> {
                         'X-Compile-Lucene-Version': VersionProperties.lucene,
                         'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
                         'Build-Java-Version': project.javaVersion)
+                if (jarTask.manifest.attributes.containsKey('Change') == false) {
+                    logger.warn('Building without git revision id.')
+                    jarTask.manifest.attributes('Change': 'N/A')
+                }
             }
         }
     }

@@ -16,8 +16,6 @@
 
 package org.elasticsearch.common.network;
 
-import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
-
 import java.net.Inet4Address;
 import java.net.Inet6Address;
 import java.net.InetAddress;
@@ -25,13 +23,10 @@ import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Locale;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 public class InetAddresses {
     private static int IPV4_PART_COUNT = 4;
     private static int IPV6_PART_COUNT = 8;
-    private static final Pattern MASK_PATTERN = Pattern.compile("(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,3})");
 
     public static boolean isInetAddress(String ipString) {
         return ipStringToBytes(ipString) != null;
@@ -358,60 +353,5 @@ public class InetAddresses {
         } catch (UnknownHostException e) {
             throw new AssertionError(e);
         }
-    }
-
-    /**
-     * Computes the min &amp; max ip addresses (represented as long values - same way as stored in index) represented by the given CIDR mask
-     * expression. The returned array has the length of 2, where the first entry represents the {@code min} address and the second the {@code max}.
-     * A {@code -1} value for either the {@code min} or the {@code max}, represents an unbounded end. In other words:
-     *
-     * <p>
-     * {@code min == -1 == "0.0.0.0" }
-     * </p>
-     *
-     * and
-     *
-     * <p>
-     * {@code max == -1 == "255.255.255.255" }
-     * </p>
-     */
-    public static long[] cidrMaskToMinMax(String cidr) {
-        Matcher matcher = MASK_PATTERN.matcher(cidr);
-        if (!matcher.matches()) {
-            return null;
-        }
-        int addr = (( Integer.parseInt(matcher.group(1)) << 24 ) & 0xFF000000)
-                | (( Integer.parseInt(matcher.group(2)) << 16 ) & 0xFF0000)
-                | (( Integer.parseInt(matcher.group(3)) << 8 ) & 0xFF00)
-                |  ( Integer.parseInt(matcher.group(4)) & 0xFF);
-
-        int mask = (-1) << (32 - Integer.parseInt(matcher.group(5)));
-
-        if (Integer.parseInt(matcher.group(5)) == 0) {
-            mask = 0 << 32;
-        }
-
-        int from = addr & mask;
-        long longFrom = intIpToLongIp(from);
-        if (longFrom == 0) {
-            longFrom = -1;
-        }
-
-        int to = from + (~mask);
-        long longTo = intIpToLongIp(to) + 1; // we have to +1 here as the range is non-inclusive on the "to" side
-
-        if (longTo == InternalIPv4Range.MAX_IP) {
-            longTo = -1;
-        }
-
-        return new long[] { longFrom, longTo };
-    }
-
-    private static long intIpToLongIp(int i) {
-        long p1 = ((long) ((i >> 24 ) & 0xFF)) << 24;
-        int p2 = ((i >> 16 ) & 0xFF) << 16;
-        int p3 = ((i >>  8 ) & 0xFF) << 8;
-        int p4 = i & 0xFF;
-        return p1 + p2 + p3 + p4;
     }
 }

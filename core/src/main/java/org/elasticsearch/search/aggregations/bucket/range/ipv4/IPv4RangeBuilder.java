@@ -19,11 +19,10 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
 
-import java.util.regex.Pattern;
+import static org.elasticsearch.index.mapper.ip.IpFieldMapper.cidrMaskToMinMax;
 
 /**
  * Builder for the {@code IPv4Range} aggregation.
@@ -60,7 +59,7 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
      * Add a range based on a CIDR mask.
      */
     public IPv4RangeBuilder addMaskRange(String key, String mask) {
-        long[] fromTo = InetAddresses.cidrMaskToMinMax(mask);
+        long[] fromTo = cidrMaskToMinMax(mask);
         if (fromTo == null) {
             throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + getName() + "]");
         }

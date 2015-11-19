@@ -12,6 +12,7 @@
               access_key: "AKVAIQBF2RECL7FJWGJQ"
               secret_key: "vExyMThREXeRMm/b/LRzEB8jWwvzQeXgjqMX+6br"
               canned_acl: "public-read"
+              storage_class: "standard"
 
     # Get repositry
     - do:

@@ -18,6 +18,8 @@
  */
 package org.elasticsearch.gradle
 
+import org.gradle.process.ExecResult
+
 import java.time.ZonedDateTime
 import java.time.ZoneOffset
 
@@ -152,15 +154,18 @@ class BuildPlugin implements Plugin<Project> {
     /** Runs the given javascript using jjs from the jdk, and returns the output */
     private static String runJavascript(Project project, String javaHome, String script) {
         File tmpScript = File.createTempFile('es-gradle-tmp', '.js')
-        tmpScript.deleteOnExit()
+        println "TMP: ${tmpScript.toString()}"
         tmpScript.setText(script, 'UTF-8')
         ByteArrayOutputStream output = new ByteArrayOutputStream()
-        project.exec {
+        ExecResult result = project.exec {
             executable = new File(javaHome, 'bin/jjs')
             args tmpScript.toString()
             standardOutput = output
             errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true // we do not fail so we can first cleanup the tmp file
         }
+        java.nio.file.Files.delete(tmpScript.toPath())
+        result.assertNormalExitValue()
         return output.toString('UTF-8').trim()
     }
 

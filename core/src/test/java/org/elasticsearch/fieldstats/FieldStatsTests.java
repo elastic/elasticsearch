@@ -404,8 +404,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setIndexContraints(new IndexConstraint("value", MIN, GTE, "1998-01-01T00:00:00.000Z"))
                 .setLevel("indices")
                 .get();
-        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").size(), equalTo(0));
+        assertThat(response.getIndicesMergedFieldStats().size(), equalTo(0));
     }
 
 }

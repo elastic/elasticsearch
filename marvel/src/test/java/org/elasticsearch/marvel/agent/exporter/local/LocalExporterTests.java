@@ -5,8 +5,8 @@
  */
 package org.elasticsearch.marvel.agent.exporter.local;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -14,6 +14,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetaData;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -47,19 +48,9 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.marvel.agent.exporter.Exporter.MIN_SUPPORTED_TEMPLATE_VERSION;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.spy;
-import static org.mockito.Mockito.times;
-import static org.mockito.Mockito.verify;
-import static org.mockito.Mockito.verifyZeroInteractions;
-import static org.mockito.Mockito.when;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.hamcrest.Matchers.*;
+import static org.mockito.Mockito.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class LocalExporterTests extends MarvelIntegTestCase {
@@ -282,6 +273,32 @@ public class LocalExporterTests extends MarvelIntegTestCase {
         assertFalse("version below minimum should not be sufficient", exporter.installedTemplateVersionIsSufficient(Version.CURRENT, Version.V_2_0_0_beta1));
 
         assertFalse("null version should not be sufficient", exporter.installedTemplateVersionIsSufficient(Version.CURRENT, null));
+    }
+
+    public void testLocalExporterFlush() throws Exception {
+        internalCluster().startNode(Settings.builder()
+                .put("marvel.agent.exporters._local.type", LocalExporter.TYPE)
+                .put("marvel.agent.exporters._local.enabled", true)
+                .build());
+        securedEnsureGreen();
+
+        LocalExporter exporter = getLocalExporter("_local");
+
+        logger.debug("--> exporting a single marvel doc");
+        exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        awaitMarvelDocsCount(is(1L));
+        assertNull(exporter.getBulk().requestBuilder);
+
+        logger.debug("--> closing marvel indices");
+        assertAcked(client().admin().indices().prepareClose(MarvelSettings.MARVEL_INDICES_PREFIX + "*").get());
+
+        try {
+            logger.debug("--> exporting a second marvel doc");
+            exporter.export(Collections.singletonList(newRandomMarvelDoc()));
+        } catch (ElasticsearchException e) {
+            assertThat(e.getMessage(), allOf(containsString("failure in bulk execution"), containsString("IndexClosedException[closed]")));
+            assertNull(exporter.getBulk().requestBuilder);
+        }
     }
 
     private LocalExporter getLocalExporter(String name) throws Exception {

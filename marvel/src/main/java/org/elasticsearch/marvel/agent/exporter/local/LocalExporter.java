@@ -51,6 +51,10 @@ public class LocalExporter extends Exporter implements ClusterStateListener {
         clusterService.add(this);
     }
 
+    LocalBulk getBulk() {
+        return bulk;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         LocalBulk currentBulk = bulk;

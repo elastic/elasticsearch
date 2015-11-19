@@ -6,6 +6,7 @@
 package org.elasticsearch.marvel.agent.exporter.local;
 
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
@@ -34,7 +35,7 @@ public class LocalBulk extends ExportBulk {
     private final RendererRegistry renderers;
 
     private BytesStreamOutput buffer = null;
-    private BulkRequestBuilder requestBuilder;
+    BulkRequestBuilder requestBuilder;
 
     AtomicReference<State> state = new AtomicReference<>();
 
@@ -94,20 +95,51 @@ public class LocalBulk extends ExportBulk {
         if (state.get() != State.ACTIVE || requestBuilder == null) {
             return;
         }
-        logger.trace("exporter [{}] - exporting data...", name);
-        BulkResponse bulkResponse = requestBuilder.get();
-        if (bulkResponse.hasFailures()) {
-            throw new ElasticsearchException(bulkResponse.buildFailureMessage());
+        try {
+            logger.trace("exporter [{}] - exporting {} documents", name, requestBuilder.numberOfActions());
+            BulkResponse bulkResponse = requestBuilder.get();
+            if (bulkResponse.hasFailures()) {
+                throw new ElasticsearchException(buildFailureMessage(bulkResponse));
+            }
+        } finally {
+            requestBuilder = null;
+            if (buffer != null) {
+                buffer.reset();
+            }
         }
-        requestBuilder = null;
     }
 
     void terminate() {
         state.set(State.TERMINATING);
         synchronized (this) {
             requestBuilder = null;
+            buffer = null;
             state.compareAndSet(State.TERMINATING, State.TERMINATED);
         }
+    }
+
+    /**
+     * In case of something goes wrong and there's a lot of shards/indices,
+     * we limit the number of failures displayed in log.
+     */
+    private String buildFailureMessage(BulkResponse bulkResponse) {
+        BulkItemResponse[] items = bulkResponse.getItems();
+
+        if (logger.isDebugEnabled() || (items.length < 100)) {
+            return bulkResponse.buildFailureMessage();
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("failure in bulk execution, only the first 100 failures are printed:");
+        for (int i = 0; i < items.length && i < 100; i++) {
+            BulkItemResponse item = items[i];
+            if (item.isFailed()) {
+                sb.append("\n[").append(i)
+                        .append("]: index [").append(item.getIndex()).append("], type [").append(item.getType()).append("], id [").append(item.getId())
+                        .append("], message [").append(item.getFailureMessage()).append("]");
+            }
+        }
+        return sb.toString();
     }
 
     enum State {

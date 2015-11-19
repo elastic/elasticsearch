@@ -53,9 +53,12 @@ public abstract class ExportBulk {
             } else {
                 exception = e;
             }
-            throw exception;
         }
 
+        // rethrow exception
+        if (exception != null) {
+            throw exception;
+        }
     }
 
     protected void onClose() throws Exception {

@@ -21,14 +21,8 @@ package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.AmazonClientException;
 import com.amazonaws.services.s3.AmazonS3;
-import com.amazonaws.services.s3.model.AmazonS3Exception;
-import com.amazonaws.services.s3.model.CannedAccessControlList;
-import com.amazonaws.services.s3.model.CreateBucketRequest;
-import com.amazonaws.services.s3.model.DeleteObjectsRequest;
+import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3.model.DeleteObjectsRequest.KeyVersion;
-import com.amazonaws.services.s3.model.ObjectListing;
-import com.amazonaws.services.s3.model.S3ObjectSummary;
-
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -40,6 +34,7 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 
 import java.util.ArrayList;
+import java.util.Locale;
 
 /**
  *
@@ -62,8 +57,10 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     private final CannedAccessControlList cannedACL;
 
+    private final StorageClass storageClass;
+
     public S3BlobStore(Settings settings, AmazonS3 client, String bucket, @Nullable String region, boolean serverSideEncryption,
-                       ByteSizeValue bufferSize, int maxRetries, String cannedACL) {
+                       ByteSizeValue bufferSize, int maxRetries, String cannedACL, String storageClass) {
         super(settings);
         this.client = client;
         this.bucket = bucket;
@@ -77,6 +74,7 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
         this.cannedACL = initCannedACL(cannedACL);
         this.numberOfRetries = maxRetries;
+        this.storageClass = initStorageClass(storageClass);
 
         // Note: the method client.doesBucketExist() may return 'true' is the bucket exists
         // but we don't have access to it (ie, 403 Forbidden response code)
@@ -194,6 +192,25 @@ public class S3BlobStore extends AbstractComponent implements BlobStore {
 
     public CannedAccessControlList getCannedACL() {
         return cannedACL;
+    }
+
+    public StorageClass getStorageClass() { return storageClass; }
+
+    public static StorageClass initStorageClass(String storageClass) {
+        if (storageClass == null || storageClass.equals("")) {
+            return StorageClass.Standard;
+        }
+
+        try {
+            StorageClass _storageClass = StorageClass.fromValue(storageClass.toUpperCase(Locale.ENGLISH));
+            if(_storageClass.equals(StorageClass.Glacier)) {
+                throw new BlobStoreException("Glacier storage class is not supported");
+            }
+
+            return _storageClass;
+        } catch (IllegalArgumentException illegalArgumentException) {
+            throw new BlobStoreException("`" + storageClass + "` is not a valid S3 Storage Class.");
+        }
     }
 
     /**

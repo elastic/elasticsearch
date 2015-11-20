@@ -1,7 +1,7 @@
 [[token-count]]
 === Token count datatype
 
-A field of type `token_count` is really an <<number,`integer>> field which
+A field of type `token_count` is really an <<number,`integer`>> field which
 accepts string values, analyzes them, then indexes the number of tokens in the
 string.
 

@@ -136,6 +136,7 @@ final class TikaImpl {
         // current hacks needed for POI/PDFbox issues:
         perms.add(new SecurityPermission("putProviderProperty.BC"));
         perms.add(new SecurityPermission("insertProvider"));
+        perms.add(new SecurityPermission("insertProvider.BC"));
         perms.add(new ReflectPermission("suppressAccessChecks"));
         perms.setReadOnly();
         return perms;

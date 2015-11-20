@@ -181,6 +181,11 @@ public final class Data {
         return id;
     }
 
+    /**
+     * Returns the document. Should be used only for reading. Any change made to the returned map will
+     * not be reflected to the modified flag. Modify the document instead using {@link #setPropertyValue(String, Object)}
+     * and {@link #removeProperty(String)}
+     */
     public Map<String, Object> getDocument() {
         return document;
     }

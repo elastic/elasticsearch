@@ -1,0 +1,65 @@
+[[release-notes-2.0.1]]
+== 2.0.1 Release Notes
+
+[[bug-2.0.1]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Pass extended bounds into HistogramAggregator when creating an unmapped aggregator {pull}14742[#14742] (issue: {issue}14735[#14735])
+
+Allocation::
+* Fix calculation of next delay for delayed shard allocation {pull}14765[#14765]
+* Take ignored unallocated shards into account when making allocation decision {pull}14678[#14678] (issue: {issue}14670[#14670])
+* Only allow rebalance operations to run if all shard store data is available {pull}14591[#14591] (issue: {issue}14387[#14387])
+* Delayed allocation can miss a reroute {pull}14494[#14494] (issues: {issue}14010[#14010], {issue}14011[#14011], {issue}14445[#14445])
+
+CAT API::
+* Properly set indices and indicesOptions on subrequest made by /_cat/indices {pull}14360[#14360]
+
+Cluster::
+* Handle shards assigned to nodes that are not in the cluster state {pull}14586[#14586] (issue: {issue}14584[#14584])
+
+Core::
+* Fork Lucene PatternTokenizer to apply LUCENE-6814 (closes #13721) {pull}14571[#14571] (issue: {issue}13721[#13721])
+
+Fielddata::
+* Don't cache top level field data for fields that don't exist {pull}14693[#14693]
+
+Index APIs::
+* Field stats: Fix NPE for index constraint on empty index {pull}14841[#14841]
+* Field stats: Added `format` option for index constraints {pull}14823[#14823] (issue: {issue}14804[#14804])
+
+Mapping::
+* Mapping: Allows upgrade of indexes with only search_analyzer specified {pull}14677[#14677] (issue: {issue}14383[#14383])
+
+Plugin Delete By Query::
+* Fix Delete-by-Query with Shield {pull}14658[#14658] (issue: {issue}14527[#14527])
+* Delete by query to not wrap the inner query into an additional query element {pull}14302[#14302] (issue: {issue}13326[#13326])
+
+Plugins::
+* Use plugin name from plugin's properties file rather than plugin's class {pull}14479[#14479] (issue: {issue}14357[#14357])
+* Fix plugin list command error message {pull}14288[#14288] (issue: {issue}14287[#14287])
+* Fix HTML response during redirection {pull}11374[#11374] (issue: {issue}11370[#11370])
+
+REST::
+* XContentFactory.xContentType: allow for possible UTF-8 BOM for JSON XContentType {pull}14611[#14611] (issue: {issue}14442[#14442])
+
+Scripting::
+* Backport #8201 to 2.0 and disable by default {pull}14283[#14283] (issue: {issue}14273[#14273])
+
+Stats::
+* Omit current* stats for OldShardStats {pull}13801[#13801] (issue: {issue}13386[#13386])
+
+Translog::
+* Translog recovery can repeatedly fail if we run out of disk {pull}14695[#14695]
+
+
+[[regression-2.0.1]]
+[float]
+=== Regressions
+
+Internal::
+* Deduplicate concrete indices after indices resolution {pull}14316[#14316] (issues: {issue}11258[#11258], {issue}12058[#12058])
+
+

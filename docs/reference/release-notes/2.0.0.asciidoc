@@ -1,0 +1,94 @@
+[[release-notes-2.0.0]]
+== 2.0.0 Release Notes
+
+[[breaking-2.0.0]]
+[float]
+=== Breaking changes
+
+Packaging::
+* Remove option to configure custom config file via CONF_FILE or -Des.default.conf {pull}13772[#13772] (issues: {issue}12712[#12712], {issue}12954[#12954], {issue}13715[#13715], {issue}5329[#5329])
+
+
+[[deprecation-2.0.0]]
+[float]
+=== Deprecations
+
+Mapping::
+* Deprecate `index.analysis.analyzer.default_index` in favor of `index.analysis.analyzer.default`. {pull}14027[#14027] (issue: {issue}11861[#11861])
+
+
+[[enhancement-2.0.0]]
+[float]
+=== Enhancements
+
+Core::
+* Make PerThreadIDAndVersionLookup per-segment {pull}14070[#14070]
+
+Packaging::
+* Packaging: change permissions/ownership of config dir {pull}14017[#14017] (issue: {issue}11016[#11016])
+* Release: Fix package repo path to only consist of major version {pull}13971[#13971] (issue: {issue}12493[#12493])
+
+Plugin Cloud GCE::
+* Add `_gce_` network host setting {pull}13612[#13612] (issues: {issue}13590[#13590], {issue}13605[#13605])
+
+Plugins::
+* check "plugin already installed" before jar hell check. {pull}14207[#14207] (issue: {issue}14205[#14205])
+* Plugin script to set proper plugin bin dir attributes {pull}14088[#14088] (issue: {issue}11016[#11016])
+* Plugin script to set proper plugin config dir attributes {pull}14048[#14048] (issue: {issue}11016[#11016])
+
+Tribe Node::
+* TransportNodesAction shouldn't hold on to cluster state {pull}13948[#13948]
+
+
+[[bug-2.0.0]]
+[float]
+=== Bug fixes
+
+CRUD::
+* Send response for update request when it timed out {pull}13101[#13101]
+
+Engine::
+* Never wrap searcher for internal engine operations {pull}14071[#14071]
+
+Fielddata::
+* Add GeoPoint in StreamInput/StreamOutput {pull}13632[#13632] (issue: {issue}13340[#13340])
+
+Internal::
+* Properly bind ClassSet extensions as singletons {pull}14232[#14232] (issue: {issue}14194[#14194])
+* Streamline top level reader close listeners and forbid general usage {pull}14084[#14084]
+
+Logging::
+* Settings in log config file should not overwrite custom parameters {pull}13934[#13934]
+* Plugin cli tool should not create empty log files {pull}13933[#13933]
+
+Mapping::
+* Mappings: Enforce metadata fields are not passed in documents {pull}14003[#14003] (issues: {issue}11074[#11074], {issue}13740[#13740], {issue}3517[#3517])
+
+Plugin Cloud AWS::
+* Discovery-ec2 plugin should check `discovery.type` {pull}13814[#13814] (issues: {issue}13581[#13581], {issue}13809[#13809])
+
+Plugins::
+* Parse Java system properties in plugin.bat {pull}13989[#13989] (issue: {issue}13616[#13616])
+* PluginManager: Dont leave leftover files on unsuccessful installs {pull}12851[#12851] (issue: {issue}12749[#12749])
+
+REST::
+* Restore support for escaped '/' as part of document id {pull}14216[#14216] (issues: {issue}13665[#13665], {issue}13691[#13691], {issue}14177[#14177])
+* Add missing REST spec for `detect_noop` {pull}14004[#14004]
+* Expose nodes operation timeout in REST API {pull}13981[#13981]
+* Ensure XContent is consistent across platforms {pull}13816[#13816]
+
+Shadow Replicas::
+* Don't pull translog from shadow engine {pull}14000[#14000] (issue: {issue}12730[#12730])
+
+Snapshot/Restore::
+* Snapshot restore operations throttle more than specified {pull}13828[#13828] (issue: {issue}6018[#6018])
+
+
+[[upgrade-2.0.0]]
+[float]
+=== Upgrades
+
+Network::
+* Upgrade Netty to 3.10.5.final {pull}14105[#14105]
+
+

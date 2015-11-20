@@ -102,6 +102,7 @@ subprojects {
       // by itself is not added to the options. By adding quiet, both this option and
       // the "value" -quiet is added, separated by a space. This is ok since the javadoc
       // command already adds -quiet, so we are just duplicating it
+      // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
       javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
     }
   }

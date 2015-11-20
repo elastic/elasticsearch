@@ -16,22 +16,23 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.messy.tests;
+package org.elasticsearch.search.aggregations.metrics;
 
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Scorer;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.script.Script;
+import org.elasticsearch.script.*;
 import org.elasticsearch.script.ScriptService.ScriptType;
-import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.aggregations.bucket.global.Global;
 import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCount;
+import org.elasticsearch.search.lookup.LeafSearchLookup;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Test;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
+import java.io.IOException;
+import java.util.*;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -45,13 +46,7 @@ import static org.hamcrest.Matchers.notNullValue;
  *
  */
 @ESIntegTestCase.SuiteScopeTestCase
-public class ValueCountTests extends ESIntegTestCase {
-
-    @Override
-    protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return pluginList(GroovyPlugin.class);
-    }
-    
+public class ValueCountIT extends ESIntegTestCase {
     @Override
     public void setupSuiteScopeCluster() throws Exception {
         createIndex("idx");
@@ -67,6 +62,11 @@ public class ValueCountTests extends ESIntegTestCase {
         client().admin().indices().prepareFlush().execute().actionGet();
         client().admin().indices().prepareRefresh().execute().actionGet();
         ensureSearchable();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(FieldValueScriptPlugin.class);
     }
 
     @Test
@@ -158,7 +158,7 @@ public class ValueCountTests extends ESIntegTestCase {
     @Test
     public void singleValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("doc['value'].value"))).execute().actionGet();
+                .addAggregation(count("count").script(new Script("value", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -171,7 +171,7 @@ public class ValueCountTests extends ESIntegTestCase {
     @Test
     public void multiValuedScript() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("doc['values'].values"))).execute().actionGet();
+                .addAggregation(count("count").script(new Script("values", ScriptType.INLINE, FieldValueScriptEngine.NAME, null))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -183,10 +183,9 @@ public class ValueCountTests extends ESIntegTestCase {
 
     @Test
     public void singleValuedScriptWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("s", "value");
+        Map<String, String> params = Collections.singletonMap("s", "value");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("doc[s].value", ScriptType.INLINE, null, params))).execute().actionGet();
+                .addAggregation(count("count").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -198,10 +197,9 @@ public class ValueCountTests extends ESIntegTestCase {
 
     @Test
     public void multiValuedScriptWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("s", "values");
+        Map<String, String> params = Collections.singletonMap("s", "values");
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(count("count").script(new Script("doc[s].values", ScriptType.INLINE, null, params))).execute().actionGet();
+                .addAggregation(count("count").script(new Script("", ScriptType.INLINE, FieldValueScriptEngine.NAME, params))).execute().actionGet();
 
         assertHitCount(searchResponse, 10);
 
@@ -209,6 +207,142 @@ public class ValueCountTests extends ESIntegTestCase {
         assertThat(valueCount, notNullValue());
         assertThat(valueCount.getName(), equalTo("count"));
         assertThat(valueCount.getValue(), equalTo(20l));
+    }
+
+    /**
+     * Mock plugin for the {@link FieldValueScriptEngine}
+     */
+    public static class FieldValueScriptPlugin extends Plugin {
+
+        @Override
+        public String name() {
+            return FieldValueScriptEngine.NAME;
+        }
+
+        @Override
+        public String description() {
+            return "Mock script engine for " + ValueCountIT.class;
+        }
+
+        public void onModule(ScriptModule module) {
+            module.addScriptEngine(FieldValueScriptEngine.class);
+        }
+
+    }
+
+    /**
+     * This mock script returns the field value. If the parameter map contains a parameter "s", the corresponding is used as field name.
+     */
+    public static class FieldValueScriptEngine implements ScriptEngineService {
+
+        public static final String NAME = "field_value";
+
+        @Override
+        public void close() throws IOException {
+        }
+
+        @Override
+        public String[] types() {
+            return new String[] { NAME };
+        }
+
+        @Override
+        public String[] extensions() {
+            return types();
+        }
+
+        @Override
+        public boolean sandboxed() {
+            return true;
+        }
+
+        @Override
+        public Object compile(String script) {
+            return script;
+        }
+
+        @Override
+        public ExecutableScript executable(CompiledScript compiledScript, Map<String, Object> params) {
+            throw new UnsupportedOperationException();
+        }
+        @Override
+        public SearchScript search(final CompiledScript compiledScript, final SearchLookup lookup, Map<String, Object> vars) {
+            final String fieldNameParam;
+            if (vars == null || vars.containsKey("s") == false) {
+                fieldNameParam = null;
+            } else {
+                fieldNameParam = (String) vars.get("s");
+            }
+
+            return new SearchScript() {
+                private Map<String, Object> vars = new HashMap<>(2);
+
+                @Override
+                public LeafSearchScript getLeafSearchScript(LeafReaderContext context) throws IOException {
+
+                    final LeafSearchLookup leafLookup = lookup.getLeafSearchLookup(context);
+
+                    return new LeafSearchScript() {
+
+                        @Override
+                        public Object unwrap(Object value) {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public void setNextVar(String name, Object value) {
+                            vars.put(name, value);
+                        }
+
+                        @Override
+                        public Object run() {
+                            String fieldName = (fieldNameParam != null) ? fieldNameParam : (String) compiledScript.compiled();
+                            return leafLookup.doc().get(fieldName);
+                        }
+
+                        @Override
+                        public void setScorer(Scorer scorer) {
+                        }
+
+                        @Override
+                        public void setSource(Map<String, Object> source) {
+                        }
+
+                        @Override
+                        public void setDocument(int doc) {
+                            if (leafLookup != null) {
+                                leafLookup.setDocument(doc);
+                            }
+                        }
+
+                        @Override
+                        public long runAsLong() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public float runAsFloat() {
+                            throw new UnsupportedOperationException();
+                        }
+
+                        @Override
+                        public double runAsDouble() {
+                            throw new UnsupportedOperationException();
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return false;
+                }
+            };
+        }
+
+        @Override
+        public void scriptRemoved(CompiledScript script) {
+            throw new UnsupportedOperationException();
+        }
     }
 
 }

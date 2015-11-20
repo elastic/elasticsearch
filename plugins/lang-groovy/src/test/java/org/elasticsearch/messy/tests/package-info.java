@@ -80,7 +80,6 @@
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/TDigestPercentilesIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/TDigestPercentilesTests.java
   renamed:    core/src/test/java/org/elasticsearch/search/aggregations/bucket/TopHitsIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/TopHitsTests.java
   renamed:    core/src/test/java/org/elasticsearch/index/mapper/TransformOnIndexMapperIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/TransformOnIndexMapperTests.java
-  renamed:    core/src/test/java/org/elasticsearch/search/aggregations/metrics/ValueCountIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/messy/tests/ValueCountTests.java
   renamed:    core/src/main/java/org/elasticsearch/script/groovy/GroovyScriptCompilationException.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/script/groovy/GroovyRestIT.java
   renamed:    core/src/test/java/org/elasticsearch/script/GroovyScriptIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/script/groovy/GroovyScriptTests.java
   renamed:    core/src/test/java/org/elasticsearch/script/GroovySecurityIT.java -> plugins/lang-groovy/src/test/java/org/elasticsearch/script/groovy/GroovySecurityTests.java

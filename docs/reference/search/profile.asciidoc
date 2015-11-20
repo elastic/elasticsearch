@@ -33,7 +33,7 @@ Any `_search` request can be profiled by adding a top-level `profile` parameter:
 [source,js]
 --------------------------------------------------
 curl -XGET 'localhost:9200/_search' -d '{
-  "profile": true,
+  "profile": true,<1>
   "query" : {
     "match" : { "message" : "search test" }
   }

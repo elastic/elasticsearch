@@ -108,7 +108,10 @@ public final class Data {
         Map<String, Object> parent = getParent(pathElements);
         if (parent != null) {
             String leafKey = pathElements[pathElements.length - 1];
-            parent.remove(leafKey);
+            if (parent.containsKey(leafKey)) {
+                modified = true;
+                parent.remove(leafKey);
+            }
         }
     }
 
@@ -137,7 +140,6 @@ public final class Data {
         if (path == null || path.length() == 0) {
             throw new IllegalArgumentException("cannot add null or empty field");
         }
-        modified = true;
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
 
@@ -164,6 +166,7 @@ public final class Data {
 
         String leafKey = pathElements[pathElements.length - 1];
         inner.put(leafKey, value);
+        modified = true;
     }
 
     public String getIndex() {

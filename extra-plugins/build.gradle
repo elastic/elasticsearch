@@ -1,0 +1,10 @@
+
+// This file exists solely for the purpose of allowing a nice error message
+// if someone tries running a gradle command from within the extra-plugins dir.
+
+println '''
+  Gradle commands are not supported from within the extra-plugins dir.
+  Please run your command either at the root of the elasticsearch checkout
+  or within a specific extra-plugins project.
+'''
+throw new GradleException('Cannot run commands in extra-plugins dir')

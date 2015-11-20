@@ -52,3 +52,27 @@ if (isEclipse) {
   project(":core-tests").buildFileName = 'eclipse-build.gradle'
 }
 
+/**
+  * Iterates over sub directories, looking for build.gradle, and adds a project if found
+  * for that dir with the given path prefix. Note that this requires each level
+  * of the dir hiearchy to have a build.gradle. Otherwise we would have to iterate
+  * all files/directories in the source tree to find all projects.
+  */
+void addSubProjects(String path, File dir) {
+  if (dir.isDirectory() == false) return;
+  if (new File(dir, 'build.gradle').exists() == false) return;
+
+  String projectName = "${path}:${dir.name}"
+  include projectName
+  project(projectName).projectDir = dir
+
+  for (File subdir : dir.listFiles()) {
+    addSubProjects(projectName, subdir)
+  }
+}
+
+File extraPlugins = new File(rootProject.projectDir, 'extra-plugins')
+for (File extraPluginDir : extraPlugins.listFiles()) {
+  addSubProjects('', extraPluginDir)
+}
+

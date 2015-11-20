@@ -72,12 +72,6 @@ subprojects {
   }
 }
 
-if (hasProperty('projectsPrefix') == false) {
-  allprojects {
-    project.ext['projectsPrefix'] = ''
-  }  
-}
-
 allprojects {
   // injecting groovy property variables into all projects
   project.ext {
@@ -108,11 +102,11 @@ subprojects {
   }
 
   ext.projectSubstitutions = [
-    "org.elasticsearch:rest-api-spec:${version}": "${projectsPrefix}:rest-api-spec",
-    "org.elasticsearch:elasticsearch:${version}": "${projectsPrefix}:core",
-    "org.elasticsearch:test-framework:${version}": "${projectsPrefix}:test-framework",
-    "org.elasticsearch.distribution.zip:elasticsearch:${version}": "${projectsPrefix}:distribution:zip",
-    "org.elasticsearch.distribution.tar:elasticsearch:${version}": "${projectsPrefix}:distribution:tar"
+    "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
+    "org.elasticsearch:elasticsearch:${version}": ':core',
+    "org.elasticsearch:test-framework:${version}": ':test-framework',
+    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar'
   ]
   configurations.all {
     resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
@@ -169,12 +163,19 @@ allprojects {
   apply plugin: 'idea'
 }
 
+<<<<<<< HEAD
 if (projectsPrefix.isEmpty()) {
   idea {
     project {
       languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
       vcs = 'Git'
     }
+=======
+idea {
+  project {
+    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava
+    vcs = 'Git'
+>>>>>>> Build: Change project attachment into special extra-plugins dir
   }
 }
 

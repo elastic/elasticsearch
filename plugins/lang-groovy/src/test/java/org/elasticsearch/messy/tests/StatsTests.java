@@ -354,51 +354,7 @@ public class StatsTests extends AbstractNumericTestCase {
     }
 
     @Override
-    public void testScriptExplicitSingleValuedWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("inc", 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(stats("stats").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
-                .execute().actionGet();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
-        assertThat(stats.getMin(), equalTo(2.0));
-        assertThat(stats.getMax(), equalTo(11.0));
-        assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(10l));
-    }
-
-    @Override
     public void testScriptMultiValued() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(stats("stats").script(new Script("doc['values'].values")))
-                .execute().actionGet();
-
-        assertShardExecutionState(searchResponse, 0);
-
-        assertHitCount(searchResponse, 10);
-
-        Stats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12) / 20));
-        assertThat(stats.getMin(), equalTo(2.0));
-        assertThat(stats.getMax(), equalTo(12.0));
-        assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12));
-        assertThat(stats.getCount(), equalTo(20l));
-    }
-
-    @Override
-    public void testScriptExplicitMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(stats("stats").script(new Script("doc['values'].values")))

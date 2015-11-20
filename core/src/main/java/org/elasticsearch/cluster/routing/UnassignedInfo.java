@@ -229,7 +229,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
             newComputedLeftDelayNanos = 0l;
         } else {
             assert nanoTimeNow >= unassignedTimeNanos;
-            newComputedLeftDelayNanos = delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos);
+            newComputedLeftDelayNanos = Math.max(0L, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
         }
         lastComputedLeftDelayNanos = newComputedLeftDelayNanos;
         return newComputedLeftDelayNanos;

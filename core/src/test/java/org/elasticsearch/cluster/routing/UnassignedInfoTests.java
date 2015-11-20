@@ -274,6 +274,30 @@ public class UnassignedInfoTests extends ESAllocationTestCase {
         assertThat(delay, equalTo(0l));
     }
 
+    /**
+     * Verifies that delayed allocation calculation are correct.
+     */
+    public void testLeftDelayCalculation() throws Exception {
+        final long baseTime = System.nanoTime();
+        final UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null, baseTime);
+        final long totalDelayNanos = TimeValue.timeValueMillis(10).nanos();
+        final Settings settings = Settings.builder().put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, TimeValue.timeValueNanos(totalDelayNanos)).build();
+        long delay = unassignedInfo.updateDelay(baseTime, settings, Settings.EMPTY);
+        assertThat(delay, equalTo(totalDelayNanos));
+        assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
+        long delta1 = randomIntBetween(1, (int) (totalDelayNanos - 1));
+        delay = unassignedInfo.updateDelay(baseTime + delta1, settings, Settings.EMPTY);
+        assertThat(delay, equalTo(totalDelayNanos - delta1));
+        assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
+        delay = unassignedInfo.updateDelay(baseTime + totalDelayNanos, settings, Settings.EMPTY);
+        assertThat(delay, equalTo(0L));
+        assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
+        delay = unassignedInfo.updateDelay(baseTime + totalDelayNanos + randomIntBetween(1, 20), settings, Settings.EMPTY);
+        assertThat(delay, equalTo(0L));
+        assertThat(delay, equalTo(unassignedInfo.getLastComputedLeftDelayNanos()));
+    }
+
+
     public void testNumberOfDelayedUnassigned() throws Exception {
         MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         MetaData metaData = MetaData.builder()

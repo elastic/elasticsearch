@@ -19,9 +19,11 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Arrays;
@@ -31,7 +33,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
 
     public void testUpgradeStoreSettings() {
         final String type = RandomPicks.randomFrom(random(), Arrays.asList("nio_fs", "mmap_fs", "simple_fs", "default", "fs"));
-        MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(Settings.EMPTY, null);
+        MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(Settings.EMPTY, null, new IndicesModule().getMapperRegistry());
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexStoreModule.STORE_TYPE, randomBoolean() ? type : type.toUpperCase(Locale.ROOT))
                 .build();
@@ -52,7 +54,7 @@ public class MetaDataIndexUpgradeServiceTests extends ESTestCase {
                 .numberOfShards(1)
                 .numberOfReplicas(1)
                 .build();
-        MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(Settings.EMPTY, null);
+        MetaDataIndexUpgradeService metaDataIndexUpgradeService = new MetaDataIndexUpgradeService(Settings.EMPTY, null, new IndicesModule().getMapperRegistry());
         IndexMetaData indexMetaData = metaDataIndexUpgradeService.upgradeSettings(test);
         assertSame(indexMetaData, test);
     }

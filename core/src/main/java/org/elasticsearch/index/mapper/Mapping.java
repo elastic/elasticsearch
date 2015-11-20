@@ -57,7 +57,7 @@ public final class Mapping implements ToXContent {
     final Version indexCreated;
     final RootObjectMapper root;
     final MetadataFieldMapper[] metadataMappers;
-    final ImmutableMap<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappersMap;
+    final ImmutableMap<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappersMap;
     final SourceTransform[] sourceTransforms;
     volatile ImmutableMap<String, Object> meta;
 
@@ -79,7 +79,7 @@ public final class Mapping implements ToXContent {
                 return o1.name().compareTo(o2.name());
             }
         });
-        this.rootMappersMap = builder.build();
+        this.metadataMappersMap = builder.build();
         this.sourceTransforms = sourceTransforms;
         this.meta = meta;
     }
@@ -98,8 +98,8 @@ public final class Mapping implements ToXContent {
 
     /** Get the root mapper with the given class. */
     @SuppressWarnings("unchecked")
-    public <T extends MetadataFieldMapper> T rootMapper(Class<T> clazz) {
-        return (T) rootMappersMap.get(clazz);
+    public <T extends MetadataFieldMapper> T metadataMapper(Class<T> clazz) {
+        return (T) metadataMappersMap.get(clazz);
     }
 
     /** @see DocumentMapper#merge(Mapping, boolean, boolean) */
@@ -108,7 +108,7 @@ public final class Mapping implements ToXContent {
 
         root.merge(mergeWith.root, mergeResult);
         for (MetadataFieldMapper metadataMapper : metadataMappers) {
-            MetadataFieldMapper mergeWithMetadataMapper = mergeWith.rootMapper(metadataMapper.getClass());
+            MetadataFieldMapper mergeWithMetadataMapper = mergeWith.metadataMapper(metadataMapper.getClass());
             if (mergeWithMetadataMapper != null) {
                 metadataMapper.merge(mergeWithMetadataMapper, mergeResult);
             }

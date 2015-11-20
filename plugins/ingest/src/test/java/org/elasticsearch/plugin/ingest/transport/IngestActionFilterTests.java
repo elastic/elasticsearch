@@ -21,7 +21,10 @@ package org.elasticsearch.plugin.ingest.transport;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
@@ -40,11 +43,12 @@ import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.Map;
+import java.util.*;
 
+import static org.elasticsearch.plugin.ingest.transport.IngestActionFilter.*;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
@@ -223,6 +227,124 @@ public class IngestActionFilterTests extends ESTestCase {
         });
 
         threadPool.shutdown();
+    }
+
+    public void testApplyWithBulkRequestWithFailure() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
+        int numRequest = scaledRandomIntBetween(8, 64);
+        int numNonIndexRequests = 0;
+        for (int i = 0; i < numRequest; i++) {
+            if (i % 2 == 0) {
+                numNonIndexRequests++;
+                ActionRequest request;
+                if (randomBoolean()) {
+                    request = new DeleteRequest("_index", "_type", "_id");
+                } else {
+                    request = new UpdateRequest("_index", "_type", "_id");
+                }
+                bulkRequest.add(request);
+            } else {
+                IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+                indexRequest.source("field1", "value1");
+                bulkRequest.add(indexRequest);
+            }
+        }
+
+        RuntimeException exception = new RuntimeException();
+        Answer answer = (invocationOnMock) -> {
+            PipelineExecutionService.Listener listener = (PipelineExecutionService.Listener) invocationOnMock.getArguments()[2];
+            listener.failed(exception);
+            return null;
+        };
+        doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+
+        ActionListener actionListener = mock(ActionListener.class);
+        RecordRequestAFC actionFilterChain = new RecordRequestAFC();
+
+        filter.apply("_action", bulkRequest, actionListener, actionFilterChain);
+
+        BulkRequest interceptedRequests = actionFilterChain.getRequest();
+        assertThat(interceptedRequests.requests().size(), equalTo(numNonIndexRequests));
+
+        verifyZeroInteractions(actionListener);
+    }
+
+    public void testBulkRequestModifier() {
+        int numRequests = scaledRandomIntBetween(8, 64);
+        BulkRequest bulkRequest = new BulkRequest();
+        for (int i = 0; i < numRequests; i++) {
+            bulkRequest.add(new IndexRequest("_index", "_type", String.valueOf(i)).source("{}"));
+        }
+        CaptureActionListener actionListener = new CaptureActionListener();
+        BulkRequestModifier bulkRequestModifier = new BulkRequestModifier(bulkRequest);
+
+        int i = 0;
+        Set<Integer> failedSlots = new HashSet<>();
+        while (bulkRequestModifier.hasNext()) {
+            IndexRequest indexRequest = (IndexRequest) bulkRequestModifier.next();
+            if (randomBoolean()) {
+                bulkRequestModifier.markCurrentItemAsFailed(new RuntimeException());
+                failedSlots.add(i);
+            }
+            i++;
+        }
+
+        assertThat(bulkRequestModifier.getBulkRequest().requests().size(), equalTo(numRequests - failedSlots.size()));
+        // simulate that we actually executed the modified bulk request:
+        ActionListener<BulkResponse> result = bulkRequestModifier.wrapActionListenerIfNeeded(actionListener);
+        result.onResponse(new BulkResponse(new BulkItemResponse[numRequests - failedSlots.size()], 0));
+
+        BulkResponse bulkResponse = actionListener.getResponse();
+        for (int j = 0; j < bulkResponse.getItems().length; j++) {
+            if (failedSlots.contains(j)) {
+                BulkItemResponse item =  bulkResponse.getItems()[j];
+                assertThat(item.isFailed(), is(true));
+                assertThat(item.getFailure().getIndex(), equalTo("_index"));
+                assertThat(item.getFailure().getType(), equalTo("_type"));
+                assertThat(item.getFailure().getId(), equalTo(String.valueOf(j)));
+                assertThat(item.getFailure().getMessage(), equalTo("java.lang.RuntimeException"));
+            } else {
+                assertThat(bulkResponse.getItems()[j], nullValue());
+            }
+        }
+    }
+
+    private final static class RecordRequestAFC implements ActionFilterChain {
+
+        private ActionRequest request;
+
+        @Override
+        public void proceed(String action, ActionRequest request, ActionListener listener) {
+            this.request = request;
+        }
+
+        @Override
+        public void proceed(String action, ActionResponse response, ActionListener listener) {
+
+        }
+
+        public <T extends ActionRequest<T>> T getRequest() {
+            return (T) request;
+        }
+    }
+
+    private final static class CaptureActionListener implements ActionListener<BulkResponse> {
+
+        private BulkResponse response;
+
+        @Override
+        public void onResponse(BulkResponse bulkItemResponses) {
+            this.response = bulkItemResponses ;
+        }
+
+        @Override
+        public void onFailure(Throwable e) {
+        }
+
+        public BulkResponse getResponse() {
+            return response;
+        }
     }
 
 }

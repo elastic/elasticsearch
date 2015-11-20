@@ -19,7 +19,15 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.update.UpdateRequest;
+import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineAction;
@@ -39,6 +47,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -109,6 +118,43 @@ public class IngestClientIT extends ESIntegTestCase {
         IngestDocument expectedIngestDocument = new IngestDocument("index", "type", "id", Collections.singletonMap("foo", "bar"));
         assertThat(simulateDocumentSimpleResult.getData(), equalTo(expectedIngestDocument));
         assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
+    }
+
+    public void testBulkWithIngestFailures() {
+        createIndex("index");
+
+        int numRequests = scaledRandomIntBetween(32, 128);
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_none_existing_id");
+        for (int i = 0; i < numRequests; i++) {
+            if (i % 2 == 0) {
+                UpdateRequest updateRequest = new UpdateRequest("index", "type", Integer.toString(i));
+                updateRequest.upsert("field", "value");
+                updateRequest.doc(new HashMap());
+                bulkRequest.add(updateRequest);
+            } else {
+                IndexRequest indexRequest = new IndexRequest("index", "type", Integer.toString(i));
+                indexRequest.source("field1", "value1");
+                bulkRequest.add(indexRequest);
+            }
+        }
+
+        BulkResponse response = client().bulk(bulkRequest).actionGet();
+        assertThat(response.getItems().length, equalTo(bulkRequest.requests().size()));
+        for (int i = 0; i < bulkRequest.requests().size(); i++) {
+            ActionRequest request = bulkRequest.requests().get(i);
+            BulkItemResponse itemResponse = response.getItems()[i];
+            if (request instanceof IndexRequest) {
+                BulkItemResponse.Failure failure = itemResponse.getFailure();
+                assertThat(failure.getMessage(), equalTo("java.lang.IllegalArgumentException: pipeline with id [_none_existing_id] does not exist"));
+            } else if (request instanceof UpdateRequest) {
+                UpdateResponse updateResponse = itemResponse.getResponse();
+                assertThat(updateResponse.getId(), equalTo(Integer.toString(i)));
+                assertThat(updateResponse.isCreated(), is(true));
+            } else {
+                fail("unexpected request item [" + request + "]");
+            }
+        }
     }
 
     public void test() throws Exception {

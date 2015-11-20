@@ -43,7 +43,7 @@ public class PipelineExecutionService {
     public void execute(IngestDocument ingestDocument, String pipelineId, Listener listener) {
         Pipeline pipeline = store.get(pipelineId);
         if (pipeline == null) {
-            listener.failed(new IllegalArgumentException(LoggerMessageFormat.format("pipeline with id [{}] does not exist", pipelineId)));
+            listener.failed(new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist"));
             return;
         }
 
@@ -53,7 +53,7 @@ public class PipelineExecutionService {
                 try {
                     pipeline.execute(ingestDocument);
                     listener.executed(ingestDocument);
-                } catch (Exception e) {
+                } catch (Throwable e) {
                     listener.failed(e);
                 }
             }
@@ -64,7 +64,7 @@ public class PipelineExecutionService {
 
         void executed(IngestDocument ingestDocument);
 
-        void failed(Exception e);
+        void failed(Throwable e);
 
     }
 

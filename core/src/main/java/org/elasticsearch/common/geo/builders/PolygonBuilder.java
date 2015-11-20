@@ -35,7 +35,7 @@ public class PolygonBuilder extends BasePolygonBuilder<PolygonBuilder> {
 
     protected PolygonBuilder(ArrayList<Coordinate> points, Orientation orientation) {
         super(orientation);
-        this.shell = new Ring<>(this, points);
+        this.shell = new LineStringBuilder(points);
     }
 
     @Override

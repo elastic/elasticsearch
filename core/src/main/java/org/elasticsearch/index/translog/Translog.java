@@ -190,6 +190,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         boolean success = false;
         ArrayList<ImmutableTranslogReader> foundTranslogs = new ArrayList<>();
         final Path tempFile = Files.createTempFile(location, TRANSLOG_FILE_PREFIX, TRANSLOG_FILE_SUFFIX); // a temp file to copy checkpoint to - note it must be in on the same FS otherwise atomic move won't work
+        boolean tempFileRenamed = false;
         try (ReleasableLock lock = writeLock.acquire()) {
             logger.debug("open uncommitted translog checkpoint {}", checkpoint);
             final String checkpointTranslogFile = getFilename(checkpoint.generation);
@@ -215,6 +216,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 Files.copy(location.resolve(CHECKPOINT_FILE_NAME), tempFile, StandardCopyOption.REPLACE_EXISTING);
                 IOUtils.fsync(tempFile, false);
                 Files.move(tempFile, commitCheckpoint, StandardCopyOption.ATOMIC_MOVE);
+                tempFileRenamed = true;
                 // we only fsync the directory the tempFile was already fsynced
                 IOUtils.fsync(commitCheckpoint.getParent(), true);
             }
@@ -223,10 +225,12 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             if (success == false) {
                 IOUtils.closeWhileHandlingException(foundTranslogs);
             }
-            try {
-                Files.delete(tempFile);
-            } catch (IOException ex) {
-                logger.warn("failed to delete temp file {}", ex, tempFile);
+            if (tempFileRenamed == false) {
+                try {
+                    Files.delete(tempFile);
+                } catch (IOException ex) {
+                    logger.warn("failed to delete temp file {}", ex, tempFile);
+                }
             }
         }
         return foundTranslogs;
@@ -253,7 +257,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Extracts the translog generation from a file name.
      *
-     * @throw IllegalArgumentException if the path doesn't match the expected pattern.
+     * @throws IllegalArgumentException if the path doesn't match the expected pattern.
      */
     public static long parseIdFromFileName(Path translogFile) {
         final String fileName = translogFile.getFileName().toString();

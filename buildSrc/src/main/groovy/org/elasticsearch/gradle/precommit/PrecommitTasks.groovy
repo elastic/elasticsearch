@@ -18,9 +18,12 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.TaskContainer
 
 /**
@@ -32,7 +35,8 @@ class PrecommitTasks {
     static void configure(Project project) {
         List precommitTasks = [
                 configureForbiddenApis(project),
-                configureForbiddenPatterns(project.tasks)]
+                configureForbiddenPatterns(project.tasks),
+                configureJarHell(project)]
 
         Map precommitOptions = [
                 name: 'precommit',
@@ -89,5 +93,41 @@ class PrecommitTasks {
             rule name: 'nocommit', pattern: /nocommit/
             rule name: 'tab', pattern: /\t/
         }
+    }
+
+    /**
+     * Adds a task to run jar hell before on the test classpath.
+     *
+     * We use a simple "marker" file that we touch when the task succeeds
+     * as the task output. This is compared against the modified time of the
+     * inputs (ie the jars/class files).
+     */
+    static Task configureJarHell(Project project) {
+        File successMarker = new File(project.buildDir, 'markers/jarHell')
+        Exec task = project.tasks.create(name: 'jarHell', type: Exec)
+        FileCollection testClasspath = project.sourceSets.test.runtimeClasspath
+        task.dependsOn(testClasspath)
+        task.inputs.files(testClasspath)
+        task.outputs.file(successMarker)
+        task.executable = new File(project.javaHome, 'bin/java')
+        task.doFirst({
+            task.args('-cp', testClasspath.asPath, 'org.elasticsearch.bootstrap.JarHell')
+        })
+        if (task.logger.isInfoEnabled() == false) {
+            task.standardOutput = new ByteArrayOutputStream()
+            task.errorOutput = task.standardOutput
+            task.ignoreExitValue = true
+            task.doLast({
+                if (execResult.exitValue != 0) {
+                    logger.error(standardOutput.toString())
+                    throw new GradleException("JarHell failed")
+                }
+            })
+        }
+        task.doLast({
+            successMarker.parentFile.mkdirs()
+            successMarker.setText("", 'UTF-8')
+        })
+        return task
     }
 }

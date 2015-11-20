@@ -29,6 +29,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.LineString;
 import com.vividsolutions.jts.geom.Polygon;
 
+import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
@@ -141,35 +142,34 @@ public class ShapeBuilderTests extends ESTestCase {
 
     public void testMultiLineString() {
         ShapeBuilders.newMultiLinestring()
-            .linestring()
+            .linestring(new LineStringBuilder()
                 .point(-100.0, 50.0)
                 .point(50.0, 50.0)
                 .point(50.0, 20.0)
                 .point(-100.0, 20.0)
-            .end()
-            .linestring()
+            )
+            .linestring(new LineStringBuilder()
                 .point(-100.0, 20.0)
                 .point(50.0, 20.0)
                 .point(50.0, 0.0)
                 .point(-100.0, 0.0)
-            .end()
+            )
             .build();
-
 
         // LineString that needs to be wrappped
         ShapeBuilders.newMultiLinestring()
-            .linestring()
+            .linestring(new LineStringBuilder()
                 .point(150.0, 60.0)
                 .point(200.0, 60.0)
                 .point(200.0, 40.0)
                 .point(150.0,  40.0)
-                .end()
-            .linestring()
+                )
+            .linestring(new LineStringBuilder()
                 .point(150.0, 20.0)
                 .point(200.0, 20.0)
                 .point(200.0, 0.0)
                 .point(150.0, 0.0)
-                .end()
+                )
             .build();
     }
 
@@ -251,7 +251,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .point(174,0);
 
         // 3/4 of an embedded 'c', crossing dateline once
-        builder.hole()
+        builder.hole(new LineStringBuilder()
             .point(175, 1)
             .point(175, 7)
             .point(-178, 7)
@@ -260,15 +260,15 @@ public class ShapeBuilderTests extends ESTestCase {
             .point(176, 2)
             .point(179, 2)
             .point(179,1)
-            .point(175, 1);
+            .point(175, 1));
 
         // embedded hole right of the dateline
-        builder.hole()
+        builder.hole(new LineStringBuilder()
             .point(-179, 1)
             .point(-179, 2)
             .point(-177, 2)
             .point(-177,1)
-            .point(-179,1);
+            .point(-179,1));
 
         Shape shape = builder.close().build();
         assertMultiPolygon(shape);
@@ -292,7 +292,7 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(-186,0);
 
         // 3/4 of an embedded 'c', crossing dateline once
-        builder.hole()
+        builder.hole(new LineStringBuilder()
                 .point(-185,1)
                 .point(-181,1)
                 .point(-181,2)
@@ -301,15 +301,15 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(-178,6)
                 .point(-178,7)
                 .point(-185,7)
-                .point(-185,1);
+                .point(-185,1));
 
         // embedded hole right of the dateline
-        builder.hole()
+        builder.hole(new LineStringBuilder()
                 .point(-179,1)
                 .point(-177,1)
                 .point(-177,2)
                 .point(-179,2)
-                .point(-179,1);
+                .point(-179,1));
 
         Shape shape = builder.close().build();
         assertMultiPolygon(shape);
@@ -356,7 +356,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .point(-85.0016455,37.1310491)
             .point(-85.0018514,37.1311314);
 
-        builder.hole()
+        builder.hole(new LineStringBuilder()
             .point(-85.0000002,37.1317672)
             .point(-85.0001983,37.1317538)
             .point(-85.0003378,37.1317582)
@@ -382,7 +382,7 @@ public class ShapeBuilderTests extends ESTestCase {
             .point(-84.9993527,37.1317788)
             .point(-84.9994931,37.1318061)
             .point(-84.9996815,37.1317979)
-            .point(-85.0000002,37.1317672);
+            .point(-85.0000002,37.1317672));
 
         Shape shape = builder.close().build();
         assertPolygon(shape);
@@ -398,12 +398,12 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(-6, 0)
                 .point(-4, 2);
 
-        builder.hole()
+        builder.hole(new LineStringBuilder()
             .point(4, 1)
             .point(4, -1)
             .point(-4, -1)
             .point(-4, 1)
-            .point(4, 1);
+            .point(4, 1));
 
         Shape shape = builder.close().build();
         assertPolygon(shape);
@@ -451,12 +451,12 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(176, -15)
                 .point(-177, -10)
                 .point(-177, 10);
-        builder.hole()
+        builder.hole(new LineStringBuilder()
                 .point(176, 10)
                 .point(180, 5)
                 .point(180, -5)
                 .point(176, -10)
-                .point(176, 10);
+                .point(176, 10));
         Shape shape = builder.close().build();
         assertMultiPolygon(shape);
 
@@ -467,12 +467,12 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(179, -10)
                 .point(-176, -15)
                 .point(-172, 0);
-        builder.hole()
+        builder.hole(new LineStringBuilder()
                 .point(-176, 10)
                 .point(-176, -10)
                 .point(-180, -5)
                 .point(-180, 5)
-                .point(-176, 10);
+                .point(-176, 10));
         shape = builder.close().build();
         assertMultiPolygon(shape);
     }
@@ -486,12 +486,12 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(166, -15)
                 .point(179, -10)
                 .point(179, 10);
-        builder.hole()
+        builder.hole(new LineStringBuilder()
                 .point(-177, 10)
                 .point(-178, -10)
                 .point(-180, -5)
                 .point(-180, 5)
-                .point(-177, 10);
+                .point(-177, 10));
         Shape shape = builder.close().build();
         assertMultiPolygon(shape);
     }
@@ -505,12 +505,12 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(166, -15)
                 .point(179, -10)
                 .point(179, 10);
-        builder.hole()
+        builder.hole(new LineStringBuilder()
                 .point(164, 0)
                 .point(175, 10)
                 .point(175, 5)
                 .point(179, -10)
-                .point(164, 0);
+                .point(164, 0));
         try {
             builder.close().build();
             fail("Expected InvalidShapeException");
@@ -528,17 +528,17 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(176, -15)
                 .point(-177, -10)
                 .point(-177, 10);
-        builder.hole()
+        builder.hole(new LineStringBuilder()
                 .point(-177, 10)
                 .point(-178, -10)
                 .point(-180, -5)
                 .point(-180, 5)
-                .point(-177, 10);
-        builder.hole()
+                .point(-177, 10));
+        builder.hole(new LineStringBuilder()
                 .point(172, 0)
                 .point(176, 10)
                 .point(176, -5)
-                .point(172, 0);
+                .point(172, 0));
         Shape shape = builder.close().build();
         assertMultiPolygon(shape);
     }
@@ -552,12 +552,12 @@ public class ShapeBuilderTests extends ESTestCase {
                 .point(176, -15)
                 .point(-177, -10)
                 .point(-177, 10);
-        builder.hole()
+        builder.hole(new LineStringBuilder()
                 .point(-177, 10)
                 .point(172, 0)
                 .point(180, -5)
                 .point(176, -10)
-                .point(-177, 10);
+                .point(-177, 10));
         try {
             builder.close().build();
             fail("Expected InvalidShapeException");

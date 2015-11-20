@@ -31,7 +31,6 @@ import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.common.geo.builders.BaseLineStringBuilder;
 import org.elasticsearch.common.geo.builders.GeometryCollectionBuilder;
 import org.elasticsearch.common.geo.builders.LineStringBuilder;
 import org.elasticsearch.common.geo.builders.MultiLineStringBuilder;
@@ -198,7 +197,7 @@ public class RandomShapeGenerator extends RandomGeoGenerator {
             case MULTILINESTRING:
                 MultiLineStringBuilder mlsb = new MultiLineStringBuilder();
                 for (int i=0; i<RandomInts.randomIntBetween(r, 1, 10); ++i) {
-                    mlsb.linestring((BaseLineStringBuilder) createShape(r, nearPoint, within, ShapeType.LINESTRING, false));
+                    mlsb.linestring((LineStringBuilder) createShape(r, nearPoint, within, ShapeType.LINESTRING, false));
                 }
                 return mlsb;
             case POLYGON:

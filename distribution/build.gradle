@@ -18,6 +18,7 @@
  */
 
 import org.apache.tools.ant.filters.FixCrLfFilter
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
 import org.elasticsearch.gradle.test.RunTask
 import org.elasticsearch.gradle.EmptyDirTask
@@ -142,6 +143,7 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
  *    MavenFilteringHack or any other copy-style action.
  */
 configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
+  integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
   File packagingFiles = new File(buildDir, 'packaging')
   project.ext.packagingFiles = packagingFiles
   task processPackagingFiles(type: Copy) {

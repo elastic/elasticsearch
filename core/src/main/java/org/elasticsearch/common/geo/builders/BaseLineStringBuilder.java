@@ -23,7 +23,6 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
 
-import com.spatial4j.core.shape.ShapeCollection;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import com.spatial4j.core.shape.Shape;
@@ -34,11 +33,7 @@ import com.vividsolutions.jts.geom.LineString;
 
 public abstract class BaseLineStringBuilder<E extends BaseLineStringBuilder<E>> extends PointCollection<E> {
 
-    protected BaseLineStringBuilder() {
-        this(new ArrayList<Coordinate>());
-    }
-
-    protected BaseLineStringBuilder(ArrayList<Coordinate> points) {
+    public BaseLineStringBuilder(ArrayList<Coordinate> points) {
         super(points);
     }
 
@@ -78,15 +73,15 @@ public abstract class BaseLineStringBuilder<E extends BaseLineStringBuilder<E>> 
 
     /**
      * Decompose a linestring given as array of coordinates at a vertical line.
-     * 
+     *
      * @param dateline x-axis intercept of the vertical line
      * @param coordinates coordinates forming the linestring
-     * @return array of linestrings given as coordinate arrays 
+     * @return array of linestrings given as coordinate arrays
      */
     protected static Coordinate[][] decompose(double dateline, Coordinate[] coordinates) {
         int offset = 0;
         ArrayList<Coordinate[]> parts = new ArrayList<>();
-        
+
         double shift = coordinates[0].x > DATELINE ? DATELINE : (coordinates[0].x < -DATELINE ? -DATELINE : 0);
 
         for (int i = 1; i < coordinates.length; i++) {

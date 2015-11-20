@@ -428,6 +428,7 @@
         <module>lang-groovy</module>
         <module>lang-javascript</module>
         <module>lang-python</module>
+        <module>mapper-attachments</module>
         <module>mapper-murmur3</module>
         <module>mapper-size</module>
         <module>jvm-example</module>

@@ -1,0 +1,80 @@
+[[release-notes-2.0.0-rc1]] 
+== 2.0.0-rc1 Release Notes
+
+[[enhancement-2.0.0-rc1]]
+[float]
+=== Enhancements
+
+Exceptions::
+* Make ElasticsearchException ids for 2.0 consistent with master {pull}13805[#13805]
+* Use a dedicated id to serialize EsExceptions instead of it's class name. {pull}13629[#13629]
+
+Geo::
+* Expose points_only option through geo_shape field mapper {pull}12893[#12893] (issue: {issue}12856[#12856])
+
+Internal::
+* More helpful error message on parameter order {pull}13737[#13737]
+
+Network::
+* Expose all addresses that the transports are bound to {pull}13586[#13586] (issue: {issue}12942[#12942])
+
+Packaging::
+* Nuke ES_CLASSPATH appending, JarHell fail on empty classpath elements {pull}13880[#13880] (issues: {issue}13812[#13812], {issue}13864[#13864])
+
+Plugin Cloud Azure::
+* Enable SSL for Azure blob storage  {pull}13573[#13573]
+
+Plugin Cloud GCE::
+* cloud-gce plugin should check `discovery.type` {pull}13809[#13809] (issue: {issue}13614[#13614])
+
+Plugins::
+* Adds a validation for plugins script to check if java is set {pull}13633[#13633] (issue: {issue}13613[#13613])
+
+Settings::
+* Remove index.buffer_size setting {pull}13563[#13563] (issue: {issue}13548[#13548])
+
+
+[[bug-2.0.0-rc1]]
+[float]
+=== Bug fixes
+
+CRUD::
+* Index name expressions should not be broken up {pull}13691[#13691] (issue: {issue}13665[#13665])
+
+Core::
+* LoggingRunnable.run should catch and log all errors, not just Exception? {pull}13718[#13718] (issue: {issue}13487[#13487])
+* Improve IndexingMemoryController a bit {pull}13548[#13548] (issue: {issue}13487[#13487])
+
+Exceptions::
+* Prevent losing stacktraces when exceptions occur {pull}13587[#13587]
+
+Geo::
+* Fix GeoPointFieldMapper to index geohash at correct precision. {pull}13649[#13649] (issue: {issue}12467[#12467])
+
+Index APIs::
+* Date math index names should work too when an index doesn't exist {pull}13570[#13570]
+* IndexNameExpressionResolver should not ignore any wildcards {pull}13384[#13384] (issue: {issue}13334[#13334])
+
+Internal::
+* An inactive shard is activated by triggered synced flush {pull}13802[#13802]
+
+Logging::
+* Don't log multi-megabyte guice exceptions. {pull}13782[#13782]
+* Moving system property setting to before it can be used {pull}13660[#13660] (issue: {issue}13658[#13658])
+
+Packaging::
+* Don't let ubuntu try to install its crazy jayatana agent. {pull}13813[#13813] (issue: {issue}13785[#13785])
+
+Plugins::
+* Remove unused java opts/es java opts from plugin manager call {pull}12801[#12801] (issue: {issue}12479[#12479])
+
+Settings::
+* ByteSizeValue.equals should normalize units {pull}13784[#13784]
+
+Translog::
+* Pending operations in the translog prevent shard from being marked as inactive {pull}13759[#13759] (issue: {issue}13707[#13707])
+
+Tribe Node::
+* Increment tribe node version on updates {pull}13566[#13566]
+
+

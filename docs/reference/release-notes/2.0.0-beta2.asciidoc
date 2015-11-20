@@ -1,0 +1,165 @@
+[[release-notes-2.0.0-beta2]]
+== 2.0.0-beta2 Release Notes
+
+[[breaking-2.0.0-beta2]]
+[float]
+=== Breaking changes
+
+CAT API::
+* Default _cat verbose to false {pull}13180[#13180] (issue: {issue}13156[#13156])
+
+Internal::
+* Remove usage of tuple as a method parameter {pull}13135[#13135] (issue: {issue}10787[#10787])
+
+Mapping::
+* Rename position_offset_gap to position_increment_gap {pull}13056[#13056] (issue: {issue}12562[#12562])
+* Default position_offset_gap to 100 {pull}12544[#12544] (issue: {issue}7268[#7268])
+
+Settings::
+* Remove environment from transport client {pull}13383[#13383] (issue: {issue}13155[#13155])
+
+
+[[deprecation-2.0.0-beta2]]
+[float]
+=== Deprecations
+
+Geo::
+* Refactor geo_point validate_* and normalize_* for 1.7 {pull}12300[#12300]
+
+Query DSL::
+* Query DSL: deprecate _name and boost in short variants of queries {pull}12966[#12966] (issue: {issue}11744[#11744])
+
+
+[[enhancement-2.0.0-beta2]]
+[float]
+=== Enhancements
+
+Core::
+* Manual synchronization when iterating over listeners in InternalClusterInfoService {pull}13270[#13270] (issue: {issue}3[#3])
+
+Exceptions::
+* Make mlockall configuration easier. {pull}13057[#13057]
+
+Internal::
+* add default impl for resolveIndex() {pull}13218[#13218]
+* Removed the `operation_threaded` option. {pull}13119[#13119] (issue: {issue}12395[#12395])
+* Remove SpawnModules {pull}13034[#13034] (issue: {issue}12783[#12783])
+
+Mapping::
+* Refactor ignore_malformed and coerce GeoPointFieldType to Builder {pull}13289[#13289] (issue: {issue}13285[#13285])
+
+Network::
+* Remove broadcast address check. {pull}13328[#13328] (issue: {issue}13327[#13327])
+* Convert upgrade action to broadcast by node {pull}13205[#13205] (issue: {issue}13204[#13204])
+* Add mechanism for transporting shard-level actions by node {pull}12944[#12944] (issue: {issue}7990[#7990])
+
+Plugins::
+* Replace HTTP urls with HTTPS in PluginManager {pull}12824[#12824] (issue: {issue}12748[#12748])
+
+REST::
+* Add favicon {pull}13054[#13054]
+
+Settings::
+* Stop o.e.c.s.Settings from leaking Guava dependency {pull}13517[#13517] (issue: {issue}13224[#13224])
+
+Stats::
+* Sort thread pools by name in Nodes Stats {pull}13121[#13121]
+* Expose shards data and state path via ShardStats {pull}13118[#13118] (issue: {issue}13106[#13106])
+
+Warmers::
+* Warmers delete _all should not throw exception when no warmers {pull}13058[#13058] (issue: {issue}8991[#8991])
+
+
+[[bug-2.0.0-beta2]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* GeoDistance Aggregation now prints field name when it finds an unexpected token. {pull}13033[#13033] (issue: {issue}12391[#12391])
+
+Allocation::
+* Take relocating shard into consideration during awareness allocation {pull}13512[#13512] (issue: {issue}12551[#12551])
+* Take Shard data path into account in DiskThresholdDecider {pull}13195[#13195] (issue: {issue}13106[#13106])
+* Expand ClusterInfo to provide min / max disk usage for allocation decider {pull}13163[#13163] (issue: {issue}13106[#13106])
+* Take initializing shards into consideration during awareness allocation {pull}12551[#12551] (issue: {issue}12522[#12522])
+
+Core::
+* Engine: refresh before translog commit {pull}13414[#13414] (issue: {issue}13379[#13379])
+* Fix exception handling for unavailable shards in broadcast replication action {pull}13341[#13341] (issue: {issue}13068[#13068])
+* Call `beforeIndexShardCreated` listener earlier in `createShard` {pull}13153[#13153]
+* Detect duplicate settings keys on startup {pull}13086[#13086] (issue: {issue}13079[#13079])
+* Don't check if directory is present to prevent races {pull}13049[#13049]
+
+Engine::
+* Engine: Let AlreadyClosedException and EngineClosedExceptionBubble up {pull}13380[#13380] (issue: {issue}13266[#13266])
+
+Inner Hits::
+* Protected against large size option {pull}13416[#13416] (issue: {issue}13394[#13394])
+
+Internal::
+* Add listeners for postIndex, postCreate, and postDelete {pull}13203[#13203] (issue: {issue}13202[#13202])
+* Make refresh a replicated action {pull}13068[#13068] (issues: {issue}12600[#12600], {issue}9421[#9421])
+* Pass down the EngineConfig to IndexSearcherWrapper {pull}12883[#12883]
+
+Mapping::
+* Split the _parent field mapping's field type into two field types {pull}13399[#13399] (issue: {issue}13169[#13169])
+* Fix numerous checks for equality and compatibility in mapper field types {pull}13206[#13206] (issues: {issue}13112[#13112], {issue}8871[#8871])
+* Fix doc parser to still pre/post process metadata fields on disabled type {pull}13137[#13137] (issue: {issue}13017[#13017])
+* Fix document parsing to properly ignore entire type when disabled {pull}13085[#13085] (issue: {issue}13017[#13017])
+* `update_all_types` missing from REST spec and tests [ISSUE] {pull}12840[#12840]
+
+Nested Docs::
+* Nested query should only use bitset cache for parent filter {pull}13087[#13087]
+
+Network::
+* Improve situation when network.host is set to wildcard (e.g. 0.0.0.0) {pull}13299[#13299] (issue: {issue}13274[#13274])
+
+Packaging::
+* Fix service.bat start/stop issues {pull}13398[#13398] (issues: {issue}13247[#13247], {issue}13401[#13401])
+* Don't surround -Xloggc log filename with quotes {pull}13296[#13296] (issue: {issue}13277[#13277])
+* Add missing null check in ESPolicy. {pull}13232[#13232]
+* More portable extraction of short hostname {pull}13109[#13109] (issue: {issue}13107[#13107])
+
+Plugins::
+* EC2/Azure discovery plugins must declare their UnicastHostsProvider {pull}13501[#13501] (issue: {issue}13492[#13492])
+* Installing plugin without checksums ends up downloading from github {pull}13197[#13197] (issue: {issue}13196[#13196])
+
+Query DSL::
+* `span_containing` and `span_within` override default boost coming from lucene {pull}13339[#13339] (issue: {issue}13272[#13272])
+* `simple_query_string` overrides boost coming from lucene {pull}13331[#13331] (issue: {issue}13272[#13272])
+* Query DSL: match_phrase_prefix to take boost into account {pull}13142[#13142] (issue: {issue}13129[#13129])
+
+Recovery::
+* Failed to properly ack translog ops during wait on mapping changes {pull}13535[#13535]
+
+Scripting::
+* Propagate Headers and Context through to ScriptService {pull}12982[#12982] (issue: {issue}12891[#12891])
+
+Search::
+* Allow reads on shards that are in POST_RECOVERY {pull}13246[#13246] (issues: {issue}13068[#13068], {issue}9421[#9421])
+
+Settings::
+* Fix `discovery.zen.join_timeout` default value logic {pull}13162[#13162]
+
+Shadow Replicas::
+* Allow deleting closed indices with shadow replicas {pull}13309[#13309] (issue: {issue}13297[#13297])
+
+Snapshot/Restore::
+* Snapshot restore request should accept indices options {pull}13357[#13357] (issues: {issue}10744[#10744], {issue}13335[#13335])
+
+Stats::
+* Remove the `network` option from nodes info/stats [ISSUE] {pull}12889[#12889]
+
+
+[[upgrade-2.0.0-beta2]]
+[float]
+=== Upgrades
+
+Dates::
+* Update joda-time to 2.8.2 {pull}13092[#13092] (issue: {issue}12859[#12859])
+
+Plugin Cloud AWS::
+* Update AWS SDK to 1.10.12 {pull}13090[#13090]
+* Update AWS SDK to 1.10.10  {pull}12859[#12859]
+
+

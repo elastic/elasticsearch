@@ -163,11 +163,6 @@ task buildSrcEclipse(type: GradleBuild) {
 }
 tasks.eclipse.dependsOn(buildSrcEclipse)
 
-task clean(type: GradleBuild) {
-  buildFile = 'buildSrc/build.gradle'
-  tasks = ['clean']
-}
-
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through
 class Run extends DefaultTask {

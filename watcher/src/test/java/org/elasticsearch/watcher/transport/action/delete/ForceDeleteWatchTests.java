@@ -6,12 +6,21 @@
 package org.elasticsearch.watcher.transport.action.delete;
 
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.SleepScriptEngine;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.delete.DeleteWatchResponse;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.transport.actions.service.WatcherServiceResponse;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 
 import static org.elasticsearch.watcher.actions.ActionBuilders.loggingAction;
 import static org.elasticsearch.watcher.client.WatchSourceBuilders.watchBuilder;
@@ -23,7 +32,6 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
     //Disable time warping for the force delete long running watch test
     @Override
@@ -36,11 +44,18 @@ public class ForceDeleteWatchTests extends AbstractWatcherIntegrationTestCase {
         return false;
     }
 
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(SleepScriptEngine.TestPlugin.class);
+        return plugins;
+    }
+
     @TestLogging("_root:DEBUG")
     public void testForceDeleteLongRunningWatch() throws Exception {
         PutWatchResponse putResponse = watcherClient().preparePutWatch("_name").setSource(watchBuilder()
                 .trigger(schedule(interval("3s")))
-                .condition(scriptCondition(Script.inline("sleep 5000; return true")))
+                .condition(scriptCondition(SleepScriptEngine.sleepScript(5000)))
                 .addAction("_action1", loggingAction("executed action: {{ctx.id}}")))
                 .get();
         assertThat(putResponse.getId(), equalTo("_name"));

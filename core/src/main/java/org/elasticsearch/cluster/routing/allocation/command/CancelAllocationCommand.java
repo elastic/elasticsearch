@@ -21,7 +21,10 @@ package org.elasticsearch.cluster.routing.allocation.command;
 
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.cluster.routing.*;
+import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -34,7 +37,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 
 /**
@@ -194,7 +196,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                         throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
                                 discoNode + ", shard is primary and initializing its state");
                     }
-                    it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null));
+                    it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null, allocation.getCurrentNanoTime()));
                     // now, go and find the shard that is initializing on the target node, and cancel it as well...
                     RoutingNodes.RoutingNodeIterator initializingNode = allocation.routingNodes().routingNodeIter(shardRouting.relocatingNodeId());
                     if (initializingNode != null) {
@@ -217,7 +219,7 @@ public class CancelAllocationCommand implements AllocationCommand {
                     throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + " on node " +
                             discoNode + ", shard is primary and started");
                 }
-                it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null));
+                it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REROUTE_CANCELLED, null, allocation.getCurrentNanoTime()));
             }
         }
         if (!found) {

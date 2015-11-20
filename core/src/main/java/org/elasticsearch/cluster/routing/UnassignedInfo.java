@@ -34,7 +34,6 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.concurrent.TimeUnit;
 
 /**
  * Holds additional information as to why the shard is in unassigned state.
@@ -110,18 +109,18 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     private final String message;
     private final Throwable failure;
 
-    public UnassignedInfo(Reason reason, String message) {
-        this(reason, System.currentTimeMillis(), System.nanoTime(), message, null);
+    public UnassignedInfo(Reason reason, String message, long unassignedTimeNanos) {
+        this(reason, System.currentTimeMillis(), unassignedTimeNanos, message, null);
     }
 
-    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Throwable failure) {
-        this(reason, System.currentTimeMillis(), System.nanoTime(), message, failure);
+    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Throwable failure, long unassignedTimeNanos) {
+        this(reason, System.currentTimeMillis(), unassignedTimeNanos, message, failure);
     }
 
-    private UnassignedInfo(Reason reason, long unassignedTimeMillis, long timestampNanos, String message, Throwable failure) {
+    private UnassignedInfo(Reason reason, long unassignedTimeMillis, long unassignedTimeNanos, String message, Throwable failure) {
         this.reason = reason;
         this.unassignedTimeMillis = unassignedTimeMillis;
-        this.unassignedTimeNanos = timestampNanos;
+        this.unassignedTimeNanos = unassignedTimeNanos;
         this.message = message;
         this.failure = failure;
         assert !(message == null && failure != null) : "provide a message if a failure exception is provided";
@@ -201,14 +200,14 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     /**
-     * The allocation delay value in milliseconds associated with the index (defaulting to node settings if not set).
+     * The allocation delay value in nano seconds associated with the index (defaulting to node settings if not set).
      */
-    public long getAllocationDelayTimeoutSetting(Settings settings, Settings indexSettings) {
+    public long getAllocationDelayTimeoutSettingNanos(Settings settings, Settings indexSettings) {
         if (reason != Reason.NODE_LEFT) {
             return 0;
         }
         TimeValue delayTimeout = indexSettings.getAsTime(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, settings.getAsTime(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, DEFAULT_DELAYED_NODE_LEFT_TIMEOUT));
-        return Math.max(0l, delayTimeout.millis());
+        return Math.max(0l, delayTimeout.nanos());
     }
 
     /**
@@ -221,18 +220,16 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     /**
      * Updates delay left based on current time (in nanoseconds) and index/node settings.
-     * Should only be called from ReplicaShardAllocator.
      * @return updated delay in nanoseconds
      */
     public long updateDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
-        long delayTimeoutMillis = getAllocationDelayTimeoutSetting(settings, indexSettings);
+        long delayTimeoutNanos = getAllocationDelayTimeoutSettingNanos(settings, indexSettings);
         final long newComputedLeftDelayNanos;
-        if (delayTimeoutMillis == 0l) {
+        if (delayTimeoutNanos == 0l) {
             newComputedLeftDelayNanos = 0l;
         } else {
             assert nanoTimeNow >= unassignedTimeNanos;
-            long delayTimeoutNanos = TimeUnit.NANOSECONDS.convert(delayTimeoutMillis, TimeUnit.MILLISECONDS);
-            newComputedLeftDelayNanos = Math.max(0l, delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos));
+            newComputedLeftDelayNanos = delayTimeoutNanos - (nanoTimeNow - unassignedTimeNanos);
         }
         lastComputedLeftDelayNanos = newComputedLeftDelayNanos;
         return newComputedLeftDelayNanos;
@@ -255,21 +252,21 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     }
 
     /**
-     * Finds the smallest delay expiration setting in milliseconds of all unassigned shards that are still delayed. Returns 0 if there are none.
+     * Finds the smallest delay expiration setting in nanos of all unassigned shards that are still delayed. Returns 0 if there are none.
      */
-    public static long findSmallestDelayedAllocationSetting(Settings settings, ClusterState state) {
-        long nextDelaySetting = Long.MAX_VALUE;
+    public static long findSmallestDelayedAllocationSettingNanos(Settings settings, ClusterState state) {
+        long minDelaySetting = Long.MAX_VALUE;
         for (ShardRouting shard : state.routingTable().shardsWithState(ShardRoutingState.UNASSIGNED)) {
             if (shard.primary() == false) {
                 IndexMetaData indexMetaData = state.metaData().index(shard.getIndex());
-                long leftDelayNanos = shard.unassignedInfo().getLastComputedLeftDelayNanos();
-                long delayTimeoutSetting = shard.unassignedInfo().getAllocationDelayTimeoutSetting(settings, indexMetaData.getSettings());
-                if (leftDelayNanos > 0 && delayTimeoutSetting > 0 && delayTimeoutSetting < nextDelaySetting) {
-                    nextDelaySetting = delayTimeoutSetting;
+                boolean delayed = shard.unassignedInfo().getLastComputedLeftDelayNanos() > 0;
+                long delayTimeoutSetting = shard.unassignedInfo().getAllocationDelayTimeoutSettingNanos(settings, indexMetaData.getSettings());
+                if (delayed && delayTimeoutSetting > 0 && delayTimeoutSetting < minDelaySetting) {
+                    minDelaySetting = delayTimeoutSetting;
                 }
             }
         }
-        return nextDelaySetting == Long.MAX_VALUE ? 0l : nextDelaySetting;
+        return minDelaySetting == Long.MAX_VALUE ? 0l : minDelaySetting;
     }
 
 

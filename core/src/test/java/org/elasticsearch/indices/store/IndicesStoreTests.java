@@ -93,7 +93,7 @@ public class IndicesStoreTests extends ESTestCase {
                 }
                 UnassignedInfo unassignedInfo = null;
                 if (state == ShardRoutingState.UNASSIGNED) {
-                    unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
+                    unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime());
                 }
                 routingTable.addShard(TestShardRouting.newShardRouting("test", i, "xyz", null, null, j == 0, state, 0, unassignedInfo));
             }

@@ -21,17 +21,14 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  */
 public class AllocationIdTests extends ESTestCase {
     public void testShardToStarted() {
         logger.info("-- create unassigned shard");
-        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime()));
         assertThat(shard.allocationId(), nullValue());
 
         logger.info("-- initialize the shard");
@@ -51,7 +48,7 @@ public class AllocationIdTests extends ESTestCase {
 
     public void testSuccessfulRelocation() {
         logger.info("-- build started shard");
-        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime()));
         shard.initialize("node1", -1);
         shard.moveToStarted();
 
@@ -74,7 +71,7 @@ public class AllocationIdTests extends ESTestCase {
 
     public void testCancelRelocation() {
         logger.info("-- build started shard");
-        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime()));
         shard.initialize("node1", -1);
         shard.moveToStarted();
 
@@ -94,18 +91,18 @@ public class AllocationIdTests extends ESTestCase {
 
     public void testMoveToUnassigned() {
         logger.info("-- build started shard");
-        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime()));
         shard.initialize("node1", -1);
         shard.moveToStarted();
 
         logger.info("-- move to unassigned");
-        shard.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null));
+        shard.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, null, System.nanoTime()));
         assertThat(shard.allocationId(), nullValue());
     }
 
     public void testReinitializing() {
         logger.info("-- build started shard");
-        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
+        ShardRouting shard = ShardRouting.newUnassigned("test", 0, null, true, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime()));
         shard.initialize("node1", -1);
         shard.moveToStarted();
         AllocationId allocationId = shard.allocationId();

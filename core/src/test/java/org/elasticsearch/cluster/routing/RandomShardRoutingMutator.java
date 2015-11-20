@@ -19,9 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
-import static org.elasticsearch.test.ESTestCase.randomAsciiOfLength;
-import static org.elasticsearch.test.ESTestCase.randomFrom;
-import static org.elasticsearch.test.ESTestCase.randomInt;
+import static org.elasticsearch.test.ESTestCase.*;
 
 /**
  * Utility class the makes random modifications to ShardRouting
@@ -35,9 +33,9 @@ public final class RandomShardRoutingMutator {
         switch (randomInt(3)) {
             case 0:
                 if (shardRouting.unassigned() == false) {
-                    shardRouting.moveToUnassigned(new UnassignedInfo(randomReason(), randomAsciiOfLength(10)));
+                    shardRouting.moveToUnassigned(new UnassignedInfo(randomReason(), randomAsciiOfLength(10), System.nanoTime()));
                 } else if (shardRouting.unassignedInfo() != null) {
-                    shardRouting.updateUnassignedInfo(new UnassignedInfo(randomReason(), randomAsciiOfLength(10)));
+                    shardRouting.updateUnassignedInfo(new UnassignedInfo(randomReason(), randomAsciiOfLength(10), System.nanoTime()));
                 }
                 break;
             case 1:

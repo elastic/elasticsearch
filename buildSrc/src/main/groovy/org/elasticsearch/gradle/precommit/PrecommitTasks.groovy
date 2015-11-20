@@ -111,7 +111,11 @@ class PrecommitTasks {
         task.outputs.file(successMarker)
         task.executable = new File(project.javaHome, 'bin/java')
         task.doFirst({
-            task.args('-cp', testClasspath.asPath, 'org.elasticsearch.bootstrap.JarHell')
+            /* JarHell doesn't like getting directories that don't exist but
+              gradle isn't especially careful about that. So we have to do it
+              filter it ourselves. */
+            def taskClasspath = testClasspath.filter { it.exists() }
+            task.args('-cp', taskClasspath.asPath, 'org.elasticsearch.bootstrap.JarHell')
         })
         if (task.logger.isInfoEnabled() == false) {
             task.standardOutput = new ByteArrayOutputStream()

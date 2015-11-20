@@ -1,7 +1,7 @@
 Mapper Attachments Type for Elasticsearch
 =========================================
 
-The mapper attachments plugin lets Elasticsearch index file attachments in over a thousand formats (such as PPT, XLS, PDF) using the Apache text extraction library [Tika](http://lucene.apache.org/tika/).
+The mapper attachments plugin lets Elasticsearch index file attachments in common formats (such as PPT, XLS, PDF) using the Apache text extraction library [Tika](http://lucene.apache.org/tika/).
 
 In practice, the plugin adds the `attachment` type when mapping properties so that documents can be populated with file attachment contents (encoded as `base64`).
 
@@ -11,33 +11,7 @@ Installation
 In order to install the plugin, run:
 
 ```sh
-bin/plugin install elasticsearch/elasticsearch-mapper-attachments/3.0.2
-```
-
-You need to install a version matching your Elasticsearch version:
-
-|       Elasticsearch    | Attachments Plugin|                                                             Docs                                                                   |
-|------------------------|-------------------|------------------------------------------------------------------------------------------------------------------------------------|
-|    master              | Build from source | See below                                                                                                                          |
-|    es-2.x              | Build from source | [3.2.0-SNAPSHOT](https://github.com/elastic/elasticsearch-mapper-attachments/tree/es-2.x/#version-320-for-elasticsearch-22)                  |
-|    es-2.1              | Build from source | [3.1.0-SNAPSHOT](https://github.com/elastic/elasticsearch-mapper-attachments/tree/es-2.1/#version-310-for-elasticsearch-21)                  |
-|    es-2.0              |     3.0.2         | [3.0.2](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v3.0.2/#version-302-for-elasticsearch-20)                  |
-|    es-1.7              |     2.7.1         | [2.7.1](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.7.1/#version-271-for-elasticsearch-17)                  |
-|    es-1.6              |     2.6.0         | [2.6.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.6.0/#version-260-for-elasticsearch-16)                  |
-|    es-1.5              |     2.5.0         | [2.5.0](https://github.com/elastic/elasticsearch-mapper-attachments/tree/v2.5.0/#version-250-for-elasticsearch-15)                  |
-|    es-1.4              |     2.4.3         | [2.4.3](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.4.3/#version-243-for-elasticsearch-14)                  |
-|    es-1.3              |     2.3.2         | [2.3.2](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.3.2/#version-232-for-elasticsearch-13)                  |
-|    es-1.2              |     2.2.1         | [2.2.1](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.2.1/#version-221-for-elasticsearch-12)                  |
-|    es-1.1              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.0.0/#mapper-attachments-type-for-elasticsearch)  |
-|    es-1.0              |     2.0.0         | [2.0.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v2.0.0/#mapper-attachments-type-for-elasticsearch)  |
-|    es-0.90             |     1.9.0         | [1.9.0](https://github.com/elasticsearch/elasticsearch-mapper-attachments/tree/v1.9.0/#mapper-attachments-type-for-elasticsearch)  |
-
-To build a `SNAPSHOT` version, you need to build it with Maven:
-
-```bash
-gradle clean assemble
-plugin --install mapper-attachments \
-       --url file:target/releases/elasticsearch-mapper-attachments-X.X.X-SNAPSHOT.zip
+bin/plugin install mapper-attachments
 ```
 
 Hello, world
@@ -420,22 +394,3 @@ This is the extracted text
 - name: null
 - title: null
 ```
-
-License
--------
-
-    This software is licensed under the Apache 2 license, quoted below.
-
-    Copyright 2009-2014 Elasticsearch <http://www.elasticsearch.org>
-
-    Licensed under the Apache License, Version 2.0 (the "License"); you may not
-    use this file except in compliance with the License. You may obtain a copy of
-    the License at
-
-        http://www.apache.org/licenses/LICENSE-2.0
-
-    Unless required by applicable law or agreed to in writing, software
-    distributed under the License is distributed on an "AS IS" BASIS, WITHOUT
-    WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied. See the
-    License for the specific language governing permissions and limitations under
-    the License.

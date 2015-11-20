@@ -67,6 +67,7 @@ final class TikaImpl {
         new org.apache.tika.parser.odf.OpenDocumentParser(),
         new org.apache.tika.parser.iwork.IWorkPackageParser(),
         new org.apache.tika.parser.xml.DcXMLParser(),
+        new org.apache.tika.parser.epub.EpubParser(),
     };
     
     /** autodetector based on this subset */

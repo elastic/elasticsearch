@@ -280,26 +280,7 @@ public class MaxTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitSingleValued_WithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("inc", 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(max("max").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
-                .execute().actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        Max max = searchResponse.getAggregations().get("max");
-        assertThat(max, notNullValue());
-        assertThat(max.getName(), equalTo("max"));
-        assertThat(max.getValue(), equalTo(11.0));
-    }
-
-    @Override
-    @Test
-    public void testScript_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(max("max").script(new Script("doc['values'].values")))
@@ -314,24 +295,7 @@ public class MaxTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitMultiValued() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(max("max").script(new Script("doc['values'].values")))
-                .execute().actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        Max max = searchResponse.getAggregations().get("max");
-        assertThat(max, notNullValue());
-        assertThat(max.getName(), equalTo("max"));
-        assertThat(max.getValue(), equalTo(12.0));
-    }
-
-    @Override
-    @Test
-    public void testScript_MultiValued_WithParams() throws Exception {
+    public void testScriptMultiValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())

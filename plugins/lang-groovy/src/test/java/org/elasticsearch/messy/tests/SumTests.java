@@ -229,27 +229,7 @@ public class SumTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitSingleValued_WithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("inc", 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(sum("sum").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)))
-                .execute().actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        Sum sum = searchResponse.getAggregations().get("sum");
-        assertThat(sum, notNullValue());
-        assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-    }
-
-
-    @Override
-    @Test
-    public void testScript_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
                 .addAggregation(sum("sum").script(new Script("[ doc['value'].value, doc['value'].value + 1 ]")))
@@ -264,24 +244,7 @@ public class SumTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitMultiValued() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(sum("sum").script(new Script("[ doc['value'].value, doc['value'].value + 1 ]")))
-                .execute().actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        Sum sum = searchResponse.getAggregations().get("sum");
-        assertThat(sum, notNullValue());
-        assertThat(sum.getName(), equalTo("sum"));
-        assertThat(sum.getValue(), equalTo((double) 1+2+2+3+3+4+4+5+5+6+6+7+7+8+8+9+9+10+10+11));
-    }
-
-    @Override
-    @Test
-    public void testScript_MultiValued_WithParams() throws Exception {
+    public void testScriptMultiValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("inc", 1);
         SearchResponse searchResponse = client().prepareSearch("idx")

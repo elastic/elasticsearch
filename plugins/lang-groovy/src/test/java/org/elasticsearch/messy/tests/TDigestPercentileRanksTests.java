@@ -375,28 +375,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitSingleValued_WithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("dec", 1);
-        final double[] pcts = randomPercents(minValue -1 , maxValue - 1);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.script(
-                                new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))
-                        .percentiles(pcts))
-                .execute().actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValue - 1, maxValue - 1);
-    }
-
-    @Override
-    @Test
-    public void testScript_MultiValued() throws Exception {
+    public void testScriptMultiValued() throws Exception {
         final double[] pcts = randomPercents(minValues, maxValues);
         SearchResponse searchResponse = client().prepareSearch("idx")
                 .setQuery(matchAllQuery())
@@ -412,25 +391,7 @@ public class TDigestPercentileRanksTests extends AbstractNumericTestCase {
     }
 
     @Override
-    @Test
-    public void testScript_ExplicitMultiValued() throws Exception {
-        final double[] pcts = randomPercents(minValues, maxValues);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(randomCompression(percentileRanks("percentile_ranks"))
-.script(new Script("doc['values'].values"))
-                        .percentiles(pcts))
-                .execute().actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        final PercentileRanks percentiles = searchResponse.getAggregations().get("percentile_ranks");
-        assertConsistent(pcts, percentiles, minValues, maxValues);
-    }
-
-    @Override
-    @Test
-    public void testScript_MultiValued_WithParams() throws Exception {
+    public void testScriptMultiValuedWithParams() throws Exception {
         Map<String, Object> params = new HashMap<>();
         params.put("dec", 1);
         final double[] pcts = randomPercents(minValues - 1, maxValues - 1);

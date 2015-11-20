@@ -95,12 +95,7 @@ public abstract class AbstractNumericTestCase extends ESIntegTestCase {
 
     public abstract void testScript_SingleValued_WithParams() throws Exception;
 
-    public abstract void testScript_ExplicitSingleValued_WithParams() throws Exception;
+    public abstract void testScriptMultiValued() throws Exception;
 
-    public abstract void testScript_MultiValued() throws Exception;
-
-    public abstract void testScript_ExplicitMultiValued() throws Exception;
-
-    public abstract void testScript_MultiValued_WithParams() throws Exception;
-
+    public abstract void testScriptMultiValuedWithParams() throws Exception;
 }

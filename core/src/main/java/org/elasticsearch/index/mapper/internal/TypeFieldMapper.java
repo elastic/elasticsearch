@@ -93,15 +93,20 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             parseField(builder, builder.name, node, parserContext);
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new TypeFieldMapper(indexSettings, fieldType);
         }
     }
 
@@ -147,12 +152,12 @@ public class TypeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing == null ? defaultFieldType(indexSettings) : existing.clone(),
              indexSettings);
     }
 
-    public TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
+    private TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings);
     }
 

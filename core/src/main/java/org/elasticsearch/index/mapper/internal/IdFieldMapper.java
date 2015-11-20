@@ -112,9 +112,9 @@ public class IdFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
@@ -130,6 +130,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new IdFieldMapper(indexSettings, fieldType);
         }
     }
 
@@ -228,11 +233,11 @@ public class IdFieldMapper extends MetadataFieldMapper {
 
     private final String path;
 
-    public IdFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private IdFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(idFieldType(indexSettings, existing), Defaults.PATH, indexSettings);
     }
 
-    protected IdFieldMapper(MappedFieldType fieldType, String path, Settings indexSettings) {
+    private IdFieldMapper(MappedFieldType fieldType, String path, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.path = path;
     }

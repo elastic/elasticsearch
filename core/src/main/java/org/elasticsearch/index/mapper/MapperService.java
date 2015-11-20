@@ -25,6 +25,7 @@ import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Iterators;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
@@ -57,6 +58,7 @@ import org.elasticsearch.index.settings.IndexSettingsService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.script.ScriptService;
 
@@ -137,22 +139,24 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private volatile ImmutableSet<String> parentTypes = ImmutableSet.of();
 
+    final MapperRegistry mapperRegistry;
+
     @Inject
     public MapperService(Index index, IndexSettingsService indexSettingsService, AnalysisService analysisService,
                          SimilarityLookupService similarityLookupService,
-                         ScriptService scriptService) {
-        this(index, indexSettingsService.getSettings(), analysisService, similarityLookupService, scriptService);
+                         ScriptService scriptService, MapperRegistry mapperRegistry) {
+        this(index, indexSettingsService.getSettings(), analysisService, similarityLookupService, scriptService, mapperRegistry);
     }
-
 
     public MapperService(Index index, Settings indexSettings, AnalysisService analysisService,
                          SimilarityLookupService similarityLookupService,
-                         ScriptService scriptService) {
+                         ScriptService scriptService, MapperRegistry mapperRegistry) {
         super(index, indexSettings);
         this.indexSettings = indexSettings;
         this.analysisService = analysisService;
+        this.mapperRegistry = mapperRegistry;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService);
+        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityLookupService, scriptService, mapperRegistry);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), INDEX_ANALYZER_EXTRACTOR);
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), SEARCH_ANALYZER_EXTRACTOR);
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), SEARCH_QUOTE_ANALYZER_EXTRACTOR);

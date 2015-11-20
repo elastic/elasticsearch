@@ -19,6 +19,8 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.google.common.collect.ImmutableSet;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
@@ -29,13 +31,13 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import com.google.common.collect.ImmutableSet;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.analysis.AnalysisService;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
 import org.elasticsearch.index.store.IndexStoreModule;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.script.ScriptService;
 
 import java.util.Locale;
@@ -57,11 +59,13 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
     private final Class<? extends HashFunction> pre20HashFunction;
     private final Boolean pre20UseType;
     private final ScriptService scriptService;
+    private final MapperRegistry mapperRegistry;
 
     @Inject
-    public MetaDataIndexUpgradeService(Settings settings, ScriptService scriptService) {
+    public MetaDataIndexUpgradeService(Settings settings, ScriptService scriptService, MapperRegistry mapperRegistry) {
         super(settings);
         this.scriptService = scriptService;
+        this.mapperRegistry = mapperRegistry;
         final String pre20HashFunctionName = settings.get(DEPRECATED_SETTING_ROUTING_HASH_FUNCTION, null);
         final boolean hasCustomPre20HashFunction = pre20HashFunctionName != null;
         // the hash function package has changed we replace the two hash functions if their fully qualified name is used.
@@ -323,7 +327,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             // We cannot instantiate real analysis server at this point because the node might not have
             // been started yet. However, we don't really need real analyzers at this stage - so we can fake it
             try (AnalysisService analysisService = new FakeAnalysisService(index, settings)) {
-                try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, scriptService)) {
+                try (MapperService mapperService = new MapperService(index, settings, analysisService, similarityLookupService, scriptService, mapperRegistry)) {
                     for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                         MappingMetaData mappingMetaData = cursor.value;
                         mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);

@@ -31,13 +31,15 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.analysis.IndicesAnalysisService;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.nio.file.Path;
+
 
 public class MapperTestUtils {
 
@@ -50,11 +52,15 @@ public class MapperTestUtils {
     }
 
     private static MapperService newMapperService(Index index, Settings indexSettings) {
+        IndicesModule indicesModule = new IndicesModule();
+        indicesModule.registerMapper(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+        MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         return new MapperService(index,
                                  indexSettings, 
                                  newAnalysisService(indexSettings),
                                  newSimilarityLookupService(indexSettings), 
-                                 null);
+                                 null,
+                                 mapperRegistry);
     }
 
     private  static AnalysisService newAnalysisService(Settings indexSettings) {

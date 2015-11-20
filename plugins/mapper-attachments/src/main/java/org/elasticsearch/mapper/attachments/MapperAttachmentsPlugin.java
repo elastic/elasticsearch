@@ -19,12 +19,8 @@
 
 package org.elasticsearch.mapper.attachments;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
-
-import java.util.Collection;
-import java.util.Collections;
 
 public class MapperAttachmentsPlugin extends Plugin {
 
@@ -38,8 +34,7 @@ public class MapperAttachmentsPlugin extends Plugin {
         return "Adds the attachment type allowing to parse difference attachment formats";
     }
 
-    @Override
-    public Collection<Module> indexModules(Settings indexSettings) {
-        return Collections.<Module>singletonList(new AttachmentsIndexModule());
+    public void onModule(IndicesModule indicesModule) {
+        indicesModule.registerMapper("attachment", new AttachmentMapper.TypeParser());
     }
 }

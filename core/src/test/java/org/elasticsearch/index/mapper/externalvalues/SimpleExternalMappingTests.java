@@ -24,12 +24,21 @@ import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.core.StringFieldMapper;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.junit.Test;
 import org.elasticsearch.test.VersionUtils;
+
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -38,17 +47,18 @@ import static org.hamcrest.Matchers.notNullValue;
  */
 public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
 
-    @Test
+
     public void testExternalValues() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.documentMapperParser().putRootTypeParser(ExternalMetadataMapper.CONTENT_TYPE,
-                new ExternalMetadataMapper.TypeParser());
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
+        IndexService indexService = createIndex("test", settings);
+        MapperRegistry mapperRegistry = new MapperRegistry(
+                Collections.<String, Mapper.TypeParser>singletonMap(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo")),
+                Collections.<String, MetadataFieldMapper.TypeParser>singletonMap(ExternalMetadataMapper.CONTENT_TYPE, new ExternalMetadataMapper.TypeParser()));
 
-        DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
+        DocumentMapperParser parser = new DocumentMapperParser(indexService.indexSettings(), indexService.mapperService(),
+                indexService.analysisService(), indexService.similarityService().similarityLookupService(), null, mapperRegistry);
+        DocumentMapper documentMapper = parser.parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
@@ -87,14 +97,19 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     public void testExternalValuesWithMultifield() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
+        IndexService indexService = createIndex("test", settings);
+        Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
+        mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
+        mapperParsers.put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
+        MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.<String, MetadataFieldMapper.TypeParser>emptyMap());
 
-        DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
+        DocumentMapperParser parser = new DocumentMapperParser(indexService.indexSettings(), indexService.mapperService(),
+                indexService.analysisService(), indexService.similarityService().similarityLookupService(), null, mapperRegistry);
+
+        DocumentMapper documentMapper = parser.parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
-                    .field("type", RegisterExternalTypes.EXTERNAL)
+                    .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
                             .field("type", "string")
@@ -141,23 +156,26 @@ public class SimpleExternalMappingTests extends ESSingleNodeTestCase {
     public void testExternalValuesWithMultifieldTwoLevels() throws Exception {
         Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
         Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
-        MapperService mapperService = createIndex("test", settings).mapperService();
+        IndexService indexService = createIndex("test", settings);
+        Map<String, Mapper.TypeParser> mapperParsers = new HashMap<>();
+        mapperParsers.put(ExternalMapperPlugin.EXTERNAL, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "foo"));
+        mapperParsers.put(ExternalMapperPlugin.EXTERNAL_BIS, new ExternalMapper.TypeParser(ExternalMapperPlugin.EXTERNAL, "bar"));
+        mapperParsers.put(StringFieldMapper.CONTENT_TYPE, new StringFieldMapper.TypeParser());
+        MapperRegistry mapperRegistry = new MapperRegistry(mapperParsers, Collections.<String, MetadataFieldMapper.TypeParser>emptyMap());
 
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL, "foo"));
-        mapperService.documentMapperParser().putTypeParser(RegisterExternalTypes.EXTERNAL_BIS,
-                new ExternalMapper.TypeParser(RegisterExternalTypes.EXTERNAL_BIS, "bar"));
+        DocumentMapperParser parser = new DocumentMapperParser(indexService.indexSettings(), indexService.mapperService(),
+                indexService.analysisService(), indexService.similarityService().similarityLookupService(), null, mapperRegistry);
 
-        DocumentMapper documentMapper = mapperService.documentMapperParser().parse(
+        DocumentMapper documentMapper = parser.parse(
                 XContentFactory.jsonBuilder().startObject().startObject("type").startObject("properties")
                 .startObject("field")
-                    .field("type", RegisterExternalTypes.EXTERNAL)
+                    .field("type", ExternalMapperPlugin.EXTERNAL)
                     .startObject("fields")
                         .startObject("field")
                             .field("type", "string")
                             .startObject("fields")
                                 .startObject("generated")
-                                    .field("type", RegisterExternalTypes.EXTERNAL_BIS)
+                                    .field("type", ExternalMapperPlugin.EXTERNAL_BIS)
                                 .endObject()
                                 .startObject("raw")
                                     .field("type", "string")

@@ -1,5 +1,7 @@
+@import "~ui/styles/variables/bootstrap-mods.less";
+
 body {
-  background: #222222;
+  background: @gray2;
 }
 
 .inner-addon {
@@ -10,7 +12,7 @@ body {
   position: absolute;
   padding: 10px;
   pointer-events: none;
-  color: #A2A4AC;
+  color: @gray10;
 }
 
 .left-addon .fa  { left:  0px;}
@@ -29,20 +31,16 @@ body {
   }
 }
 
-.has-error {
-  color: red;
-}
-
 .login {
-  background-color: #94C63D;
+  background-color: @esGreen;
   color: white;
   width: 200px;
   font-size: 1.5em;
   border: none;
 
   &:disabled {
-    background-color: #44532A;
-    color: #636464;
+    background-color: @esGreen2;
+    color: @gray;
   }
 }
 

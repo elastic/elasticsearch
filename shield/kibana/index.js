@@ -9,7 +9,7 @@ module.exports = (kibana) => new kibana.Plugin({
   config(Joi) {
     return Joi.object({
       enabled: Joi.boolean().default(true),
-      encryptionKey: Joi.string().default('secret'),
+      encryptionKey: Joi.string().required(),
       sessionTimeout: Joi.number().default(30 * 60 * 1000)
     }).default()
   },

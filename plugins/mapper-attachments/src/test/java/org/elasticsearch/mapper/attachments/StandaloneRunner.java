@@ -89,7 +89,6 @@ public class StandaloneRunner extends CliTool {
             this.url = url;
             this.base64text = base64text;
             DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(PathUtils.get("."), Settings.EMPTY).documentMapperParser(); // use CWD b/c it won't be used
-            mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
 
             String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/standalone/standalone-mapping.json");
             docMapper = mapperParser.parse(mapping);

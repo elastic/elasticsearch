@@ -85,9 +85,9 @@ public class SizeFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -103,9 +103,18 @@ public class SizeFieldMapper extends MetadataFieldMapper {
             }
             return builder;
         }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new SizeFieldMapper(indexSettings, fieldType);
+        }
     }
 
     private EnabledAttributeMapper enabledState;
+
+    private SizeFieldMapper(Settings indexSettings, MappedFieldType mappedFieldType) {
+        this(Defaults.ENABLED_STATE, mappedFieldType == null ? Defaults.SIZE_FIELD_TYPE : mappedFieldType, indexSettings);
+    }
 
     private SizeFieldMapper(EnabledAttributeMapper enabled, MappedFieldType fieldType, Settings indexSettings) {
         super(NAME, fieldType, Defaults.SIZE_FIELD_TYPE, indexSettings);

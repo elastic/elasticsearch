@@ -19,7 +19,7 @@
 
 package org.elasticsearch.mapper.attachments;
 
-import org.elasticsearch.index.IndexService;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
 
 public class MapperAttachmentsPlugin extends Plugin {
@@ -34,8 +34,7 @@ public class MapperAttachmentsPlugin extends Plugin {
         return "Adds the attachment type allowing to parse difference attachment formats";
     }
 
-    @Override
-    public void onIndexService(IndexService indexService) {
-        indexService.mapperService().documentMapperParser().putTypeParser("attachment", new AttachmentMapper.TypeParser());
+    public void onModule(IndicesModule indicesModule) {
+        indicesModule.registerMapper("attachment", new AttachmentMapper.TypeParser());
     }
 }

@@ -92,15 +92,14 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         ClusterState newState = clusterState;
 
-        assertThat(routingService.getMinDelaySettingAtLastScheduling(), equalTo(Long.MAX_VALUE));
+        assertThat(routingService.getMinDelaySettingAtLastSchedulingNanos(), equalTo(Long.MAX_VALUE));
         routingService.clusterChanged(new ClusterChangedEvent("test", newState, prevState));
-        assertThat(routingService.getMinDelaySettingAtLastScheduling(), equalTo(Long.MAX_VALUE));
+        assertThat(routingService.getMinDelaySettingAtLastSchedulingNanos(), equalTo(Long.MAX_VALUE));
         assertThat(routingService.hasReroutedAndClear(), equalTo(false));
     }
 
     public void testDelayedUnassignedScheduleReroute() throws Exception {
-        DelayedShardsMockGatewayAllocator mockGatewayAllocator = new DelayedShardsMockGatewayAllocator();
-        AllocationService allocation = createAllocationService(Settings.EMPTY, mockGatewayAllocator);
+        MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
         MetaData metaData = MetaData.builder()
                 .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "100ms"))
                         .numberOfShards(1).numberOfReplicas(1))
@@ -130,7 +129,6 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         ClusterState prevState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(nodeId)).build();
         // make sure the replica is marked as delayed (i.e. not reallocated)
-        mockGatewayAllocator.setTimeSource(shard -> shard.unassignedInfo().getUnassignedTimeInNanos() + TimeValue.timeValueMillis(randomIntBetween(0, 99)).nanos());
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
         assertEquals(1, clusterState.getRoutingNodes().unassigned().size());
 
@@ -143,7 +141,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
             }
         });
         // verify the registration has been reset
-        assertThat(routingService.getMinDelaySettingAtLastScheduling(), equalTo(Long.MAX_VALUE));
+        assertThat(routingService.getMinDelaySettingAtLastSchedulingNanos(), equalTo(Long.MAX_VALUE));
     }
 
     /**
@@ -153,8 +151,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
         final ThreadPool testThreadPool = new ThreadPool(getTestName());
 
         try {
-            DelayedShardsMockGatewayAllocator mockGatewayAllocator = new DelayedShardsMockGatewayAllocator();
-            AllocationService allocation = createAllocationService(Settings.EMPTY, mockGatewayAllocator);
+            MockAllocationService allocation = createAllocationService(Settings.EMPTY, new DelayedShardsMockGatewayAllocator());
             MetaData metaData = MetaData.builder()
                     .put(IndexMetaData.builder("short_delay").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "100ms"))
                             .numberOfShards(1).numberOfReplicas(1))
@@ -194,11 +191,13 @@ public class RoutingServiceTests extends ESAllocationTestCase {
             }
             assertNotNull(longDelayReplica);
 
+            final long baseTime = System.nanoTime();
+
             // remove node of shortDelayReplica and node of longDelayReplica and reroute
             ClusterState prevState = clusterState;
             clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(shortDelayReplica.currentNodeId()).remove(longDelayReplica.currentNodeId())).build();
             // make sure both replicas are marked as delayed (i.e. not reallocated)
-            mockGatewayAllocator.setTimeSource(shard -> shard.unassignedInfo().getUnassignedTimeInNanos() + 1);
+            allocation.setNanoTimeOverride(baseTime);
             clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
 
             // check that shortDelayReplica and longDelayReplica have been marked unassigned
@@ -225,7 +224,7 @@ public class RoutingServiceTests extends ESAllocationTestCase {
             RoutingService routingService = new RoutingService(Settings.EMPTY, testThreadPool, clusterService, allocation);
             routingService.start(); // just so performReroute does not prematurely return
             // next (delayed) reroute should only delay longDelayReplica/longDelayUnassignedReplica, simulate that we are now 1 second after shards became unassigned
-            mockGatewayAllocator.setTimeSource(shard -> shard.unassignedInfo().getUnassignedTimeInNanos() + TimeValue.timeValueSeconds(1).nanos());
+            allocation.setNanoTimeOverride(baseTime + TimeValue.timeValueSeconds(1).nanos());
             // register listener on cluster state so we know when cluster state has been changed
             final CountDownLatch latch = new CountDownLatch(1);
             clusterService.addLast(new ClusterStateListener() {
@@ -239,49 +238,10 @@ public class RoutingServiceTests extends ESAllocationTestCase {
              // cluster service should have updated state and called routingService with clusterChanged
             latch.await();
             // verify the registration has been set to the delay of longDelayReplica/longDelayUnassignedReplica
-            assertThat(routingService.getMinDelaySettingAtLastScheduling(), equalTo(TimeValue.timeValueSeconds(10).millis()));
+            assertThat(routingService.getMinDelaySettingAtLastSchedulingNanos(), equalTo(TimeValue.timeValueSeconds(10).nanos()));
         } finally {
             terminate(testThreadPool);
         }
-    }
-
-    @Test
-    public void testDelayedUnassignedDoesNotRerouteForNegativeDelays() throws Exception {
-        DelayedShardsMockGatewayAllocator mockGatewayAllocator = new DelayedShardsMockGatewayAllocator();
-        AllocationService allocation = createAllocationService(Settings.EMPTY, mockGatewayAllocator);
-        MetaData metaData = MetaData.builder()
-                .put(IndexMetaData.builder("test").settings(settings(Version.CURRENT).put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING, "100ms"))
-                        .numberOfShards(1).numberOfReplicas(1))
-                .build();
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
-                .metaData(metaData)
-                .routingTable(RoutingTable.builder().addAsNew(metaData.index("test"))).build();
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2")).localNodeId("node1").masterNodeId("node1")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
-        // starting primaries
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
-        // starting replicas
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.getRoutingNodes().unassigned().size() > 0, equalTo(false));
-        // remove node2 and reroute
-        ClusterState prevState = clusterState;
-        clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
-        clusterState = ClusterState.builder(clusterState).routingResult(allocation.reroute(clusterState, "reroute")).build();
-        // Set it in the future so the delay will be negative
-        mockGatewayAllocator.setTimeSource(shard -> shard.unassignedInfo().getUnassignedTimeInNanos() + TimeValue.timeValueMinutes(1).nanos());
-
-        ClusterState newState = clusterState;
-
-        routingService.clusterChanged(new ClusterChangedEvent("test", newState, prevState));
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                assertThat(routingService.hasReroutedAndClear(), equalTo(false));
-
-                // verify the registration has been updated
-                assertThat(routingService.getMinDelaySettingAtLastScheduling(), equalTo(100L));
-            }
-        });
     }
 
     private class TestRoutingService extends RoutingService {

@@ -58,7 +58,7 @@ public class FailedRerouteAllocation extends RoutingAllocation {
     private final List<FailedShard> failedShards;
 
     public FailedRerouteAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, List<FailedShard> failedShards, ClusterInfo clusterInfo) {
-        super(deciders, routingNodes, nodes, clusterInfo);
+        super(deciders, routingNodes, nodes, clusterInfo, System.nanoTime());
         this.failedShards = failedShards;
     }
 

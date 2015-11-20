@@ -55,7 +55,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     private final AllocationService allocationService;
 
     private AtomicBoolean rerouting = new AtomicBoolean();
-    private volatile long minDelaySettingAtLastScheduling = Long.MAX_VALUE;
+    private volatile long minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
     private volatile ScheduledFuture registeredNextDelayFuture;
 
     @Inject
@@ -100,14 +100,14 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
             // Figure out if an existing scheduled reroute is good enough or whether we need to cancel and reschedule.
             // If the minimum of the currently relevant delay settings is larger than something we scheduled in the past,
             // we are guaranteed that the planned schedule will happen before any of the current shard delays are expired.
-            long minDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(settings, event.state());
+            long minDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSettingNanos(settings, event.state());
             if (minDelaySetting <= 0) {
-                logger.trace("no need to schedule reroute - no delayed unassigned shards, minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastScheduling);
-                minDelaySettingAtLastScheduling = Long.MAX_VALUE;
+                logger.trace("no need to schedule reroute - no delayed unassigned shards, minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastSchedulingNanos);
+                minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
                 FutureUtils.cancel(registeredNextDelayFuture);
-            } else if (minDelaySetting < minDelaySettingAtLastScheduling) {
+            } else if (minDelaySetting < minDelaySettingAtLastSchedulingNanos) {
                 FutureUtils.cancel(registeredNextDelayFuture);
-                minDelaySettingAtLastScheduling = minDelaySetting;
+                minDelaySettingAtLastSchedulingNanos = minDelaySetting;
                 TimeValue nextDelay = TimeValue.timeValueNanos(UnassignedInfo.findNextDelayedAllocationIn(event.state()));
                 assert nextDelay.nanos() > 0 : "next delay must be non 0 as minDelaySetting is [" + minDelaySetting + "]";
                 logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]",
@@ -115,25 +115,25 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
                     @Override
                     protected void doRun() throws Exception {
-                        minDelaySettingAtLastScheduling = Long.MAX_VALUE;
+                        minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
                         reroute("assign delayed unassigned shards");
                     }
 
                     @Override
                     public void onFailure(Throwable t) {
                         logger.warn("failed to schedule/execute reroute post unassigned shard", t);
-                        minDelaySettingAtLastScheduling = Long.MAX_VALUE;
+                        minDelaySettingAtLastSchedulingNanos = Long.MAX_VALUE;
                     }
                 });
             } else {
-                logger.trace("no need to schedule reroute - current schedule reroute is enough. minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastScheduling);
+                logger.trace("no need to schedule reroute - current schedule reroute is enough. minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastSchedulingNanos);
             }
         }
     }
 
     // visible for testing
-    long getMinDelaySettingAtLastScheduling() {
-        return this.minDelaySettingAtLastScheduling;
+    long getMinDelaySettingAtLastSchedulingNanos() {
+        return this.minDelaySettingAtLastSchedulingNanos;
     }
 
     // visible for testing

@@ -36,7 +36,6 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.*;
-import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 

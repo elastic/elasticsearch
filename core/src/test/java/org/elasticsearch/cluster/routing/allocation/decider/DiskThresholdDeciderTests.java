@@ -50,14 +50,9 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 public class DiskThresholdDeciderTests extends ESAllocationTestCase {
 
@@ -847,7 +842,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
         ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder).build();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo);
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.NO));
 
@@ -866,8 +861,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                                         .build()
                         )
         );
-        clusterState = ClusterState.builder(baseClusterState).routingTable(builder).build();
-        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo);
+        clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
+        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
 
@@ -964,8 +959,9 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                                         .build()
                         )
         );
-        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder).build();
-        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo);
+
+        ClusterState clusterState = ClusterState.builder(baseClusterState).routingTable(builder.build()).build();
+        RoutingAllocation routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
         Decision decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
 
         // Two shards should start happily
@@ -1021,8 +1017,8 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
                         )
         );
 
-        clusterState = ClusterState.builder(updateClusterState).routingTable(builder).build();
-        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo);
+        clusterState = ClusterState.builder(updateClusterState).routingTable(builder.build()).build();
+        routingAllocation = new RoutingAllocation(null, new RoutingNodes(clusterState), discoveryNodes, clusterInfo, System.nanoTime());
         decision = diskThresholdDecider.canRemain(firstRouting, firstRoutingNode, routingAllocation);
         assertThat(decision.type(), equalTo(Decision.Type.YES));
 

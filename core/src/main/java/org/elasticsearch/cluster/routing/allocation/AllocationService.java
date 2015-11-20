@@ -20,12 +20,12 @@
 package org.elasticsearch.cluster.routing.allocation;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.base.Function;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
@@ -40,6 +40,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 
 /**
@@ -117,7 +119,8 @@ public class AllocationService extends AbstractComponent {
         FailedRerouteAllocation allocation = new FailedRerouteAllocation(allocationDeciders, routingNodes, clusterState.nodes(), failedShards, clusterInfoService.getClusterInfo());
         boolean changed = false;
         for (FailedRerouteAllocation.FailedShard failedShard : failedShards) {
-            changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure));
+            changed |= applyFailedShard(allocation, failedShard.shard, true, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, failedShard.message, failedShard.failure,
+                    System.nanoTime(), System.currentTimeMillis()));
         }
         if (!changed) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
@@ -175,7 +178,7 @@ public class AllocationService extends AbstractComponent {
         // we don't shuffle the unassigned shards here, to try and get as close as possible to
         // a consistent result of the effect the commands have on the routing
         // this allows systems to dry run the commands, see the resulting cluster state, and act on it
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo(), currentNanoTime());
         // don't short circuit deciders, we want a full explanation
         allocation.debugDecision(true);
         // we ignore disable allocation, because commands are explicit
@@ -214,7 +217,7 @@ public class AllocationService extends AbstractComponent {
         RoutingNodes routingNodes = getMutableRoutingNodes(clusterState);
         // shuffle the unassigned nodes, just so we won't have things like poison failed shards
         routingNodes.unassigned().shuffle();
-        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo());
+        RoutingAllocation allocation = new RoutingAllocation(allocationDeciders, routingNodes, clusterState.nodes(), clusterInfoService.getClusterInfo(), currentNanoTime());
         allocation.debugDecision(debug);
         if (!reroute(allocation)) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
@@ -251,6 +254,8 @@ public class AllocationService extends AbstractComponent {
 
         // now allocate all the unassigned to available nodes
         if (allocation.routingNodes().unassigned().size() > 0) {
+            updateLeftDelayOfUnassignedShards(allocation, settings);
+
             changed |= shardsAllocators.allocateUnassigned(allocation);
         }
 
@@ -261,6 +266,15 @@ public class AllocationService extends AbstractComponent {
         changed |= shardsAllocators.rebalance(allocation);
         assert RoutingNodes.assertShardStats(allocation.routingNodes());
         return changed;
+    }
+
+    // public for testing
+    public static void updateLeftDelayOfUnassignedShards(RoutingAllocation allocation, Settings settings) {
+        for (ShardRouting shardRouting : allocation.routingNodes().unassigned()) {
+            final MetaData metaData = allocation.metaData();
+            final IndexMetaData indexMetaData = metaData.index(shardRouting.index());
+            shardRouting.unassignedInfo().updateDelay(allocation.getCurrentNanoTime(), settings, indexMetaData.getSettings());
+        }
     }
 
     private boolean moveShards(RoutingAllocation allocation) {
@@ -324,7 +338,9 @@ public class AllocationService extends AbstractComponent {
             }
         }
         for (ShardRouting shardToFail : shardsToFail) {
-            changed |= applyFailedShard(allocation, shardToFail, false, new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing"));
+            changed |= applyFailedShard(allocation, shardToFail, false,
+                    new UnassignedInfo(UnassignedInfo.Reason.ALLOCATION_FAILED, "primary failed while replica initializing",
+                            null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
         }
 
         // now, go over and elect a new primary if possible, not, from this code block on, if one is elected,
@@ -384,8 +400,9 @@ public class AllocationService extends AbstractComponent {
             }
             changed = true;
             // now, go over all the shards routing on the node, and fail them
-            UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left[" + node.nodeId() + "]");
             for (ShardRouting shardRouting : node.copyShards()) {
+                UnassignedInfo unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.NODE_LEFT, "node_left[" + node.nodeId() + "]", null,
+                        allocation.getCurrentNanoTime(), System.currentTimeMillis());
                 applyFailedShard(allocation, shardRouting, false, unassignedInfo);
             }
             // its a dead node, remove it, note, its important to remove it *after* we apply failed shard
@@ -542,5 +559,10 @@ public class AllocationService extends AbstractComponent {
     private RoutingNodes getMutableRoutingNodes(ClusterState clusterState) {
         RoutingNodes routingNodes = new RoutingNodes(clusterState, false); // this is a costly operation - only call this once!
         return routingNodes;
+    }
+
+    /** ovrride this to control time based decisions during allocation */
+    protected long currentNanoTime() {
+        return System.nanoTime();
     }
 }

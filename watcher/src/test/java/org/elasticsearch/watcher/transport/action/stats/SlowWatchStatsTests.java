@@ -8,17 +8,26 @@ package org.elasticsearch.watcher.transport.action.stats;
 import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.script.SleepScriptEngine;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.ActionBuilders;
+import org.elasticsearch.watcher.condition.Condition;
 import org.elasticsearch.watcher.condition.ConditionBuilders;
 import org.elasticsearch.watcher.execution.ExecutionPhase;
 import org.elasticsearch.watcher.execution.QueuedWatch;
 import org.elasticsearch.watcher.input.InputBuilders;
+import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.stats.WatcherStatsResponse;
 import org.joda.time.DateTime;
 
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
@@ -33,11 +42,17 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(scope = TEST, numClientNodes = 0, transportClientRatio = 0, randomDynamicTemplates = false, numDataNodes = 2)
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {
         return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(SleepScriptEngine.TestPlugin.class);
+        return plugins;
     }
 
     @Override
@@ -53,7 +68,7 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
         watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(interval("1s")))
                 .input(InputBuilders.simpleInput("key", "value"))
-                .condition(ConditionBuilders.scriptCondition("sleep 10000; return true"))
+                .condition(ConditionBuilders.scriptCondition(SleepScriptEngine.sleepScript(10000)))
                 .addAction("_action", ActionBuilders.loggingAction("hello {{ctx.watch_id}}!"))
         ).get();
 
@@ -78,7 +93,7 @@ public class SlowWatchStatsTests extends AbstractWatcherIntegrationTestCase {
             watcherClient().preparePutWatch("_id" + i).setSource(watchBuilder()
                             .trigger(schedule(interval("1s")))
                             .input(InputBuilders.simpleInput("key", "value"))
-                            .condition(ConditionBuilders.scriptCondition("sleep 10000; return true"))
+                            .condition(ConditionBuilders.scriptCondition(SleepScriptEngine.sleepScript(10000)))
                             .addAction("_action", ActionBuilders.loggingAction("hello {{ctx.watch_id}}!"))
             ).get();
         }

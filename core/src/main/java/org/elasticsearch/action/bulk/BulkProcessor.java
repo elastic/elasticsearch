@@ -324,9 +324,11 @@ public class BulkProcessor implements Closeable {
             }
         } else {
             boolean success = false;
+            boolean acquired = false;
             try {
                 listener.beforeBulk(executionId, bulkRequest);
                 semaphore.acquire();
+                acquired = true;
                 client.bulk(bulkRequest, new ActionListener<BulkResponse>() {
                     @Override
                     public void onResponse(BulkResponse response) {
@@ -353,7 +355,7 @@ public class BulkProcessor implements Closeable {
             } catch (Throwable t) {
                 listener.afterBulk(executionId, bulkRequest, t);
             } finally {
-                 if (!success) {  // if we fail on client.bulk() release the semaphore
+                 if (!success && acquired) {  // if we fail on client.bulk() release the semaphore
                      semaphore.release();
                  }
             }

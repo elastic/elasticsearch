@@ -20,21 +20,27 @@
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
 import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.search.SearchParseException;
-import org.elasticsearch.search.aggregations.Aggregator;
+import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
+import org.elasticsearch.search.aggregations.support.AbstractValuesSourceParser.AnyValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
-import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
+import java.util.Map;
 
 
-public class CardinalityParser implements Aggregator.Parser {
+public class CardinalityParser extends AnyValuesSourceParser {
 
-    private static final ParseField PRECISION_THRESHOLD = new ParseField("precision_threshold");
     private static final ParseField REHASH = new ParseField("rehash").withAllDeprecated("no replacement - values will always be rehashed");
+
+    public CardinalityParser() {
+        super(true, false);
+    }
 
     @Override
     public String type() {
@@ -42,44 +48,34 @@ public class CardinalityParser implements Aggregator.Parser {
     }
 
     @Override
-    public AggregatorFactory parse(String name, XContentParser parser, SearchContext context) throws IOException {
+    protected ValuesSourceAggregatorFactory<ValuesSource> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, Map<ParseField, Object> otherOptions) {
+        CardinalityAggregatorFactory<ValuesSource> factory = new CardinalityAggregatorFactory<>(aggregationName, valuesSourceType,
+                targetValueType);
+        Long precisionThreshold = (Long) otherOptions.get(CardinalityAggregatorFactory.PRECISION_THRESHOLD_FIELD);
+        if (precisionThreshold != null) {
+            factory.precisionThreshold(precisionThreshold);
+        }
+        return factory;
+    }
 
-        ValuesSourceParser<ValuesSource> vsParser = ValuesSourceParser.any(name, InternalCardinality.TYPE, context).formattable(false)
-                .build();
-
-        long precisionThreshold = -1;
-
-        XContentParser.Token token;
-        String currentFieldName = null;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (vsParser.token(currentFieldName, token, parser)) {
-                continue;
-            } else if (token.isValue()) {
-                if (context.parseFieldMatcher().match(currentFieldName, REHASH)) {
-                    // ignore
-                } else if (context.parseFieldMatcher().match(currentFieldName, PRECISION_THRESHOLD)) {
-                    precisionThreshold = parser.longValue();
-                } else {
-                    throw new SearchParseException(context, "Unknown key for a " + token + " in [" + name + "]: [" + currentFieldName
-                            + "].", parser.getTokenLocation());
-                }
-            } else {
-                throw new SearchParseException(context, "Unexpected token " + token + " in [" + name + "].", parser.getTokenLocation());
+    @Override
+    protected boolean token(String aggregationName, String currentFieldName, Token token, XContentParser parser,
+            ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException {
+        if (token.isValue()) {
+            if (parseFieldMatcher.match(currentFieldName, CardinalityAggregatorFactory.PRECISION_THRESHOLD_FIELD)) {
+                otherOptions.put(CardinalityAggregatorFactory.PRECISION_THRESHOLD_FIELD, parser.longValue());
+                return true;
+            } else if (parseFieldMatcher.match(currentFieldName, REHASH)) {
+                // ignore
+                return true;
             }
         }
-
-        ValuesSourceParser.Input<ValuesSource> input = vsParser.input();
-
-        return new CardinalityAggregatorFactory(name, input, precisionThreshold);
-
+        return false;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return null;
+        return new AggregatorFactory[] { new CardinalityAggregatorFactory<ValuesSource>(null, null, null) };
     }
-
 }

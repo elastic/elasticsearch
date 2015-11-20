@@ -19,25 +19,56 @@
 
 package org.elasticsearch.search.aggregations.metrics.cardinality;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
-final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.LeafOnly<ValuesSource> {
+public final class CardinalityAggregatorFactory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory.LeafOnly<VS> {
 
-    private final long precisionThreshold;
+    public static final ParseField PRECISION_THRESHOLD_FIELD = new ParseField("precision_threshold");
 
-    CardinalityAggregatorFactory(String name, ValuesSourceParser.Input<ValuesSource> input, long precisionThreshold) {
-        super(name, InternalCardinality.TYPE, input);
+    private long precisionThreshold = -1;
+
+    public CardinalityAggregatorFactory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
+        super(name, InternalCardinality.TYPE, valuesSourceType, valueType);
+    }
+
+    /**
+     * Set a precision threshold. Higher values improve accuracy but also
+     * increase memory usage.
+     */
+    public void precisionThreshold(long precisionThreshold) {
         this.precisionThreshold = precisionThreshold;
+    }
+
+    /**
+     * Get the precision threshold. Higher values improve accuracy but also
+     * increase memory usage.
+     */
+    public long precisionThreshold() {
+        return precisionThreshold;
+    }
+
+    /**
+     * @deprecated no replacement - values will always be rehashed
+     */
+    @Deprecated
+    public void rehash(boolean rehash) {
+        // Deprecated all values are already rehashed so do nothing
     }
 
     private int precision(Aggregator parent) {
@@ -51,10 +82,40 @@ final class CardinalityAggregatorFactory extends ValuesSourceAggregatorFactory.L
     }
 
     @Override
-    protected Aggregator doCreateInternal(ValuesSource valuesSource, AggregationContext context, Aggregator parent,
+    protected Aggregator doCreateInternal(VS valuesSource, AggregationContext context, Aggregator parent,
             boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
         return new CardinalityAggregator(name, valuesSource, precision(parent), config.formatter(), context, parent, pipelineAggregators,
                 metaData);
+    }
+
+    @Override
+    protected ValuesSourceAggregatorFactory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+            ValueType targetValueType, StreamInput in) throws IOException {
+        CardinalityAggregatorFactory<VS> factory = new CardinalityAggregatorFactory<>(name, valuesSourceType, targetValueType);
+        factory.precisionThreshold = in.readLong();
+        return factory;
+    }
+
+    @Override
+    protected void innerWriteTo(StreamOutput out) throws IOException {
+        out.writeLong(precisionThreshold);
+    }
+
+    @Override
+    public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+        builder.field(PRECISION_THRESHOLD_FIELD.getPreferredName(), precisionThreshold);
+        return builder;
+    }
+
+    @Override
+    protected int innerHashCode() {
+        return Objects.hash(precisionThreshold);
+    }
+
+    @Override
+    protected boolean innerEquals(Object obj) {
+        CardinalityAggregatorFactory other = (CardinalityAggregatorFactory) obj;
+        return Objects.equals(precisionThreshold, other.precisionThreshold);
     }
 
     /*

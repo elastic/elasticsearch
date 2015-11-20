@@ -33,11 +33,11 @@ Any `_search` request can be profiled by adding a top-level `profile` parameter:
 [source,js]
 --------------------------------------------------
 curl -XGET 'localhost:9200/_search' -d '{
-  "profile": true, <1>
+  "profile": true,
   "query" : {
-    "term" : { "message" : "search" }
+    "match" : { "message" : "search test" }
   }
-}'
+}
 --------------------------------------------------
 <1> Setting the top-level `profile` parameter to `true` will enable profiling
 for the search
@@ -60,44 +60,72 @@ This will yield the following result:
       "hits": [ ... ] <1>
    },
    "profile": {
-      "shards": [
-         {
-            "id": "[96xato22S9eXTrm9_ZxlIQ][test][0]",
-            "query": [
-               {
-                  "query_type": "TermQuery",
-                  "lucene": "message:search",
-                  "time": "11.04309100ms",
-                  "relative_time": "100.0000000%",
-                  "breakdown": {
-                     "rewrite": 3157,
-                     "weight": 1903984,
-                     "build_scorer": 9063670,
-                     "next_doc": 31877,
-                     "advance": 0,
-                     "match": 0,
-                     "score": 40403
-                  },
-                  "children": []
-               }
-            ],
-            "collector": [
-               {
-                  "name": "SimpleTopScoreDocCollector",
-                  "reason": "search_sorted",
-                  "time": "0.1153240000ms",
-                  "relative_time": "100.0000000%",
-                  "children": []
-               }
-            ]
-         }
-      ]
-   }
+     "shards": [
+        {
+           "id": "[htuC6YnSSSmKFq5UBt0YMA][test][0]",
+           "searches": [
+              {
+                 "query": [
+                    {
+                       "query_type": "BooleanQuery",
+                       "lucene": "message:search message:test",
+                       "time": "15.52889800ms",
+                       "breakdown": {
+                          "score": 0,
+                          "next_doc": 24495,
+                          "match": 0,
+                          "weight": 8488388,
+                          "build_scorer": 7016015,
+                          "advance": 0
+                       },
+                       "children": [
+                          {
+                             "query_type": "TermQuery",
+                             "lucene": "message:search",
+                             "time": "4.938855000ms",
+                             "breakdown": {
+                                "score": 0,
+                                "next_doc": 18332,
+                                "match": 0,
+                                "weight": 2945570,
+                                "build_scorer": 1974953,
+                                "advance": 0
+                             }
+                          },
+                          {
+                             "query_type": "TermQuery",
+                             "lucene": "message:test",
+                             "time": "0.5016660000ms",
+                             "breakdown": {
+                                "score": 0,
+                                "next_doc": 0,
+                                "match": 0,
+                                "weight": 170534,
+                                "build_scorer": 331132,
+                                "advance": 0
+                             }
+                          }
+                       ]
+                    }
+                 ],
+                 "rewrite_time": 185002,
+                 "collector": [
+                    {
+                       "name": "SimpleTopScoreDocCollector",
+                       "reason": "search_top_hits",
+                       "time": "2.206529000ms"
+                    }
+                 ]
+              }
+           ]
+        }
+     ]
+  }
 }
 --------------------------------------------------
 <1> Search results are returned, but were omitted here for brevity
 
-Even for a simple query, the response is complicated.  Let's break it down piece-by-piece before moving
+Even for a simple query, the response is relatively complicated.  Let's break it down piece-by-piece before moving
 to more complex examples.
 
 First, the overall structure of the profile response is as follows:
@@ -106,27 +134,42 @@ First, the overall structure of the profile response is as follows:
 --------------------------------------------------
 {
    "profile": {
-      "shards": [
-         {
-            "id": "[96xato22S9eXTrm9_ZxlIQ][test][0]",  <1>
-            "query": [ ... ],                      <2>
-            "collector": [ ... ]                   <3>
-         }
-      ]
-   }
+        "shards": [
+           {
+              "id": "[htuC6YnSSSmKFq5UBt0YMA][test][0]",  <1>
+              "searches": [
+                 {
+                    "query": [...],             <2>
+                    "rewrite_time": 185002,     <3>
+                    "collector": [...]          <4>
+                 }
+              ]
+           }
+        ]
+     }
 }
 --------------------------------------------------
 <1> A profile is returned for each shard that participated in the response, and is identified
 by a unique ID
 <2> Each profile contains a section which holds details about the query execution
-<3> Each profile also contains a section about the Lucene Collectors which run the search
+<3> Each profile has a single time representing the cumulative rewrite time
+<4> Each profile also contains a section about the Lucene Collectors which run the search
 
 Because a search request may be executed against one or more shards in an index, and a search may cover
 one or more indices, the top level element in the profile response is an array of `shard` objects.
 Each shard object lists it's `id` which uniquely identifies the shard.  The ID's format is
-`[nodeID][indexName][shardID]`. Each object then contains two arrays of profiled information:
+`[nodeID][indexName][shardID]`.
+
+The profile itself may consist of one or more "searches", where a search is a query executed against the underlying
+Lucene index.  Most Search Requests submitted by the user will only execute a single `search` against the Lucene index.
+But occasionally multiple searches will be executed, such as including a global aggregation (which needs to execute
+a secondary "match_all" query for the global context).
+
+Inside each `search` object there will be two arrays of profiled information:
 a `query` array and a `collector` array.  In the future, more sections may be added, such as `suggest`, `highlight`,
 `aggregations`, etc
+
+There will also be a `rewrite` metric showing the total time spent rewriting the query (in nanoseconds).
 
 === `query` Section
 
@@ -138,48 +181,43 @@ The overall structure of this query tree will resemble your original Elasticsear
 [source,js]
 --------------------------------------------------
 "query": [
-   {
-      "query_type": "TermQuery",
-      "lucene": "message:search",
-      "time": "11.04309100ms",
-      "relative_time": "100.0000000%",
-      "breakdown": {...},               <1>
-      "children": []
-   }
+    {
+       "query_type": "BooleanQuery",
+       "lucene": "message:search message:test",
+       "time": "15.52889800ms",
+       "breakdown": {...},
+       "children": [
+          {
+             "query_type": "TermQuery",
+             "lucene": "message:search",
+             "time": "4.938855000ms",
+             "breakdown": {...}
+          },
+          {
+             "query_type": "TermQuery",
+             "lucene": "message:test",
+             "time": "0.5016660000ms",
+             "breakdown": {...}
+          }
+       ]
+    }
 ]
 --------------------------------------------------
 <1> The breakdown timings are omitted for simplicity
 
-This tells us a few things.  First, the `query_type` field tells us that our Elasticsearch `term` query was
-executed as a Lucene `TermQuery`.  The `lucene` field shows us a Lucene Query String translation of query,
-which is helpful for identifying which part of your original query it relates to (e.g. here we see that the query
-is searching for "search" in the "message" field)
+Based on the profile structure, we can see that our `match` query was rewritten by Lucene into a BooleanQuery with two
+clauses (both holding a TermQuery).  The `"query_type"` field displays the Lucene class name, and often aligns with
+the equivalent name in Elasticsearch.  The `"lucene"` field displays the Lucene explanation text for the query, and
+is made available to help differentiating between parts of your query (e.g. both `"message:search"` and `"message:test"`
+are TermQuery's and would appear identical otherwise.
 
-The `time` field shows that this query took ~11ms, and the `relative_time` shows that it accounted for 100% of the
-overall execution time.  The `relative_time` is inclusive of all sub-query children, meaning it is represents the
-the relative timing of the entire subtree starting at this particular node.  It is also normalized against the
-overall, cumulative time of all shards.  This means it is not relative to the query tree in a particular shard,
-but all shards in the search.
+The `"time"` field shows that this query took ~15ms for the entire BooleanQuery to execute.  The recorded time is inclusive
+of all children.
 
-The `breakdown` field will give detailed stats about how the time was spent, we'll look at
-that in a moment.  Finally, the `children` array lists any sub-queries that may be present.  A `term` query has no
-children, so it is empty.  But other queries, such as a Boolean, may have sub-queries and thus entries in the
-children array.
-
-[WARNING]
----------------------
-The wall-clock time is displayed because it can be useful on occasion, but it *cannot* be compared to
-non-profiled query timings.  Profiling introduces certain overheads and may skew timings compared to
-the non-profiled case, so it is not an accurate comparison.
-
-In addition, it records the wall-clock time for each *shard's* execution of the query, and thus cannot
-be reliably compared to the overall query execution time either.  Multiple nodes can be executing
-shards in parallel, and single nodes may execute shards serially, so the `took` time may differ from
-any particular `time` by a large margin.
-
-When profiling, you should generally rely on the `relative_time` metric.  It provides the most unbiased
-view into what component(s) are slowing down your query, whereas the wall-clock time may mislead you
----------------------
+The `"breakdown"` field will give detailed stats about how the time was spent, we'll look at
+that in a moment.  Finally, the `"children"` array lists any sub-queries that may be present.  Because we searched for two
+values ("search test"), our BooleanQuery holds two children TermQueries.  They have identical information (query_type, time,
+breakdown, etc).  Children are allowed to have their own children.
 
 ==== Timing Breakdown
 
@@ -188,19 +226,20 @@ The `breakdown` component lists detailed timing statistics about low-level Lucen
 [source,js]
 --------------------------------------------------
 "breakdown": {
-    "rewrite": 3157,
-    "weight": 1903984,
-    "build_scorer": 9063670,
-    "next_doc": 31877,
-    "advance": 0,
-    "match": 0,
-    "score": 40403
+  "score": 0,
+  "next_doc": 24495,
+  "match": 0,
+  "weight": 8488388,
+  "build_scorer": 7016015,
+  "advance": 0
+
 }
 --------------------------------------------------
 
 Timings are listed in wall-clock nanoseconds and are not normalized at all.  All caveats about the overall
 `time` apply here.  The intention of the breakdown is to give you a feel for A) what machinery in Lucene is
-actually eating time, and B) the magnitude of differences in times between the various components.
+actually eating time, and B) the magnitude of differences in times between the various components.  Like the overall time,
+the breakdown is inclusive of all children times.
 
 The meaning of the stats are as follows:
 
@@ -208,16 +247,6 @@ The meaning of the stats are as follows:
 === All parameters:
 
 [horizontal]
-`rewrite`::
-
-    All queries in Lucene undergo a "rewriting" process.  A query (and it's sub-queries) may be rewritten one or
-    more times, and the process continues until the query stops changing.  This process allows Lucene to perform
-    optimizations, such as removing redundant clauses, replacing one query for a more efficient execution path,
-    etc.  For example a Boolean -> Boolean -> TermQuery can be rewritten to a TermQuery, because all the Booleans
-    are unnecessary in this case.
-
-    Because rewriting can fundamentally change a query's structure, you may sometimes see the structure of the
-    profiled query differing substantially from your original query.
 
 `weight`::
 
@@ -281,20 +310,17 @@ Looking at the previous example:
 [source,js]
 --------------------------------------------------
 "collector": [
-   {
-      "name": "SimpleTopScoreDocCollector",
-      "reason": "search_sorted",
-      "time": "0.1153240000ms",
-      "relative_time": "100.0000000%",
-      "children": []
-   }
+    {
+       "name": "SimpleTopScoreDocCollector",
+       "reason": "search_top_hits",
+       "time": "2.206529000ms"
+    }
 ]
 --------------------------------------------------
 
 We see a single collector named `SimpleTopScoreDocCollector`.  This is the default "scoring and sorting" Collector
-used by Elasticsearch.  The `reason` field attempts to give an plain english description of the class name.  The
-`time` and `relative_time` fields are similar to the equivalents in the Query tree: `time` is the wall-clock time
-and `relative_time` is the normalized, relative time inclusive of all children.  Similarly, `children` lists
+used by Elasticsearch.  The `"reason"` field attempts to give an plain english description of the class name.  The
+`"time` is similar to the time in the Query tree: a wall-clock time inclusive of all children.  Similarly, `children` lists
 all sub-collectors.
 
 It should be noted that Collector times are **independent** from the Query times.  They are calculated, combined
@@ -346,12 +372,19 @@ For reference, the various collector reason's are:
     Because the global scope is necessarily different from the executed query, it must execute it's own
     match_all query (which you will see added to the Query section) to collect your entire dataset
 
-`general`::
 
-    A generic, catch-all collector with an unknown purpose.  This isn't actually a Lucene (or Elasticsearch)
-    collector, but merely a safety mechanism for the profiler to catch unwrapped Collectors so that they can
-    at least be profiled, even if we aren't sure the reason they exist.  Ideally, you should never see one of
-    these in your results :)
+
+=== `rewrite` Section
+
+    All queries in Lucene undergo a "rewriting" process.  A query (and it's sub-queries) may be rewritten one or
+    more times, and the process continues until the query stops changing.  This process allows Lucene to perform
+    optimizations, such as removing redundant clauses, replacing one query for a more efficient execution path,
+    etc.  For example a Boolean -> Boolean -> TermQuery can be rewritten to a TermQuery, because all the Booleans
+    are unnecessary in this case.
+
+    The rewriting process is complex and difficult to display, since queries can change drastically.  Rather than
+    showing the intermediate results, the total rewrite time is simply displayed as a value (in nanoseconds).  This
+    value is cumulative and contains the total time for all queries being rewritten.
 
 === A more complex example
 
@@ -396,12 +429,12 @@ GET /test/_search
           }
         }
       }
-    },
-      "post_filter": {
-        "term": {
-          "my_field": "foo"
-        }
-      }
+    }
+  },
+  "post_filter": {
+    "term": {
+      "my_field": "foo"
+    }
   }
 }
 --------------------------------------------------
@@ -420,101 +453,96 @@ And the response:
 --------------------------------------------------
 {
    "profile": {
-      "shards": [
-         {
-            "id": "[96xato22S9eXTrm9_ZxlIQ][test][0]",
-            "query": [
-               {
-                  "query_type": "TermQuery",    <1>
-                  "lucene": "message:search",
-                  "time": "0.6883930000ms",
-                  "relative_time": "5.939356688%",
-                  "breakdown": {
-                     "rewrite": 3877,
-                     "weight": 322544,
-                     "build_scorer": 279783,
-                     "next_doc": 69519,
-                     "advance": 0,
-                     "match": 0,
-                     "score": 12670
-                  },
-                  "children": []
-               },
-               {
-                  "query_type": "TermQuery",           <2>
-                  "lucene": "my_field:foo",
-                  "time": "10.75348200ms",
-                  "relative_time": "92.77951001%",
-                  "breakdown": {
-                     "rewrite": 1773,
-                     "weight": 10353006,
-                     "build_scorer": 376408,
-                     "next_doc": 0,
-                     "advance": 22295,
-                     "match": 0,
-                     "score": 0
-                  },
-                  "children": []
-               },
-               {
-                  "query_type": "MatchAllDocsQuery",   <3>
-                  "lucene": "*:*",
-                  "time": "0.1484880000ms",
-                  "relative_time": "1.281133300%",
-                  "breakdown": {
-                     "rewrite": 1725,
-                     "weight": 10817,
-                     "build_scorer": 127178,
-                     "next_doc": 8768,
-                     "advance": 0,
-                     "match": 0,
-                     "score": 0
-                  },
-                  "children": []
-               }
-            ],
-            "collector": [
-               {
-                  "name": "MultiCollector",
-                  "reason": "search_multi",
-                  "time": "5.215436000ms",
-                  "relative_time": "100.0000000%",
-                  "children": [
-                     {
-                        "name": "FilteredCollector",
-                        "reason": "search_post_filter",
-                        "time": "4.299866000ms",
-                        "relative_time": "82.44499597%",
-                        "children": [
-                           {
-                              "name": "SimpleTopScoreDocCollector",
-                              "reason": "search_sorted",
-                              "time": "0.04436900000ms",
-                              "relative_time": "0.8507246566%",
-                              "children": []
+         "shards": [
+            {
+               "id": "[P6-vulHtQRWuD4YnubWb7A][test][0]",
+               "searches": [
+                  {
+                     "query": [
+                        {
+                           "query_type": "TermQuery",
+                           "lucene": "my_field:foo",
+                           "time": "0.4094560000ms",
+                           "breakdown": {
+                              "score": 0,
+                              "next_doc": 0,
+                              "match": 0,
+                              "weight": 31584,
+                              "build_scorer": 377872,
+                              "advance": 0
                            }
-                        ]
-                     },
-                     {
-                        "name": "BucketCollector: [[non_global_term, another_agg]]",
-                        "reason": "aggregation",
-                        "time": "0.6659530000ms",
-                        "relative_time": "12.76888452%",
-                        "children": []
-                     },
-                     {
-                        "name": "GlobalAggregator: [global_agg]",
-                        "reason": "aggregation_global",
-                        "time": "0.2311580000ms",
-                        "relative_time": "4.432189370%",
-                        "children": []
-                     }
-                  ]
-               }
-            ]
-         }
-      ]
-   }
+                        },
+                        {
+                           "query_type": "TermQuery",
+                           "lucene": "message:search",
+                           "time": "0.3037020000ms",
+                           "breakdown": {
+                              "score": 0,
+                              "next_doc": 5936,
+                              "match": 0,
+                              "weight": 185215,
+                              "build_scorer": 112551,
+                              "advance": 0
+                           }
+                        }
+                     ],
+                     "rewrite_time": 7208,
+                     "collector": [
+                        {
+                           "name": "MultiCollector",
+                           "reason": "search_multi",
+                           "time": "1.378943000ms",
+                           "children": [
+                              {
+                                 "name": "FilteredCollector",
+                                 "reason": "search_post_filter",
+                                 "time": "0.4036590000ms",
+                                 "children": [
+                                    {
+                                       "name": "SimpleTopScoreDocCollector",
+                                       "reason": "search_top_hits",
+                                       "time": "0.006391000000ms"
+                                    }
+                                 ]
+                              },
+                              {
+                                 "name": "BucketCollector: [[non_global_term, another_agg]]",
+                                 "reason": "aggregation",
+                                 "time": "0.9546020000ms"
+                              }
+                           ]
+                        }
+                     ]
+                  },
+                  {
+                     "query": [
+                        {
+                           "query_type": "MatchAllDocsQuery",
+                           "lucene": "*:*",
+                           "time": "0.04829300000ms",
+                           "breakdown": {
+                              "score": 0,
+                              "next_doc": 3672,
+                              "match": 0,
+                              "weight": 6311,
+                              "build_scorer": 38310,
+                              "advance": 0
+                           }
+                        }
+                     ],
+                     "rewrite_time": 1067,
+                     "collector": [
+                        {
+                           "name": "GlobalAggregator: [global_agg]",
+                           "reason": "aggregation_global",
+                           "time": "0.1226310000ms"
+                        }
+                     ]
+                  }
+               ]
+            }
+         ]
+      }
 }
 --------------------------------------------------
 
@@ -523,12 +551,12 @@ represented:
 
 1. The first `TermQuery` (message:search) represents the main `term` query
 2. The second `TermQuery` (my_field:foo) represents the `post_filter` query
-3. The `MatchAllDocsQuery` (*:*) query is not part of the query specified by the user, but is auto-generated
-by the global aggregation to provide a global query scope
+3. There is a  `MatchAllDocsQuery` (*:*) query which is being executed as a second, distinct search.  This was
+not part of the query specified by the user, but is auto-generated by the global aggregation to provide a global query scope
 
 The Collector tree is fairly straightforward, showing how a single MultiCollector wraps a FilteredCollector
 to execute the post_filter (and in turn wraps the normal scoring SimpleCollector), a BucketCollector to run
-all scoped aggregations, and a GlobalAggregator to run the global aggregation.
+all scoped aggregations.  In the MatchAll search, there is a single GlobalAggregator to run the global aggregation.
 
 === Performance Notes
 
@@ -546,17 +574,15 @@ not have a drastic effect compared to other components in the profiled query.
 - Profiling statistics are currently not available for suggestions, highlighting, `dfs_query_then_fetch`
 - Detailed breakdown for aggregations is not currently available past the high-level overview provided
 from the Collectors
-- The Profiler is still highly experimental, and uses heuristics in several places to build the profiling tree.
-The Profiler is instrumenting parts of Lucene that were never designed to be exposed in this manner, and so
-all results should be viewed as a best effort to provide detailed diagnostics.  We hope to improve this over time.
-If you find obviously wrong numbers, strange query structures or other bugs, please report them!
+- The Profiler is still highly experimental. The Profiler is instrumenting parts of Lucene that were
+never designed to be exposed in this manner, and so all results should be viewed as a best effort to provide detailed
+diagnostics.  We hope to improve this over time. If you find obviously wrong numbers, strange query structures or
+other bugs, please report them!
 
 === Understanding MultiTermQuery output
 
 A special note needs to be made about the `MultiTermQuery` class of queries.  This includes wildcards, regex and fuzzy
-queries.  These queries emit very verbose responses, and are not well structured (they do not follow a clean
-tree hierarchy like the other queries).  Work is ongoing to fix the output, but it is unclear if they can be fixed
-in a clean manner due to how they operate.
+queries.  These queries emit very verbose responses, and are not overly structured.
 
 Essentially, these queries rewrite themselves on a per-segment basis.  If you imagine the wildcard query `b*`, it technically
 can match any token that begins with the letter "b".  It would be impossible to enumerate all possible combinations,

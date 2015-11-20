@@ -32,12 +32,12 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.index.mapper.ip.IpFieldMapper.MAX_IP;
+
 /**
  *
  */
 public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, InternalIPv4Range> {
-
-    public static final long MAX_IP = 4294967296l;
 
     public final static Type TYPE = new Type("ip_range", "iprange");
 

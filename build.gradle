@@ -125,9 +125,6 @@ if (projectsPrefix.isEmpty()) {
       vcs = 'Git'
     }
   }
-  tasks.cleanIdea {
-    delete '.idea'
-  }
 }
 
 // eclipse configuration
@@ -166,11 +163,6 @@ task buildSrcEclipse(type: GradleBuild) {
 }
 tasks.eclipse.dependsOn(buildSrcEclipse)
 
-task clean(type: GradleBuild) {
-  buildFile = 'buildSrc/build.gradle'
-  tasks = ['clean']
-}
-
 // we need to add the same --debug-jvm option as
 // the real RunTask has, so we can pass it through
 class Run extends DefaultTask {
@@ -188,5 +180,6 @@ task run(type: Run) {
   dependsOn ':distribution:run'
   description = 'Runs elasticsearch in the foreground'
   group = 'Verification'
+  impliesSubProjects = true
 }
 

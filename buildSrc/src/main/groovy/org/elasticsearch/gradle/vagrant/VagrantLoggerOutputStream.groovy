@@ -20,7 +20,6 @@ package org.elasticsearch.gradle.vagrant
 
 import com.carrotsearch.gradle.junit4.LoggingOutputStream
 import org.gradle.logging.ProgressLogger
-import org.gradle.logging.ProgressLoggerFactory
 
 /**
  * Adapts an OutputStream being written to by vagrant into a ProcessLogger. It

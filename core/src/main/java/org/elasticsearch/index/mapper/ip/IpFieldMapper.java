@@ -28,9 +28,10 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -46,10 +47,13 @@ import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
+import org.elasticsearch.index.query.QueryShardContext;
+
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.index.mapper.MapperBuilders.ipField;
@@ -61,6 +65,7 @@ import static org.elasticsearch.index.mapper.core.TypeParsers.parseNumberField;
 public class IpFieldMapper extends NumberFieldMapper {
 
     public static final String CONTENT_TYPE = "ip";
+    public static final long MAX_IP = 4294967296l;
 
     public static String longToIp(long longIp) {
         int octet3 = (int) ((longIp >> 24) % 256);
@@ -71,6 +76,7 @@ public class IpFieldMapper extends NumberFieldMapper {
     }
 
     private static final Pattern pattern = Pattern.compile("\\.");
+    private static final Pattern MASK_PATTERN = Pattern.compile("(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,3})");
 
     public static long ipToLong(String ip) {
         try {
@@ -89,6 +95,64 @@ public class IpFieldMapper extends NumberFieldMapper {
             }
             throw new IllegalArgumentException("failed to parse ip [" + ip + "]", e);
         }
+    }
+
+    /**
+     * Computes the min &amp; max ip addresses (represented as long values -
+     * same way as stored in index) represented by the given CIDR mask
+     * expression. The returned array has the length of 2, where the first entry
+     * represents the {@code min} address and the second the {@code max}. A
+     * {@code -1} value for either the {@code min} or the {@code max},
+     * represents an unbounded end. In other words:
+     *
+     * <p>
+     * {@code min == -1 == "0.0.0.0" }
+     * </p>
+     *
+     * and
+     *
+     * <p>
+     * {@code max == -1 == "255.255.255.255" }
+     * </p>
+     */
+    public static long[] cidrMaskToMinMax(String cidr) {
+        Matcher matcher = MASK_PATTERN.matcher(cidr);
+        if (!matcher.matches()) {
+            return null;
+        }
+        int addr = ((Integer.parseInt(matcher.group(1)) << 24) & 0xFF000000) | ((Integer.parseInt(matcher.group(2)) << 16) & 0xFF0000)
+                | ((Integer.parseInt(matcher.group(3)) << 8) & 0xFF00) | (Integer.parseInt(matcher.group(4)) & 0xFF);
+
+        int mask = (-1) << (32 - Integer.parseInt(matcher.group(5)));
+
+        if (Integer.parseInt(matcher.group(5)) == 0) {
+            mask = 0 << 32;
+        }
+
+        int from = addr & mask;
+        long longFrom = intIpToLongIp(from);
+        if (longFrom == 0) {
+            longFrom = -1;
+        }
+
+        int to = from + (~mask);
+        long longTo = intIpToLongIp(to) + 1; // we have to +1 here as the range
+                                             // is non-inclusive on the "to"
+                                             // side
+
+        if (longTo == MAX_IP) {
+            longTo = -1;
+        }
+
+        return new long[] { longFrom, longTo };
+    }
+
+    private static long intIpToLongIp(int i) {
+        long p1 = ((long) ((i >> 24) & 0xFF)) << 24;
+        int p2 = ((i >> 16) & 0xFF) << 16;
+        int p3 = ((i >> 8) & 0xFF) << 8;
+        int p4 = i & 0xFF;
+        return p1 + p2 + p3 + p4;
     }
 
     public static class Defaults extends NumberFieldMapper.Defaults {
@@ -203,6 +267,23 @@ public class IpFieldMapper extends NumberFieldMapper {
             BytesRefBuilder bytesRef = new BytesRefBuilder();
             NumericUtils.longToPrefixCoded(parseValue(value), 0, bytesRef); // 0 because of exact match
             return bytesRef.get();
+        }
+
+        @Override
+        public Query termQuery(Object value, @Nullable QueryShardContext context) {
+            if (value != null) {
+                long[] fromTo;
+                if (value instanceof BytesRef) {
+                    fromTo = cidrMaskToMinMax(((BytesRef) value).utf8ToString());
+                } else {
+                    fromTo = cidrMaskToMinMax(value.toString());
+                }
+                if (fromTo != null) {
+                    return rangeQuery(fromTo[0] < 0 ? null : fromTo[0],
+                            fromTo[1] < 0 ? null : fromTo[1], true, false);
+                }
+            }
+            return super.termQuery(value, context);
         }
 
         @Override

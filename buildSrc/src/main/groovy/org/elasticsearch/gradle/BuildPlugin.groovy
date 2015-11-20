@@ -373,7 +373,12 @@ class BuildPlugin implements Plugin<Project> {
                     regex(/^(\s+at )(org\.apache\.lucene\.util\.TestRule)/)
                     regex(/^(\s+at )(org\.apache\.lucene\.util\.AbstractBeforeAfterRule)/)
                 }
-                outputMode System.getProperty('tests.output', 'onerror')
+                if (System.getProperty('tests.class') != null && System.getProperty('tests.output') == null) {
+                    // if you are debugging, you want to see the output!
+                    outputMode 'always'
+                } else {
+                    outputMode System.getProperty('tests.output', 'onerror')
+                }
             }
 
             balancers {

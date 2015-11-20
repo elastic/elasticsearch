@@ -48,12 +48,12 @@ import java.util.*;
  * The {@link org.elasticsearch.indices.analysis.AnalysisModule.AnalysisProvider} is only a functional interface that allows to register factory constructors directly like the plugin example below:
  * <pre>
  *     public class MyAnalysisPlugin extends Plugin {
- *       @Override
+ *       \@Override
  *       public String name() {
  *         return "analysis-my-plugin";
  *       }
  *
- *       @Override
+ *       \@Override
  *       public String description() {
  *         return "my very fast and efficient analyzer";
  *       }

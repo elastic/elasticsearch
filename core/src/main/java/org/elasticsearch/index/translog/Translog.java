@@ -257,7 +257,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     /**
      * Extracts the translog generation from a file name.
      *
-     * @throw IllegalArgumentException if the path doesn't match the expected pattern.
+     * @throws IllegalArgumentException if the path doesn't match the expected pattern.
      */
     public static long parseIdFromFileName(Path translogFile) {
         final String fileName = translogFile.getFileName().toString();

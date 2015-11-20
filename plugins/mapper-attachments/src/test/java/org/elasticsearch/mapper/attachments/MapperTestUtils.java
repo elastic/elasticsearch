@@ -21,33 +21,54 @@ package org.elasticsearch.mapper.attachments;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.IndexNameModule;
+import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.similarity.SimilarityService;
-import org.elasticsearch.test.IndexSettingsModule;
+import org.elasticsearch.index.settings.IndexSettingsModule;
+import org.elasticsearch.index.similarity.SimilarityLookupService;
+import org.elasticsearch.indices.analysis.IndicesAnalysisService;
 
-import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 
-class MapperTestUtils {
+public class MapperTestUtils {
 
-    public static MapperService newMapperService(Path tempDir, Settings indexSettings) throws IOException {
-        Settings nodeSettings = Settings.builder()
-            .put("path.home", tempDir)
-            .build();
-        indexSettings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-            .put(indexSettings)
-            .build();
-        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(new Index("test"), indexSettings, Collections.emptyList());
-        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(nodeSettings)).build(idxSettings);
-        SimilarityService similarityService = new SimilarityService(idxSettings, Collections.emptyMap());
-        return new MapperService(idxSettings, analysisService, similarityService);
+    public static MapperService newMapperService(Path tempDir, Settings indexSettings) {
+        return newMapperService(new Index("test"), Settings.builder()
+                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
+                .put("path.home", tempDir)
+                .put(indexSettings)
+                .build());
+    }
+
+    private static MapperService newMapperService(Index index, Settings indexSettings) {
+        return new MapperService(index,
+                                 indexSettings, 
+                                 newAnalysisService(indexSettings),
+                                 newSimilarityLookupService(indexSettings), 
+                                 null);
+    }
+
+    private  static AnalysisService newAnalysisService(Settings indexSettings) {
+        Injector parentInjector = new ModulesBuilder().add(new SettingsModule(indexSettings), new EnvironmentModule(new Environment(indexSettings))).createInjector();
+        Index index = new Index("test");
+        Injector injector = new ModulesBuilder().add(
+                new IndexSettingsModule(index, indexSettings),
+                new IndexNameModule(index),
+                new AnalysisModule(indexSettings, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
+
+        return injector.getInstance(AnalysisService.class);
+    }
+
+    private  static SimilarityLookupService newSimilarityLookupService(Settings indexSettings) {
+        return new SimilarityLookupService(new Index("test"), indexSettings);
     }
 }

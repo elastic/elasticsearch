@@ -19,12 +19,13 @@
 
 package org.elasticsearch.mapper.attachments;
 
+import com.google.common.collect.Iterators;
+
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.tika.language.LanguageIdentifier;
 import org.apache.tika.metadata.Metadata;
 import org.elasticsearch.Version;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
@@ -609,7 +610,7 @@ public class AttachmentMapper extends FieldMapper {
     @Override
     @SuppressWarnings("unchecked")
     public Iterator<Mapper> iterator() {
-        List<Mapper> extras = Arrays.asList(
+        List<? extends Mapper> extras = Arrays.asList(
                 contentMapper,
                 dateMapper,
                 titleMapper,

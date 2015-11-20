@@ -19,27 +19,15 @@
 
 package org.elasticsearch.mapper.attachments;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.common.inject.AbstractModule;
 
-import java.util.Collection;
-import java.util.Collections;
-
-public class MapperAttachmentsPlugin extends Plugin {
+/**
+ *
+ */
+public class AttachmentsIndexModule extends AbstractModule {
 
     @Override
-    public String name() {
-        return "mapper-attachments";
-    }
-
-    @Override
-    public String description() {
-        return "Adds the attachment type allowing to parse difference attachment formats";
-    }
-
-    @Override
-    public Collection<Module> indexModules(Settings indexSettings) {
-        return Collections.<Module>singletonList(new AttachmentsIndexModule());
+    protected void configure() {
+        bind(RegisterAttachmentsType.class).asEagerSingleton();
     }
 }

@@ -17,9 +17,9 @@ ext.versions = [
 ]
 
 dependencies {
-  licensePluginZip project(path: "${projectsPrefix}:license:plugin") // zip
-  provided project(path: "${projectsPrefix}:license:plugin", configuration: 'runtime')
-  provided project(path: "${projectsPrefix}:shield", configuration: 'runtime')
+  licensePluginZip project(path: ':x-plugins:license:plugin') // zip
+  provided project(path: ':x-plugins:license:plugin', configuration: 'runtime')
+  provided project(path: ':x-plugins:shield', configuration: 'runtime')
   testCompile 'org.elasticsearch:securemock:1.1'
 
   // mock web server

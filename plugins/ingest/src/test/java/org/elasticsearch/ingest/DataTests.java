@@ -116,12 +116,14 @@ public class DataTests extends ESTestCase {
     public void testSimpleSetPropertyValue() {
         data.setPropertyValue("new_field", "foo");
         assertThat(data.getDocument().get("new_field"), equalTo("foo"));
+        assertThat(data.isModified(), equalTo(true));
     }
 
     public void testSetPropertyValueNullValue() {
         data.setPropertyValue("new_field", null);
         assertThat(data.getDocument().containsKey("new_field"), equalTo(true));
         assertThat(data.getDocument().get("new_field"), nullValue());
+        assertThat(data.isModified(), equalTo(true));
     }
 
     @SuppressWarnings("unchecked")
@@ -136,6 +138,7 @@ public class DataTests extends ESTestCase {
         assertThat(c.get("d"), instanceOf(String.class));
         String d = (String) c.get("d");
         assertThat(d, equalTo("foo"));
+        assertThat(data.isModified(), equalTo(true));
     }
 
     public void testSetPropertyValueOnExistingField() {
@@ -151,6 +154,7 @@ public class DataTests extends ESTestCase {
         assertThat(innerMap.get("new"), instanceOf(String.class));
         String value = (String) innerMap.get("new");
         assertThat(value, equalTo("bar"));
+        assertThat(data.isModified(), equalTo(true));
     }
 
     public void testSetPropertyValueOnExistingParentTypeMismatch() {
@@ -159,6 +163,7 @@ public class DataTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to parent [buzz] of type [java.lang.String], [java.util.Map] expected instead."));
+            assertThat(data.isModified(), equalTo(false));
         }
     }
 
@@ -168,6 +173,7 @@ public class DataTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to null parent, [java.util.Map] expected instead."));
+            assertThat(data.isModified(), equalTo(false));
         }
     }
 
@@ -177,6 +183,7 @@ public class DataTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
+            assertThat(data.isModified(), equalTo(false));
         }
     }
 
@@ -186,11 +193,13 @@ public class DataTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
+            assertThat(data.isModified(), equalTo(false));
         }
     }
 
     public void testRemoveProperty() {
         data.removeProperty("foo");
+        assertThat(data.isModified(), equalTo(true));
         assertThat(data.getDocument().size(), equalTo(2));
         assertThat(data.getDocument().containsKey("foo"), equalTo(false));
     }
@@ -208,25 +217,30 @@ public class DataTests extends ESTestCase {
         assertThat(map.size(), equalTo(0));
         assertThat(data.getDocument().size(), equalTo(3));
         assertThat(data.getDocument().containsKey("fizz"), equalTo(true));
+        assertThat(data.isModified(), equalTo(true));
     }
 
     public void testRemoveNonExistingProperty() {
         data.removeProperty("does_not_exist");
+        assertThat(data.isModified(), equalTo(false));
         assertThat(data.getDocument().size(), equalTo(3));
     }
 
     public void testRemoveExistingParentTypeMismatch() {
         data.removeProperty("foo.test");
+        assertThat(data.isModified(), equalTo(false));
         assertThat(data.getDocument().size(), equalTo(3));
     }
 
     public void testRemoveNullProperty() {
         data.removeProperty(null);
+        assertThat(data.isModified(), equalTo(false));
         assertThat(data.getDocument().size(), equalTo(3));
     }
 
     public void testRemoveEmptyProperty() {
         data.removeProperty("");
+        assertThat(data.isModified(), equalTo(false));
         assertThat(data.getDocument().size(), equalTo(3));
     }
 

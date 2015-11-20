@@ -27,6 +27,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.internal.DefaultSearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -41,6 +42,7 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
@@ -102,6 +104,57 @@ public class SimpleSearchIT extends ESIntegTestCase {
                 .execute().actionGet();
 
         assertHitCount(search, 1l);
+    }
+
+    public void testIpCIDR() throws Exception {
+        createIndex("test");
+
+        client().admin().indices().preparePutMapping("test").setType("type1")
+                .setSource(XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
+                        .startObject("ip").field("type", "ip").endObject()
+                        .endObject().endObject().endObject())
+                .execute().actionGet();
+        ensureGreen();
+
+        client().prepareIndex("test", "type1", "1").setSource("ip", "192.168.0.1").execute().actionGet();
+        client().prepareIndex("test", "type1", "2").setSource("ip", "192.168.0.2").execute().actionGet();
+        client().prepareIndex("test", "type1", "3").setSource("ip", "192.168.0.3").execute().actionGet();
+        client().prepareIndex("test", "type1", "4").setSource("ip", "192.168.1.4").execute().actionGet();
+        refresh();
+
+        SearchResponse search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.1/32")))
+                .execute().actionGet();
+        assertHitCount(search, 1l);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.1/24")))
+                .execute().actionGet();
+        assertHitCount(search, 3l);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.1/8")))
+                .execute().actionGet();
+        assertHitCount(search, 4l);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.1.1/24")))
+                .execute().actionGet();
+        assertHitCount(search, 1l);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "0.0.0.0/0")))
+                .execute().actionGet();
+        assertHitCount(search, 4l);
+
+        search = client().prepareSearch()
+                .setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.1.5/32")))
+                .execute().actionGet();
+        assertHitCount(search, 0l);
+
+        assertFailures(client().prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "0/0/0/0/0"))),
+                RestStatus.BAD_REQUEST,
+                containsString("not a valid ip address"));
     }
 
     public void testSimpleId() {

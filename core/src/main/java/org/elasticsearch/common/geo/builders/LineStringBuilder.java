@@ -19,11 +19,22 @@
 
 package org.elasticsearch.common.geo.builders;
 
+import com.vividsolutions.jts.geom.Coordinate;
+
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
 
 public class LineStringBuilder extends BaseLineStringBuilder<LineStringBuilder> {
+
+    public LineStringBuilder() {
+        this(new ArrayList<Coordinate>());
+    }
+
+    public LineStringBuilder(ArrayList<Coordinate> points) {
+        super(points);
+    }
 
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
@@ -40,6 +51,18 @@ public class LineStringBuilder extends BaseLineStringBuilder<LineStringBuilder> 
     @Override
     public GeoShapeType type() {
         return TYPE;
+    }
+
+    /**
+     * Closes the current lineString by adding the starting point as the end point
+     */
+    public LineStringBuilder close() {
+        Coordinate start = points.get(0);
+        Coordinate end = points.get(points.size()-1);
+        if(start.x != end.x || start.y != end.y) {
+            points.add(start);
+        }
+        return this;
     }
 
 }

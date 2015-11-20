@@ -42,8 +42,8 @@ import java.util.Iterator;
  * The {@link BasePolygonBuilder} implements the groundwork to create polygons. This contains
  * Methods to wrap polygons at the dateline and building shapes from the data held by the
  * builder.
- * Since this Builder can be embedded to other builders (i.e. {@link MultiPolygonBuilder}) 
- * the class of the embedding builder is given by the generic argument <code>E</code>  
+ * Since this Builder can be embedded to other builders (i.e. {@link MultiPolygonBuilder})
+ * the class of the embedding builder is given by the generic argument <code>E</code>
 
  * @param <E> type of the embedding class
  */
@@ -51,11 +51,11 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
 
-    // Linear ring defining the shell of the polygon
-    protected Ring<E> shell; 
+    // line string defining the shell of the polygon
+    protected LineStringBuilder shell;
 
-    // List of linear rings defining the holes of the polygon 
-    protected final ArrayList<BaseLineStringBuilder<?>> holes = new ArrayList<>();
+    // List of line strings defining the holes of the polygon
+    protected final ArrayList<LineStringBuilder> holes = new ArrayList<>();
 
     public BasePolygonBuilder(Orientation orientation) {
         super(orientation);
@@ -65,7 +65,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     private E thisRef() {
         return (E)this;
     }
-    
+
     public E point(double longitude, double latitude) {
         shell.point(longitude, latitude);
         return thisRef();
@@ -96,27 +96,17 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * @param hole linear ring defining the hole
      * @return this
      */
-    public E hole(BaseLineStringBuilder<?> hole) {
+    public E hole(LineStringBuilder hole) {
         holes.add(hole);
         return thisRef();
     }
 
     /**
-     * build new hole to the polygon
-     * @return this
-     */
-    public Ring<E> hole() {
-        Ring<E> hole = new Ring<>(thisRef());
-        this.holes.add(hole);
-        return hole;
-    }
-
-    /**
      * Close the shell of the polygon
-     * @return parent
      */
-    public ShapeBuilder close() {
-        return shell.close();
+    public BasePolygonBuilder close() {
+        shell.close();
+        return this;
     }
 
     /**
@@ -138,11 +128,11 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * within the polygon.
      * This Method also wraps the polygons at the dateline. In order to this fact the result may
      * contains more polygons and less holes than defined in the builder it self.
-     * 
+     *
      * @return coordinates of the polygon
      */
     public Coordinate[][][] coordinates() {
-        int numEdges = shell.points.size()-1; // Last point is repeated 
+        int numEdges = shell.points.size()-1; // Last point is repeated
         for (int i = 0; i < holes.size(); i++) {
             numEdges += holes.get(i).points.size()-1;
             validateHole(shell, this.holes.get(i));
@@ -172,12 +162,12 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
     protected XContentBuilder coordinatesArray(XContentBuilder builder, Params params) throws IOException {
         shell.coordinatesToXcontent(builder, true);
-        for(BaseLineStringBuilder<?> hole : holes) {
+        for(BaseLineStringBuilder hole : holes) {
             hole.coordinatesToXcontent(builder, true);
         }
         return builder;
     }
-    
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -188,7 +178,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         builder.endObject();
         return builder;
     }
-    
+
     public Geometry buildGeometry(GeometryFactory factory, boolean fixDateline) {
         if(fixDateline) {
             Coordinate[][][] polygons = coordinates();
@@ -207,7 +197,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     protected Polygon toPolygon(GeometryFactory factory) {
         final LinearRing shell = linearRing(factory, this.shell.points);
         final LinearRing[] holes = new LinearRing[this.holes.size()];
-        Iterator<BaseLineStringBuilder<?>> iterator = this.holes.iterator();
+        Iterator<LineStringBuilder> iterator = this.holes.iterator();
         for (int i = 0; iterator.hasNext(); i++) {
             holes[i] = linearRing(factory, iterator.next().points);
         }
@@ -226,7 +216,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
     protected static Polygon polygon(GeometryFactory factory, Coordinate[][] polygon) {
         LinearRing shell = factory.createLinearRing(polygon[0]);
         LinearRing[] holes;
-        
+
         if(polygon.length > 1) {
             holes = new LinearRing[polygon.length-1];
             for (int i = 0; i < holes.length; i++) {
@@ -243,7 +233,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
      * in turn contains an array of linestrings. These line Strings are represented as an array of
      * coordinates. The first linestring will be the shell of the polygon the others define holes
      * within the polygon.
-     *      
+     *
      * @param factory {@link GeometryFactory} to use
      * @param polygons definition of polygons
      * @return a new Multipolygon
@@ -258,19 +248,19 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
 
     /**
      * This method sets the component id of all edges in a ring to a given id and shifts the
-     * coordinates of this component according to the dateline 
-     * 
+     * coordinates of this component according to the dateline
+     *
      * @param edge An arbitrary edge of the component
      * @param id id to apply to the component
      * @param edges a list of edges to which all edges of the component will be added (could be <code>null</code>)
      * @return number of edges that belong to this component
      */
     private static int component(final Edge edge, final int id, final ArrayList<Edge> edges) {
-        // find a coordinate that is not part of the dateline 
+        // find a coordinate that is not part of the dateline
         Edge any = edge;
         while(any.coordinate.x == +DATELINE || any.coordinate.x == -DATELINE) {
             if((any = any.next) == edge) {
-                break;   
+                break;
             }
         }
 
@@ -362,7 +352,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
 
         return result;
-    } 
+    }
 
     private static final Coordinate[][] EMPTY = new Coordinate[0][];
 
@@ -378,7 +368,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
 
         return points;
-    } 
+    }
 
     private static Edge[] edges(Edge[] edges, int numHoles, ArrayList<ArrayList<Coordinate[]>> components) {
         ArrayList<Edge> mainEdges = new ArrayList<>(edges.length);
@@ -412,7 +402,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
         for (int i = 0; i < numHoles; i++) {
             final Edge current = new Edge(holes[i].coordinate, holes[i].next);
-            // the edge intersects with itself at its own coordinate.  We need intersect to be set this way so the binary search 
+            // the edge intersects with itself at its own coordinate.  We need intersect to be set this way so the binary search
             // will get the correct position in the edge list and therefore the correct component to add the hole
             current.intersect = current.coordinate;
             final int intersections = intersections(current.coordinate.x, edges);
@@ -457,20 +447,20 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 holes[e2.component-1] = holes[numHoles];
                 holes[numHoles] = null;
             }
-            // only connect edges if intersections are pairwise 
+            // only connect edges if intersections are pairwise
             // 1. per the comment above, the edge array is sorted by y-value of the intersection
-            // with the dateline.  Two edges have the same y intercept when they cross the 
+            // with the dateline.  Two edges have the same y intercept when they cross the
             // dateline thus they appear sequentially (pairwise) in the edge array. Two edges
             // do not have the same y intercept when we're forming a multi-poly from a poly
-            // that wraps the dateline (but there are 2 ordered intercepts).  
-            // The connect method creates a new edge for these paired edges in the linked list. 
-            // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge 
+            // that wraps the dateline (but there are 2 ordered intercepts).
+            // The connect method creates a new edge for these paired edges in the linked list.
+            // For boundary conditions (e.g., intersect but not crossing) there is no sibling edge
             // to connect. Thus the first logic check enforces the pairwise rule
             // 2. the second logic check ensures the two candidate edges aren't already connected by an
             //    existing edge along the dateline - this is necessary due to a logic change in
-            //    ShapeBuilder.intersection that computes dateline edges as valid intersect points 
+            //    ShapeBuilder.intersection that computes dateline edges as valid intersect points
             //    in support of OGC standards
-            if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE 
+            if (e1.intersect != Edge.MAX_COORDINATE && e2.intersect != Edge.MAX_COORDINATE
                     && !(e1.next.next.coordinate.equals3D(e2.coordinate) && Math.abs(e1.next.coordinate.x) == DATELINE
                     && Math.abs(e2.coordinate.x) == DATELINE) ) {
                 connect(e1, e2);
@@ -489,7 +479,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
             // NOTE: the order of the object creation is crucial here! Don't change it!
             // first edge has no point on dateline
             Edge e1 = new Edge(in.intersect, in.next);
-            
+
             if(out.intersect != out.next.coordinate) {
                 // second edge has no point on dateline
                 Edge e2 = new Edge(out.intersect, out.next);
@@ -507,7 +497,7 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
                 // second edge has no point on dateline
                 Edge e1 = new Edge(out.intersect, out.next);
                 in.next = new Edge(in.intersect, e1, in.intersect);
-                
+
             } else {
                 // second edge intersects with dateline
                 in.next = new Edge(in.intersect, out.next, in.intersect);
@@ -516,8 +506,8 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         }
     }
 
-    private static int createEdges(int component, Orientation orientation, BaseLineStringBuilder<?> shell,
-                                   BaseLineStringBuilder<?> hole,
+    private static int createEdges(int component, Orientation orientation, BaseLineStringBuilder shell,
+                                   BaseLineStringBuilder hole,
                                    Edge[] edges, int offset) {
         // inner rings (holes) have an opposite direction than the outer rings
         // XOR will invert the orientation for outer ring cases (Truth Table:, T/T = F, T/F = T, F/T = T, F/F = F)
@@ -526,33 +516,5 @@ public abstract class BasePolygonBuilder<E extends BasePolygonBuilder<E>> extend
         Coordinate[] points = (hole != null) ? hole.coordinates(false) : shell.coordinates(false);
         Edge.ring(component, direction, orientation == Orientation.LEFT, shell, points, 0, edges, offset, points.length-1);
         return points.length-1;
-    }
-
-    public static class Ring<P extends ShapeBuilder> extends BaseLineStringBuilder<Ring<P>> {
-
-        private final P parent;
-
-        protected Ring(P parent) {
-            this(parent, new ArrayList<Coordinate>());
-        }
-
-        protected Ring(P parent, ArrayList<Coordinate> points) {
-            super(points);
-            this.parent = parent;
-        }
-
-        public P close() {
-            Coordinate start = points.get(0);
-            Coordinate end = points.get(points.size()-1);
-            if(start.x != end.x || start.y != end.y) {
-                points.add(start);
-            }
-            return parent;
-        }
-
-        @Override
-        public GeoShapeType type() {
-            return null;
-        }
     }
 }

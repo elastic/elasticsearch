@@ -29,7 +29,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import com.vividsolutions.jts.geom.Coordinate;
 
 /**
- * The {@link PointCollection} is an abstract base implementation for all GeoShapes. It simply handles a set of points. 
+ * The {@link PointCollection} is an abstract base implementation for all GeoShapes. It simply handles a set of points.
  */
 public abstract class PointCollection<E extends PointCollection<E>> extends ShapeBuilder {
 
@@ -43,7 +43,7 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
     protected PointCollection(ArrayList<Coordinate> points) {
         this.points = points;
     }
-    
+
     @SuppressWarnings("unchecked")
     private E thisRef() {
         return (E)this;
@@ -57,7 +57,7 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
      */
     public E point(double longitude, double latitude) {
         return this.point(coordinate(longitude, latitude));
-    } 
+    }
 
     /**
      * Add a new point to the collection
@@ -71,7 +71,7 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
 
     /**
      * Add a array of points to the collection
-     * 
+     *
      * @param coordinates array of {@link Coordinate}s to add
      * @return this
      */
@@ -81,7 +81,7 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
 
     /**
      * Add a collection of points to the collection
-     * 
+     *
      * @param coordinates array of {@link Coordinate}s to add
      * @return this
      */
@@ -92,7 +92,7 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
 
     /**
      * Copy all points to a new Array
-     * 
+     *
      * @param closed if set to true the first point of the array is repeated as last element
      * @return Array of coordinates
      */
@@ -106,9 +106,9 @@ public abstract class PointCollection<E extends PointCollection<E>> extends Shap
 
     /**
      * builds an array of coordinates to a {@link XContentBuilder}
-     * 
-     * @param builder builder to use 
-     * @param closed repeat the first point at the end of the array if it's not already defines as last element of the array  
+     *
+     * @param builder builder to use
+     * @param closed repeat the first point at the end of the array if it's not already defines as last element of the array
      * @return the builder
      */
     protected XContentBuilder coordinatesToXcontent(XContentBuilder builder, boolean closed) throws IOException {

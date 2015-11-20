@@ -48,16 +48,6 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         return this;
     }
 
-    public InternalPolygonBuilder polygon() {
-        return polygon(Orientation.RIGHT);
-    }
-
-    public InternalPolygonBuilder polygon(Orientation orientation) {
-        InternalPolygonBuilder polygon = new InternalPolygonBuilder(this, orientation);
-        this.polygon(polygon);
-        return polygon;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -81,7 +71,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
     public Shape build() {
 
         List<Shape> shapes = new ArrayList<>(this.polygons.size());
-        
+
         if(wrapdateline) {
             for (BasePolygonBuilder<?> polygon : this.polygons) {
                 for(Coordinate[][] part : polygon.coordinates()) {
@@ -100,20 +90,5 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
 
-    public static class InternalPolygonBuilder extends BasePolygonBuilder<InternalPolygonBuilder> {
 
-        private final MultiPolygonBuilder collection;
-
-        private InternalPolygonBuilder(MultiPolygonBuilder collection, Orientation orientation) {
-            super(orientation);
-            this.collection = collection;
-            this.shell = new Ring<>(this);
-        }
-
-        @Override
-        public MultiPolygonBuilder close() {
-            super.close();
-            return collection;
-        }
-    }
 }

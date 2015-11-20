@@ -288,7 +288,11 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(JavaCompile) {
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
-                options.compilerArgs << '-Werror' << '-Xlint:all' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                /*
+                 * -path because gradle will send in paths that don't always exist.
+                 * -missing because we have tons of missing @returns and @param.
+                 */
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
                 options.encoding = 'UTF-8'
             }
         }

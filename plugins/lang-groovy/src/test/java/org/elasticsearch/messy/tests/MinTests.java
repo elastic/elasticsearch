@@ -273,36 +273,7 @@ public class MinTests extends AbstractNumericTestCase {
     }
 
     @Override
-    public void testScriptExplicitSingleValuedWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("dec", 1);
-        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(min("min").script(new Script("doc['value'].value - dec", ScriptType.INLINE, null, params))).execute()
-                .actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        Min min = searchResponse.getAggregations().get("min");
-        assertThat(min, notNullValue());
-        assertThat(min.getName(), equalTo("min"));
-        assertThat(min.getValue(), equalTo(0.0));
-    }
-
-    @Override
     public void testScriptMultiValued() throws Exception {
-        SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
-                .addAggregation(min("min").script(new Script("doc['values'].values"))).execute().actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        Min min = searchResponse.getAggregations().get("min");
-        assertThat(min, notNullValue());
-        assertThat(min.getName(), equalTo("min"));
-        assertThat(min.getValue(), equalTo(2.0));
-    }
-
-    @Override
-    public void testScriptExplicitMultiValued() throws Exception {
         SearchResponse searchResponse = client().prepareSearch("idx").setQuery(matchAllQuery())
                 .addAggregation(min("min").script(new Script("doc['values'].values"))).execute().actionGet();
 

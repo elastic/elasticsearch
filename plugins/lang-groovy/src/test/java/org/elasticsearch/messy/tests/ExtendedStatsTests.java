@@ -445,33 +445,6 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
     }
 
     @Override
-    public void testScriptExplicitSingleValuedWithParams() throws Exception {
-        Map<String, Object> params = new HashMap<>();
-        params.put("inc", 1);
-        double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(
-                        extendedStats("stats").script(new Script("doc['value'].value + inc", ScriptType.INLINE, null, params)).sigma(sigma))
-                .execute().actionGet();
-
-        assertHitCount(searchResponse, 10);
-
-        ExtendedStats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (2+3+4+5+6+7+8+9+10+11) / 10));
-        assertThat(stats.getMin(), equalTo(2.0));
-        assertThat(stats.getMax(), equalTo(11.0));
-        assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11));
-        assertThat(stats.getCount(), equalTo(10l));
-        assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121));
-        assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
-        assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11)));
-        checkUpperLowerBounds(stats, sigma);
-    }
-
-    @Override
     public void testScriptMultiValued() throws Exception {
         double sigma = randomDouble() * randomIntBetween(1, 10);
         SearchResponse searchResponse = client().prepareSearch("idx")
@@ -493,32 +466,6 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
         assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
         checkUpperLowerBounds(stats, sigma);
-    }
-
-    @Override
-    public void testScriptExplicitMultiValued() throws Exception {
-        double sigma = randomDouble() * randomIntBetween(1, 10);
-        SearchResponse searchResponse = client().prepareSearch("idx")
-                .setQuery(matchAllQuery())
-                .addAggregation(extendedStats("stats").script(new Script("doc['values'].values")).sigma(sigma))
-                .execute().actionGet();
-
-        assertShardExecutionState(searchResponse, 0);
-        assertHitCount(searchResponse, 10);
-
-        ExtendedStats stats = searchResponse.getAggregations().get("stats");
-        assertThat(stats, notNullValue());
-        assertThat(stats.getName(), equalTo("stats"));
-        assertThat(stats.getAvg(), equalTo((double) (2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12) / 20));
-        assertThat(stats.getMin(), equalTo(2.0));
-        assertThat(stats.getMax(), equalTo(12.0));
-        assertThat(stats.getSum(), equalTo((double) 2+3+4+5+6+7+8+9+10+11+3+4+5+6+7+8+9+10+11+12));
-        assertThat(stats.getCount(), equalTo(20l));
-        assertThat(stats.getSumOfSquares(), equalTo((double) 4+9+16+25+36+49+64+81+100+121+9+16+25+36+49+64+81+100+121+144));
-        assertThat(stats.getVariance(), equalTo(variance(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
-        assertThat(stats.getStdDeviation(), equalTo(stdDev(2, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 3, 4, 5, 6, 7, 8 ,9, 10, 11, 12)));
-        checkUpperLowerBounds(stats, sigma);
-
     }
 
     @Override

@@ -46,6 +46,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFail
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 
 public class SimpleSearchIT extends ESIntegTestCase {
     public void testSearchNullIndex() {
@@ -334,6 +335,18 @@ public class SimpleSearchIT extends ESIntegTestCase {
         assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10).get(), 1);
         assertHitCount(client().prepareSearch("idx").setSize(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10)
                 .setFrom(DefaultSearchContext.Defaults.MAX_RESULT_WINDOW * 10).get(), 1);
+    }
+
+    public void testQueryNumericFieldWithRegex() throws Exception {
+        createIndex("idx");
+        indexRandom(true, client().prepareIndex("idx", "type").setSource("num", 34));
+        
+        try {
+            client().prepareSearch("idx").setQuery(QueryBuilders.regexpQuery("num", "34")).get();
+            fail("SearchPhaseExecutionException should have been thrown");
+        } catch (SearchPhaseExecutionException ex) {
+            assertThat(ex.getCause().getCause().getMessage(), equalTo("Cannot use regular expression to filter numeric field [num]"));
+        }
     }
 
     private void assertWindowFails(SearchRequestBuilder search) {

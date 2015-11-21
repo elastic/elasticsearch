@@ -37,6 +37,7 @@ import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.index.similarity.SimilarityProvider;
 
 import java.io.IOException;
+import java.lang.IllegalArgumentException;
 import java.util.List;
 import java.util.Objects;
 
@@ -481,6 +482,10 @@ public abstract class MappedFieldType extends FieldType {
     }
 
     public Query regexpQuery(String value, int flags, int maxDeterminizedStates, @Nullable MultiTermQuery.RewriteMethod method, @Nullable QueryParseContext context) {
+        if (numericType() != null) {
+            throw new IllegalArgumentException("Cannot use regular expression to filter numeric field [" + names.fullName + "]");
+        }
+
         RegexpQuery query = new RegexpQuery(createTerm(value), flags, maxDeterminizedStates);
         if (method != null) {
             query.setRewriteMethod(method);

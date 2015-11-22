@@ -19,7 +19,7 @@
 
 package org.elasticsearch.search.preference;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.rest.RestStatus;

@@ -132,7 +132,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             nodes.put(newNode("node" + i));
         }
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -168,7 +168,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                 .put(newNode("node" + numberOfNodes)))
                 .build();
 
-        RoutingTable routingTable = strategy.reroute(clusterState).routingTable();
+        RoutingTable routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -209,7 +209,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         routingNodes = clusterState.getRoutingNodes();
 
         logger.info("rebalancing");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -365,7 +365,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
             public boolean allocateUnassigned(RoutingAllocation allocation) {
                 RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
                 boolean changed = !unassigned.isEmpty();
-                for (ShardRouting sr : unassigned) {
+                for (ShardRouting sr : unassigned.drain()) {
                     switch (sr.id()) {
                         case 0:
                             if (sr.primary()) {
@@ -405,7 +405,6 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
                     }
 
                 }
-                unassigned.clear();
                 return changed;
             }
         }), EmptyClusterInfoService.INSTANCE);
@@ -425,7 +424,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
 
         ClusterState clusterState = ClusterState.builder(org.elasticsearch.cluster.ClusterName.DEFAULT).nodes(nodes).metaData(metaData).routingTable(routingTable).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         RoutingNodes routingNodes = clusterState.getRoutingNodes();
 
@@ -459,7 +458,7 @@ public class BalanceConfigurationTests extends ESAllocationTestCase {
         }
 
         logger.info("rebalancing");
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 

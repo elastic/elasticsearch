@@ -55,9 +55,8 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     private final AllocationService allocationService;
 
     private AtomicBoolean rerouting = new AtomicBoolean();
-    private volatile long registeredNextDelaySetting = Long.MAX_VALUE;
+    private volatile long minDelaySettingAtLastScheduling = Long.MAX_VALUE;
     private volatile ScheduledFuture registeredNextDelayFuture;
-    private volatile long unassignedShardsAllocatedTimestamp = 0;
 
     @Inject
     public RoutingService(Settings settings, ThreadPool threadPool, ClusterService clusterService, AllocationService allocationService) {
@@ -89,19 +88,6 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     }
 
     /**
-     * Update the last time the allocator tried to assign unassigned shards
-     *
-     * This is used so that both the GatewayAllocator and RoutingService use a
-     * consistent timestamp for comparing which shards have been delayed to
-     * avoid a race condition where GatewayAllocator thinks the shard should
-     * be delayed and the RoutingService thinks it has already passed the delay
-     * and that the GatewayAllocator has/will handle it.
-     */
-    public void setUnassignedShardsAllocatedTimestamp(long timeInMillis) {
-        this.unassignedShardsAllocatedTimestamp = timeInMillis;
-    }
-
-    /**
      * Initiates a reroute.
      */
     public final void reroute(String reason) {
@@ -111,45 +97,43 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         if (event.state().nodes().localNodeMaster()) {
-            // figure out when the next unassigned allocation need to happen from now. If this is larger or equal
-            // then the last time we checked and scheduled, we are guaranteed to have a reroute until then, so no need
-            // to schedule again
-            long nextDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(settings, event.state());
-            if (nextDelaySetting > 0 && nextDelaySetting < registeredNextDelaySetting) {
+            // Figure out if an existing scheduled reroute is good enough or whether we need to cancel and reschedule.
+            // If the minimum of the currently relevant delay settings is larger than something we scheduled in the past,
+            // we are guaranteed that the planned schedule will happen before any of the current shard delays are expired.
+            long minDelaySetting = UnassignedInfo.findSmallestDelayedAllocationSetting(settings, event.state());
+            if (minDelaySetting <= 0) {
+                logger.trace("no need to schedule reroute - no delayed unassigned shards, minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastScheduling);
+                minDelaySettingAtLastScheduling = Long.MAX_VALUE;
                 FutureUtils.cancel(registeredNextDelayFuture);
-                registeredNextDelaySetting = nextDelaySetting;
-                // We use System.currentTimeMillis here because we want the
-                // next delay from the "now" perspective, rather than the
-                // delay from the last time the GatewayAllocator tried to
-                // assign/delay the shard
-                TimeValue nextDelay = TimeValue.timeValueMillis(UnassignedInfo.findNextDelayedAllocationIn(System.currentTimeMillis(), settings, event.state()));
-                int unassignedDelayedShards = UnassignedInfo.getNumberOfDelayedUnassigned(unassignedShardsAllocatedTimestamp, settings, event.state());
-                if (unassignedDelayedShards > 0) {
-                    logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]",
-                            unassignedDelayedShards, nextDelay);
-                    registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
-                        @Override
-                        protected void doRun() throws Exception {
-                            registeredNextDelaySetting = Long.MAX_VALUE;
-                            reroute("assign delayed unassigned shards");
-                        }
+            } else if (minDelaySetting < minDelaySettingAtLastScheduling) {
+                FutureUtils.cancel(registeredNextDelayFuture);
+                minDelaySettingAtLastScheduling = minDelaySetting;
+                TimeValue nextDelay = TimeValue.timeValueNanos(UnassignedInfo.findNextDelayedAllocationIn(event.state()));
+                assert nextDelay.nanos() > 0 : "next delay must be non 0 as minDelaySetting is [" + minDelaySetting + "]";
+                logger.info("delaying allocation for [{}] unassigned shards, next check in [{}]",
+                        UnassignedInfo.getNumberOfDelayedUnassigned(event.state()), nextDelay);
+                registeredNextDelayFuture = threadPool.schedule(nextDelay, ThreadPool.Names.SAME, new AbstractRunnable() {
+                    @Override
+                    protected void doRun() throws Exception {
+                        minDelaySettingAtLastScheduling = Long.MAX_VALUE;
+                        reroute("assign delayed unassigned shards");
+                    }
 
-                        @Override
-                        public void onFailure(Throwable t) {
-                            logger.warn("failed to schedule/execute reroute post unassigned shard", t);
-                            registeredNextDelaySetting = Long.MAX_VALUE;
-                        }
-                    });
-                }
+                    @Override
+                    public void onFailure(Throwable t) {
+                        logger.warn("failed to schedule/execute reroute post unassigned shard", t);
+                        minDelaySettingAtLastScheduling = Long.MAX_VALUE;
+                    }
+                });
             } else {
-                logger.trace("no need to schedule reroute due to delayed unassigned, next_delay_setting [{}], registered [{}]", nextDelaySetting, registeredNextDelaySetting);
+                logger.trace("no need to schedule reroute - current schedule reroute is enough. minDelaySetting [{}], scheduled [{}]", minDelaySetting, minDelaySettingAtLastScheduling);
             }
         }
     }
 
     // visible for testing
-    long getRegisteredNextDelaySetting() {
-        return this.registeredNextDelaySetting;
+    long getMinDelaySettingAtLastScheduling() {
+        return this.minDelaySettingAtLastScheduling;
     }
 
     // visible for testing
@@ -167,7 +151,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     rerouting.set(false);
-                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState);
+                    RoutingAllocation.Result routingResult = allocationService.reroute(currentState, reason);
                     if (!routingResult.changed()) {
                         // no state changed
                         return currentState;

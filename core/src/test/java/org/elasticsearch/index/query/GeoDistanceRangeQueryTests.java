@@ -44,14 +44,14 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
     protected GeoDistanceRangeQueryBuilder doCreateTestQueryBuilder() {
         Version version = queryShardContext().indexVersionCreated();
         GeoDistanceRangeQueryBuilder builder;
+        GeoPoint randomPoint = RandomGeoGenerator.randomPointIn(random(), -180.0, -89.9, 180.0, 89.9);
         if (randomBoolean()) {
-            builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomGeohash(3, 12));
+            builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomPoint.geohash());
         } else {
-            GeoPoint point = RandomGeoGenerator.randomPoint(random());
             if (randomBoolean()) {
-                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, point);
+                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomPoint);
             } else {
-                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, point.lat(), point.lon());
+                builder = new GeoDistanceRangeQueryBuilder(GEO_POINT_FIELD_NAME, randomPoint.lat(), randomPoint.lon());
             }
         }
         GeoPoint point = builder.point();
@@ -146,7 +146,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
             double fromSlop = Math.abs(fromValue) / 1000;
             if (queryBuilder.includeLower() == false) {
-                fromSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(fromValue) + 1L));
+                fromSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(Math.abs(fromValue)) + 1L)) / 1000.0;
             }
             assertThat(geoQuery.minInclusiveDistance(), closeTo(fromValue, fromSlop));
         }
@@ -160,7 +160,7 @@ public class GeoDistanceRangeQueryTests extends AbstractQueryTestCase<GeoDistanc
             }
             double toSlop = Math.abs(toValue) / 1000;
             if (queryBuilder.includeUpper() == false) {
-                toSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(toValue) + 1L));
+                toSlop = NumericUtils.sortableLongToDouble((NumericUtils.doubleToSortableLong(Math.abs(toValue)) - 1L)) / 1000.0;
             }
             assertThat(geoQuery.maxInclusiveDistance(), closeTo(toValue, toSlop));
         }

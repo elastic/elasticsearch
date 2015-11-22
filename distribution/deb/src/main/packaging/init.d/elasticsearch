@@ -81,7 +81,7 @@ MAX_MAP_COUNT=262144
 #ES_GC_LOG_FILE=/var/log/elasticsearch/gc.log
 
 # Elasticsearch PID file directory
-PID_DIR="${packaging.elasticsearch.pid.dir}"
+PID_DIR="/var/run/elasticsearch"
 
 # End of variables that can be overwritten in $DEFAULT
 

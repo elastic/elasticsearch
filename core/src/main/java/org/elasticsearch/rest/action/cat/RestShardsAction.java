@@ -234,8 +234,8 @@ public class RestShardsAction extends AbstractCatAction {
 
             if (shard.unassignedInfo() != null) {
                 table.addCell(shard.unassignedInfo().getReason());
-                table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.printer().print(shard.unassignedInfo().getTimestampInMillis()));
-                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getTimestampInMillis()));
+                table.addCell(UnassignedInfo.DATE_TIME_FORMATTER.printer().print(shard.unassignedInfo().getUnassignedTimeInMillis()));
+                table.addCell(TimeValue.timeValueMillis(System.currentTimeMillis() - shard.unassignedInfo().getUnassignedTimeInMillis()));
                 table.addCell(shard.unassignedInfo().getDetails());
             } else {
                 table.addCell(null);

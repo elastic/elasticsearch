@@ -39,8 +39,6 @@ import java.io.IOException;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.transport.TransportRequestOptions.options;
-
 /**
  * A fault detection that pings the master periodically to see if its alive.
  */
@@ -222,7 +220,7 @@ public class MasterFaultDetection extends FaultDetection {
                 return;
             }
             final MasterPingRequest request = new MasterPingRequest(clusterService.localNode().id(), masterToPing.id(), clusterName);
-            final TransportRequestOptions options = options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout);
+            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
             transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options, new BaseTransportResponseHandler<MasterPingResponseResponse>() {
 
                         @Override

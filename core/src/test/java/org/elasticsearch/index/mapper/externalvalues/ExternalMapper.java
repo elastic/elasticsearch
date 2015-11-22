@@ -20,12 +20,13 @@
 package org.elasticsearch.index.mapper.externalvalues;
 
 import com.spatial4j.core.shape.Point;
+
 import org.apache.lucene.document.Field;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -201,7 +202,7 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        Point shape = ShapeBuilder.newPoint(-100, 45).build();
+        Point shape = ShapeBuilders.newPoint(-100, 45).build();
         shapeMapper.parse(context.createExternalValueContext(shape));
 
         context = context.createExternalValueContext(generatedValue);

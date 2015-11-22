@@ -424,7 +424,7 @@ sudo bats $BATS/*rpm*.bats
 If you wanted to retest all the release artifacts on a single VM you could:
 
 -------------------------------------------------
-gradle copyDepsToTestRoot
+gradle prepareTestRoot
 vagrant up trusty --provider virtualbox && vagrant ssh trusty
 cd $TESTROOT
 sudo bats $BATS/*.bats
@@ -455,5 +455,9 @@ mvn -Dtests.coverage verify jacoco:report
 
 == Debugging from an IDE
 
-If you want to run elasticsearch from your IDE, you should execute gradle run
-It opens a remote debugging port that you can connect with your IDE.
+If you want to run elasticsearch from your IDE, the `gradle run` task
+supports a remote debugging option:
+
+---------------------------------------------------------------------------
+gradle run --debug-jvm
+---------------------------------------------------------------------------

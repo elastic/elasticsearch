@@ -361,6 +361,8 @@ public class GeoShapeQueryBuilder extends AbstractQueryBuilder<GeoShapeQueryBuil
             return new SpatialArgs(SpatialOperation.Intersects, shape.build());
         case WITHIN:
             return new SpatialArgs(SpatialOperation.IsWithin, shape.build());
+        case CONTAINS:
+            return new SpatialArgs(SpatialOperation.Contains, shape.build());
         default:
             throw new IllegalArgumentException("invalid relation [" + relation + "]");
         }

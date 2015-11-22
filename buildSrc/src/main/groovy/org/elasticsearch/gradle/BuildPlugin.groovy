@@ -18,6 +18,11 @@
  */
 package org.elasticsearch.gradle
 
+import org.gradle.process.ExecResult
+
+import java.time.ZonedDateTime
+import java.time.ZoneOffset
+
 import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.precommit.PrecommitTasks
 import org.gradle.api.*
@@ -41,6 +46,7 @@ class BuildPlugin implements Plugin<Project> {
         project.pluginManager.apply('java')
         project.pluginManager.apply('carrotsearch.randomized-testing')
         // these plugins add lots of info to our jars
+        configureJarManifest(project) // jar config must be added before info broker
         project.pluginManager.apply('nebula.info-broker')
         project.pluginManager.apply('nebula.info-basic')
         project.pluginManager.apply('nebula.info-java')
@@ -54,23 +60,40 @@ class BuildPlugin implements Plugin<Project> {
         configureConfigurations(project)
         project.ext.versions = VersionProperties.versions
         configureCompile(project)
-        configureJarManifest(project)
+
         configureTest(project)
         PrecommitTasks.configure(project)
     }
 
+    /** Performs checks on the build environment and prints information about the build environment. */
     static void globalBuildInfo(Project project) {
         if (project.rootProject.ext.has('buildChecksDone') == false) {
-            String javaHome = System.getenv('JAVA_HOME')
+            String javaHome = findJavaHome()
+            File gradleJavaHome = Jvm.current().javaHome
+            String gradleJavaVersionDetails = "${System.getProperty('java.vendor')} ${System.getProperty('java.version')}" +
+                " [${System.getProperty('java.vm.name')} ${System.getProperty('java.vm.version')}]"
+
+            String javaVersionDetails = gradleJavaVersionDetails
+            String javaVersion = System.getProperty('java.version')
+            JavaVersion javaVersionEnum = JavaVersion.current()
+            if (new File(javaHome).canonicalPath != gradleJavaHome.canonicalPath) {
+                javaVersionDetails = findJavaVersionDetails(project, javaHome)
+                javaVersionEnum = JavaVersion.toVersion(findJavaSpecificationVersion(project, javaHome))
+                javaVersion = findJavaVersion(project, javaHome)
+            }
 
             // Build debugging info
             println '======================================='
             println 'Elasticsearch Build Hamster says Hello!'
             println '======================================='
-            println "  Gradle Version : ${project.gradle.gradleVersion}"
-            println "  JDK Version    : ${System.getProperty('java.runtime.version')} (${System.getProperty('java.vendor')})"
-            println "  JAVA_HOME      : ${javaHome == null ? 'not set' : javaHome}"
-            println "  OS Info        : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
+            println "  Gradle Version        : ${project.gradle.gradleVersion}"
+            println "  OS Info               : ${System.getProperty('os.name')} ${System.getProperty('os.version')} (${System.getProperty('os.arch')})"
+            if (gradleJavaVersionDetails != javaVersionDetails) {
+                println "  JDK Version (gradle)  : ${gradleJavaVersionDetails}"
+                println "  JDK Version (compile) : ${javaVersionDetails}"
+            } else {
+                println "  JDK Version           : ${gradleJavaVersionDetails}"
+            }
 
             // enforce gradle version
             GradleVersion minGradle = GradleVersion.version('2.8')
@@ -79,31 +102,74 @@ class BuildPlugin implements Plugin<Project> {
             }
 
             // enforce Java version
-            if (JavaVersion.current() < minimumJava) {
+            if (javaVersionEnum < minimumJava) {
                 throw new GradleException("Java ${minimumJava} or above is required to build Elasticsearch")
             }
 
-            // find java home so eg tests can use it to set java to run with
-            if (javaHome == null) {
-                if (System.getProperty("idea.active") != null) {
-                    // intellij doesn't set JAVA_HOME, so we use the jdk gradle was run with
-                    javaHome = Jvm.current().javaHome
-                } else {
-                    throw new GradleException('JAVA_HOME must be set to build Elasticsearch')
-                }
-            }
             project.rootProject.ext.javaHome = javaHome
+            project.rootProject.ext.javaVersion = javaVersion
             project.rootProject.ext.buildChecksDone = true
         }
         project.targetCompatibility = minimumJava
         project.sourceCompatibility = minimumJava
         // set java home for each project, so they dont have to find it in the root project
         project.ext.javaHome = project.rootProject.ext.javaHome
+        project.ext.javaVersion = project.rootProject.ext.javaVersion
     }
 
-    /** Return the name
-     */
-    static String transitiveDepConfigName(String groupId, String artifactId, String version) {
+    /** Finds and enforces JAVA_HOME is set */
+    private static String findJavaHome() {
+        String javaHome = System.getenv('JAVA_HOME')
+        if (javaHome == null) {
+            if (System.getProperty("idea.active") != null) {
+                // intellij doesn't set JAVA_HOME, so we use the jdk gradle was run with
+                javaHome = Jvm.current().javaHome
+            } else {
+                throw new GradleException('JAVA_HOME must be set to build Elasticsearch')
+            }
+        }
+        return javaHome
+    }
+
+    /** Finds printable java version of the given JAVA_HOME */
+    private static String findJavaVersionDetails(Project project, String javaHome) {
+        String versionInfoScript = 'print(' +
+            'java.lang.System.getProperty("java.vendor") + " " + java.lang.System.getProperty("java.version") + ' +
+            '" [" + java.lang.System.getProperty("java.vm.name") + " " + java.lang.System.getProperty("java.vm.version") + "]");'
+        return runJavascript(project, javaHome, versionInfoScript).trim()
+    }
+
+    /** Finds the parsable java specification version */
+    private static String findJavaSpecificationVersion(Project project, String javaHome) {
+        String versionScript = 'print(java.lang.System.getProperty("java.specification.version"));'
+        return runJavascript(project, javaHome, versionScript)
+    }
+
+    /** Finds the parsable java specification version */
+    private static String findJavaVersion(Project project, String javaHome) {
+        String versionScript = 'print(java.lang.System.getProperty("java.version"));'
+        return runJavascript(project, javaHome, versionScript)
+    }
+
+    /** Runs the given javascript using jjs from the jdk, and returns the output */
+    private static String runJavascript(Project project, String javaHome, String script) {
+        File tmpScript = File.createTempFile('es-gradle-tmp', '.js')
+        tmpScript.setText(script, 'UTF-8')
+        ByteArrayOutputStream output = new ByteArrayOutputStream()
+        ExecResult result = project.exec {
+            executable = new File(javaHome, 'bin/jjs')
+            args tmpScript.toString()
+            standardOutput = output
+            errorOutput = new ByteArrayOutputStream()
+            ignoreExitValue = true // we do not fail so we can first cleanup the tmp file
+        }
+        java.nio.file.Files.delete(tmpScript.toPath())
+        result.assertNormalExitValue()
+        return output.toString('UTF-8').trim()
+    }
+
+    /** Return the configuration name used for finding transitive deps of the given dependency. */
+    private static String transitiveDepConfigName(String groupId, String artifactId, String version) {
         return "_transitive_${groupId}:${artifactId}:${version}"
     }
 
@@ -220,7 +286,13 @@ class BuildPlugin implements Plugin<Project> {
         project.afterEvaluate {
             // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
-                options.compilerArgs << '-Werror' << '-Xlint:all' << '-Xdoclint:all/private' << '-Xdoclint:-missing'
+                options.fork = true
+                options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                /*
+                 * -path because gradle will send in paths that don't always exist.
+                 * -missing because we have tons of missing @returns and @param.
+                 */
+                options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
                 options.encoding = 'UTF-8'
             }
         }
@@ -228,11 +300,18 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds additional manifest info to jars */
     static void configureJarManifest(Project project) {
-        project.afterEvaluate {
-            project.tasks.withType(Jar) { Jar jarTask ->
-                manifest {
-                    attributes('X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
-                               'X-Compile-Lucene-Version': VersionProperties.lucene)
+        project.tasks.withType(Jar) { Jar jarTask ->
+            jarTask.doFirst {
+                // this doFirst is added before the info plugin, therefore it will run
+                // after the doFirst added by the info plugin, and we can override attributes
+                jarTask.manifest.attributes(
+                        'X-Compile-Elasticsearch-Version': VersionProperties.elasticsearch,
+                        'X-Compile-Lucene-Version': VersionProperties.lucene,
+                        'Build-Date': ZonedDateTime.now(ZoneOffset.UTC),
+                        'Build-Java-Version': project.javaVersion)
+                if (jarTask.manifest.attributes.containsKey('Change') == false) {
+                    logger.warn('Building without git revision id.')
+                    jarTask.manifest.attributes('Change': 'N/A')
                 }
             }
         }
@@ -297,7 +376,12 @@ class BuildPlugin implements Plugin<Project> {
                     regex(/^(\s+at )(org\.apache\.lucene\.util\.TestRule)/)
                     regex(/^(\s+at )(org\.apache\.lucene\.util\.AbstractBeforeAfterRule)/)
                 }
-                outputMode System.getProperty('tests.output', 'onerror')
+                if (System.getProperty('tests.class') != null && System.getProperty('tests.output') == null) {
+                    // if you are debugging, you want to see the output!
+                    outputMode 'always'
+                } else {
+                    outputMode System.getProperty('tests.output', 'onerror')
+                }
             }
 
             balancers {

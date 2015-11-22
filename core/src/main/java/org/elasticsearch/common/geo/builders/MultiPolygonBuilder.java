@@ -33,7 +33,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;
 
-    protected final ArrayList<BasePolygonBuilder<?>> polygons = new ArrayList<>();
+    protected final ArrayList<PolygonBuilder> polygons = new ArrayList<>();
 
     public MultiPolygonBuilder() {
         this(Orientation.RIGHT);
@@ -43,19 +43,9 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         super(orientation);
     }
 
-    public MultiPolygonBuilder polygon(BasePolygonBuilder<?> polygon) {
+    public MultiPolygonBuilder polygon(PolygonBuilder polygon) {
         this.polygons.add(polygon);
         return this;
-    }
-
-    public InternalPolygonBuilder polygon() {
-        return polygon(Orientation.RIGHT);
-    }
-
-    public InternalPolygonBuilder polygon(Orientation orientation) {
-        InternalPolygonBuilder polygon = new InternalPolygonBuilder(this, orientation);
-        this.polygon(polygon);
-        return polygon;
     }
 
     @Override
@@ -63,7 +53,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         builder.startObject();
         builder.field(FIELD_TYPE, TYPE.shapename);
         builder.startArray(FIELD_COORDINATES);
-        for(BasePolygonBuilder<?> polygon : polygons) {
+        for(PolygonBuilder polygon : polygons) {
             builder.startArray();
             polygon.coordinatesArray(builder, params);
             builder.endArray();
@@ -81,15 +71,15 @@ public class MultiPolygonBuilder extends ShapeBuilder {
     public Shape build() {
 
         List<Shape> shapes = new ArrayList<>(this.polygons.size());
-        
+
         if(wrapdateline) {
-            for (BasePolygonBuilder<?> polygon : this.polygons) {
+            for (PolygonBuilder polygon : this.polygons) {
                 for(Coordinate[][] part : polygon.coordinates()) {
                     shapes.add(jtsGeometry(PolygonBuilder.polygon(FACTORY, part)));
                 }
             }
         } else {
-            for (BasePolygonBuilder<?> polygon : this.polygons) {
+            for (PolygonBuilder polygon : this.polygons) {
                 shapes.add(jtsGeometry(polygon.toPolygon(FACTORY)));
             }
         }
@@ -100,20 +90,5 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
 
-    public static class InternalPolygonBuilder extends BasePolygonBuilder<InternalPolygonBuilder> {
 
-        private final MultiPolygonBuilder collection;
-
-        private InternalPolygonBuilder(MultiPolygonBuilder collection, Orientation orientation) {
-            super(orientation);
-            this.collection = collection;
-            this.shell = new Ring<>(this);
-        }
-
-        @Override
-        public MultiPolygonBuilder close() {
-            super.close();
-            return collection;
-        }
-    }
 }

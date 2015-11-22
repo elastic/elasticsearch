@@ -41,7 +41,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static java.util.Collections.emptyMap;
-import static org.elasticsearch.transport.TransportRequestOptions.options;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
@@ -171,7 +170,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         }
 
         res = serviceB.submitRequest(nodeA, "sayHello",
-                new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
+                new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(), new BaseTransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse newInstance() {
                         return new StringMessageResponse();
@@ -256,7 +255,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             @Override
             public void messageReceived(TransportRequest.Empty request, TransportChannel channel) {
                 try {
-                    channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.options().withCompress(true));
+                    channel.sendResponse(TransportResponse.Empty.INSTANCE, TransportResponseOptions.builder().withCompress(true).build());
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));
@@ -265,7 +264,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
 
         TransportFuture<TransportResponse.Empty> res = serviceB.submitRequest(nodeA, "sayHello",
-                TransportRequest.Empty.INSTANCE, TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<TransportResponse.Empty>() {
+                TransportRequest.Empty.INSTANCE, TransportRequestOptions.builder().withCompress(true).build(), new BaseTransportResponseHandler<TransportResponse.Empty>() {
                     @Override
                     public TransportResponse.Empty newInstance() {
                         return TransportResponse.Empty.INSTANCE;
@@ -303,7 +302,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 assertThat("moshe", equalTo(request.message));
                 try {
-                    channel.sendResponse(new StringMessageResponse("hello " + request.message), TransportResponseOptions.options().withCompress(true));
+                    channel.sendResponse(new StringMessageResponse("hello " + request.message), TransportResponseOptions.builder().withCompress(true).build());
                 } catch (IOException e) {
                     e.printStackTrace();
                     assertThat(e.getMessage(), false, equalTo(true));
@@ -312,7 +311,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHello",
-                new StringMessageRequest("moshe"), TransportRequestOptions.options().withCompress(true), new BaseTransportResponseHandler<StringMessageResponse>() {
+                new StringMessageRequest("moshe"), TransportRequestOptions.builder().withCompress(true).build(), new BaseTransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse newInstance() {
                         return new StringMessageResponse();
@@ -421,7 +420,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             }
         });
         TransportFuture<TransportResponse.Empty> foobar = serviceB.submitRequest(nodeA, "foobar",
-                new StringMessageRequest(""), options(), EmptyTransportResponseHandler.INSTANCE_SAME);
+                new StringMessageRequest(""), TransportRequestOptions.EMPTY, EmptyTransportResponseHandler.INSTANCE_SAME);
         latch2.countDown();
         try {
             foobar.txGet();
@@ -448,7 +447,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutNoResponse",
-                new StringMessageRequest("moshe"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
+                new StringMessageRequest("moshe"), TransportRequestOptions.builder().withTimeout(100).build(), new BaseTransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse newInstance() {
                         return new StringMessageResponse();
@@ -500,7 +499,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         });
         final CountDownLatch latch = new CountDownLatch(1);
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
-                new StringMessageRequest("300ms"), options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
+                new StringMessageRequest("300ms"), TransportRequestOptions.builder().withTimeout(100).build(), new BaseTransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse newInstance() {
                         return new StringMessageResponse();
@@ -536,7 +535,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             final int counter = i;
             // now, try and send another request, this times, with a short timeout
             res = serviceB.submitRequest(nodeA, "sayHelloTimeoutDelayedResponse",
-                    new StringMessageRequest(counter + "ms"), options().withTimeout(3000), new BaseTransportResponseHandler<StringMessageResponse>() {
+                    new StringMessageRequest(counter + "ms"), TransportRequestOptions.builder().withTimeout(3000).build(), new BaseTransportResponseHandler<StringMessageResponse>() {
                         @Override
                         public StringMessageResponse newInstance() {
                             return new StringMessageResponse();
@@ -621,7 +620,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
         tracer.reset(4);
         boolean timeout = randomBoolean();
-        TransportRequestOptions options = timeout ? new TransportRequestOptions().withTimeout(1) : TransportRequestOptions.EMPTY;
+        TransportRequestOptions options = timeout ? TransportRequestOptions.builder().withTimeout(1).build(): TransportRequestOptions.EMPTY;
         serviceA.sendRequest(nodeB, "test", new StringMessageRequest("", 10), options, noopResponseHandler);
         requestCompleted.acquire();
         tracer.expectedEvents.get().await();
@@ -1107,7 +1106,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         serviceB.addUnresponsiveRule(serviceA);
 
         TransportFuture<StringMessageResponse> res = serviceB.submitRequest(nodeA, "sayHello",
-                new StringMessageRequest("moshe"), TransportRequestOptions.options().withTimeout(100), new BaseTransportResponseHandler<StringMessageResponse>() {
+                new StringMessageRequest("moshe"), TransportRequestOptions.builder().withTimeout(100).build(), new BaseTransportResponseHandler<StringMessageResponse>() {
                     @Override
                     public StringMessageResponse newInstance() {
                         return new StringMessageResponse();

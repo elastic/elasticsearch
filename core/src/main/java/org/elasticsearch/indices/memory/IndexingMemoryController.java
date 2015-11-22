@@ -246,7 +246,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
             } catch (FlushNotAllowedEngineException e) {
                 // ignore
             } catch (Exception e) {
-                logger.warn("failed to set shard {} index buffer to [{}]", shardId, shardIndexingBufferSize);
+                logger.warn("failed to set shard {} index buffer to [{}]", e, shardId, shardIndexingBufferSize);
             }
         }
     }

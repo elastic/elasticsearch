@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.azure;
 
 import com.microsoft.azure.storage.StorageException;
+import com.microsoft.azure.storage.LocationMode;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService;
 import org.elasticsearch.cloud.azure.storage.AzureStorageService.Storage;
 import org.elasticsearch.cloud.azure.storage.AzureStorageServiceMock;
@@ -115,6 +116,6 @@ public abstract class AbstractAzureRepositoryServiceTestCase extends AbstractAzu
         String container = internalCluster().getInstance(Settings.class).get("repositories.azure.container");
         logger.info("--> remove blobs in container [{}]", container);
         AzureStorageService client = internalCluster().getInstance(AzureStorageService.class);
-        client.deleteFiles(container, path);
+        client.deleteFiles(null, LocationMode.PRIMARY_ONLY, container, path);
     }
 }

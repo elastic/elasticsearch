@@ -72,7 +72,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(routingNodes.hasUnassignedPrimaries(), equalTo(true));
 
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -84,7 +84,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         logger.info("Another round of rebalancing");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         routingNodes = clusterState.getRoutingNodes();
@@ -95,7 +95,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
 
         logger.info("Start the more shards");
         routingNodes = clusterState.getRoutingNodes();
@@ -135,14 +135,14 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1"))).build();
 
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Add another node and perform rerouting, nothing will happen since primary not started");
         clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node2"))).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the primary shard");
@@ -153,7 +153,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
 
         logger.info("Start the backup shard");
         routingNodes = clusterState.getRoutingNodes();
@@ -170,12 +170,12 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState)
                 .nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
 
         logger.info("Start the backup shard");
         routingNodes = clusterState.getRoutingNodes();
@@ -233,7 +233,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(routingNodes.hasUnassignedPrimaries(), equalTo(true));
 
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -245,7 +245,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         logger.info("Another round of rebalancing");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(prevRoutingTable == routingTable, equalTo(true));
@@ -270,7 +270,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
 
         logger.info("Reroute, nothing should change");
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         assertThat(prevRoutingTable == routingTable, equalTo(true));
 
         logger.info("Start the more shards");
@@ -316,13 +316,13 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         assertThat(routingTable.index("test1").shards().size(), equalTo(3));
 
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Reroute, assign");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 
@@ -369,7 +369,7 @@ public class RoutingNodesIntegrityTests extends ESAllocationTestCase {
         logger.info("kill one node");
         IndexShardRoutingTable indexShardRoutingTable = routingTable.index("test").shard(0);
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 

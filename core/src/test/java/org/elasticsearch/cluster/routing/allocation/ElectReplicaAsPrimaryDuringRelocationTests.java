@@ -60,7 +60,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
         logger.info("Adding two nodes and performing rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
         RoutingTable prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("Start the primary shards");
@@ -84,7 +84,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
         logger.info("Start another node and perform rerouting");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).put(newNode("node3"))).build();
         prevRoutingTable = routingTable;
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         logger.info("find the replica shard that gets relocated");
@@ -100,7 +100,7 @@ public class ElectReplicaAsPrimaryDuringRelocationTests extends ESAllocationTest
             logger.info("kill the node [{}] of the primary shard for the relocating replica", indexShardRoutingTable.primaryShard().currentNodeId());
             clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove(indexShardRoutingTable.primaryShard().currentNodeId())).build();
             prevRoutingTable = routingTable;
-            routingTable = strategy.reroute(clusterState).routingTable();
+            routingTable = strategy.reroute(clusterState, "reroute").routingTable();
             clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
             logger.info("make sure all the primary shards are active");

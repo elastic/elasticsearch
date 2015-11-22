@@ -86,6 +86,7 @@ class ClusterFormationTasks {
         // tasks are chained so their execution order is maintained
         Task setup = project.tasks.create(name: "${task.name}#clean", type: Delete, dependsOn: task.dependsOn.collect()) {
             delete home
+            delete cwd
             doLast {
                 cwd.mkdirs()
             }
@@ -102,7 +103,7 @@ class ClusterFormationTasks {
             String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
             String taskName = "${task.name}#install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}Plugin"
             // delay reading the file location until execution time by wrapping in a closure within a GString
-            String file = "${ -> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString() }"
+            String file = "${-> new File(pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString()}"
             Object[] args = [new File(home, 'bin/plugin'), 'install', file]
             setup = configureExecTask(taskName, project, setup, cwd, args)
         }
@@ -115,8 +116,11 @@ class ClusterFormationTasks {
         Task start = configureStartTask("${task.name}#start", project, setup, cwd, config, clusterName, pidFile, home)
         task.dependsOn(start)
 
-        Task stop = configureStopTask("${task.name}#stop", project, [], pidFile)
-        task.finalizedBy(stop)
+        if (config.daemonize) {
+            // if we are running in the background, make sure to stop the server when the task completes
+            Task stop = configureStopTask("${task.name}#stop", project, [], pidFile)
+            task.finalizedBy(stop)
+        }
     }
 
     /** Adds a task to extract the elasticsearch distribution */
@@ -209,7 +213,7 @@ class ClusterFormationTasks {
     static Task configureStartTask(String name, Project project, Task setup, File cwd, ClusterConfiguration config, String clusterName, File pidFile, File home) {
         Map esEnv = [
             'JAVA_HOME' : project.javaHome,
-            'ES_GC_OPTS': config.jvmArgs
+            'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
         ]
         List<String> esProps = config.systemProperties.collect { key, value -> "-D${key}=${value}" }
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
@@ -219,6 +223,8 @@ class ClusterFormationTasks {
         }
 
         String executable
+        // running with cmd on windows will look for this with the .bat extension
+        String esScript = new File(home, 'bin/elasticsearch').toString()
         List<String> esArgs = []
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             executable = 'cmd'
@@ -227,27 +233,69 @@ class ClusterFormationTasks {
         } else {
             executable = 'sh'
         }
-        // running with cmd on windows will look for this with the .bat extension
-        esArgs.add(new File(home, 'bin/elasticsearch').toString())
+
+        File failedMarker = new File(cwd, 'run.failed')
 
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = {
+            // we must add debug options inside the closure so the config is read at execution time, as
+            // gradle task options are not processed until the end of the configuration phase
+            if (config.debug) {
+                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
+                esEnv['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+            }
+
+            // Due to how ant exec works with the spawn option, we lose all stdout/stderr from the
+            // process executed. To work around this, when spawning, we wrap the elasticsearch start
+            // command inside another shell script, which simply internally redirects the output
+            // of the real elasticsearch script. This allows ant to keep the streams open with the
+            // dummy process, but us to have the output available if there is an error in the
+            // elasticsearch start script
+            if (config.daemonize) {
+                String scriptName = 'run'
+                String argsPasser = '"$@"'
+                String exitMarker = '; if [ $? != 0 ]; then touch run.failed; fi'
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                    scriptName += '.bat'
+                    argsPasser = '%*'
+                    exitMarker = '\r\n if "%errorlevel%" neq "0" ( type nul >> run.failed )'
+                }
+                File wrapperScript = new File(cwd, scriptName)
+                wrapperScript.setText("\"${esScript}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
+                esScript = wrapperScript.toString()
+            }
+
             exec(executable: executable, spawn: config.daemonize, dir: cwd, taskname: 'elasticsearch') {
                 esEnv.each { key, value -> env(key: key, value: value) }
-                (esArgs + esProps).each { arg(value: it) }
+                arg(value: esScript)
+                esProps.each { arg(value: it) }
             }
             waitfor(maxwait: '30', maxwaitunit: 'second', checkevery: '500', checkeveryunit: 'millisecond', timeoutproperty: "failed${name}") {
-                and {
+                or {
                     resourceexists {
-                        file(file: pidFile.toString())
+                        file(file: failedMarker.toString())
                     }
-                    http(url: "http://localhost:${config.httpPort}")
+                    and {
+                        resourceexists {
+                            file(file: pidFile.toString())
+                        }
+                        http(url: "http://localhost:${config.httpPort}")
+                    }
                 }
             }
         }
 
         // this closure is the actual code to run elasticsearch
         Closure elasticsearchRunner = {
+            // Command as string for logging
+            String esCommandString = "Elasticsearch command: ${esScript} "
+            esCommandString += esProps.join(' ')
+            if (esEnv.isEmpty() == false) {
+                esCommandString += '\nenvironment:'
+                esEnv.each { k, v -> esCommandString += "\n  ${k}: ${v}" }
+            }
+            logger.info(esCommandString)
+
             ByteArrayOutputStream buffer = new ByteArrayOutputStream()
             if (logger.isInfoEnabled() || config.daemonize == false) {
                 // run with piping streams directly out (even stderr to stdout since gradle would capture it)
@@ -258,18 +306,22 @@ class ClusterFormationTasks {
                 runAntCommand(project, antRunner, captureStream, captureStream)
             }
 
-            if (ant.properties.containsKey("failed${name}".toString())) {
+            if (ant.properties.containsKey("failed${name}".toString()) || failedMarker.exists()) {
+                if (logger.isInfoEnabled() == false) {
+                    // We already log the command at info level. No need to do it twice.
+                    esCommandString.eachLine { line -> logger.error(line) }
+                }
                 // the waitfor failed, so dump any output we got (may be empty if info logging, but that is ok)
-                logger.error(buffer.toString('UTF-8'))
-                // also dump the cluster's log file, it may be useful
-                File logFile = new File(home, "logs/${clusterName}.log")
-                if (logFile.exists()) {
-                    logFile.eachLine { line -> logger.error(line) }
+                buffer.toString('UTF-8').eachLine { line -> logger.error(line) }
+                // also dump the log file for the startup script (which will include ES logging output to stdout)
+                File startLog = new File(cwd, 'run.log')
+                if (startLog.exists()) {
+                    startLog.eachLine { line -> logger.error(line) }
                 }
                 throw new GradleException('Failed to start elasticsearch')
             }
         }
-        
+
         Task start = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         start.doLast(elasticsearchRunner)
         return start

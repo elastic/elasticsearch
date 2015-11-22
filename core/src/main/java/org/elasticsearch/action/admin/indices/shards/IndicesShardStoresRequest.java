@@ -20,7 +20,7 @@ package org.elasticsearch.action.admin.indices.shards;
 
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.MasterNodeReadRequest;
 import org.elasticsearch.common.Strings;

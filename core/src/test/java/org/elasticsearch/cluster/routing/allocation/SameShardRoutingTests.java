@@ -61,7 +61,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder()
                 .put(new DiscoveryNode("node1", "node1", "test1", "test1", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT))
                 .put(new DiscoveryNode("node2", "node2", "test1", "test1", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.INITIALIZING), equalTo(2));
@@ -76,7 +76,7 @@ public class SameShardRoutingTests extends ESAllocationTestCase {
         logger.info("--> add another node, with a different host, replicas will be allocating");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(new DiscoveryNode("node3", "node3", "test2", "test2", DummyTransportAddress.INSTANCE, emptyMap(), Version.CURRENT))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         assertThat(numberOfShardsOfType(clusterState.getRoutingNodes(), ShardRoutingState.STARTED), equalTo(2));

@@ -18,8 +18,13 @@
  */
 
 import org.apache.tools.ant.filters.FixCrLfFilter
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
+import org.elasticsearch.gradle.test.RunTask
+import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.MavenFilteringHack
+import org.gradle.api.InvalidUserDataException
+import org.gradle.internal.nativeintegration.filesystem.Chmod
 
 // for deb/rpm
 buildscript {
@@ -67,21 +72,7 @@ subprojects {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   project.ext {
-    expansions = [
-      'project.version': version,
-      'project.parent.artifactId': 'distributions',
-      // Default values for min/max heap memory allocated to elasticsearch java process
-      'packaging.elasticsearch.heap.min': '256m',
-      'packaging.elasticsearch.heap.max': '1g',
-      'project.build.finalName': "elasticsearch-${version}",
-      // Default configuration directory and file to use in bin/plugin script
-      'packaging.plugin.default.config.dir': '$ES_HOME/config',
-      'packaging.plugin.default.config.file': '$ES_HOME/config/elasticsearch.yml',
-      'packaging.env.file': '',
-      // TODO: do we really need this marker? the tgz and zip are exactly the same,
-      // we should not need to specify twice just to change this
-      'packaging.type': 'tar.gz',
-    ]
+    expansions = expansionsForDistribution(project.name)
 
     /*****************************************************************************
      *                   Common files in all distributions                       *
@@ -103,6 +94,7 @@ subprojects {
       exclude 'bin/*.exe'
       exclude 'config/**'
       filesMatching('bin/*') { it.setMode(0755) }
+      MavenFilteringHack.filter(it, expansions)
     }
   }
 }
@@ -120,70 +112,183 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
       with copySpec {
         with commonFiles
         from('../src/main/resources') {
-          include 'bin/*.bat' 
+          include 'bin/*.bat'
           filter(FixCrLfFilter, eol: FixCrLfFilter.CrLf.newInstance('crlf'))
         }
         MavenFilteringHack.filter(it, expansions)
       }
       from('../src/main/resources') {
-        include 'bin/*.exe' 
-      } 
+        include 'bin/*.exe'
+      }
     }
   }
 }
 
 /*****************************************************************************
  *                         Deb and rpm configuration                         *
- *****************************************************************************/
-// ospackage supports adding empty dirs with directory() to rpm, but not deb...yet
-// https://github.com/nebula-plugins/gradle-ospackage-plugin/issues/115
-// however, even adding just for rpm doesn't seem to work...
-// gradle may also get native support https://issues.gradle.org/browse/GRADLE-1671
-// in the meantime, we hack this by copying an empty dir
-// TODO: HACK DOES NOT WORK
-/*ext.emptyDir = new File(project.buildDir, 'empty') 
-Closure emptyDirSpec() {
-  return {
-    from emptyDir
-    addParentDirs false
-    createDirectoryEntry true
-  }
-}
-task createEmptyDir << {
-  emptyDir.mkdirs()
-}
-buildRpm.dependsOn createEmptyDir
-buildDeb.dependsOn createEmptyDir
-*/
-
-/*****************************************************************************
- *                         Deb and rpm configuration                         *
- *****************************************************************************/
+ *****************************************************************************
+ *
+ * The general strategy here is to build a directory on disk, packagingFiles
+ * that contains stuff that needs to be copied into the distributions. This is
+ * important for two reasons:
+ * 1. ospackage wants to copy the directory permissions that it sees off of the
+ *    filesystem. If you ask it to create a directory that doesn't already
+ *    exist on disk it petulantly creates it with 0755 permissions, no matter
+ *    how hard you try to convince it otherwise.
+ * 2. Convincing ospackage to pick up an empty directory as part of a set of
+ *    directories on disk is reasonably easy. Convincing it to just create an
+ *    empty directory requires more wits than I have.
+ * 3. ospackage really wants to suck up some of the debian control scripts
+ *    directly from the filesystem. It doesn't want to process them through
+ *    MavenFilteringHack or any other copy-style action.
+ */
 configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
+  integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
+  File packagingFiles = new File(buildDir, 'packaging')
+  project.ext.packagingFiles = packagingFiles
+  task processPackagingFiles(type: Copy) {
+    from '../src/main/packaging'
+    from 'src/main/packaging'
+
+    MavenFilteringHack.filter(it, expansions)
+    into packagingFiles
+    /* Explicitly declare the outputs so that gradle won't skip this task if
+      one of the other tasks like createEtc run first and create the packaging
+      directory as a side effect. */
+    outputs.dir("${packagingFiles}/scripts")
+    outputs.dir("${packagingFiles}/env")
+    outputs.dir("${packagingFiles}/systemd")
+  }
+
+  task createEtc(type: EmptyDirTask) {
+    dir "${packagingFiles}/etc/elasticsearch"
+    dirMode 0750
+  }
+
+  task createEtcScripts(type: EmptyDirTask) {
+    dependsOn createEtc
+    dir "${packagingFiles}/etc/elasticsearch/scripts"
+    dirMode 0750
+  }
+
+  task fillEtc(type: Copy) {
+    dependsOn createEtc, createEtcScripts
+    with configFiles
+    into "${packagingFiles}/etc/elasticsearch"
+    /* Explicitly declare the output files so this task doesn't consider itself
+      up to date when the directory is created, which it would by default. And
+      that'll happen when createEtc runs. */
+    outputs.file "${packagingFiles}/etc/elasticsearch/elasticsearch.yml"
+    outputs.file "${packagingFiles}/etc/elasticsearch/logging.yml"
+  }
+
+  task createPidDir(type: EmptyDirTask) {
+    dir "${packagingFiles}/var/run/elasticsearch"
+  }
+  task createLogDir(type: EmptyDirTask) {
+    dir "${packagingFiles}/var/log/elasticsearch"
+  }
+  task createDataDir(type: EmptyDirTask) {
+    dir "${packagingFiles}/var/lib/elasticsearch"
+  }
+  task createPluginsDir(type: EmptyDirTask) {
+    dir "${packagingFiles}/usr/share/elasticsearch/plugins"
+  }
+
+  /**
+   * Setup the build/packaging directory to be like the target filesystem
+   * because ospackage will use arbitrary permissions if you try to create a
+   * directory that doesn't exist on the filesystem.
+   */
+  task preparePackagingFiles {
+    dependsOn processPackagingFiles, fillEtc, createPidDir, createLogDir,
+        createDataDir, createPluginsDir
+  }
+
   apply plugin: 'nebula.ospackage-base'
   ospackage {
-    packageName = 'elasticsearch'
-    // TODO: '-' is an illegal character in rpm version...redline croaks
-    version = '3.0.0'
+    packageName 'elasticsearch'
+    maintainer 'Elasticsearch Team <info@elastic.co>'
+    summary '''
+      Elasticsearch is a distributed RESTful search engine built for the cloud.
+      Reference documentation can be found at
+      https://www.elastic.co/guide/en/elasticsearch/reference/current/index.html
+      and the 'Elasticsearch: The Definitive Guide' book can be found at
+      https://www.elastic.co/guide/en/elasticsearch/guide/current/index.html
+      '''.stripIndent().replace('\n', ' ').trim()
+    url 'https://www.elastic.co/'
+
+    /* The version of the package can't contain -SNAPSHOT so we rip it off if
+      we see it. We'll add it back on to the file name though. */
+    version project.version.replace('-SNAPSHOT', '')
+
+    String scripts = "${packagingFiles}/scripts"
+    preInstall file("${scripts}/preinst")
+    postInstall file("${scripts}/postinst")
+    preUninstall file("${scripts}/prerm")
+    postUninstall file("${scripts}/postrm")
+
     into '/usr/share/elasticsearch'
     user 'root'
     permissionGroup 'root'
     with libFiles
     with copySpec {
       with commonFiles
-      // TODO: omit LICENSE.txt file on deb??
+      if (project.name == 'deb') {
+        // Deb gets a copyright file instead.
+        exclude 'LICENSE.txt'
+      }
     }
-    into('/etc/elasticsearch') {
-      with configFiles
-      //into('scripts', emptyDirSpec())
-      createDirectoryEntry = true
-      includeEmptyDirs = true
+
+    configurationFile '/etc/elasticsearch/elasticsearch.yml'
+    configurationFile '/etc/elasticsearch/logging.yml'
+    into('/etc') {
+      from "${packagingFiles}/etc"
+      fileMode 0750
+      permissionGroup 'elasticsearch'
+      includeEmptyDirs true
+      createDirectoryEntry true
     }
-    directory('/etc/elasticsearch/scripts')
+
+    into('/usr/lib/tmpfiles.d') {
+      from "${packagingFiles}/systemd/elasticsearch.conf"
+    }
+    configurationFile '/usr/lib/systemd/system/elasticsearch.service'
+    into('/usr/lib/systemd/system') {
+      from "${packagingFiles}/systemd/elasticsearch.service"
+    }
+    into('/usr/lib/sysctl.d') {
+      from "${packagingFiles}/systemd/sysctl/elasticsearch.conf"
+    }
+    configurationFile '/etc/init.d/elasticsearch'
+    into('/etc/init.d') {
+      from "${packagingFiles}/init.d/elasticsearch"
+      fileMode 0755
+    }
+    configurationFile project.expansions['path.env']
+    into(new File(project.expansions['path.env']).getParent()) {
+      from "${project.packagingFiles}/env/elasticsearch"
+    }
+
+    /**
+     * Suck up all the empty directories that we need to install into the path.
+     */
+    Closure suckUpEmptyDirectories = { path ->
+      into(path) {
+        from "${packagingFiles}/${path}"
+        includeEmptyDirs true
+        createDirectoryEntry true
+        /* All of these empty directories have this ownership. We're just
+          lucky! */
+        user 'elasticsearch'
+        permissionGroup 'elasticsearch'
+      }
+    }
+    suckUpEmptyDirectories('/var/run')
+    suckUpEmptyDirectories('/var/log')
+    suckUpEmptyDirectories('/var/lib')
+    suckUpEmptyDirectories('/usr/share/elasticsearch')
   }
-  
-  // TODO: re-enable tests when we have real rpm and deb distros!
-  integTest.enabled = false
 }
 
 // TODO: dependency checks should really be when building the jar itself, which would remove the need
@@ -196,4 +301,82 @@ DependencyLicensesTask.configure(project) {
   mapping from: /jackson-.*/, to: 'jackson'
 }
 
-task run(type:org.elasticsearch.gradle.test.RunTask){}
+RunTask.configure(project)
+
+/**
+ * Build some variables that are replaced in the packages. This includes both
+ * scripts like bin/elasticsearch and bin/plugin that a user might run and also
+ * scripts like postinst which are run as part of the installation.
+ *
+ * <dl>
+ *  <dt>package.name</dt>
+ *  <dd>The name of the project. Its sprinkled throughout the scripts.</dd>
+ *  <dt>package.version</dt>
+ *  <dd>The version of the project. Its mostly used to find the exact jar name.
+ *    </dt>
+ *  <dt>path.conf</dt>
+ *  <dd>The default directory from which to load configuration. This is used in
+ *    the packaging scripts, but in that context it is always
+ *    /etc/elasticsearch. Its also used in bin/plugin, where it is
+ *    /etc/elasticsearch for the os packages but $ESHOME/config otherwise.</dd>
+ *  <dt>path.env</dt>
+ *  <dd>The env file sourced before bin/elasticsearch to set environment
+ *    variables. Think /etc/defaults/elasticsearch.</dd>
+ *  <dt>heap.min and heap.max</dt>
+ *  <dd>Default min and max heap</dd>
+ *  <dt>scripts.footer</dt>
+ *  <dd>Footer appended to control scripts embedded in the distribution that is
+ *    (almost) entirely there for cosmetic reasons.</dd>
+ *  <dt>stopping.timeout</dt>
+ *  <dd>RPM's init script needs to wait for elasticsearch to stop before
+ *    returning from stop and it needs a maximum time to wait. This is it. One
+ *    day. DEB retries forever.</dd>
+ * </dl>
+ */
+Map<String, String> expansionsForDistribution(distributionType) {
+  String footer = "# Built for ${project.name}-${project.version} " +
+      "(${distributionType})"
+  Map<String, Object> expansions = [
+    'project.name': project.name,
+    'project.version': version,
+
+    'path.conf': [
+      'tar': '$ES_HOME/config',
+      'zip': '$ES_HOME/config',
+      'def': '/etc/elasticsearch',
+    ],
+    'path.env': [
+      'deb': '/etc/default/elasticsearch',
+      'rpm': '/etc/sysconfig/elasticsearch',
+      /* There isn't one of these files for tar or zip but its important to
+        make an empty string here so the script can properly skip it. */
+      'def': '',
+    ],
+
+    'heap.min': '256m',
+    'heap.max': '1g',
+
+    'stopping.timeout': [
+      'rpm': 86400,
+    ],
+
+    'scripts.footer': [
+      /* Debian needs exit 0 on these scripts so we add it here and preserve
+        the pretty footer. */
+      'deb': "exit 0\n${footer}",
+      'def': footer
+    ],
+  ]
+  Map<String, String> result = [:]
+  expansions = expansions.each { key, value ->
+    if (value instanceof Map) {
+      // 'def' is for default but its three characters like 'rpm' and 'deb'
+      value = value[distributionType] ?: value['def']
+      if (value == null) {
+        return
+      }
+    }
+    result[key] = value
+  }
+  return result
+}

@@ -249,7 +249,7 @@ public class NodeJoinController extends AbstractComponent {
                 currentState = ClusterState.builder(currentState).nodes(builder).blocks(clusterBlocks).build();
 
                 // reroute now to remove any dead nodes (master may have stepped down when they left and didn't update the routing table)
-                RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState);
+                RoutingAllocation.Result result = routingService.getAllocationService().reroute(currentState, "nodes joined");
                 if (result.changed()) {
                     currentState = ClusterState.builder(currentState).routingResult(result).build();
                 }

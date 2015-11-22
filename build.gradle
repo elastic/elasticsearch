@@ -47,7 +47,7 @@ subprojects {
       }
     }  
     extraArchive {
-      javadoc = false
+      javadoc = true
       tests = false
     }
     // we have our own username/password prompts so that they only happen once
@@ -87,14 +87,23 @@ allprojects {
 }
 
 subprojects {
-  // include license and notice in jars
-  gradle.projectsEvaluated {
+  project.afterEvaluate {
+    // include license and notice in jars
     tasks.withType(Jar) {
       into('META-INF') {
         from project.rootProject.rootDir
         include 'LICENSE.txt'   
         include 'NOTICE.txt'   
       }
+    }
+    // ignore missing javadocs
+    tasks.withType(Javadoc) { Javadoc javadoc ->
+      // the -quiet here is because of a bug in gradle, in that adding a string option
+      // by itself is not added to the options. By adding quiet, both this option and
+      // the "value" -quiet is added, separated by a space. This is ok since the javadoc
+      // command already adds -quiet, so we are just duplicating it
+      // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+      javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
     }
   }
 
@@ -124,9 +133,6 @@ if (projectsPrefix.isEmpty()) {
       languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava
       vcs = 'Git'
     }
-  }
-  tasks.cleanIdea {
-    delete '.idea'
   }
 }
 
@@ -166,5 +172,23 @@ task buildSrcEclipse(type: GradleBuild) {
 }
 tasks.eclipse.dependsOn(buildSrcEclipse)
 
-task run(dependsOn: ':distribution:run')
+// we need to add the same --debug-jvm option as
+// the real RunTask has, so we can pass it through
+class Run extends DefaultTask {
+  boolean debug = false
+
+  @org.gradle.api.internal.tasks.options.Option(
+        option = "debug-jvm",
+        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
+  )
+  public void setDebug(boolean enabled) {
+    project.project(':distribution').run.clusterConfig.debug = enabled
+  } 
+}
+task run(type: Run) {
+  dependsOn ':distribution:run'
+  description = 'Runs elasticsearch in the foreground'
+  group = 'Verification'
+  impliesSubProjects = true
+}
 

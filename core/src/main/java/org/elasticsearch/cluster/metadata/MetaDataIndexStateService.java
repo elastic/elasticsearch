@@ -47,6 +47,7 @@ import org.elasticsearch.rest.RestStatus;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Service responsible for submitting open/close index requests
@@ -124,7 +125,9 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     rtBuilder.remove(index);
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(
+                        ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
+                        "indices closed [" + indicesAsString + "]");
                 //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
                 return ClusterState.builder(updatedState).routingResult(routingResult).build();
             }
@@ -181,7 +184,9 @@ public class MetaDataIndexStateService extends AbstractComponent {
                     rtBuilder.addAsFromCloseToOpen(updatedState.metaData().index(index));
                 }
 
-                RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build());
+                RoutingAllocation.Result routingResult = allocationService.reroute(
+                        ClusterState.builder(updatedState).routingTable(rtBuilder.build()).build(),
+                        "indices opened [" + indicesAsString + "]");
                 //no explicit wait for other nodes needed as we use AckedClusterStateUpdateTask
                 return ClusterState.builder(updatedState).routingResult(routingResult).build();
             }

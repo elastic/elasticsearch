@@ -54,9 +54,12 @@ public class RestSnapshotAction extends AbstractCatAction {
 
     @Override
     protected void doRequest(final RestRequest request, RestChannel channel, Client client) {
-        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest();
-        getSnapshotsRequest.repository(request.param("repository"));
-        getSnapshotsRequest.snapshots(new String[] { GetSnapshotsRequest.ALL_SNAPSHOTS });
+        GetSnapshotsRequest getSnapshotsRequest = new GetSnapshotsRequest()
+                .repository(request.param("repository"))
+                .snapshots(new String[]{GetSnapshotsRequest.ALL_SNAPSHOTS});
+
+        getSnapshotsRequest.ignoreUnavailable(request.paramAsBoolean("ignore_unavailable", getSnapshotsRequest.ignoreUnavailable()));
+
         getSnapshotsRequest.masterNodeTimeout(request.paramAsTime("master_timeout", getSnapshotsRequest.masterNodeTimeout()));
 
         client.admin().cluster().getSnapshots(getSnapshotsRequest, new RestResponseListener<GetSnapshotsResponse>(channel) {

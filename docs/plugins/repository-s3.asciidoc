@@ -218,6 +218,14 @@ The following settings are supported:
     You could specify a canned ACL using the `canned_acl` setting. When the S3 repository
     creates buckets and objects, it adds the canned ACL into the buckets and objects.
 
+`storage_class`::
+
+    Sets the S3 storage class type for the backup files. Values may be
+    `standard`, `reduced_redundancy`, `standard_ia`. Defaults to `standard`.
+    Due to the extra complexity with the Glacier class lifecycle, it is not
+    currently supported by the plugin. For more information about the
+    different classes, see http://docs.aws.amazon.com/AmazonS3/latest/dev/storage-class-intro.html[AWS Storage Classes Guide]
+
 The S3 repositories use the same credentials as the rest of the AWS services
 provided by this plugin (`discovery`). See <<repository-s3-usage>> for details.
 

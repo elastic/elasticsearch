@@ -240,7 +240,7 @@ curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
    "index_constraints" : { <2>
       "creation_date" : { <3>
          "min_value" : { <4>
-            "gte" : "2014-01-01T00:00:00.000Z",
+            "gte" : "2014-01-01T00:00:00.000Z"
          },
          "max_value" : {
             "lt" : "2015-01-01T00:00:00.000Z"
@@ -263,3 +263,27 @@ Each index constraint support the following comparisons:
 `gt`::  	Greater-than
 `lte`:: 	Less-than or equal to
 `lt`::  	Less-than
+
+Field stats index constraints on date fields optionally accept a `format` option, used to parse the constraint's value.
+If missing, the format configured in the field's mapping is used.
+
+[source,js]
+--------------------------------------------------
+curl -XPOST "http://localhost:9200/_field_stats?level=indices" -d '{
+   "fields" : ["answer_count"]
+   "index_constraints" : {
+      "creation_date" : {
+         "min_value" : {
+            "gte" : "2014-01-01",
+            "format" : "date_optional_time" <1>
+         },
+         "max_value" : {
+            "lt" : "2015-01-01",
+            "format" : "date_optional_time"
+         }
+      }
+   }
+}'
+--------------------------------------------------
+
+<1> Custom date format

@@ -421,8 +421,8 @@ public class CompletionFieldMapper extends FieldMapper implements ArrayValueMapp
      * Parsing:
      *  Acceptable format:
      *   "STRING" - interpreted as field value (input)
-     *   "ARRAY" - each element can be one of {@link #parse(ParseContext, Token, XContentParser, Map)}
-     *   "OBJECT" - see {@link #parse(ParseContext, Token, XContentParser, Map)}
+     *   "ARRAY" - each element can be one of "OBJECT" (see below)
+     *   "OBJECT" - { "input": STRING|ARRAY, "weight": STRING|INT, "contexts": ARRAY|OBJECT }
      *
      * Indexing:
      *  if context mappings are defined, delegates to {@link ContextMappings#addField(ParseContext.Document, String, String, int, Map)}

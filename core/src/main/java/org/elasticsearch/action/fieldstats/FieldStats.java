@@ -122,9 +122,11 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
 
     /**
      * @param value The string to be parsed
-     * @return The concrete object represented by the string argument
+     * @param optionalFormat A string describing how to parse the specified value. Whether this parameter is supported
+     *                       depends on the implementation. If optionalFormat is specified and the implementation
+     *                       doesn't support it an {@link UnsupportedOperationException} is thrown
      */
-    protected abstract T valueOf(String value);
+    protected abstract T valueOf(String value, String optionalFormat);
 
     /**
      * Merges the provided stats into this stats instance.
@@ -153,7 +155,7 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
      */
     public boolean match(IndexConstraint constraint) {
         int cmp;
-        T value  = valueOf(constraint.getValue());
+        T value  = valueOf(constraint.getValue(), constraint.getOptionalFormat());
         if (constraint.getProperty() == IndexConstraint.Property.MIN) {
             cmp = minValue.compareTo(value);
         } else if (constraint.getProperty() == IndexConstraint.Property.MAX) {
@@ -245,7 +247,10 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected java.lang.Long valueOf(String value) {
+        protected java.lang.Long valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
             return java.lang.Long.valueOf(value);
         }
 
@@ -295,7 +300,10 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected java.lang.Float valueOf(String value) {
+        protected java.lang.Float valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
             return java.lang.Float.valueOf(value);
         }
 
@@ -345,7 +353,10 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected java.lang.Double valueOf(String value) {
+        protected java.lang.Double valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
             return java.lang.Double.valueOf(value);
         }
 
@@ -399,7 +410,10 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected BytesRef valueOf(String value) {
+        protected BytesRef valueOf(String value, String optionalFormat) {
+            if (optionalFormat != null) {
+                throw new UnsupportedOperationException("custom format isn't supported");
+            }
             return new BytesRef(value);
         }
 
@@ -448,7 +462,11 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        protected java.lang.Long valueOf(String value) {
+        protected java.lang.Long valueOf(String value, String optionalFormat) {
+            FormatDateTimeFormatter dateFormatter = this.dateFormatter;
+            if (optionalFormat != null) {
+                dateFormatter = Joda.forPattern(optionalFormat);
+            }
             return dateFormatter.parser().parseMillis(value);
         }
 

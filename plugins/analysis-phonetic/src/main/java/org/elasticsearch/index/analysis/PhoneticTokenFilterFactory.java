@@ -30,7 +30,6 @@ import org.apache.lucene.analysis.phonetic.BeiderMorseFilter;
 import org.apache.lucene.analysis.phonetic.DoubleMetaphoneFilter;
 import org.apache.lucene.analysis.phonetic.PhoneticFilter;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.assistedinject.Assisted;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexSettings;
@@ -105,6 +104,8 @@ public class PhoneticTokenFilterFactory extends AbstractTokenFilterFactory {
             this.encoder = new HaasePhonetik();
         } else if ("nysiis".equalsIgnoreCase(encodername)) {
             this.encoder = new Nysiis();
+        } else if ("daitch_mokotoff".equalsIgnoreCase(encodername)) {
+            this.encoder = new DaitchMokotoffSoundex();
         } else {
             throw new IllegalArgumentException("unknown encoder [" + encodername + "] for phonetic token filter");
         }

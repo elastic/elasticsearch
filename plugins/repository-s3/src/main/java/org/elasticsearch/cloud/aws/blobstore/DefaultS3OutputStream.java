@@ -134,9 +134,7 @@ public class DefaultS3OutputStream extends S3OutputStream {
             throw new RuntimeException(impossible);
         }
 
-        PutObjectRequest putRequest = new PutObjectRequest(bucketName, blobName, inputStream, md)
-                .withStorageClass(blobStore.getStorageClass())
-                .withCannedAcl(blobStore.getCannedACL());
+        PutObjectRequest putRequest = new PutObjectRequest(bucketName, blobName, inputStream, md).withCannedAcl(blobStore.getCannedACL());
         PutObjectResult putObjectResult = blobStore.client().putObject(putRequest);
 
         String localMd5 = Base64.encodeAsString(messageDigest.digest());
@@ -169,10 +167,7 @@ public class DefaultS3OutputStream extends S3OutputStream {
     }
 
     protected String doInitialize(S3BlobStore blobStore, String bucketName, String blobName, boolean serverSideEncryption) {
-        InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(bucketName, blobName)
-                .withCannedACL(blobStore.getCannedACL())
-                .withStorageClass(blobStore.getStorageClass());
-
+        InitiateMultipartUploadRequest request = new InitiateMultipartUploadRequest(bucketName, blobName).withCannedACL(blobStore.getCannedACL());
         if (serverSideEncryption) {
             ObjectMetadata md = new ObjectMetadata();
             md.setSSEAlgorithm(ObjectMetadata.AES_256_SERVER_SIDE_ENCRYPTION);

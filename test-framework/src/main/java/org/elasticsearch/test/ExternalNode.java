@@ -206,7 +206,7 @@ final class ExternalNode implements Closeable {
         this.random.setSeed(seed);
     }
 
-    synchronized void stop() throws InterruptedException {
+    synchronized void stop() {
         if (running()) {
             try {
                 if (this.client != null) {
@@ -214,7 +214,11 @@ final class ExternalNode implements Closeable {
                 }
             } finally {
                 process.destroy();
-                process.waitFor();
+                try {
+                    process.waitFor();
+                } catch (InterruptedException e) {
+                    Thread.interrupted();
+                }
                 process = null;
                 nodeInfo = null;
 
@@ -229,11 +233,7 @@ final class ExternalNode implements Closeable {
 
     @Override
     public void close() {
-        try {
-            stop();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-        }
+        stop();
     }
 
     synchronized String getName() {

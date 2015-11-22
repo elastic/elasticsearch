@@ -261,8 +261,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
-                        RoutingAllocation.Result routingResult = master.routingService.getAllocationService().reroute(
-                                ClusterState.builder(updatedState).build(), "elected as master");
+                        RoutingAllocation.Result routingResult = master.routingService.getAllocationService().reroute(ClusterState.builder(updatedState).build());
                         return ClusterState.builder(updatedState).routingResult(routingResult).build();
                     }
 

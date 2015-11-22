@@ -30,8 +30,6 @@ import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.Settings;
@@ -88,7 +86,7 @@ public class TypeFieldMapper extends MetadataFieldMapper {
 
         @Override
         public TypeFieldMapper build(BuilderContext context) {
-            fieldType.setNames(buildNames(context));
+            fieldType.setNames(new MappedFieldType.Names(indexName, indexName, name));
             return new TypeFieldMapper(fieldType, context.indexSettings());
         }
     }
@@ -148,21 +146,12 @@ public class TypeFieldMapper extends MetadataFieldMapper {
     }
 
     public TypeFieldMapper(Settings indexSettings, MappedFieldType existing) {
-        this(existing == null ? defaultFieldType(indexSettings) : existing.clone(),
+        this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(),
              indexSettings);
     }
 
     public TypeFieldMapper(MappedFieldType fieldType, Settings indexSettings) {
-        super(NAME, fieldType, defaultFieldType(indexSettings), indexSettings);
-    }
-
-    private static MappedFieldType defaultFieldType(Settings indexSettings) {
-        MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
-        Version indexCreated = Version.indexCreated(indexSettings);
-        if (indexCreated.onOrAfter(Version.V_2_1_0)) {
-            defaultFieldType.setHasDocValues(true);
-        }
-        return defaultFieldType;
+        super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
     }
 
     @Override

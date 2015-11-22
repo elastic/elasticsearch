@@ -84,16 +84,4 @@ public class GetSnapshotsRequestBuilder extends MasterNodeOperationRequestBuilde
         request.snapshots(ArrayUtils.concat(request.snapshots(), snapshots));
         return this;
     }
-
-    /**
-     * Makes the request ignore unavailable snapshots
-     *
-     * @param ignoreUnavailable true to ignore unavailable snapshots.
-     * @return this builder
-     */
-    public GetSnapshotsRequestBuilder setIgnoreUnavailable(boolean ignoreUnavailable) {
-        request.ignoreUnavailable(ignoreUnavailable);
-        return this;
-    }
-
 }

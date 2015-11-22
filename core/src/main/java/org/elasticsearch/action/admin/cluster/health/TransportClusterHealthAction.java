@@ -25,7 +25,6 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
 import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlockException;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.Strings;
@@ -185,7 +184,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         // if the state is sufficient for what we where waiting for we don't need to mark this as timedOut.
         // We spend too much time in waiting for events such that we might already reached a valid state.
         // this should not mark the request as timed out
-        response.setTimedOut(timedOut && valid == false);
+        response.timedOut = timedOut && valid == false;
         return response;
     }
 
@@ -205,7 +204,7 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
                 indexNameExpressionResolver.concreteIndices(clusterState, IndicesOptions.strictExpand(), request.indices());
                 waitForCounter++;
             } catch (IndexNotFoundException e) {
-                response.setStatus(ClusterHealthStatus.RED); // no indices, make sure its RED
+                response.status = ClusterHealthStatus.RED; // no indices, make sure its RED
                 // missing indices, wait a bit more...
             }
         }
@@ -273,13 +272,13 @@ public class TransportClusterHealthAction extends TransportMasterNodeReadAction<
         } catch (IndexNotFoundException e) {
             // one of the specified indices is not there - treat it as RED.
             ClusterHealthResponse response = new ClusterHealthResponse(clusterName.value(), Strings.EMPTY_ARRAY, clusterState,
-                    numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState),
+                    numberOfPendingTasks, numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(System.currentTimeMillis(), settings, clusterState),
                     pendingTaskTimeInQueue);
-            response.setStatus(ClusterHealthStatus.RED);
+            response.status = ClusterHealthStatus.RED;
             return response;
         }
 
         return new ClusterHealthResponse(clusterName.value(), concreteIndices, clusterState, numberOfPendingTasks,
-                numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(clusterState), pendingTaskTimeInQueue);
+                numberOfInFlightFetch, UnassignedInfo.getNumberOfDelayedUnassigned(System.currentTimeMillis(), settings, clusterState), pendingTaskTimeInQueue);
     }
 }

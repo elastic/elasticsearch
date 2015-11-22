@@ -155,8 +155,6 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
         super.readFrom(in);
         if (in.readBoolean()) {
             internalShardId = ShardId.readShardId(in);
-        } else {
-            internalShardId = null;
         }
         consistencyLevel = WriteConsistencyLevel.fromId(in.readByte());
         timeout = TimeValue.readTimeValue(in);
@@ -166,12 +164,7 @@ public class ReplicationRequest<T extends ReplicationRequest> extends ActionRequ
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        if (internalShardId != null) {
-            out.writeBoolean(true);
-            internalShardId.writeTo(out);
-        } else {
-            out.writeBoolean(false);
-        }
+        out.writeOptionalStreamable(internalShardId);
         out.writeByte(consistencyLevel.id());
         timeout.writeTo(out);
         out.writeString(index);

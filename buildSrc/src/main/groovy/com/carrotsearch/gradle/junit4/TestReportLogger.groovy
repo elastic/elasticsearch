@@ -79,7 +79,7 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
         forkedJvmCount = e.getSlaveCount();
         jvmIdFormat = " J%-" + (1 + (int) Math.floor(Math.log10(forkedJvmCount))) + "d";
 
-        outStream = new LoggingOutputStream(logger: logger, level: LogLevel.LIFECYCLE, prefix: "  1> ")
+        outStream = new LoggingOutputStream(logger: logger, level: LogLevel.ERROR, prefix: "  1> ")
         errStream = new LoggingOutputStream(logger: logger, level: LogLevel.ERROR, prefix: "  2> ")
 
         for (String contains : config.stackTraceFilters.contains) {
@@ -152,13 +152,13 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
     void onSuiteStart(AggregatedSuiteStartedEvent e) throws IOException {
         if (isPassthrough()) {
             SuiteStartedEvent evt = e.getSuiteStartedEvent();
-            emitSuiteStart(LogLevel.LIFECYCLE, evt.getDescription());
+            emitSuiteStart(LogLevel.INFO, evt.getDescription());
         }
     }
 
     @Subscribe
     void onOutput(PartialOutputEvent e) throws IOException {
-        if (isPassthrough()) {
+        if (isPassthrough() && logger.isInfoEnabled()) {
             // We only allow passthrough output if there is one JVM.
             switch (e.getEvent().getType()) {
                 case EventType.APPEND_STDERR:
@@ -187,6 +187,7 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
 
     @Subscribe
     void onSuiteResult(AggregatedSuiteResultEvent e) throws IOException {
+        try {
         final int completed = suitesCompleted.incrementAndGet();
 
         if (e.isSuccessful() && e.getTests().isEmpty()) {
@@ -196,8 +197,7 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
             suiteTimes.put(e.getDescription().getDisplayName(), e.getExecutionTime())
         }
 
-        LogLevel level = e.isSuccessful() && config.outputMode != OutputMode.ALWAYS ? LogLevel.INFO : LogLevel.LIFECYCLE
-
+        LogLevel level = e.isSuccessful() ? LogLevel.INFO : LogLevel.ERROR
         // We must emit buffered test and stream events (in case of failures).
         if (!isPassthrough()) {
             emitSuiteStart(level, e.getDescription())
@@ -214,6 +214,9 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
         }
 
         emitSuiteEnd(level, e, completed)
+    } catch (Exception exc) {
+            logger.lifecycle('EXCEPTION: ', exc)
+        }
     }
 
     /** Suite prologue. */
@@ -345,9 +348,9 @@ class TestReportLogger extends TestsSummaryEventListener implements AggregatedEv
         errStream.flush()
     }
 
-    /** Returns true if output should be logged immediately. */
+    /** Returns true if output should be logged immediately. Only relevant when running with INFO log level. */
     boolean isPassthrough() {
-        return forkedJvmCount == 1 && config.outputMode == OutputMode.ALWAYS
+        return forkedJvmCount == 1 && config.outputMode == OutputMode.ALWAYS && logger.isInfoEnabled()
     }
 
     @Override

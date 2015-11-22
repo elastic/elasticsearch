@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.os;
 
 import org.apache.lucene.util.Constants;
-import org.elasticsearch.monitor.Probes;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -35,7 +34,6 @@ public class OsProbe {
     private static final Method getFreeSwapSpaceSize;
     private static final Method getTotalSwapSpaceSize;
     private static final Method getSystemLoadAverage;
-    private static final Method getSystemCpuLoad;
 
     static {
         getFreePhysicalMemorySize = getMethod("getFreePhysicalMemorySize");
@@ -43,7 +41,6 @@ public class OsProbe {
         getFreeSwapSpaceSize = getMethod("getFreeSwapSpaceSize");
         getTotalSwapSpaceSize = getMethod("getTotalSwapSpaceSize");
         getSystemLoadAverage = getMethod("getSystemLoadAverage");
-        getSystemCpuLoad = getMethod("getSystemCpuLoad");
     }
 
     /**
@@ -116,10 +113,6 @@ public class OsProbe {
         }
     }
 
-    public short getSystemCpuPercent() {
-        return Probes.getLoadAndScaleToPercent(getSystemCpuLoad, osMxBean);
-    }
-
     private static class OsProbeHolder {
         private final static OsProbe INSTANCE = new OsProbe();
     }
@@ -143,9 +136,7 @@ public class OsProbe {
     public OsStats osStats() {
         OsStats stats = new OsStats();
         stats.timestamp = System.currentTimeMillis();
-        stats.cpu = new OsStats.Cpu();
-        stats.cpu.percent = getSystemCpuPercent();
-        stats.cpu.loadAverage = getSystemLoadAverage();
+        stats.loadAverage = getSystemLoadAverage();
 
         OsStats.Mem mem = new OsStats.Mem();
         mem.total = getTotalPhysicalMemorySize();

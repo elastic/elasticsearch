@@ -251,9 +251,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     routingTableBuilder.version(0);
 
                     // now, reroute
-                    RoutingAllocation.Result routingResult = allocationService.reroute(
-                            ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build(),
-                            "state recovered");
+                    RoutingAllocation.Result routingResult = allocationService.reroute(ClusterState.builder(updatedState).routingTable(routingTableBuilder.build()).build());
 
                     return ClusterState.builder(updatedState).routingResult(routingResult).build();
                 }

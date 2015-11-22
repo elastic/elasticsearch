@@ -39,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Locale;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -137,8 +136,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
                 MetaData newMetaData = metaDataBuilder.build();
                 ClusterBlocks blocks = clusterBlocksBuilder.build();
                 RoutingAllocation.Result routingResult = allocationService.reroute(
-                        ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build(),
-                        "deleted indices [" + indices + "]");
+                        ClusterState.builder(currentState).routingTable(routingTableBuilder.build()).metaData(newMetaData).build());
                 return ClusterState.builder(currentState).routingResult(routingResult).metaData(newMetaData).blocks(blocks).build();
             }
 

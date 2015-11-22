@@ -1,3 +1,5 @@
+${packaging.scripts.header}
+
 #
 # This script is executed in the pre-remove phase
 #
@@ -64,4 +66,4 @@ if [ "$STOP_REQUIRED" = "true" ]; then
     echo " OK"
 fi
 
-${scripts.footer}
+${packaging.scripts.footer}

@@ -74,7 +74,7 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         try {
             List<SnapshotInfo> snapshotInfoBuilder = new ArrayList<>();
             if (isAllSnapshots(request.snapshots())) {
-                List<Snapshot> snapshots = snapshotsService.snapshots(request.repository(), request.ignoreUnavailable());
+                List<Snapshot> snapshots = snapshotsService.snapshots(request.repository());
                 for (Snapshot snapshot : snapshots) {
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
                 }

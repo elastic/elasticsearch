@@ -77,7 +77,7 @@ public class ClusterAllocationRerouteBenchmark {
                 logger.info("[{}] remaining unassigned {}", i, clusterState.getRoutingNodes().unassigned().size());
                 RoutingAllocation.Result result = strategy.applyStartedShards(clusterState, clusterState.getRoutingNodes().shardsWithState(INITIALIZING));
                 clusterState = ClusterState.builder(clusterState).routingResult(result).build();
-                result = strategy.reroute(clusterState, "reroute");
+                result = strategy.reroute(clusterState);
                 clusterState = ClusterState.builder(clusterState).routingResult(result).build();
             }
             logger.info("[{}] took {}", i, TimeValue.timeValueMillis(System.currentTimeMillis() - runStart));

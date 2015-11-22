@@ -135,7 +135,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 routingTable.addAsRecovery(updatedState.metaData().index(index));
                 updatedState = ClusterState.builder(updatedState).routingTable(routingTable.build()).build();
 
-                RoutingAllocation.Result result = allocationService.reroute(updatedState, "reroute");
+                RoutingAllocation.Result result = allocationService.reroute(updatedState);
                 return ClusterState.builder(updatedState).routingResult(result).build();
 
             }
@@ -155,7 +155,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
                 builder.nodes(DiscoveryNodes.builder(currentState.nodes()).remove("_non_existent"));
 
                 currentState = builder.build();
-                RoutingAllocation.Result result = allocationService.reroute(currentState, "reroute");
+                RoutingAllocation.Result result = allocationService.reroute(currentState);
                 return ClusterState.builder(currentState).routingResult(result).build();
 
             }

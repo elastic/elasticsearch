@@ -99,7 +99,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
         try {
             this.purgerThread.shutdown();
         } catch (InterruptedException e) {
-            // we intentionally do not want to restore the interruption flag, we're about to shutdown anyway
+            Thread.interrupted();
         }
     }
 
@@ -340,7 +340,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
             try {
                 condition.await(timeout.millis(), TimeUnit.MILLISECONDS);
             } catch (InterruptedException e) {
-                // we intentionally do not want to restore the interruption flag, we're about to shutdown anyway
+                Thread.interrupted();
             } finally {
                 lock.unlock();
             }

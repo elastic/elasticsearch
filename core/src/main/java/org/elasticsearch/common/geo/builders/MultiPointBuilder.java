@@ -31,7 +31,6 @@ import java.util.List;
 
 public class MultiPointBuilder extends PointCollection<MultiPointBuilder> {
 
-
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOINT;
 
     @Override

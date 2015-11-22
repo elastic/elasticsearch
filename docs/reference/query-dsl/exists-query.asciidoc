@@ -6,7 +6,11 @@ Returns documents that have at least one non-`null` value in the original field:
 [source,js]
 --------------------------------------------------
 {
-    "exists" : { "field" : "user" }
+    "constant_score" : {
+        "filter" : {
+            "exists" : { "field" : "user" }
+        }
+    }
 }
 --------------------------------------------------
 

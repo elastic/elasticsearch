@@ -1,7 +1,0 @@
-[[es-release-notes]]
-= Release Notes
-
-[partintro]
---
-This section will summarize the changes in released versions.
---

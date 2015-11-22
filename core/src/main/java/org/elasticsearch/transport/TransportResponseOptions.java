@@ -24,37 +24,20 @@ package org.elasticsearch.transport;
  */
 public class TransportResponseOptions {
 
-    private final boolean compress;
+    public static final TransportResponseOptions EMPTY = options();
 
-    private TransportResponseOptions(boolean compress) {
+    public static TransportResponseOptions options() {
+        return new TransportResponseOptions();
+    }
+
+    private boolean compress;
+
+    public TransportResponseOptions withCompress(boolean compress) {
         this.compress = compress;
+        return this;
     }
 
     public boolean compress() {
         return this.compress;
-    }
-
-    public static final TransportResponseOptions EMPTY = TransportResponseOptions.builder().build();
-
-    public static Builder builder() {
-        return new Builder();
-    }
-
-    public static Builder builder(TransportResponseOptions options) {
-        return new Builder()
-                .withCompress(options.compress);
-    }
-
-    public static class Builder {
-        private boolean compress;
-
-        public Builder withCompress(boolean compress) {
-            this.compress = compress;
-            return this;
-        }
-
-        public TransportResponseOptions build() {
-            return new TransportResponseOptions(compress);
-        }
     }
 }

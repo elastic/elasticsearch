@@ -3,9 +3,6 @@ package com.carrotsearch.gradle.junit4
 import com.carrotsearch.ant.tasks.junit4.ListenersList
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
 import groovy.xml.NamespaceBuilder
-import groovy.xml.NamespaceBuilderSupport
-import org.apache.tools.ant.BuildException
-import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.RuntimeConfigurable
 import org.apache.tools.ant.UnknownElement
 import org.gradle.api.DefaultTask
@@ -183,78 +180,39 @@ class RandomizedTestingTask extends DefaultTask {
             heartbeat: testLoggingConfig.slowTests.heartbeat,
             dir: workingDir,
             tempdir: new File(workingDir, 'temp'),
-            haltOnFailure: true, // we want to capture when a build failed, but will decide whether to rethrow later
+            haltOnFailure: haltOnFailure,
             shuffleOnSlave: shuffleOnSlave
         ]
 
-        DefaultLogger listener = null
-        ByteArrayOutputStream antLoggingBuffer = null
-        if (logger.isInfoEnabled() == false) {
-            // in info logging, ant already outputs info level, so we see everything
-            // but on errors or when debugging, we want to see info level messages
-            // because junit4 emits jvm output with ant logging
-            if (testLoggingConfig.outputMode == TestLoggingConfiguration.OutputMode.ALWAYS) {
-                // we want all output, so just stream directly
-                listener = new DefaultLogger(
-                        errorPrintStream: System.err,
-                        outputPrintStream: System.out,
-                        messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
-            } else {
-                // we want to buffer the info, and emit it if the test fails
-                antLoggingBuffer = new ByteArrayOutputStream()
-                PrintStream stream = new PrintStream(antLoggingBuffer, true, "UTF-8")
-                listener = new DefaultLogger(
-                        errorPrintStream: stream,
-                        outputPrintStream: stream,
-                        messageOutputLevel: org.apache.tools.ant.Project.MSG_INFO)
+        def junit4 = NamespaceBuilder.newInstance(ant, 'junit4')
+        junit4.junit4(attributes) {
+            classpath {
+                pathElement(path: classpath.asPath)
             }
-            project.ant.project.addBuildListener(listener)
-        }
-
-        NamespaceBuilderSupport junit4 = NamespaceBuilder.newInstance(ant, 'junit4')
-        try {
-            junit4.junit4(attributes) {
-                classpath {
-                    pathElement(path: classpath.asPath)
-                }
-                if (enableAssertions) {
-                    jvmarg(value: '-ea')
-                }
-                if (enableSystemAssertions) {
-                    jvmarg(value: '-esa')
-                }
-                for (String arg : jvmArgs) {
-                    jvmarg(value: arg)
-                }
-                if (argLine != null) {
-                    jvmarg(line: argLine)
-                }
-                fileset(dir: testClassesDir) {
-                    for (String includePattern : patternSet.getIncludes()) {
-                        include(name: includePattern)
-                    }
-                    for (String excludePattern : patternSet.getExcludes()) {
-                        exclude(name: excludePattern)
-                    }
-                }
-                for (Map.Entry<String, String> prop : systemProperties) {
-                    sysproperty key: prop.getKey(), value: prop.getValue()
-                }
-                makeListeners()
+            if (enableAssertions) {
+                jvmarg(value: '-ea')
             }
-        } catch (BuildException e) {
-            if (antLoggingBuffer != null) {
-                logger.error('JUnit4 test failed, ant output was:')
-                logger.error(antLoggingBuffer.toString('UTF-8'))
+            if (enableSystemAssertions) {
+                jvmarg(value: '-esa')
             }
-            if (haltOnFailure) {
-                throw e;
+            for (String arg : jvmArgs) {
+                jvmarg(value: arg)
             }
-        }
-
-        if (listener != null) {
-            // remove the listener we added so other ant tasks dont have verbose logging!
-            project.ant.project.removeBuildListener(listener)
+            if (argLine != null) {
+                jvmarg(line: argLine)
+            }
+            fileset(dir: testClassesDir) {
+                for (String includePattern : patternSet.getIncludes()) {
+                    include(name: includePattern)
+                }
+                for (String excludePattern : patternSet.getExcludes()) {
+                    exclude(name: excludePattern)
+                }
+            }
+            for (Map.Entry<String, String> prop : systemProperties) {
+                sysproperty key: prop.getKey(), value: prop.getValue()
+            }
+            makeListeners()
         }
     }
 

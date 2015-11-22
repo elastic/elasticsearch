@@ -497,7 +497,7 @@ public class NodeJoinControllerTests extends ESTestCase {
         }
 
         @Override
-        protected RoutingAllocation.Result reroute(ClusterState clusterState, String reason, boolean debug) {
+        public RoutingAllocation.Result reroute(ClusterState clusterState, boolean debug) {
             return new RoutingAllocation.Result(false, clusterState.routingTable());
         }
     }

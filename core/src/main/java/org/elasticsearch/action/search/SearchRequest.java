@@ -346,7 +346,7 @@ public class SearchRequest extends ActionRequest<SearchRequest> implements Indic
         indicesOptions = IndicesOptions.readIndicesOptions(in);
 
         requestCache = in.readOptionalBoolean();
-        template = in.readOptionalStreamable(Template::new);
+        template = in.readOptionalStreamable(new Template());
     }
 
     @Override

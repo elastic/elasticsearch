@@ -194,7 +194,7 @@ public class InternalAggregations implements Aggregations, ToXContent, Streamabl
     }
 
     public static InternalAggregations readOptionalAggregations(StreamInput in) throws IOException {
-        return in.readOptionalStreamable(InternalAggregations::new);
+        return in.readOptionalStreamable(new InternalAggregations());
     }
 
     @Override

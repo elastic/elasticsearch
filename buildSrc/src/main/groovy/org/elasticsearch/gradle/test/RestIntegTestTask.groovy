@@ -22,7 +22,6 @@ import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.elasticsearch.gradle.BuildPlugin
 import org.gradle.api.Project
 import org.gradle.api.Task
-import org.gradle.api.internal.tasks.options.Option
 import org.gradle.api.plugins.JavaBasePlugin
 import org.gradle.api.tasks.Input
 import org.gradle.util.ConfigureUtil
@@ -78,14 +77,6 @@ class RestIntegTestTask extends RandomizedTestingTask {
                 systemProperty 'tests.cluster', "localhost:${clusterConfig.transportPort}"
             }
         }
-    }
-
-    @Option(
-        option = "debug-jvm",
-        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
-    )
-    public void setDebug(boolean enabled) {
-        clusterConfig.debug = enabled;
     }
 
     @Input

@@ -63,14 +63,19 @@ public class CompositeTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
+    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException {
         super.beforeTest(random, transportClientRatio);
         cluster.beforeTest(random, transportClientRatio);
         Settings defaultSettings = cluster.getDefaultSettings();
         final Client client = cluster.size() > 0 ? cluster.client() : cluster.clientNodeClient();
         for (int i = 0; i < externalNodes.length; i++) {
             if (!externalNodes[i].running()) {
-                externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i);
+                try {
+                    externalNodes[i] = externalNodes[i].start(client, defaultSettings, NODE_PREFIX + i, cluster.getClusterName(), i);
+                } catch (InterruptedException e) {
+                    Thread.interrupted();
+                    return;
+                }
             }
             externalNodes[i].reset(random.nextLong());
         }

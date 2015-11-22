@@ -35,6 +35,9 @@ public abstract class AbstractRunnable implements Runnable {
     public final void run() {
         try {
             doRun();
+        } catch (InterruptedException ex) {
+            Thread.interrupted();
+            onFailure(ex);
         } catch (Throwable t) {
             onFailure(t);
         } finally {

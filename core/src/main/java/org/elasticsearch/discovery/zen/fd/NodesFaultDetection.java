@@ -34,6 +34,7 @@ import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 
 import static org.elasticsearch.common.util.concurrent.ConcurrentCollections.newConcurrentMap;
+import static org.elasticsearch.transport.TransportRequestOptions.options;
 
 /**
  * A fault detection of multiple nodes.
@@ -188,7 +189,7 @@ public class NodesFaultDetection extends FaultDetection {
                 return;
             }
             final PingRequest pingRequest = new PingRequest(node.id(), clusterName, localNode, clusterStateVersion);
-            final TransportRequestOptions options = TransportRequestOptions.builder().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout).build();
+            final TransportRequestOptions options = options().withType(TransportRequestOptions.Type.PING).withTimeout(pingRetryTimeout);
             transportService.sendRequest(node, PING_ACTION_NAME, pingRequest, options, new BaseTransportResponseHandler<PingResponse>() {
                         @Override
                         public PingResponse newInstance() {

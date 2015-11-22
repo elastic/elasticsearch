@@ -1,3 +1,5 @@
+${packaging.scripts.header}
+
 #
 # This script is executed in the pre-installation phase
 #
@@ -12,11 +14,11 @@
 
 
 # Sets the default values for elasticsearch variables used in this script
-ES_USER="elasticsearch"
-ES_GROUP="elasticsearch"
+ES_USER="${packaging.elasticsearch.user}"
+ES_GROUP="${packaging.elasticsearch.group}"
 
 # Source the default env file
-ES_ENV_FILE="${path.env}"
+ES_ENV_FILE="${packaging.env.file}"
 if [ -f "$ES_ENV_FILE" ]; then
     . "$ES_ENV_FILE"
 fi
@@ -78,4 +80,4 @@ case "$1" in
     ;;
 esac
 
-${scripts.footer}
+${packaging.scripts.footer}

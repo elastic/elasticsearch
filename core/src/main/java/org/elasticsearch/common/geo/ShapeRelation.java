@@ -34,8 +34,7 @@ public enum ShapeRelation implements Writeable<ShapeRelation>{
 
     INTERSECTS("intersects"),
     DISJOINT("disjoint"),
-    WITHIN("within"),
-    CONTAINS("contains");
+    WITHIN("within");
 
     private final String relationName;
 

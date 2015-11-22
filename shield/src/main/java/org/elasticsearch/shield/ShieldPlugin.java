@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.support.Headers;
@@ -53,6 +54,8 @@ import org.elasticsearch.transport.TransportModule;
 import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.*;
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 
 /**
  *
@@ -71,6 +74,35 @@ public class ShieldPlugin extends Plugin {
     private final boolean clientMode;
     private ShieldLicenseState shieldLicenseState;
 
+    // TODO: clean up this library to not ask for write access to all system properties!
+    static {
+        // invoke this clinit in unbound with permissions to access all system properties
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        try {
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    try {
+                        Class.forName("com.unboundid.util.Debug");
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return null;
+                }
+            });
+        // TODO: fix gradle to add all shield resources (plugin metadata) to test classpath
+        // of watcher plugin, which depends on it directly. This prevents these plugins
+        // from being initialized correctly by the test framework, and means we have to
+        // have this leniency.
+        } catch (ExceptionInInitializerError bogus) {
+            if (bogus.getCause() instanceof SecurityException == false) {
+                throw bogus; // some other bug
+            }
+        }
+    }
 
     public ShieldPlugin(Settings settings) {
         this.settings = settings;

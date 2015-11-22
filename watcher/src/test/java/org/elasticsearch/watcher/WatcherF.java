@@ -7,6 +7,7 @@ package org.elasticsearch.watcher;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.node.MockNode;
 import org.elasticsearch.node.Node;
@@ -23,6 +24,7 @@ import java.util.concurrent.CountDownLatch;
  */
 public class WatcherF {
 
+    @SuppressForbidden(reason = "not really code or a test")
     public static void main(String[] args) throws Throwable {
         Settings.Builder settings = Settings.builder();
         settings.put("http.cors.enabled", "true");

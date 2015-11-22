@@ -163,19 +163,10 @@ allprojects {
   apply plugin: 'idea'
 }
 
-<<<<<<< HEAD
-if (projectsPrefix.isEmpty()) {
-  idea {
-    project {
-      languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
-      vcs = 'Git'
-    }
-=======
 idea {
   project {
-    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava
+    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
     vcs = 'Git'
->>>>>>> Build: Change project attachment into special extra-plugins dir
   }
 }
 

@@ -1,30 +1,14 @@
-apply plugin: 'elasticsearch.project-attachment'
-
-allprojects {
-  apply plugin: 'idea'
-  apply plugin: 'eclipse'
+if (project.name != 'x-plugins') {
+  throw new GradleException('You must checkout x-plugins to a directory named x-plugins')
+}
+if (project.projectDir.parentFile.name != 'extra-plugins') {
+  throw new GradleException('You must place the x-plugins checkout in a directory named extra-plugins')
+}
+if (project.rootProject.projectDir != project.projectDir.parentFile.parentFile) {
+  throw new GradleException('You must place the extra-plugins directory inside the root of an elasticsearch checkout')
 }
 
-subprojects {
-  group = 'org.elasticsearch'
-  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
-
-  configurations.all {
-    resolutionStrategy.cacheChangingModulesFor(0, 'seconds')
-  }
-}
-
-if (hasProperty('projectsPrefix') == false) {
-  allprojects {
-    project.ext['projectsPrefix'] = ''
-  }
-}
-
-task clean(type: GradleBuild) {
-  buildFile = 'buildSrc/build.gradle'
-  tasks = ['clean']
-}
-
+/*
         <repository>
             <id>elasticsearch-releases</id>
             <url>http://maven.elasticsearch.org/releases</url>
@@ -64,22 +48,3 @@ subprojects {
   }
 }
 */
-
-// ================= Local Elasticsearch attachment ===============
-if (hasProperty('attachments') && 'elasticsearch' in attachments) {
-  subprojects {
-    configurations {
-      all {
-        resolutionStrategy {
-          dependencySubstitution {
-            substitute module("org.elasticsearch:rest-api-spec:${version}") with project(":elasticsearch:rest-api-spec")
-            substitute module("org.elasticsearch:elasticsearch:${version}") with project(":elasticsearch:core")
-            substitute module("org.elasticsearch:test-framework:${version}") with project(":elasticsearch:test-framework")
-            substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project(":elasticsearch:distribution:zip")
-            substitute module("org.elasticsearch.distribution.tar:elasticsearch:${version}") with project(":elasticsearch:distribution:tar")
-          }
-        }
-      }
-    }
-  }
-}

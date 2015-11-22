@@ -11,9 +11,9 @@ configurations {
 }
 
 dependencies {
-  licensePluginZip project(path: "${projectsPrefix}:license:plugin") // zip
-  provided project(path: "${projectsPrefix}:license:plugin", configuration: 'runtime')
-  compile project("${projectsPrefix}:license:plugin-api")
+  licensePluginZip project(path: ':x-plugins:license:plugin') // zip
+  provided project(path: ':x-plugins:license:plugin', configuration: 'runtime')
+  compile project(':x-plugins:license:plugin-api')
   compile 'dk.brics.automaton:automaton:1.11-8'
   compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
   testCompile 'org.slf4j:slf4j-log4j12:1.6.2'

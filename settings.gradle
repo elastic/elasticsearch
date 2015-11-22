@@ -32,6 +32,7 @@ List projects = [
   'plugins:store-smb',
   'qa:evil-tests',
   'qa:smoke-test-client',
+  'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
   'qa:vagrant',
 ]

@@ -47,9 +47,9 @@ public class QueryMetadataServiceTests extends ESTestCase {
         Collections.sort(document.getFields(), (field1, field2) -> field1.binaryValue().compareTo(field2.binaryValue()));
         assertThat(document.getFields().size(), equalTo(2));
         assertThat(document.getFields().get(0).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD));
-        assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("field1:term1"));
+        assertThat(document.getFields().get(0).binaryValue().utf8ToString(), equalTo("field1\u0000term1"));
         assertThat(document.getFields().get(1).name(), equalTo(QueryMetadataService.QUERY_METADATA_FIELD));
-        assertThat(document.getFields().get(1).binaryValue().utf8ToString(), equalTo("field2:term2"));
+        assertThat(document.getFields().get(1).binaryValue().utf8ToString(), equalTo("field2\u0000term2"));
     }
 
     public void testExtractQueryMetadata_unsupported() {
@@ -208,20 +208,20 @@ public class QueryMetadataServiceTests extends ESTestCase {
         // if there a less then 16 terms then it gets rewritten to bq and then we can easily check the terms
         BooleanQuery booleanQuery = (BooleanQuery) ((ConstantScoreQuery) query.rewrite(indexReader)).getQuery();
         assertThat(booleanQuery.clauses().size(), equalTo(15));
-        assertClause(booleanQuery, 0, QueryMetadataService.QUERY_METADATA_FIELD, "_field3:me");
-        assertClause(booleanQuery, 1, QueryMetadataService.QUERY_METADATA_FIELD, "_field3:unhide");
-        assertClause(booleanQuery, 2, QueryMetadataService.QUERY_METADATA_FIELD, "field1:brown");
-        assertClause(booleanQuery, 3, QueryMetadataService.QUERY_METADATA_FIELD, "field1:dog");
-        assertClause(booleanQuery, 4, QueryMetadataService.QUERY_METADATA_FIELD, "field1:fox");
-        assertClause(booleanQuery, 5, QueryMetadataService.QUERY_METADATA_FIELD, "field1:jumps");
-        assertClause(booleanQuery, 6, QueryMetadataService.QUERY_METADATA_FIELD, "field1:lazy");
-        assertClause(booleanQuery, 7, QueryMetadataService.QUERY_METADATA_FIELD, "field1:over");
-        assertClause(booleanQuery, 8, QueryMetadataService.QUERY_METADATA_FIELD, "field1:quick");
-        assertClause(booleanQuery, 9, QueryMetadataService.QUERY_METADATA_FIELD, "field1:the");
-        assertClause(booleanQuery, 10, QueryMetadataService.QUERY_METADATA_FIELD, "field2:more");
-        assertClause(booleanQuery, 11, QueryMetadataService.QUERY_METADATA_FIELD, "field2:some");
-        assertClause(booleanQuery, 12, QueryMetadataService.QUERY_METADATA_FIELD, "field2:text");
-        assertClause(booleanQuery, 13, QueryMetadataService.QUERY_METADATA_FIELD, "field4:123");
+        assertClause(booleanQuery, 0, QueryMetadataService.QUERY_METADATA_FIELD, "_field3\u0000me");
+        assertClause(booleanQuery, 1, QueryMetadataService.QUERY_METADATA_FIELD, "_field3\u0000unhide");
+        assertClause(booleanQuery, 2, QueryMetadataService.QUERY_METADATA_FIELD, "field1\u0000brown");
+        assertClause(booleanQuery, 3, QueryMetadataService.QUERY_METADATA_FIELD, "field1\u0000dog");
+        assertClause(booleanQuery, 4, QueryMetadataService.QUERY_METADATA_FIELD, "field1\u0000fox");
+        assertClause(booleanQuery, 5, QueryMetadataService.QUERY_METADATA_FIELD, "field1\u0000jumps");
+        assertClause(booleanQuery, 6, QueryMetadataService.QUERY_METADATA_FIELD, "field1\u0000lazy");
+        assertClause(booleanQuery, 7, QueryMetadataService.QUERY_METADATA_FIELD, "field1\u0000over");
+        assertClause(booleanQuery, 8, QueryMetadataService.QUERY_METADATA_FIELD, "field1\u0000quick");
+        assertClause(booleanQuery, 9, QueryMetadataService.QUERY_METADATA_FIELD, "field1\u0000the");
+        assertClause(booleanQuery, 10, QueryMetadataService.QUERY_METADATA_FIELD, "field2\u0000more");
+        assertClause(booleanQuery, 11, QueryMetadataService.QUERY_METADATA_FIELD, "field2\u0000some");
+        assertClause(booleanQuery, 12, QueryMetadataService.QUERY_METADATA_FIELD, "field2\u0000text");
+        assertClause(booleanQuery, 13, QueryMetadataService.QUERY_METADATA_FIELD, "field4\u0000123");
         assertClause(booleanQuery, 14, QueryMetadataService.QUERY_METADATA_FIELD_UNKNOWN, "");
     }
 

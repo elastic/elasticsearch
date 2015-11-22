@@ -36,7 +36,7 @@ import java.util.*;
  */
 public final class QueryMetadataService {
 
-    private static final byte COLUMN = 58;  // ':'
+    private static final byte FIELD_VALUE_SEPARATOR = 0;  // nul code point
 
     public static String QUERY_METADATA_FIELD = "query_metadata_field";
     public static String QUERY_METADATA_FIELD_UNKNOWN = "query_metadata_field_unknown";
@@ -65,7 +65,7 @@ public final class QueryMetadataService {
         for (Term term : queryTerms) {
             BytesRefBuilder builder = new BytesRefBuilder();
             builder.append(new BytesRef(term.field()));
-            builder.append(COLUMN);
+            builder.append(FIELD_VALUE_SEPARATOR);
             builder.append(term.bytes());
             document.add(new Field(QUERY_METADATA_FIELD, builder.toBytesRef(), QUERY_METADATA_FIELD_TYPE));
         }
@@ -191,7 +191,7 @@ public final class QueryMetadataService {
             for (BytesRef term = tenum.next(); term != null ; term = tenum.next()) {
                 BytesRefBuilder builder = new BytesRefBuilder();
                 builder.append(fieldBr);
-                builder.append(COLUMN);
+                builder.append(FIELD_VALUE_SEPARATOR);
                 builder.append(term);
                 extractedTerms.add(new Term(QUERY_METADATA_FIELD, builder.toBytesRef()));
             }

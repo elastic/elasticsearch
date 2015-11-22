@@ -22,7 +22,6 @@ package org.elasticsearch.index;
 import com.google.common.base.Function;
 import com.google.common.collect.ImmutableMap;
 import com.google.common.collect.Iterators;
-
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
@@ -288,18 +287,18 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
         }
     }
 
-    public synchronized IndexShard createShard(int sShardId, ShardRouting routing) {
+    public synchronized IndexShard createShard(ShardRouting routing) {
         final boolean primary = routing.primary();
         final Settings indexSettings = indexSettings();
+        final ShardId shardId = routing.shardId();
         /*
          * TODO: we execute this in parallel but it's a synced method. Yet, we might
          * be able to serialize the execution via the cluster state in the future. for now we just
          * keep it synced.
          */
         if (closed.get()) {
-            throw new IllegalStateException("Can't create shard [" + index.name() + "][" + sShardId + "], closed");
+            throw new IllegalStateException("Can't create shard " + shardId + ", closed");
         }
-        final ShardId shardId = new ShardId(index, sShardId);
         ShardLock lock = null;
         boolean success = false;
         Injector shardInjector = null;
@@ -382,6 +381,7 @@ public class IndexService extends AbstractIndexComponent implements IndexCompone
             indicesLifecycle.indexShardStateChanged(indexShard, null, "shard created");
             indicesLifecycle.afterIndexShardCreated(indexShard);
 
+            indexShard.updateRoutingEntry(routing, true);
             shards = newMapBuilder(shards).put(shardId.id(), new IndexShardInjectorPair(indexShard, shardInjector)).immutableMap();
             success = true;
             return indexShard;

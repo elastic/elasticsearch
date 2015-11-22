@@ -33,11 +33,7 @@ import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
-import org.elasticsearch.cluster.routing.RoutingNodes;
-import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -53,12 +49,7 @@ import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsService;
-import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.IndexShardRecoveryException;
-import org.elasticsearch.index.shard.IndexShardState;
-import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.index.shard.ShardNotFoundException;
-import org.elasticsearch.index.shard.StoreRecoveryService;
+import org.elasticsearch.index.shard.*;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryState;
@@ -647,8 +638,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}][{}] creating shard", shardRouting.index(), shardId);
                 }
-                IndexShard indexShard = indexService.createShard(shardId, shardRouting);
-                indexShard.updateRoutingEntry(shardRouting, state.blocks().disableStatePersistence() == false);
+                IndexShard indexShard = indexService.createShard(shardRouting);
                 indexShard.addFailedEngineListener(failedEngineHandler);
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times

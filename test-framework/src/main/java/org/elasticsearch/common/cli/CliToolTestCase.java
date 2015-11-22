@@ -21,6 +21,7 @@ package org.elasticsearch.common.cli;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.junit.After;
@@ -40,11 +41,13 @@ import static org.hamcrest.Matchers.hasSize;
 public abstract class CliToolTestCase extends ESTestCase {
 
     @Before
+    @SuppressForbidden(reason = "sets es.default.path.home during tests")
     public void setPathHome() {
         System.setProperty("es.default.path.home", createTempDir().toString());
     }
 
     @After
+    @SuppressForbidden(reason = "clears es.default.path.home during tests")
     public void clearPathHome() {
         System.clearProperty("es.default.path.home");
     }

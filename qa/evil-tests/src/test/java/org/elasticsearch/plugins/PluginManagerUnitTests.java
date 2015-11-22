@@ -21,6 +21,7 @@ package org.elasticsearch.plugins;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.http.client.HttpDownloadHelper;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
+@SuppressForbidden(reason = "modifies system properties intentionally")
 public class PluginManagerUnitTests extends ESTestCase {
     @After
     public void cleanSystemProperty() {

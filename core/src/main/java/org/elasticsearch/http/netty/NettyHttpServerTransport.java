@@ -20,6 +20,7 @@
 package org.elasticsearch.http.netty;
 
 import org.elasticsearch.common.Booleans;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.netty.NettyUtils;
@@ -138,6 +139,8 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     protected volatile HttpServerAdapter httpServerAdapter;
 
     @Inject
+    @SuppressForbidden(reason = "sets org.jboss.netty.epollBugWorkaround based on netty.epollBugWorkaround")
+    // TODO: why be confusing like this? just let the user do it with the netty parameter instead!
     public NettyHttpServerTransport(Settings settings, NetworkService networkService, BigArrays bigArrays) {
         super(settings);
         this.networkService = networkService;

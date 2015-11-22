@@ -21,6 +21,7 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase;
 import org.elasticsearch.common.collect.Tuple;
@@ -36,6 +37,7 @@ import java.util.Locale;
 import static org.elasticsearch.common.cli.CliTool.ExitStatus.*;
 import static org.hamcrest.Matchers.*;
 
+@SuppressForbidden(reason = "modifies system properties intentionally")
 public class BootstrapCliParserTests extends CliToolTestCase {
 
     private CaptureOutputTerminal terminal = new CaptureOutputTerminal();

@@ -29,6 +29,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.benchmark.search.aggregations.TermsAggregationSearchBenchmark.StatsResult;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
@@ -51,6 +52,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 /**
  *
  */
+@SuppressForbidden(reason = "not really source code or a test")
 public class GlobalOrdinalsBenchmark {
 
     private static final String INDEX_NAME = "index";

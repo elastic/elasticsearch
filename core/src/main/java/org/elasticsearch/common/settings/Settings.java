@@ -46,13 +46,14 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Dictionary;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Properties;
+import java.util.Objects;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -1028,9 +1029,9 @@ public final class Settings implements ToXContent {
         /**
          * Sets all the provided settings.
          */
-        public Builder put(Properties properties) {
-            for (Map.Entry entry : properties.entrySet()) {
-                map.put((String) entry.getKey(), (String) entry.getValue());
+        public Builder put(Dictionary<Object,Object> properties) {
+            for (Object key : Collections.list(properties.keys())) {
+                map.put(Objects.toString(key), Objects.toString(properties.get(key)));
             }
             return this;
         }
@@ -1096,10 +1097,10 @@ public final class Settings implements ToXContent {
          * @param properties The properties to put
          * @return The builder
          */
-        public Builder putProperties(String prefix, Properties properties) {
-            for (Object key1 : properties.keySet()) {
-                String key = (String) key1;
-                String value = properties.getProperty(key);
+        public Builder putProperties(String prefix, Dictionary<Object,Object> properties) {
+            for (Object key1 : Collections.list(properties.keys())) {
+                String key = Objects.toString(key1);
+                String value = Objects.toString(properties.get(key));
                 if (key.startsWith(prefix)) {
                     map.put(key.substring(prefix.length()), value);
                 }
@@ -1114,10 +1115,10 @@ public final class Settings implements ToXContent {
          * @param properties The properties to put
          * @return The builder
          */
-        public Builder putProperties(String prefix, Properties properties, String[] ignorePrefixes) {
-            for (Object key1 : properties.keySet()) {
-                String key = (String) key1;
-                String value = properties.getProperty(key);
+        public Builder putProperties(String prefix, Dictionary<Object,Object> properties, String[] ignorePrefixes) {
+            for (Object key1 : Collections.list(properties.keys())) {
+                String key = Objects.toString(key1);
+                String value = Objects.toString(properties.get(key));
                 if (key.startsWith(prefix)) {
                     boolean ignore = false;
                     for (String ignorePrefix : ignorePrefixes) {

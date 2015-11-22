@@ -22,6 +22,7 @@ package org.elasticsearch.common.cli;
 import org.apache.commons.cli.CommandLine;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -45,6 +46,7 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
+@SuppressForbidden(reason = "modifies system properties intentionally")
 public class CliToolTests extends CliToolTestCase {
     public void testOK() throws Exception {
         Terminal terminal = new MockTerminal();

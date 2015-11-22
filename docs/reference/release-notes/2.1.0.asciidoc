@@ -1,6 +1,8 @@
 [[release-notes-2.1.0]]
 == 2.1.0 Release Notes
 
+Also see <<breaking-changes-2.1>> for important changes in this release.
+
 [[breaking-2.1.0]]
 [float]
 === Breaking changes

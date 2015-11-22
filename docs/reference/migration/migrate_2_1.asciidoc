@@ -6,10 +6,8 @@ your application to Elasticsearch 2.1.
 
 * <<breaking_21_search_changes>>
 * <<breaking_21_update_changes>>
-* <<breaking_21_removed_features>>
-* <<breaking_21_more_like_this>>
-* <<breaking_21_nested_sorting>>
 * <<breaking_21_index_apis>>
+* <<breaking_21_removed_features>>
 
 [[breaking_21_search_changes]]
 === Search changes
@@ -34,6 +32,20 @@ Scroll requests sorted by `_doc` have been optimized to more efficiently resume
 from where the previous request stopped, so this will have the same performance
 characteristics as the former `scan` search type.
 
+==== `search_type=count` deprecated
+
+The `count` search type has been deprecated. All benefits from this search
+type can now be achieved by setting `size` to `0`, for instance:
+
+[source,sh]
+---------------
+GET /my_index/_search
+{
+  "aggs": {...},
+  "size": 0
+}
+---------------
+
 ==== from + size limits
 
 Elasticsearch will now return an error message if a query's `from` + `size` is
@@ -43,6 +55,21 @@ significant chunks of heap memory per search and per shard executing the
 search. It's safest to leave this value as it is an use the scroll api for any
 deep scrolling but this setting is dynamic so it can raised or lowered as
 needed.
+
+==== Nested sorting
+
+If sorting on field inside a nested object then the `nested_path` should be specified.
+Before there was an attempt to resolve the nested path automatically, but that was sometimes incorrect.
+To avoid confusion the `nested_path` should always be specified.
+
+==== More Like This
+
+The MoreLikeThisQueryBuilder#ignoreLike methods have been deprecated in favor
+of using the unlike methods.
+
+MoreLikeThisBuilder#addItem has been deprecated in favor of using
+MoreLikeThisBuilder#addLikeItem.
+
 
 [[breaking_21_update_changes]]
 === Update changes
@@ -55,6 +82,18 @@ source unless you explicitly set `"detect_noop": false`. `detect_noop` was
 always computationally cheap compared to the expense of the update which can be
 thought of as a delete operation followed by an index operation.
 
+[[breaking_21_index_apis]]
+=== Index APIs
+
+==== Optimize API
+
+The Optimize API has been deprecated, all new optimize actions should use the new Force Merge API.
+
+==== Queue size stats
+
+The value for the `queue_size` in nodes info/stats was sometimes shown as
+`"1k"` instead of `1000`.  These values are always shown as an integer now.
+
 [[breaking_21_removed_features]]
 === Removed features
 
@@ -63,25 +102,11 @@ thought of as a delete operation followed by an index operation.
 The experimental feature `indices.fielddata.cache.expire` has been removed.
 For indices that have this setting configured, this config will be ignored.
 
-[[breaking_21_more_like_this]]
-=== More Like This
+==== Forbid changing of thread pool types
 
-The MoreLikeThisQueryBuilder#ignoreLike methods have been deprecated in favor
-of using the unlike methods.
+Previously, <<modules-threadpool,thread pool types>> could be dynamically adjusted. The thread pool type effectively
+controls the backing queue for the thread pool and modifying this is an expert setting with minimal practical benefits
+and high risk of being misused. The ability to change the thread pool type for any thread pool has been removed; do note
+that it is still possible to adjust relevant thread pool parameters for each of the thread pools (e.g., depending on
+the thread pool type, `keep_alive`, `queue_size`, etc.).
 
-MoreLikeThisBuilder#addItem has been deprecated in favor of using
-MoreLikeThisBuilder#addLikeItem.
-
-[[breaking_21_nested_sorting]]
-=== Nested sorting
-
-If sorting on field inside a nested object then the `nested_path` should be specified.
-Before there was an attempt to resolve the nested path automatically, but that was sometimes incorrect.
-To avoid confusion the `nested_path` should always be specified.
-
-[[breaking_21_index_apis]]
-=== Index APIs
-
-==== Optimize API
-
-The Optimize API has been deprecated, all new optimize actions should use the new Force Merge API.

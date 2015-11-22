@@ -5,9 +5,6 @@
 [float]
 === Breaking changes
 
-CAT API::
-* Default _cat verbose to false {pull}13180[#13180] (issue: {issue}13156[#13156])
-
 CRUD::
 * Default detect_noop to true {pull}11306[#11306] (issue: {issue}11282[#11282])
 
@@ -19,37 +16,19 @@ Index APIs::
 
 Internal::
 * Forbid changing thread pool types {pull}14367[#14367] (issues: {issue}14294[#14294], {issue}2509[#2509], {issue}2858[#2858], {issue}5152[#5152])
-* Remove usage of tuple as a method parameter {pull}13135[#13135] (issue: {issue}10787[#10787])
 
 Java API::
 * Deprecates defaultRescoreWindowSize {pull}13995[#13995]
-* Java api: remove execution from TermsQueryBuilder as it has no effect {pull}12884[#12884]
-
-Mapping::
-* Rename position_offset_gap to position_increment_gap {pull}13056[#13056] (issue: {issue}12562[#12562])
-* Default position_offset_gap to 100 {pull}12544[#12544] (issue: {issue}7268[#7268])
 
 Nested Docs::
 * If sorting by nested field then the `nested_path` should always be specified {pull}13429[#13429] (issue: {issue}13420[#13420])
 
-Network::
-* Move multicast discovery to a plugin {pull}13027[#13027] (issues: {issue}12993[#12993], {issue}12999[#12999], {issue}13019[#13019])
-
-Packaging::
-* Remove option to configure custom config file via CONF_FILE or -Des.default.conf {pull}13772[#13772] (issues: {issue}12712[#12712], {issue}12954[#12954], {issue}13715[#13715], {issue}5329[#5329])
-
-Plugins::
-* Use 'name' from plugin descriptor file to determine plugin name {pull}12775[#12775] (issue: {issue}12715[#12715])
-
 Search::
 * Limit the size of the result window to a dynamic property {pull}13188[#13188] (issue: {issue}9311[#9311])
 
-Settings::
-* Remove environment from transport client {pull}13383[#13383] (issue: {issue}13155[#13155])
-* Do not permit multiple settings files {pull}13043[#13043] (issue: {issue}13042[#13042])
-
 Stats::
 * The queue_size value should be shown as an integer. {pull}13063[#13063] (issue: {issue}10404[#10404])
+
 
 
 [[deprecation-2.1.0]]
@@ -64,11 +43,11 @@ Parent/Child::
 
 Query DSL::
 * Deprecate NotQueryBuilder {pull}14203[#14203] (issue: {issue}13761[#13761])
-* Query DSL: deprecate _name and boost in short variants of queries {pull}12966[#12966] (issue: {issue}11744[#11744])
 
 Search::
 * Deprecate _search/exists in favour of regular _search with size 0 and terminate_after 1 {pull}13910[#13910] (issue: {issue}13682[#13682])
 * Deprecate the `scan` search type. {pull}12994[#12994] (issue: {issue}12983[#12983])
+
 
 
 [[feature-2.1.0]]
@@ -76,26 +55,25 @@ Search::
 === New features
 
 Aggregations::
-* Adds geo_centroid metric aggregator {pull}13846[#13846] (issue: {issue}13621[#13621])
 * Add `percentiles_bucket` pipeline aggregation {pull}13186[#13186]
 * Add `stats_bucket` / `extended_stats_bucket` pipeline aggs {pull}13128[#13128]
 
 Analysis::
 * Lithuanian analysis {pull}13244[#13244]
 
+Geo::
+* Adds geo_centroid metric aggregator {pull}13846[#13846] (issue: {issue}13621[#13621])
+
+
 
 [[enhancement-2.1.0]]
 [float]
 === Enhancements
 
-Aggregations::
-* Make ValueParser.DateMath aware of timezone setting {pull}12886[#12886] (issue: {issue}12278[#12278])
-
 Allocation::
 * Add cluster-wide setting for total shard limit {pull}14563[#14563] (issue: {issue}14456[#14456])
 * Early terminate high disk watermark checks on single data node cluster {pull}13882[#13882] (issue: {issue}9391[#9391])
 * Also use PriorityComparator in shard balancer {pull}13256[#13256] (issue: {issue}13249[#13249])
-* Add `expectedShardSize` to ShardRouting and use it in path.data allocation {pull}12947[#12947] (issue: {issue}11271[#11271])
 * Add support for filtering by publish IP address {pull}8801[#8801]
 
 CAT API::
@@ -104,21 +82,17 @@ CAT API::
 * Adds disk used by indices to _cat/allocation {pull}13783[#13783] (issue: {issue}13529[#13529])
 
 Core::
-* Make PerThreadIDAndVersionLookup per-segment {pull}14070[#14070]
 * Verify Checksum once it has been fully written to fail as soon as possible {pull}13896[#13896]
-* Manual synchronization when iterating over listeners in InternalClusterInfoService {pull}13270[#13270] (issue: {issue}3[#3])
 
 Exceptions::
 * Deduplicate cause if already contained in shard failures {pull}14432[#14432]
 * Give a better exception when running from freebsd jail without enforce_statfs=1 {pull}14135[#14135] (issue: {issue}12018[#12018])
 * Make root_cause of field conflicts more obvious {pull}13976[#13976] (issue: {issue}12839[#12839])
 * Use a dedicated id to serialize EsExceptions instead of it's class name. {pull}13629[#13629]
-* Make mlockall configuration easier. {pull}13057[#13057]
 * Validate class before cast. {pull}12913[#12913] (issue: {issue}12842[#12842])
 *  Improve error message of ClassCastExceptions  {pull}12821[#12821] (issue: {issue}12135[#12135])
 
 Geo::
-* Expose points_only option through geo_shape field mapper {pull}12893[#12893] (issue: {issue}12856[#12856])
 * Refactor geo_point validate* and normalize* for 2.x {pull}12742[#12742] (issues: {issue}10170[#10170], {issue}12300[#12300])
 
 Index APIs::
@@ -132,21 +106,16 @@ Internal::
 * Improve some logging around master election and cluster state {pull}14481[#14481]
 * Add workaround for JDK-8014008 {pull}14274[#14274]
 * Cleanup IndexMetaData {pull}14119[#14119]
-* TransportNodesAction shouldn't hold on to cluster state {pull}13948[#13948]
 * More helpful error message on parameter order {pull}13737[#13737]
 * Cleanup InternalClusterInfoService {pull}13543[#13543]
 * Remove and forbid use of com.google.common.base.Throwables {pull}13409[#13409] (issue: {issue}13224[#13224])
 * Remove cyclic dependencies between IndexService and FieldData / BitSet caches {pull}13381[#13381]
 * Remove and forbid use of com.google.common.base.Objects {pull}13355[#13355] (issue: {issue}13224[#13224])
 * Remove and forbid use of com.google.common.collect.ImmutableList {pull}13227[#13227] (issue: {issue}13224[#13224])
-* add default impl for resolveIndex() {pull}13218[#13218]
 * Remove and forbid use of com.google.common.collect.Lists {pull}13170[#13170]
-* Removed the `operation_threaded` option. {pull}13119[#13119] (issue: {issue}12395[#12395])
 * Remove unused code from query_string parser and settings {pull}13098[#13098]
 * Consolidate duplicate logic in RoutingTable all*ShardsGrouped {pull}13082[#13082] (issue: {issue}13081[#13081])
-* Cleanup bootstrap package. {pull}13053[#13053] (issue: {issue}13044[#13044])
 * Turn DestructiveOperations.java into a Guice module. {pull}13046[#13046] (issue: {issue}4665[#4665])
-* Remove SpawnModules {pull}13034[#13034] (issue: {issue}12783[#12783])
 * Remove CachedDfSource {pull}12973[#12973] (issue: {issue}12864[#12864])
 * Enable indy (invokedynamic) compile flag for Groovy scripts by default {pull}8201[#8201] (issue: {issue}8184[#8184])
 
@@ -156,21 +125,12 @@ Java API::
 Logging::
 * Move logging for the amount of free disk to TRACE {pull}14403[#14403] (issue: {issue}12843[#12843])
 
-Network::
-* Expose all addresses that the transports are bound to {pull}13586[#13586] (issue: {issue}12942[#12942])
-* Convert upgrade action to broadcast by node {pull}13205[#13205] (issue: {issue}13204[#13204])
-* Use preferIPv6Addresses for sort order, not preferIPv4Stack {pull}12951[#12951]
-* Add mechanism for transporting shard-level actions by node {pull}12944[#12944] (issue: {issue}7990[#7990])
-
 Packaging::
 * Drop ability to execute on Solaris {pull}14200[#14200]
-* Packaging: change permissions/ownership of config dir {pull}14017[#14017] (issue: {issue}11016[#11016])
-* Release: Fix package repo path to only consist of major version {pull}13971[#13971] (issue: {issue}12493[#12493])
 * Nuke ES_CLASSPATH appending, JarHell fail on empty classpath elements {pull}13880[#13880] (issues: {issue}13812[#13812], {issue}13864[#13864])
 * improve seccomp syscall filtering {pull}13829[#13829]
 * Block process execution with seccomp on linux/amd64 {pull}13753[#13753]
 * Remove JAVA_HOME detection from the debian init script {pull}13514[#13514] (issues: {issue}13403[#13403], {issue}9774[#9774])
-* Improve java version comparison and explicitly enforce a version format {pull}13010[#13010] (issues: {issue}12441[#12441], {issue}13009[#13009])
 
 Plugin Cloud AWS::
 * Enable S3SignerType {pull}13360[#13360] (issue: {issue}13332[#13332])
@@ -178,39 +138,26 @@ Plugin Cloud AWS::
 
 Plugin Cloud GCE::
 * cloud-gce plugin should check `discovery.type` {pull}13809[#13809] (issue: {issue}13614[#13614])
-* Add `_gce_` network host setting {pull}13612[#13612] (issues: {issue}13590[#13590], {issue}13605[#13605])
 
 Plugin Discovery EC2::
 * Adding US-Gov-West {pull}14358[#14358]
 * Improved building of disco nodes {pull}14155[#14155]
-
-Plugin Repository Azure::
-* Enable SSL for Azure blob storage  {pull}13573[#13573]
 
 Plugin Repository S3::
 * Add aws canned acl {pull}14297[#14297] (issue: {issue}14103[#14103])
 
 Plugins::
 * Don't be lenient in PluginService#processModule(Module) {pull}14306[#14306]
-* check "plugin already installed" before jar hell check. {pull}14207[#14207] (issue: {issue}14205[#14205])
-* Plugin script to set proper plugin bin dir attributes {pull}14088[#14088] (issue: {issue}11016[#11016])
-* Plugin script to set proper plugin config dir attributes {pull}14048[#14048] (issue: {issue}11016[#11016])
 * Adds a validation for plugins script to check if java is set {pull}13633[#13633] (issue: {issue}13613[#13613])
 * Plugins: Removed plugin.types {pull}13055[#13055]
-* Lucene SPI support for plugins. {pull}13051[#13051]
+* Improve java version comparison and explicitly enforce a version format {pull}13010[#13010] (issues: {issue}12441[#12441], {issue}13009[#13009])
 * Output plugin info only in verbose mode {pull}12908[#12908] (issue: {issue}12907[#12907])
-* Replace HTTP urls with HTTPS in PluginManager {pull}12824[#12824] (issue: {issue}12748[#12748])
 
 Query DSL::
 * Internal: simplify filtered query conversion to lucene query {pull}13312[#13312] (issue: {issue}13272[#13272])
 * Remove unsupported `rewrite` from multi_match query builder {pull}13073[#13073] (issue: {issue}13069[#13069])
 * Remove unsupported `rewrite` option from match query builder {pull}13069[#13069]
 * Make FunctionScore work on unmapped field with `missing` parameter {pull}13060[#13060] (issue: {issue}10948[#10948])
-* Remove attemped (not working) support for array in not query parser {pull}12890[#12890]
-
-REST::
-* Add favicon {pull}13054[#13054]
-* Suppress rest exceptions by default and log them instead {pull}12991[#12991]
 
 Scripting::
 * Add property permissions so groovy scripts can serialize json {pull}14500[#14500] (issue: {issue}14488[#14488])
@@ -226,10 +173,6 @@ Search::
 Search Templates::
 * Adds template support to _msearch resource {pull}12414[#12414] (issue: {issue}10885[#10885])
 
-Settings::
-* Remove index.buffer_size setting {pull}13563[#13563] (issue: {issue}13548[#13548])
-* Stop o.e.c.s.Settings from leaking Guava dependency {pull}13517[#13517] (issue: {issue}13224[#13224])
-
 Snapshot/Restore::
 * Simplify the BlobContainer blob writing interface {pull}13434[#13434]
 * Add `readonly` option for repositories {pull}13144[#13144] (issues: {issue}11753[#11753], {issue}7831[#7831])
@@ -237,12 +180,7 @@ Snapshot/Restore::
 Stats::
 * Add os.allocated_processors stats {pull}14409[#14409] (issue: {issue}13917[#13917])
 * Adds stats counter for failed indexing requests {pull}13130[#13130] (issue: {issue}8938[#8938])
-* Sort thread pools by name in Nodes Stats {pull}13121[#13121]
-* Expose shards data and state path via ShardStats {pull}13118[#13118] (issue: {issue}13106[#13106])
-* Refactor, remove _node/network and _node/stats/network.  {pull}12922[#12922] (issue: {issue}12889[#12889])
 
-Warmers::
-* Warmers delete _all should not throw exception when no warmers {pull}13058[#13058] (issue: {issue}8991[#8991])
 
 
 [[bug-2.1.0]]
@@ -254,7 +192,6 @@ Aggregations::
 * Added correct generic type parameter on ScriptedMetricBuilder {pull}14018[#14018] (issue: {issue}13986[#13986])
 * Pipeline Aggregations at the root of the agg tree are now validated {pull}13475[#13475] (issue: {issue}13179[#13179])
 * Estimate HyperLogLog bias via k-NN regression {pull}13243[#13243]
-* GeoDistance Aggregation now prints field name when it finds an unexpected token. {pull}13033[#13033] (issue: {issue}12391[#12391])
 
 Allocation::
 * Fix calculation of next delay for delayed shard allocation {pull}14765[#14765]
@@ -262,10 +199,6 @@ Allocation::
 * Only allow rebalance operations to run if all shard store data is available {pull}14591[#14591] (issue: {issue}14387[#14387])
 * Delayed allocation can miss a reroute {pull}14494[#14494] (issues: {issue}14010[#14010], {issue}14011[#14011], {issue}14445[#14445])
 * Check rebalancing constraints when shards are moved from a node they can no longer remain on {pull}14259[#14259] (issue: {issue}14057[#14057])
-* Take relocating shard into consideration during awareness allocation {pull}13512[#13512] (issue: {issue}12551[#12551])
-* Take Shard data path into account in DiskThresholdDecider {pull}13195[#13195] (issue: {issue}13106[#13106])
-* Expand ClusterInfo to provide min / max disk usage for allocation decider {pull}13163[#13163] (issue: {issue}13106[#13106])
-* Take initializing shards into consideration during awareness allocation {pull}12551[#12551] (issue: {issue}12522[#12522])
 
 CAT API::
 * Properly set indices and indicesOptions on subrequest made by /_cat/indices {pull}14360[#14360]
@@ -283,23 +216,12 @@ Core::
 * When shard becomes active again, immediately increase its indexing buffer {pull}13918[#13918] (issue: {issue}13802[#13802])
 * Close TokenStream in finally clause {pull}13870[#13870] (issue: {issue}11947[#11947])
 * LoggingRunnable.run should catch and log all errors, not just Exception? {pull}13718[#13718] (issue: {issue}13487[#13487])
-* Improve IndexingMemoryController a bit {pull}13548[#13548] (issue: {issue}13487[#13487])
-* Engine: refresh before translog commit {pull}13414[#13414] (issue: {issue}13379[#13379])
-* Fix exception handling for unavailable shards in broadcast replication action {pull}13341[#13341] (issue: {issue}13068[#13068])
-* Call `beforeIndexShardCreated` listener earlier in `createShard` {pull}13153[#13153]
-* Detect duplicate settings keys on startup {pull}13086[#13086] (issue: {issue}13079[#13079])
-* Don't check if directory is present to prevent races {pull}13049[#13049]
-
-Engine::
-* Engine: Let AlreadyClosedException and EngineClosedExceptionBubble up {pull}13380[#13380] (issue: {issue}13266[#13266])
 
 Exceptions::
 * Fix ensureNodesAreAvailable's error message {pull}14007[#14007] (issue: {issue}13957[#13957])
-* Prevent losing stacktraces when exceptions occur {pull}13587[#13587]
 
 Fielddata::
 * Don't cache top level field data for fields that don't exist {pull}14693[#14693]
-* Add GeoPoint in StreamInput/StreamOutput {pull}13632[#13632] (issue: {issue}13340[#13340])
 
 Geo::
 * Geo: Allow numeric parameters enclosed in quotes for 'geohash_grid' aggregation {pull}14440[#14440] (issue: {issue}13132[#13132])
@@ -311,114 +233,55 @@ Index APIs::
 * Field stats: Added `format` option for index constraints {pull}14823[#14823] (issue: {issue}14804[#14804])
 * Restore previous optimize transport action name for bw comp {pull}14221[#14221] (issue: {issue}13778[#13778])
 * Forbid index name `.` and `..` {pull}13862[#13862] (issue: {issue}13858[#13858])
-* Date math index names should work too when an index doesn't exist {pull}13570[#13570]
-* IndexNameExpressionResolver should not ignore any wildcards {pull}13384[#13384] (issue: {issue}13334[#13334])
 
 Index Templates::
 * Validate settings specified in index templates at template creation time {pull}12892[#12892] (issue: {issue}12865[#12865])
-
-Inner Hits::
-* Protected against large size option {pull}13416[#13416] (issue: {issue}13394[#13394])
 
 Internal::
 * fix `mvn verify` on jigsaw with 2.1 {pull}14750[#14750]
 * fixup issues with 32-bit jvm {pull}14609[#14609]
 * Failure to update the cluster state with the recovered state should make sure it will be recovered later {pull}14485[#14485]
-* Properly bind ClassSet extensions as singletons {pull}14232[#14232] (issue: {issue}14194[#14194])
-* Streamline top level reader close listeners and forbid general usage {pull}14084[#14084]
-* Never wrap searcher for internal engine operations {pull}14071[#14071]
 * Gateway: a race condition can prevent the initial cluster state from being recovered {pull}13997[#13997]
 * Verify actually written checksum in VerifyingIndexOutput {pull}13848[#13848]
 * An inactive shard is activated by triggered synced flush {pull}13802[#13802]
-* Add listeners for postIndex, postCreate, and postDelete {pull}13203[#13203] (issue: {issue}13202[#13202])
-* Make refresh a replicated action {pull}13068[#13068] (issues: {issue}12600[#12600], {issue}9421[#9421])
-* Add plugin modules before (almost all) others {pull}13061[#13061] (issue: {issue}12783[#12783])
-* Pass down the EngineConfig to IndexSearcherWrapper {pull}12883[#12883]
-
-Java API::
-* Add missing support for escape to QueryStringQueryBuilder {pull}13016[#13016]
 
 Logging::
-* Settings in log config file should not overwrite custom parameters {pull}13934[#13934]
-* Plugin cli tool should not create empty log files {pull}13933[#13933]
 * Don't log multi-megabyte guice exceptions. {pull}13782[#13782]
 * Moving system property setting to before it can be used {pull}13660[#13660] (issue: {issue}13658[#13658])
 
 Mapping::
 * Make _type use doc values {pull}14783[#14783] (issue: {issue}14781[#14781])
 * Mapping: Allows upgrade of indexes with only search_analyzer specified {pull}14677[#14677] (issue: {issue}14383[#14383])
-* Mappings: Enforce metadata fields are not passed in documents {pull}14003[#14003] (issues: {issue}11074[#11074], {issue}13740[#13740], {issue}3517[#3517])
-* Fix numerous checks for equality and compatibility in mapper field types {pull}13206[#13206] (issues: {issue}13112[#13112], {issue}8871[#8871])
-* Fix doc parser to still pre/post process metadata fields on disabled type {pull}13137[#13137] (issue: {issue}13017[#13017])
-
-Nested Docs::
-* Nested query should only use bitset cache for parent filter {pull}13087[#13087]
 
 Packaging::
 * Handle system policy correctly {pull}14704[#14704] (issue: {issue}14690[#14690])
 * Startup script exit status should catch daemonized startup failures {pull}14170[#14170] (issue: {issue}14163[#14163])
 * Don't let ubuntu try to install its crazy jayatana agent. {pull}13813[#13813] (issue: {issue}13785[#13785])
-* Fix service.bat start/stop issues {pull}13398[#13398] (issues: {issue}13247[#13247], {issue}13401[#13401])
-* Add missing null check in ESPolicy. {pull}13232[#13232]
-* More portable extraction of short hostname {pull}13109[#13109] (issue: {issue}13107[#13107])
-* Fix variable substitution for OS's using systemd  {pull}12909[#12909]
 
 Parent/Child::
-* Split the _parent field mapping's field type into two field types {pull}13399[#13399] (issue: {issue}13169[#13169])
 * Remove unnecessary usage of extra index searchers {pull}12864[#12864]
 
 Plugin Delete By Query::
 * Fix Delete-by-Query with Shield {pull}14658[#14658] (issue: {issue}14527[#14527])
 * Delete by query to not wrap the inner query into an additional query element {pull}14302[#14302] (issue: {issue}13326[#13326])
 
-Plugin Discovery EC2::
-* Discovery-ec2 plugin should check `discovery.type` {pull}13814[#13814] (issues: {issue}13581[#13581], {issue}13809[#13809])
-
 Plugins::
 * Fix plugin list command error message {pull}14288[#14288] (issue: {issue}14287[#14287])
-* Parse Java system properties in plugin.bat {pull}13989[#13989] (issue: {issue}13616[#13616])
-* EC2/Azure discovery plugins must declare their UnicastHostsProvider {pull}13501[#13501] (issue: {issue}13492[#13492])
-* Installing plugin without checksums ends up downloading from github {pull}13197[#13197] (issue: {issue}13196[#13196])
-* PluginManager: Dont leave leftover files on unsuccessful installs {pull}12851[#12851] (issue: {issue}12749[#12749])
-* Remove unused java opts/es java opts from plugin manager call {pull}12801[#12801] (issue: {issue}12479[#12479])
 * Fix HTML response during redirection {pull}11374[#11374] (issue: {issue}11370[#11370])
-
-Query DSL::
-* `span_containing` and `span_within` override default boost coming from lucene {pull}13339[#13339] (issue: {issue}13272[#13272])
-* `simple_query_string` overrides boost coming from lucene {pull}13331[#13331] (issue: {issue}13272[#13272])
-* Query DSL: match_phrase_prefix to take boost into account {pull}13142[#13142] (issue: {issue}13129[#13129])
 
 REST::
 * XContentFactory.xContentType: allow for possible UTF-8 BOM for JSON XContentType {pull}14611[#14611] (issue: {issue}14442[#14442])
-* Restore support for escaped '/' as part of document id {pull}14216[#14216] (issues: {issue}13665[#13665], {issue}13691[#13691], {issue}14177[#14177])
-* Add missing REST spec for `detect_noop` {pull}14004[#14004]
-* Expose nodes operation timeout in REST API {pull}13981[#13981]
-* Ensure XContent is consistent across platforms {pull}13816[#13816]
 * RestUtils.decodeQueryString ignores the URI fragment when parsing a query string {pull}13365[#13365] (issue: {issue}13320[#13320])
 
-Recovery::
-* Failed to properly ack translog ops during wait on mapping changes {pull}13535[#13535]
-
-Scripting::
-* Propagate Headers and Context through to ScriptService {pull}12982[#12982] (issue: {issue}12891[#12891])
-
 Search::
-* Allow reads on shards that are in POST_RECOVERY {pull}13246[#13246] (issues: {issue}13068[#13068], {issue}9421[#9421])
 * Fix the quotes in the explain message for a script score function without parameters {pull}11398[#11398]
 
 Settings::
 * ByteSizeValue.equals should normalize units {pull}13784[#13784]
-* Fix `discovery.zen.join_timeout` default value logic {pull}13162[#13162]
-
-Shadow Replicas::
-* Don't pull translog from shadow engine {pull}14000[#14000] (issue: {issue}12730[#12730])
-* Allow deleting closed indices with shadow replicas {pull}13309[#13309] (issue: {issue}13297[#13297])
 
 Snapshot/Restore::
 * Snapshot restore and index creates should keep index settings and cluster blocks in sync {pull}13931[#13931] (issue: {issue}13213[#13213])
-* Snapshot restore operations throttle more than specified {pull}13828[#13828] (issue: {issue}6018[#6018])
 * Fix blob size in writeBlob() method {pull}13574[#13574] (issue: {issue}13434[#13434])
-* Snapshot restore request should accept indices options {pull}13357[#13357] (issues: {issue}10744[#10744], {issue}13335[#13335])
 
 Stats::
 * Add extra validation into `cluster/stats` {pull}14699[#14699] (issue: {issue}7390[#7390])
@@ -428,8 +291,6 @@ Translog::
 * Translog recovery can repeatedly fail if we run out of disk {pull}14695[#14695]
 * Pending operations in the translog prevent shard from being marked as inactive {pull}13759[#13759] (issue: {issue}13707[#13707])
 
-Tribe Node::
-* Increment tribe node version on updates {pull}13566[#13566]
 
 
 [[regression-2.1.0]]
@@ -440,6 +301,7 @@ Internal::
 * Deduplicate concrete indices after indices resolution {pull}14316[#14316] (issues: {issue}11258[#11258], {issue}12058[#12058])
 
 
+
 [[upgrade-2.1.0]]
 [float]
 === Upgrades
@@ -448,24 +310,15 @@ Core::
 * Upgrade Lucene to 5.3.1 {pull}14669[#14669]
 * Upgrade to lucene-5.3.0. {pull}13239[#13239]
 
-Dates::
-* Update joda-time to 2.8.2 {pull}13092[#13092] (issue: {issue}12859[#12859])
-
 Geo::
 * Update to spatial4j 0.5 for correct Multi-Geometry {pull}14269[#14269] (issue: {issue}9904[#9904])
 
 Internal::
 * Update to Jackson 2.6.2 {pull}13344[#13344] (issues: {issue}10980[#10980], {issue}207[#207], {issue}213[#213])
 
-Network::
-* Upgrade Netty to 3.10.5.final {pull}14105[#14105]
-
 Plugin Cloud AWS::
-* Update AWS SDK to 1.10.12 {pull}13090[#13090]
-* Update AWS SDK to 1.10.10  {pull}12859[#12859]
-
-Plugin Repository S3::
-* Upgrade to aws 1.10.33 {pull}14672[#14672]
 * Update AWS SDK version to 1.10.19 {pull}13655[#13655] (issue: {issue}13656[#13656])
 
+Plugin Discovery EC2::
+* Upgrade to aws 1.10.33 {pull}14672[#14672]
 

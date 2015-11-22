@@ -156,7 +156,7 @@ public class PercolatorService extends AbstractComponent {
         );
         SearchContext.setCurrent(context);
         try {
-            ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService(), percolateIndexService.queryParserService());
+            ParsedDocument parsedDocument = percolateDocumentParser.parse(request, context, percolateIndexService.mapperService(), percolateIndexService.getQueryShardContext());
 
             PercolatorQueriesRegistry queriesRegistry = indexShard.percolateRegistry();
             if (queriesRegistry.getPercolateQueries().isEmpty()) {

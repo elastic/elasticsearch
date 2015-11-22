@@ -139,8 +139,8 @@ public class PercolatorTypeTests extends ESTestCase {
                 new ShardId(index, 0),
                 indexSettings,
                 null,
-                null,
                 mapperService,
+                null,
                 null
         );
     }

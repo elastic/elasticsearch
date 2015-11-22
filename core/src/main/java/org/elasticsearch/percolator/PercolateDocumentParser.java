@@ -34,7 +34,7 @@ import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.mapper.DocumentMapperForType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.query.IndexQueryParserService;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.SearchParseElement;
 import org.elasticsearch.search.aggregations.AggregationPhase;
 import org.elasticsearch.search.highlight.HighlightPhase;
@@ -59,7 +59,7 @@ public class PercolateDocumentParser {
         this.mappingUpdatedAction = mappingUpdatedAction;
     }
 
-    public ParsedDocument parse(PercolateShardRequest request, PercolateContext context, MapperService mapperService, IndexQueryParserService indexQueryParserService) {
+    public ParsedDocument parse(PercolateShardRequest request, PercolateContext context, MapperService mapperService, QueryShardContext queryShardContext) {
         BytesReference source = request.source();
         if (source == null || source.length() == 0) {
             if (request.docSource() != null && request.docSource().length() != 0) {
@@ -117,12 +117,12 @@ public class PercolateDocumentParser {
                         if (context.percolateQuery() != null) {
                             throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
-                        context.percolateQuery(indexQueryParserService.parse(parser).query());
+                        context.percolateQuery(queryShardContext.parse(parser).query());
                     } else if ("filter".equals(currentFieldName)) {
                         if (context.percolateQuery() != null) {
                             throw new ElasticsearchParseException("Either specify query or filter, not both");
                         }
-                        Query filter = indexQueryParserService.parseInnerFilter(parser).query();
+                        Query filter = queryShardContext.parseInnerFilter(parser).query();
                         context.percolateQuery(new ConstantScoreQuery(filter));
                     } else if ("sort".equals(currentFieldName)) {
                         parseSort(parser, context);

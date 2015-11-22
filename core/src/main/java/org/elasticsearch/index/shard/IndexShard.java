@@ -31,11 +31,13 @@ import org.apache.lucene.util.CloseableThreadLocal;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.ThreadInterruptedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.flush.FlushRequest;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
 import org.elasticsearch.action.admin.indices.upgrade.post.UpgradeRequest;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.action.termvectors.TermVectorsResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
@@ -461,7 +463,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     private void postPrepareIndex(Engine.Index operation) {
         if (operation.type().equals(PercolatorService.TYPE_NAME)) {
             Query query = percolatorQueriesRegistry.parsePercolatorDocument(operation.id(), operation.source());
-            boolean onOrAfter3x = indexSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_3_0_0);
+            boolean onOrAfter3x = indexSettings().getSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_3_0_0);
             if (onOrAfter3x) {
                 QueryMetadataService.extractQueryMetadata(query, operation.parsedDoc().rootDoc());
             }

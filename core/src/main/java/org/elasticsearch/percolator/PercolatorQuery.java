@@ -160,6 +160,12 @@ final class PercolatorQuery extends Query {
                             public boolean matches() throws IOException {
                                 return matchDocId(approximation.docID(), leafReader);
                             }
+
+                            @Override
+                            public float matchCost() {
+                                // matching here is expensive. what is a good value?
+                                return 1f;
+                            }
                         };
                     }
 

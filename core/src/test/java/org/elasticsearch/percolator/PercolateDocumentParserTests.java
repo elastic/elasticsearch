@@ -33,8 +33,8 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.analysis.*;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.QueryParser;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -61,7 +61,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
     private Index index;
     private MapperService mapperService;
     private PercolateDocumentParser parser;
-    private IndexQueryParserService indexQueryParserService;
+    private QueryShardContext queryShardContext;
 
     @Before
     public void init() {
@@ -79,9 +79,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
         Set<QueryParser> parsers = Collections.singleton(new TermQueryParser());
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(indexSettings.getSettings(), parsers, new NamedWriteableRegistry());
 
-        indexQueryParserService = new IndexQueryParserService(
-                indexSettings, indicesQueriesRegistry, null, analysisService, mapperService, null, null, null, null, null, null, null, null
-        );
+        queryShardContext = new QueryShardContext(indexSettings, null, null, null, mapperService, null, null, indicesQueriesRegistry);
 
         HighlightPhase highlightPhase = new HighlightPhase(Settings.EMPTY, new Highlighters());
         AggregatorParsers aggregatorParsers = new AggregatorParsers(Collections.emptySet(), Collections.emptySet());
@@ -103,7 +101,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
         request.source(source.bytes());
 
         PercolateContext context = new PercolateContext(request, new SearchShardTarget("_node", "_index", 0), mapperService);
-        ParsedDocument parsedDocument = parser.parse(request, context, mapperService, indexQueryParserService);
+        ParsedDocument parsedDocument = parser.parse(request, context, mapperService, queryShardContext);
         assertThat(parsedDocument.rootDoc().get("field1"), equalTo("value1"));
     }
 
@@ -124,7 +122,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
         request.source(source.bytes());
 
         PercolateContext context = new PercolateContext(request, new SearchShardTarget("_node", "_index", 0), mapperService);
-        ParsedDocument parsedDocument = parser.parse(request, context, mapperService, indexQueryParserService);
+        ParsedDocument parsedDocument = parser.parse(request, context, mapperService, queryShardContext);
         assertThat(parsedDocument.rootDoc().get("field1"), equalTo("value1"));
         assertThat(context.percolateQuery(), equalTo(new TermQuery(new Term("field1", "value1"))));
         assertThat(context.trackScores(), is(true));
@@ -150,7 +148,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
         request.docSource(docSource.bytes());
 
         PercolateContext context = new PercolateContext(request, new SearchShardTarget("_node", "_index", 0), mapperService);
-        ParsedDocument parsedDocument = parser.parse(request, context, mapperService, indexQueryParserService);
+        ParsedDocument parsedDocument = parser.parse(request, context, mapperService, queryShardContext);
         assertThat(parsedDocument.rootDoc().get("field1"), equalTo("value1"));
         assertThat(context.percolateQuery(), equalTo(new TermQuery(new Term("field1", "value1"))));
         assertThat(context.trackScores(), is(true));
@@ -180,7 +178,7 @@ public class PercolateDocumentParserTests extends ESTestCase {
 
         PercolateContext context = new PercolateContext(request, new SearchShardTarget("_node", "_index", 0), mapperService);
         try {
-            parser.parse(request, context, mapperService, indexQueryParserService);
+            parser.parse(request, context, mapperService, queryShardContext);
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Can't specify the document to percolate in the source of the request and as document id"));
         }

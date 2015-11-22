@@ -48,8 +48,37 @@ grant {
   // Allow connecting to the internet anywhere
   permission java.net.SocketPermission "*", "accept,connect,resolve";
 
-  // Allow read/write to all system properties
-  permission java.util.PropertyPermission "*", "read,write";
+  // Allow read access to all system properties
+  permission java.util.PropertyPermission "*", "read";
+
+  // TODO: clean all these property writes up, and don't allow any more in. these are all bogus!
+
+  // LuceneTestCase randomization (locale/timezone/cpus/ssd)
+  // TODO: put these in doPrivileged and move these to test-framework.policy
+  permission java.util.PropertyPermission "user.language", "write";
+  permission java.util.PropertyPermission "user.timezone", "write";
+  permission java.util.PropertyPermission "lucene.cms.override_core_count", "write";
+  permission java.util.PropertyPermission "lucene.cms.override_spins", "write";
+  // messiness in LuceneTestCase: do the above, or clean this up, or simply allow to fail if its denied
+  permission java.util.PropertyPermission "solr.solr.home", "write";
+  permission java.util.PropertyPermission "solr.data.dir", "write";
+  permission java.util.PropertyPermission "solr.directoryFactory", "write";
+
+  // set by ESTestCase to improve test reproducibility
+  // TODO: set this with gradle or some other way that repros with seed?
+  permission java.util.PropertyPermission "es.processors.override", "write";
+  // set by CLIToolTestCase
+  // TODO: do this differently? or test commandline tools differently?
+  permission java.util.PropertyPermission "es.default.path.home", "write";
+
+  // TODO: these simply trigger a noisy warning if its unable to clear the properties
+  // fix that in randomizedtesting
+  permission java.util.PropertyPermission "junit4.childvm.count", "write";
+  permission java.util.PropertyPermission "junit4.childvm.id", "write";
+
+  // set by NettyTransport/NettyHttpServerTransport based on another parameter
+  // TODO: look into this and decide if users should simply set the actual sysprop?!
+  permission java.util.PropertyPermission "org.jboss.netty.epollBugWorkaround", "write";
 
   // needed by lucene SPI currently 
   permission java.lang.RuntimePermission "getClassLoader";

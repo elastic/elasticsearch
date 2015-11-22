@@ -22,6 +22,7 @@ import org.apache.http.impl.client.HttpClients;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.cli.CliTool;
 import org.elasticsearch.common.cli.CliTool.ExitStatus;
 import org.elasticsearch.common.cli.CliToolTestCase.CaptureOutputTerminal;
@@ -82,6 +83,7 @@ import static org.jboss.netty.handler.codec.http.HttpVersion.HTTP_1_1;
 @LuceneTestCase.SuppressFileSystems("*") // TODO: clean up this test to allow extra files
 // TODO: jimfs is really broken here (throws wrong exception from detection method).
 // if its in your classpath, then do not use plugins!!!!!!
+@SuppressForbidden(reason = "modifies system properties intentionally")
 public class PluginManagerTests extends ESIntegTestCase {
 
     private Environment environment;

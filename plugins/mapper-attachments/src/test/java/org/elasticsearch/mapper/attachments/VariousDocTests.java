@@ -68,8 +68,6 @@ public class VariousDocTests extends AttachmentUnitTestCase {
      */
     public void testEncryptedPDFDocument() throws Exception {
         assertException("encrypted.pdf", "is encrypted");
-        // TODO Remove when this will be fixed in Tika. See https://issues.apache.org/jira/browse/TIKA-1548
-        System.clearProperty("sun.font.fontmanager");
         testMapper("encrypted.pdf", true);
     }
 

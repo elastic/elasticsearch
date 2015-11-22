@@ -48,9 +48,6 @@ public class PythonScriptEngineTests extends ESTestCase {
 
     @After
     public void close() {
-        // We need to clear some system properties
-        System.clearProperty("python.cachedir.skip");
-        System.clearProperty("python.console.encoding");
         se.close();
     }
 

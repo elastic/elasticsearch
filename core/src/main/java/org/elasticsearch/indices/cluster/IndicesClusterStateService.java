@@ -625,8 +625,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}][{}] creating shard", shardRouting.index(), shardId);
                 }
-                IndexShard indexShard = indexService.createShard(shardId, shardRouting);
-                indexShard.updateRoutingEntry(shardRouting, state.blocks().disableStatePersistence() == false);
+                IndexShard indexShard = indexService.createShard(shardRouting);
                 indexShard.addShardFailureCallback(failedShardHandler);
             } catch (IndexShardAlreadyExistsException e) {
                 // ignore this, the method call can happen several times

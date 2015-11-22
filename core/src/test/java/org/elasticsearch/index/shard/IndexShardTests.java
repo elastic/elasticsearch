@@ -20,7 +20,10 @@ package org.elasticsearch.index.shard;
 
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
-import org.apache.lucene.index.*;
+import org.apache.lucene.index.CorruptIndexException;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexCommit;
+import org.apache.lucene.index.Term;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.search.TopDocs;
@@ -77,18 +80,13 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.test.DummyShardLock;
-import org.elasticsearch.test.ESSingleNodeTestCase;
-import org.elasticsearch.test.IndexSettingsModule;
-import org.elasticsearch.test.FieldMaskingReader;
-import org.elasticsearch.test.VersionUtils;
+import org.elasticsearch.test.*;
 
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.BrokenBarrierException;
@@ -755,7 +753,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardRouting routing = new ShardRouting(shard.routingEntry());
         test.removeShard(0, "b/c simon says so");
         ShardRoutingHelper.reinit(routing);
-        IndexShard newShard = test.createShard(0, routing);
+        IndexShard newShard = test.createShard(routing);
         newShard.updateRoutingEntry(routing, false);
         DiscoveryNode localNode = new DiscoveryNode("foo", DummyTransportAddress.INSTANCE, Version.CURRENT);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
@@ -787,7 +785,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         Lucene.cleanLuceneIndex(store.directory());
         store.decRef();
         ShardRoutingHelper.reinit(routing);
-        IndexShard newShard = test.createShard(0, routing);
+        IndexShard newShard = test.createShard(routing);
         newShard.updateRoutingEntry(routing, false);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
         try {
@@ -807,7 +805,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
             // OK!
         }
         test.removeShard(0, "I broken it");
-        newShard = test.createShard(0, routing);
+        newShard = test.createShard(routing);
         newShard.updateRoutingEntry(routing, false);
         newShard.markAsRecovering("store", new RecoveryState(newShard.shardId(), routing.primary(), RecoveryState.Type.STORE, localNode, localNode));
         assertTrue("recover even if there is nothing to recover", newShard.recoverFromStore(localNode));
@@ -840,7 +838,7 @@ public class IndexShardTests extends ESSingleNodeTestCase {
         ShardRoutingHelper.reinit(routing);
         routing = ShardRoutingHelper.newWithRestoreSource(routing, new RestoreSource(new SnapshotId("foo", "bar"), Version.CURRENT, "test"));
         test_target.removeShard(0, "just do it man!");
-        final IndexShard test_target_shard = test_target.createShard(0, routing);
+        final IndexShard test_target_shard = test_target.createShard(routing);
         Store sourceStore = test_shard.store();
         Store targetStore = test_target_shard.store();
 

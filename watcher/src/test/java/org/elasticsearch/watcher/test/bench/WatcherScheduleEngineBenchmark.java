@@ -13,6 +13,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -63,6 +64,7 @@ public class WatcherScheduleEngineBenchmark {
             .put("http.cors.enabled", true)
             .build();
 
+    @SuppressForbidden(reason = "not really code or a test")
     public static void main(String[] args) throws Exception {
         System.setProperty("es.logger.prefix", "");
 

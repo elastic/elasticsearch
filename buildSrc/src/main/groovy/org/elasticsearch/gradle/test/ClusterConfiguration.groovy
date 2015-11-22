@@ -25,6 +25,9 @@ import org.gradle.api.tasks.Input
 class ClusterConfiguration {
 
     @Input
+    String distribution = 'zip'
+
+    @Input
     int numNodes = 1
 
     @Input
@@ -33,27 +36,29 @@ class ClusterConfiguration {
     @Input
     int transportPort = 9500
 
-    Map<String, String> systemProperties = new HashMap<>()
+    @Input
+    boolean daemonize = true
 
     @Input
-    void systemProperty(String property, String value) {
-        systemProperties.put(property, value)
-    }
+    boolean debug = false
+
+    @Input
+    String jvmArgs = System.getProperty('tests.jvm.argline', '')
+
+    Map<String, String> systemProperties = new HashMap<>()
+
+    LinkedHashMap<String, FileCollection> plugins = new LinkedHashMap<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
     @Input
     void plugin(String name, FileCollection file) {
-        setupCommands.put(name, ['bin/plugin', 'install', new LazyFileUri(file: file)])
+        plugins.put(name, file)
     }
 
-    static class LazyFileUri {
-        FileCollection file
-        @Override
-        String toString() {
-            return file.singleFile.toURI().toURL().toString();
-        }
-
+    @Input
+    void systemProperty(String property, String value) {
+        systemProperties.put(property, value)
     }
 
     @Input

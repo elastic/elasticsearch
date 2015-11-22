@@ -69,44 +69,26 @@ import java.util.concurrent.Executor;
 public final class BitsetFilterCache extends AbstractIndexComponent implements LeafReader.CoreClosedListener, RemovalListener<Object, Cache<Query, BitsetFilterCache.Value>>, Closeable {
 
     public static final String LOAD_RANDOM_ACCESS_FILTERS_EAGERLY = "index.load_fixed_bitset_filters_eagerly";
-    private static final Listener DEFAULT_NOOP_LISTENER =  new Listener() {
-        @Override
-        public void onCache(ShardId shardId, Accountable accountable) {
-        }
-
-        @Override
-        public void onRemoval(ShardId shardId, Accountable accountable) {
-        }
-    };
 
     private final boolean loadRandomAccessFiltersEagerly;
     private final Cache<Object, Cache<Query, Value>> loadedFilters;
-    private volatile Listener listener = DEFAULT_NOOP_LISTENER;
+    private final Listener listener;
     private final BitSetProducerWarmer warmer;
     private final IndicesWarmer indicesWarmer;
 
-    public BitsetFilterCache(IndexSettings indexSettings, IndicesWarmer indicesWarmer) {
+    public BitsetFilterCache(IndexSettings indexSettings, IndicesWarmer indicesWarmer, Listener listener) {
         super(indexSettings);
+        if (listener == null) {
+            throw new IllegalArgumentException("listener must not be null");
+        }
         this.loadRandomAccessFiltersEagerly = this.indexSettings.getSettings().getAsBoolean(LOAD_RANDOM_ACCESS_FILTERS_EAGERLY, true);
         this.loadedFilters = CacheBuilder.<Object, Cache<Query, Value>>builder().removalListener(this).build();
         this.warmer = new BitSetProducerWarmer();
         this.indicesWarmer = indicesWarmer;
         indicesWarmer.addListener(warmer);
-    }
-    
-    /**
-     * Sets a listener that is invoked for all subsequent cache and removal events.
-     * @throws IllegalStateException if the listener is set more than once
-     */
-    public void setListener(Listener listener) {
-        if (listener == null) {
-            throw new IllegalArgumentException("listener must not be null");
-        }
-        if (this.listener != DEFAULT_NOOP_LISTENER) {
-            throw new IllegalStateException("can't set listener more than once");
-        }
         this.listener = listener;
     }
+    
 
 
     public BitSetProducer getBitSetProducer(Query query) {

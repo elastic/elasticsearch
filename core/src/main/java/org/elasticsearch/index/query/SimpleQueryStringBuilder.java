@@ -20,8 +20,6 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Strings;
@@ -261,7 +259,7 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         } else {
             for (Map.Entry<String, Float> fieldEntry : fieldsAndWeights.entrySet()) {
                 if (Regex.isSimpleMatchPattern(fieldEntry.getKey())) {
-                    for (String fieldName : context.mapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
+                    for (String fieldName : context.getMapperService().simpleMatchToIndexNames(fieldEntry.getKey())) {
                         resolvedFieldsAndWeights.put(fieldName, fieldEntry.getValue());
                     }
                 } else {
@@ -273,9 +271,9 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         // Use standard analyzer by default if none specified
         Analyzer luceneAnalyzer;
         if (analyzer == null) {
-            luceneAnalyzer = context.mapperService().searchAnalyzer();
+            luceneAnalyzer = context.getMapperService().searchAnalyzer();
         } else {
-            luceneAnalyzer = context.analysisService().analyzer(analyzer);
+            luceneAnalyzer = context.getAnalysisService().analyzer(analyzer);
             if (luceneAnalyzer == null) {
                 throw new QueryShardException(context, "[" + SimpleQueryStringBuilder.NAME + "] analyzer [" + analyzer
                         + "] not found");
@@ -287,20 +285,8 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         sqp.setDefaultOperator(defaultOperator.toBooleanClauseOccur());
 
         Query query = sqp.parse(queryText);
-        if (query instanceof BooleanQuery) {
-            BooleanQuery booleanQuery = (BooleanQuery) query;
-            if (booleanQuery.clauses().size() > 1
-                    && ((booleanQuery.clauses().iterator().next().getQuery() instanceof BooleanQuery) == false)) {
-                // special case for one term query and more than one field: (f1:t1 f2:t1 f3:t1)
-                // we need to wrap this in additional BooleanQuery so minimum_should_match is applied correctly
-                BooleanQuery.Builder builder = new BooleanQuery.Builder();
-                builder.add(new BooleanClause(booleanQuery, Occur.SHOULD));
-                booleanQuery = builder.build();
-            }
-            if (minimumShouldMatch != null) {
-                booleanQuery = Queries.applyMinimumShouldMatch(booleanQuery, minimumShouldMatch);
-            }
-            query = booleanQuery;
+        if (minimumShouldMatch != null && query instanceof BooleanQuery) {
+            query = Queries.applyMinimumShouldMatch((BooleanQuery) query, minimumShouldMatch);
         }
         return query;
     }
@@ -311,11 +297,6 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
             return fieldType.names().indexName();
         }
         return fieldName;
-    }
-
-    @Override
-    protected void setFinalBoost(Query query) {
-        query.setBoost(boost * query.getBoost());
     }
 
     @Override

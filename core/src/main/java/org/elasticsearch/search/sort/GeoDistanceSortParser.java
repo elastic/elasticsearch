@@ -72,7 +72,7 @@ public class GeoDistanceSortParser implements SortParser {
         MultiValueMode sortMode = null;
         NestedInnerQueryParseSupport nestedHelper = null;
 
-        final boolean indexCreatedBeforeV2_0 = context.queryParserService().getIndexCreatedVersion().before(Version.V_2_0_0);
+        final boolean indexCreatedBeforeV2_0 = context.indexShard().getIndexSettings().getIndexVersionCreated().before(Version.V_2_0_0);
         boolean coerce = false;
         boolean ignoreMalformed = false;
 

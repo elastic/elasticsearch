@@ -43,6 +43,8 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
+import org.elasticsearch.index.query.ParsedQuery;
+import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
@@ -146,7 +148,7 @@ public class PercolatorService extends AbstractComponent {
                 indexShard.shardId().index().name(),
                 request.indices()
         );
-        Query aliasFilter = percolateIndexService.aliasFilter(filteringAliases);
+        Query aliasFilter = percolateIndexService.aliasFilter(indexShard.getQueryShardContext(), filteringAliases);
 
         SearchShardTarget searchShardTarget = new SearchShardTarget(clusterService.localNode().id(), request.shardId().getIndex(), request.shardId().id());
         final PercolateContext context = new PercolateContext(

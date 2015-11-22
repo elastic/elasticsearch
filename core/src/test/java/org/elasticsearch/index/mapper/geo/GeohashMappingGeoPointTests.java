@@ -20,11 +20,16 @@
 package org.elasticsearch.index.mapper.geo;
 
 import org.apache.lucene.util.GeoHashUtils;
+import org.apache.lucene.util.GeoUtils;
+import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.test.VersionUtils;
 import org.hamcrest.MatcherAssert;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -39,10 +44,12 @@ import static org.hamcrest.Matchers.nullValue;
 public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
     public void testLatLonValues() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false).endObject().endObject()
-                .endObject().endObject().string();
+                .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false)
+                .endObject().endObject().endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -50,9 +57,13 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        MatcherAssert.assertThat(doc.rootDoc().getField("point.lat"), nullValue());
-        MatcherAssert.assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        MatcherAssert.assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
+        assertThat(doc.rootDoc().getField("point.lat"), nullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), nullValue());
+        if (version.before(Version.V_2_2_0)) {
+            assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
+        } else {
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+        }
     }
 
     public void testLatLonInOneValue() throws Exception {
@@ -60,7 +71,9 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", false).endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -68,17 +81,23 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        MatcherAssert.assertThat(doc.rootDoc().getField("point.lat"), nullValue());
-        MatcherAssert.assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        MatcherAssert.assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
+        assertThat(doc.rootDoc().getField("point.lat"), nullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), nullValue());
+        if (version.before(Version.V_2_2_0)) {
+            assertThat(doc.rootDoc().get("point"), equalTo("1.2,1.3"));
+        } else {
+            assertThat(Long.parseLong(doc.rootDoc().get("point")), equalTo(GeoUtils.mortonHash(1.3, 1.2)));
+        }
     }
 
     public void testGeoHashValue() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).endObject().endObject()
-                .endObject().endObject().string();
+                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true)
+                .endObject().endObject().endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -86,32 +105,38 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .endObject()
                 .bytes());
 
-        MatcherAssert.assertThat(doc.rootDoc().getField("point.lat"), nullValue());
-        MatcherAssert.assertThat(doc.rootDoc().getField("point.lon"), nullValue());
-        MatcherAssert.assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.stringEncode(1.3, 1.2)));
-        MatcherAssert.assertThat(doc.rootDoc().get("point"), notNullValue());
+        assertThat(doc.rootDoc().getField("point.lat"), nullValue());
+        assertThat(doc.rootDoc().getField("point.lon"), nullValue());
+        assertThat(doc.rootDoc().get("point.geohash"), equalTo(GeoHashUtils.stringEncode(1.3, 1.2)));
+        assertThat(doc.rootDoc().get("point"), notNullValue());
     }
 
     public void testGeoHashPrecisionAsInteger() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
-                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("geohash_precision", 10).endObject().endObject()
-                .endObject().endObject().string();
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+                .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true)
+                .field("geohash_precision", 10).endObject().endObject().endObject().endObject().string();
+
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
-        assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
-        GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
-        assertThat(geoPointFieldMapper.fieldType().geohashPrecision(), is(10));
+        assertThat(mapper, instanceOf(BaseGeoPointFieldMapper.class));
+        BaseGeoPointFieldMapper geoPointFieldMapper = (BaseGeoPointFieldMapper) mapper;
+        assertThat(geoPointFieldMapper.fieldType().geoHashPrecision(), is(10));
     }
 
     public void testGeoHashPrecisionAsLength() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("point").field("type", "geo_point").field("geohash", true).field("geohash_precision", "5m").endObject().endObject()
                 .endObject().endObject().string();
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
         FieldMapper mapper = defaultMapper.mappers().smartNameFieldMapper("point");
-        assertThat(mapper, instanceOf(GeoPointFieldMapper.class));
-        GeoPointFieldMapper geoPointFieldMapper = (GeoPointFieldMapper) mapper;
-        assertThat(geoPointFieldMapper.fieldType().geohashPrecision(), is(10));
+        assertThat(mapper, instanceOf(BaseGeoPointFieldMapper.class));
+        BaseGeoPointFieldMapper geoPointFieldMapper = (BaseGeoPointFieldMapper) mapper;
+        assertThat(geoPointFieldMapper.fieldType().geoHashPrecision(), is(10));
     }
 
     public void testNullValue() throws Exception {
@@ -119,7 +144,9 @@ public class GeohashMappingGeoPointTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").endObject().endObject()
                 .endObject().endObject().string();
 
-        DocumentMapper defaultMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_1_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        DocumentMapper defaultMapper = createIndex("test", settings).mapperService().documentMapperParser().parse(mapping);
 
         ParsedDocument doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()

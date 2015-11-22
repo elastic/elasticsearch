@@ -60,14 +60,15 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.discovery.DiscoveryService;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.indices.IndicesService;
@@ -88,7 +89,6 @@ import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
 import org.elasticsearch.test.store.MockFSIndexStore;
 import org.elasticsearch.test.transport.AssertingLocalTransport;
 import org.elasticsearch.test.transport.MockTransportService;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty.NettyTransport;
@@ -98,20 +98,11 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Random;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.concurrent.*;
+import java.util.*;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
@@ -119,15 +110,11 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static junit.framework.Assert.fail;
-import static org.apache.lucene.util.LuceneTestCase.TEST_NIGHTLY;
-import static org.apache.lucene.util.LuceneTestCase.rarely;
-import static org.apache.lucene.util.LuceneTestCase.usually;
+import static org.apache.lucene.util.LuceneTestCase.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.*;
 import static org.junit.Assert.assertThat;
 
 /**
@@ -404,18 +391,6 @@ public final class InternalTestCluster extends TestCluster {
         if (random.nextBoolean()) { // sometimes set a
             builder.put(SearchService.DEFAULT_KEEPALIVE_KEY, TimeValue.timeValueSeconds(100 + random.nextInt(5 * 60)));
         }
-        if (random.nextBoolean()) {
-            // change threadpool types to make sure we don't have components that rely on the type of thread pools
-            for (String name : Arrays.asList(ThreadPool.Names.BULK, ThreadPool.Names.FLUSH, ThreadPool.Names.GET,
-                    ThreadPool.Names.INDEX, ThreadPool.Names.MANAGEMENT, ThreadPool.Names.FORCE_MERGE,
-                    ThreadPool.Names.PERCOLATE, ThreadPool.Names.REFRESH, ThreadPool.Names.SEARCH, ThreadPool.Names.SNAPSHOT,
-                    ThreadPool.Names.SUGGEST, ThreadPool.Names.WARMER)) {
-                if (random.nextBoolean()) {
-                    final String type = RandomPicks.randomFrom(random, Arrays.asList("fixed", "cached", "scaling"));
-                    builder.put(ThreadPool.THREADPOOL_GROUP + name + ".type", type);
-                }
-            }
-        }
 
         if (random.nextInt(10) == 0) {
             // node gets an extra cpu this time
@@ -621,7 +596,7 @@ public final class InternalTestCluster extends TestCluster {
                 .put("path.home", baseDir) // allow overriding path.home
                 .put(settings)
                 .put("name", name)
-                .put("discovery.id.seed", seed)
+                .put(DiscoveryService.SETTING_DISCOVERY_SEED, seed)
                 .build();
         MockNode node = new MockNode(finalSettings, version, plugins);
         return new NodeAndClient(name, node);
@@ -868,7 +843,8 @@ public final class InternalTestCluster extends TestCluster {
                     IOUtils.rm(nodeEnv.nodeDataPaths());
                 }
             }
-            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).build();
+            final long newIdSeed = node.settings().getAsLong(DiscoveryService.SETTING_DISCOVERY_SEED, 0l) + 1; // use a new seed to make sure we have new node id
+            Settings finalSettings = Settings.builder().put(node.settings()).put(newSettings).put(DiscoveryService.SETTING_DISCOVERY_SEED, newIdSeed).build();
             Collection<Class<? extends Plugin>> plugins = node.getPlugins();
             Version version = node.getVersion();
             node = new MockNode(finalSettings, version, plugins);
@@ -934,7 +910,7 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException {
+    public synchronized void beforeTest(Random random, double transportClientRatio) throws IOException, InterruptedException {
         super.beforeTest(random, transportClientRatio);
         reset(true);
     }
@@ -1256,7 +1232,7 @@ public final class InternalTestCluster extends TestCluster {
      * Restarts a random data node in the cluster
      */
     public void restartRandomDataNode() throws Exception {
-        restartRandomNode(EMPTY_CALLBACK);
+        restartRandomDataNode(EMPTY_CALLBACK);
     }
 
     /**

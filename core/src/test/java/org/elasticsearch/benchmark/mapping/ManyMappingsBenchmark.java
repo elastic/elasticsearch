@@ -23,6 +23,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -36,6 +37,7 @@ import static org.elasticsearch.node.NodeBuilder.nodeBuilder;
 
 /**
  */
+@SuppressForbidden(reason = "not really source code or a test")
 public class ManyMappingsBenchmark {
 
     private static final String MAPPING = "{\n" +

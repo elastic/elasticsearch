@@ -51,7 +51,6 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -434,11 +433,6 @@ public class PercolateContext extends SearchContext {
     }
 
     @Override
-    public IndexQueryParserService queryParserService() {
-        return indexService.queryParserService();
-    }
-
-    @Override
     public SimilarityService similarityService() {
         return indexService.similarityService();
     }
@@ -460,7 +454,7 @@ public class PercolateContext extends SearchContext {
 
     @Override
     public BitsetFilterCache bitsetFilterCache() {
-        return indexService.bitsetFilterCache();
+        return indexService.cache().bitsetFilterCache();
     }
 
     @Override

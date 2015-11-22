@@ -22,15 +22,10 @@ package org.elasticsearch.index.codec;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.lucene50.Lucene50StoredFieldsFormat.Mode;
 import org.apache.lucene.codecs.lucene54.Lucene54Codec;
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.MapBuilder;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.AbstractIndexComponent;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.index.mapper.MapperService;
-
-import java.util.Collections;
 import java.util.Map;
 
 /**
@@ -38,11 +33,9 @@ import java.util.Map;
  * codec layer that allows to use use-case specific file formats &amp;
  * data-structures per field. Elasticsearch exposes the full
  * {@link Codec} capabilities through this {@link CodecService}.
- *
  */
-public class CodecService extends AbstractIndexComponent {
+public class CodecService {
 
-    private final MapperService mapperService;
     private final Map<String, Codec> codecs;
 
     public final static String DEFAULT_CODEC = "default";
@@ -50,11 +43,8 @@ public class CodecService extends AbstractIndexComponent {
     /** the raw unfiltered lucene default. useful for testing */
     public final static String LUCENE_DEFAULT_CODEC = "lucene_default";
 
-    @Inject
-    public CodecService(IndexSettings indexSettings, MapperService mapperService) {
-        super(indexSettings);
-        this.mapperService = mapperService;
-        MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
+    public CodecService(@Nullable MapperService mapperService, ESLogger logger) {
+        final MapBuilder<String, Codec> codecs = MapBuilder.<String, Codec>newMapBuilder();
         if (mapperService == null) {
             codecs.put(DEFAULT_CODEC, new Lucene54Codec());
             codecs.put(BEST_COMPRESSION_CODEC, new Lucene54Codec(Mode.BEST_COMPRESSION));
@@ -69,10 +59,6 @@ public class CodecService extends AbstractIndexComponent {
             codecs.put(codec, Codec.forName(codec));
         }
         this.codecs = codecs.immutableMap();
-    }
-
-    public MapperService mapperService() {
-        return mapperService;
     }
 
     public Codec codec(String name) {

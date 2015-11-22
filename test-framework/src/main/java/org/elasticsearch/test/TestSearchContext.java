@@ -41,7 +41,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -105,7 +104,7 @@ public class TestSearchContext extends SearchContext {
         this.bigArrays = bigArrays.withCircuitBreaking();
         this.indexService = indexService;
         this.indexFieldDataService = indexService.fieldData();
-        this.fixedBitSetFilterCache = indexService.bitsetFilterCache();
+        this.fixedBitSetFilterCache = indexService.cache().bitsetFilterCache();
         this.threadPool = threadPool;
         this.indexShard = indexService.getShardOrNull(0);
         this.scriptService = scriptService;
@@ -311,14 +310,7 @@ public class TestSearchContext extends SearchContext {
     }
 
     @Override
-    public AnalysisService analysisService() {
-        return indexService.analysisService();
-    }
-
-    @Override
-    public IndexQueryParserService queryParserService() {
-        return indexService.queryParserService();
-    }
+    public AnalysisService analysisService() { return indexService.analysisService();}
 
     @Override
     public SimilarityService similarityService() {

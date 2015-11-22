@@ -22,12 +22,7 @@ package org.elasticsearch.index.analysis;
 import org.apache.lucene.analysis.MockTokenizer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.Tokenizer;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.EdgeNGramTokenizer;
-import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenFilter;
-import org.apache.lucene.analysis.ngram.Lucene43EdgeNGramTokenizer;
-import org.apache.lucene.analysis.ngram.Lucene43NGramTokenizer;
-import org.apache.lucene.analysis.ngram.NGramTokenizer;
+import org.apache.lucene.analysis.ngram.*;
 import org.apache.lucene.analysis.reverse.ReverseStringFilter;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -42,7 +37,10 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.Random;
 
 import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
 import static org.hamcrest.Matchers.instanceOf;
@@ -52,7 +50,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final Index index = new Index("test");
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
-        IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST);
+        IndexSettings indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
         for (String tokenChars : Arrays.asList("letters", "number", "DIRECTIONALITY_UNDEFINED")) {
             final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", tokenChars).build();
             try {
@@ -64,7 +62,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         }
         for (String tokenChars : Arrays.asList("letter", " digit ", "punctuation", "DIGIT", "CoNtRoL", "dash_punctuation")) {
             final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", tokenChars).build();
-            indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST);
+            indexProperties = IndexSettingsModule.newIndexSettings(index, indexSettings);
 
             new NGramTokenizerFactory(indexProperties, null, name, settings).create();
             // no exception
@@ -76,7 +74,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         final Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 4).putArray("token_chars", new String[0]).build();
-        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
         tokenizer.setReader(new StringReader("1.34"));
         assertTokenStreamContents(tokenizer, new String[] {"1.", "1.3", "1.34", ".3", ".34", "34"});
     }
@@ -87,12 +85,12 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit").build();
-        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+        Tokenizer tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
         tokenizer.setReader(new StringReader("Åbc déf g\uD801\uDC00f "));
         assertTokenStreamContents(tokenizer,
                 new String[] {"Åb", "Åbc", "bc", "dé", "déf", "éf", "g\uD801\uDC00", "g\uD801\uDC00f", "\uD801\uDC00f"});
         settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
-        tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+        tokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
         tokenizer.setReader(new StringReader(" a!$ 9"));
         assertTokenStreamContents(tokenizer,
             new String[] {" a", " a!", "a!", "a!$", "!$", "!$ ", "$ ", "$ 9", " 9"});
@@ -104,12 +102,12 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         final String name = "ngr";
         final Settings indexSettings = newAnalysisSettingsBuilder().build();
         Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit").build();
-        Tokenizer tokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+        Tokenizer tokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
         tokenizer.setReader(new StringReader("Åbc déf g\uD801\uDC00f "));
         assertTokenStreamContents(tokenizer,
                 new String[] {"Åb", "Åbc", "dé", "déf", "g\uD801\uDC00", "g\uD801\uDC00f"});
         settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("token_chars", "letter,digit,punctuation,whitespace,symbol").build();
-        tokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+        tokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
         tokenizer.setReader(new StringReader(" a!$ 9"));
         assertTokenStreamContents(tokenizer,
                 new String[] {" a", " a!"});
@@ -130,7 +128,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 }
                 Settings settings = builder.build();
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer edgeNGramTokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+                Tokenizer edgeNGramTokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
                 edgeNGramTokenizer.setReader(new StringReader("foo bar"));
                 if (compatVersion) {
                     assertThat(edgeNGramTokenizer, instanceOf(Lucene43EdgeNGramTokenizer.class));
@@ -141,7 +139,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             } else {
                 Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("side", "back").build();
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer edgeNGramTokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+                Tokenizer edgeNGramTokenizer = new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
                 edgeNGramTokenizer.setReader(new StringReader("foo bar"));
                 assertThat(edgeNGramTokenizer, instanceOf(Lucene43EdgeNGramTokenizer.class));
             }
@@ -149,7 +147,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
         Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).put("side", "back").build();
         Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
         try {
-            new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+            new EdgeNGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
             fail("should fail side:back is not supported anymore");
         } catch (IllegalArgumentException ex) {
         }
@@ -170,7 +168,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 }
                 Settings settings = builder.build();
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer nGramTokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+                Tokenizer nGramTokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
                 nGramTokenizer.setReader(new StringReader("foo bar"));
                 if (compatVersion) {
                     assertThat(nGramTokenizer, instanceOf(Lucene43NGramTokenizer.class));
@@ -181,7 +179,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
             } else {
                 Settings settings = newAnalysisSettingsBuilder().put("min_gram", 2).put("max_gram", 3).build();
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
-                Tokenizer nGramTokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create();
+                Tokenizer nGramTokenizer = new NGramTokenizerFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create();
                 nGramTokenizer.setReader(new StringReader("foo bar"));
                 assertThat(nGramTokenizer, instanceOf(Lucene43NGramTokenizer.class));
             }
@@ -208,7 +206,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
                 Tokenizer tokenizer = new MockTokenizer();
                 tokenizer.setReader(new StringReader("foo bar"));
-                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null,  name, settings).create(tokenizer);
+                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create(tokenizer);
                 if (reverse) {
                     assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
                 } else if (compatVersion) {
@@ -227,7 +225,7 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 Settings indexSettings = newAnalysisSettingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, v.id).build();
                 Tokenizer tokenizer = new MockTokenizer();
                 tokenizer.setReader(new StringReader("foo bar"));
-                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings, Collections.EMPTY_LIST), null, name, settings).create(tokenizer);
+                TokenStream edgeNGramTokenFilter = new EdgeNGramTokenFilterFactory(IndexSettingsModule.newIndexSettings(index, indexSettings), null, name, settings).create(tokenizer);
                 if (reverse) {
                     assertThat(edgeNGramTokenFilter, instanceOf(ReverseStringFilter.class));
                 } else {

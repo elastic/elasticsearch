@@ -18,14 +18,17 @@
  */
 package org.elasticsearch.search.suggest.completion;
 
-import org.apache.lucene.search.suggest.analyzing.XFuzzySuggester;
+import org.apache.lucene.search.suggest.document.CompletionQuery;
+import org.elasticsearch.common.unit.Fuzziness;
+import org.elasticsearch.index.fielddata.IndexFieldDataService;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
-import org.elasticsearch.search.suggest.context.ContextMapping.ContextQuery;
+import org.elasticsearch.search.suggest.completion.context.ContextMapping;
+import org.elasticsearch.search.suggest.completion.context.ContextMappings;
 
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 
 /**
  *
@@ -33,79 +36,89 @@ import java.util.List;
 public class CompletionSuggestionContext extends SuggestionSearchContext.SuggestionContext {
 
     private CompletionFieldMapper.CompletionFieldType fieldType;
-    private int fuzzyEditDistance = XFuzzySuggester.DEFAULT_MAX_EDITS;
-    private boolean fuzzyTranspositions = XFuzzySuggester.DEFAULT_TRANSPOSITIONS;
-    private int fuzzyMinLength = XFuzzySuggester.DEFAULT_MIN_FUZZY_LENGTH;
-    private int fuzzyPrefixLength = XFuzzySuggester.DEFAULT_NON_FUZZY_PREFIX;
-    private boolean fuzzy = false;
-    private boolean fuzzyUnicodeAware = XFuzzySuggester.DEFAULT_UNICODE_AWARE;
-    private List<ContextQuery> contextQueries = Collections.emptyList();
-    
-    public CompletionSuggestionContext(Suggester suggester) {
+    private CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder;
+    private CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder;
+    private Map<String, List<ContextMapping.QueryContext>> queryContexts = Collections.EMPTY_MAP;
+    private final MapperService mapperService;
+    private final IndexFieldDataService indexFieldDataService;
+    private Set<String> payloadFields = Collections.EMPTY_SET;
+
+    CompletionSuggestionContext(Suggester suggester, MapperService mapperService, IndexFieldDataService indexFieldDataService) {
         super(suggester);
+        this.indexFieldDataService = indexFieldDataService;
+        this.mapperService = mapperService;
     }
 
-    public CompletionFieldMapper.CompletionFieldType fieldType() {
+    CompletionFieldMapper.CompletionFieldType getFieldType() {
         return this.fieldType;
     }
 
-    public void fieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
+    void setFieldType(CompletionFieldMapper.CompletionFieldType fieldType) {
         this.fieldType = fieldType;
     }
 
-    public void setFuzzyEditDistance(int fuzzyEditDistance) {
-        this.fuzzyEditDistance = fuzzyEditDistance;
+    void setRegexOptionsBuilder(CompletionSuggestionBuilder.RegexOptionsBuilder regexOptionsBuilder) {
+        this.regexOptionsBuilder = regexOptionsBuilder;
     }
 
-    public int getFuzzyEditDistance() {
-        return fuzzyEditDistance;
+    void setFuzzyOptionsBuilder(CompletionSuggestionBuilder.FuzzyOptionsBuilder fuzzyOptionsBuilder) {
+        this.fuzzyOptionsBuilder = fuzzyOptionsBuilder;
     }
 
-    public void setFuzzyTranspositions(boolean fuzzyTranspositions) {
-        this.fuzzyTranspositions = fuzzyTranspositions;
+    void setQueryContexts(Map<String, List<ContextMapping.QueryContext>> queryContexts) {
+        this.queryContexts = queryContexts;
     }
 
-    public boolean isFuzzyTranspositions() {
-        return fuzzyTranspositions;
+
+    MapperService getMapperService() {
+        return mapperService;
     }
 
-    public void setFuzzyMinLength(int fuzzyMinPrefixLength) {
-        this.fuzzyMinLength = fuzzyMinPrefixLength;
+    IndexFieldDataService getIndexFieldDataService() {
+        return indexFieldDataService;
     }
 
-    public int getFuzzyMinLength() {
-        return fuzzyMinLength;
+    void setPayloadFields(Set<String> fields) {
+        this.payloadFields = fields;
     }
 
-    public void setFuzzyPrefixLength(int fuzzyNonPrefixLength) {
-        this.fuzzyPrefixLength = fuzzyNonPrefixLength;
+    void setPayloadFields(List<String> fields) {
+        setPayloadFields(new HashSet<String>(fields));
     }
 
-    public int getFuzzyPrefixLength() {
-        return fuzzyPrefixLength;
+    Set<String> getPayloadFields() {
+        return payloadFields;
     }
 
-    public void setFuzzy(boolean fuzzy) {
-        this.fuzzy = fuzzy;
-    }
-
-    public boolean isFuzzy() {
-        return fuzzy;
-    }
-
-    public void setFuzzyUnicodeAware(boolean fuzzyUnicodeAware) {
-        this.fuzzyUnicodeAware = fuzzyUnicodeAware;
-    }
-
-    public boolean isFuzzyUnicodeAware() {
-        return fuzzyUnicodeAware;
-    }
-    
-    public void setContextQuery(List<ContextQuery> queries) {
-        this.contextQueries = queries;
-    }
-
-    public List<ContextQuery> getContextQueries() {   
-        return this.contextQueries;
+    CompletionQuery toQuery() {
+        CompletionFieldMapper.CompletionFieldType fieldType = getFieldType();
+        final CompletionQuery query;
+        if (getPrefix() != null) {
+            if (fuzzyOptionsBuilder != null) {
+                query = fieldType.fuzzyQuery(getPrefix().utf8ToString(),
+                        Fuzziness.fromEdits(fuzzyOptionsBuilder.getEditDistance()),
+                        fuzzyOptionsBuilder.getFuzzyPrefixLength(), fuzzyOptionsBuilder.getFuzzyMinLength(),
+                        fuzzyOptionsBuilder.getMaxDeterminizedStates(), fuzzyOptionsBuilder.isTranspositions(),
+                        fuzzyOptionsBuilder.isUnicodeAware());
+            } else {
+                query = fieldType.prefixQuery(getPrefix());
+            }
+        } else if (getRegex() != null) {
+            if (fuzzyOptionsBuilder != null) {
+                throw new IllegalArgumentException("can not use 'fuzzy' options with 'regex");
+            }
+            if (regexOptionsBuilder == null) {
+                regexOptionsBuilder = new CompletionSuggestionBuilder.RegexOptionsBuilder();
+            }
+            query = fieldType.regexpQuery(getRegex(), regexOptionsBuilder.getFlagsValue(),
+                    regexOptionsBuilder.getMaxDeterminizedStates());
+        } else {
+            throw new IllegalArgumentException("'prefix' or 'regex' must be defined");
+        }
+        if (fieldType.hasContextMappings()) {
+            ContextMappings contextMappings = fieldType.getContextMappings();
+            return contextMappings.toContextQuery(query, queryContexts);
+        }
+        return query;
     }
 }

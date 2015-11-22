@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointInBBoxQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Numbers;
@@ -29,7 +30,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
 import org.elasticsearch.index.search.geo.IndexedGeoBoundingBoxQuery;
 
@@ -232,6 +234,14 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
 
     @Override
     public Query doToQuery(QueryShardContext context) {
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType == null) {
+            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+        }
+        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+        }
+
         QueryValidationException exception = checkLatLon(context.indexVersionCreated().before(Version.V_2_0_0));
         if (exception != null) {
             throw new QueryShardException(context, "couldn't validate latitude/ longitude values", exception);
@@ -254,30 +264,27 @@ public class GeoBoundingBoxQueryBuilder extends AbstractQueryBuilder<GeoBounding
             }
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+        if (context.indexVersionCreated().onOrAfter(Version.V_2_2_0)) {
+            return new GeoPointInBBoxQuery(fieldType.names().fullName(), luceneTopLeft.lon(), luceneBottomRight.lat(),
+                    luceneBottomRight.lon(), luceneTopLeft.lat());
         }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
-        }
-        GeoPointFieldMapper.GeoPointFieldType geoFieldType = ((GeoPointFieldMapper.GeoPointFieldType) fieldType);
 
-        Query result;
+        Query query;
         switch(type) {
             case INDEXED:
-                result = IndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType);
+                GeoPointFieldMapperLegacy.GeoPointFieldType geoFieldType = ((GeoPointFieldMapperLegacy.GeoPointFieldType) fieldType);
+                query = IndexedGeoBoundingBoxQuery.create(luceneTopLeft, luceneBottomRight, geoFieldType);
                 break;
             case MEMORY:
                 IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-                result = new InMemoryGeoBoundingBoxQuery(luceneTopLeft, luceneBottomRight, indexFieldData);
+                query = new InMemoryGeoBoundingBoxQuery(luceneTopLeft, luceneBottomRight, indexFieldData);
                 break;
             default:
                 // Someone extended the type enum w/o adjusting this switch statement.
                 throw new IllegalStateException("geo bounding box type [" + type + "] not supported.");
         }
 
-        return result;
+        return query;
     }
 
     @Override

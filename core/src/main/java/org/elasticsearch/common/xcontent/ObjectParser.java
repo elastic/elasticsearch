@@ -214,8 +214,16 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
 
     private final <T> List<T> parseArray(XContentParser parser, IOSupplier<T> supplier) throws IOException {
         List<T> list = new ArrayList<>();
-        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-            list.add(supplier.get());
+        if (parser.currentToken().isValue()) {
+            list.add(supplier.get()); // single value
+        } else {
+            while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                if (parser.currentToken().isValue()) {
+                    list.add(supplier.get());
+                } else {
+                    throw new IllegalStateException("expected value but got [" + parser.currentToken() + "]");
+                }
+            }
         }
         return list;
     }
@@ -223,6 +231,19 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
     public <T> void declareObject(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser, ParseField field) {
         declareField((p, v, c) -> consumer.accept(v, objectParser.apply(p, c)), field, ValueType.OBJECT);
     }
+
+    public <T> void declareObjectOrDefault(BiConsumer<Value, T> consumer, BiFunction<XContentParser, Context, T> objectParser, Supplier<T> defaultValue, ParseField field) {
+        declareField((p, v, c) -> {
+            if (p.currentToken() == XContentParser.Token.VALUE_BOOLEAN) {
+                if (p.booleanValue()) {
+                    consumer.accept(v, defaultValue.get());
+                }
+            } else {
+                consumer.accept(v, objectParser.apply(p, c));
+            }
+        }, field, ValueType.OBJECT_OR_BOOLEAN);
+    }
+
 
     public void declareFloat(BiConsumer<Value, Float> consumer, ParseField field) {
         declareField((p, v, c) -> consumer.accept(v, p.floatValue()), field, ValueType.FLOAT);
@@ -238,6 +259,10 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
 
     public void declareInt(BiConsumer<Value, Integer> consumer, ParseField field) {
         declareField((p, v, c) -> consumer.accept(v, p.intValue()), field, ValueType.INT);
+    }
+
+    public void declareValue(BiConsumer<Value, XContentParser> consumer, ParseField field) {
+        declareField((p, v, c) -> consumer.accept(v, p), field, ValueType.VALUE);
     }
 
     public void declareString(BiConsumer<Value, String> consumer, ParseField field) {
@@ -296,13 +321,15 @@ public final class ObjectParser<Value, Context> implements BiFunction<XContentPa
         DOUBLE(EnumSet.of(XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_STRING)),
         LONG(EnumSet.of(XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_STRING)),
         INT(EnumSet.of(XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_STRING)),
-        BOOLEAN(EnumSet.of(XContentParser.Token.VALUE_BOOLEAN)), STRING_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
-        FLOAT_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
-        DOUBLE_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
-        LONG_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
-        INT_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
-        BOOLEAN_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY)),
-        OBJECT(EnumSet.of(XContentParser.Token.START_OBJECT));
+        BOOLEAN(EnumSet.of(XContentParser.Token.VALUE_BOOLEAN)), STRING_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY, XContentParser.Token.VALUE_STRING)),
+        FLOAT_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_STRING)),
+        DOUBLE_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_STRING)),
+        LONG_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_STRING)),
+        INT_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY, XContentParser.Token.VALUE_NUMBER, XContentParser.Token.VALUE_STRING)),
+        BOOLEAN_ARRAY(EnumSet.of(XContentParser.Token.START_ARRAY, XContentParser.Token.VALUE_BOOLEAN)),
+        OBJECT(EnumSet.of(XContentParser.Token.START_OBJECT)),
+        OBJECT_OR_BOOLEAN(EnumSet.of(XContentParser.Token.START_OBJECT, XContentParser.Token.VALUE_BOOLEAN)),
+        VALUE(EnumSet.of(XContentParser.Token.VALUE_BOOLEAN, XContentParser.Token.VALUE_NULL ,XContentParser.Token.VALUE_EMBEDDED_OBJECT,XContentParser.Token.VALUE_NUMBER,XContentParser.Token.VALUE_STRING));
 
         private final EnumSet<XContentParser.Token> tokens;
 

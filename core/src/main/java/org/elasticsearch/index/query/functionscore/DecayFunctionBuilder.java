@@ -41,7 +41,7 @@ import org.elasticsearch.index.fielddata.*;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.search.MultiValueMode;
 
@@ -187,8 +187,8 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
         parser.nextToken();
         if (fieldType instanceof DateFieldMapper.DateFieldType) {
             return parseDateVariable(parser, context, (DateFieldMapper.DateFieldType) fieldType, mode);
-        } else if (fieldType instanceof GeoPointFieldMapper.GeoPointFieldType) {
-            return parseGeoVariable(parser, context, (GeoPointFieldMapper.GeoPointFieldType) fieldType, mode);
+        } else if (fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType) {
+            return parseGeoVariable(parser, context, (BaseGeoPointFieldMapper.GeoPointFieldType) fieldType, mode);
         } else if (fieldType instanceof NumberFieldMapper.NumberFieldType) {
             return parseNumberVariable(parser, context, (NumberFieldMapper.NumberFieldType) fieldType, mode);
         } else {
@@ -231,7 +231,7 @@ public abstract class DecayFunctionBuilder<DFB extends DecayFunctionBuilder> ext
     }
 
     private AbstractDistanceScoreFunction parseGeoVariable(XContentParser parser, QueryShardContext context,
-                                                           GeoPointFieldMapper.GeoPointFieldType fieldType, MultiValueMode mode) throws IOException {
+                                                           BaseGeoPointFieldMapper.GeoPointFieldType fieldType, MultiValueMode mode) throws IOException {
         XContentParser.Token token;
         String parameterName = null;
         GeoPoint origin = new GeoPoint();

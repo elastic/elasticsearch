@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.ExtensionPoint;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.query.*;
 import org.elasticsearch.index.query.functionscore.FunctionScoreQueryParser;
 import org.elasticsearch.index.termvectors.TermVectorsService;
@@ -134,6 +135,7 @@ public class IndicesModule extends AbstractModule {
         bind(MetaDataIndexUpgradeService.class).asEagerSingleton();
         bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
         bind(TermVectorsService.class).asEagerSingleton();
+        bind(NodeServicesProvider.class).asEagerSingleton();
     }
 
     protected void bindQueryParsersExtension() {

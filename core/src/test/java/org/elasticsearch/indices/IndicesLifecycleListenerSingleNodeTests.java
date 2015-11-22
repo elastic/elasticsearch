@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -90,7 +91,8 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
         };
         indicesService.deleteIndex("test", "simon says");
         try {
-            IndexService index = indicesService.createIndex(metaData, Arrays.asList(countingListener));
+            NodeServicesProvider nodeServicesProvider = getInstanceFromNode(NodeServicesProvider.class);
+            IndexService index = indicesService.createIndex(nodeServicesProvider, metaData, Arrays.asList(countingListener));
             ShardRouting newRouting = new ShardRouting(shardRouting);
             String nodeId = newRouting.currentNodeId();
             ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom"));

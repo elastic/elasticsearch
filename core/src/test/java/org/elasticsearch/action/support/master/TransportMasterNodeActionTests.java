@@ -29,6 +29,7 @@ import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -38,6 +39,8 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
@@ -211,7 +214,17 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         }
 
         assertTrue(listener.isDone());
-        assertListenerThrows("ClusterBlockException should be thrown", listener, ClusterBlockException.class);
+        if (retryableBlock) {
+            try {
+                listener.get();
+                fail("Expected exception but returned proper result");
+            } catch (ExecutionException ex) {
+                assertThat(ex.getCause(), instanceOf(MasterNotDiscoveredException.class));
+                assertThat(ex.getCause().getCause(), instanceOf(ClusterBlockException.class));
+            }
+        } else {
+            assertListenerThrows("ClusterBlockException should be thrown", listener, ClusterBlockException.class);
+        }
     }
 
     public void testForceLocalOperation() throws ExecutionException, InterruptedException {
@@ -256,17 +269,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         clusterService.setState(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        final AtomicBoolean delegationToMaster = new AtomicBoolean();
+        new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool).execute(request, listener);
 
-        new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
-            @Override
-            protected void processBeforeDelegationToMaster(Request request, ClusterState state) {
-                logger.debug("Delegation to master called");
-                delegationToMaster.set(true);
-            }
-        }.execute(request, listener);
-
-        assertTrue("processBeforeDelegationToMaster not called", delegationToMaster.get());
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
         assertTrue(capturedRequest.node.isMasterNode());
@@ -285,17 +289,8 @@ public class TransportMasterNodeActionTests extends ESTestCase {
         clusterService.setState(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
 
         PlainActionFuture<Response> listener = new PlainActionFuture<>();
-        final AtomicBoolean delegationToMaster = new AtomicBoolean();
+        new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool).execute(request, listener);
 
-        new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
-            @Override
-            protected void processBeforeDelegationToMaster(Request request, ClusterState state) {
-                logger.debug("Delegation to master called");
-                delegationToMaster.set(true);
-            }
-        }.execute(request, listener);
-
-        assertTrue("processBeforeDelegationToMaster not called", delegationToMaster.get());
         assertThat(transport.capturedRequests().length, equalTo(1));
         CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
         assertTrue(capturedRequest.node.isMasterNode());
@@ -319,5 +314,36 @@ public class TransportMasterNodeActionTests extends ESTestCase {
                 assertThat(ex.getCause().getCause(), equalTo(t));
             }
         }
+    }
+
+    public void testMasterFailoverAfterStepDown() throws ExecutionException, InterruptedException {
+        Request request = new Request().masterNodeTimeout(TimeValue.timeValueHours(1));
+        PlainActionFuture<Response> listener = new PlainActionFuture<>();
+
+        final Response response = new Response();
+
+        clusterService.setState(ClusterStateCreationUtils.state(localNode, localNode, allNodes));
+
+        new Action(Settings.EMPTY, "testAction", transportService, clusterService, threadPool) {
+            @Override
+            protected void masterOperation(Request request, ClusterState state, ActionListener<Response> listener) throws Exception {
+                // The other node has become master, simulate failures of this node while publishing cluster state through ZenDiscovery
+                TransportMasterNodeActionTests.this.clusterService.setState(ClusterStateCreationUtils.state(localNode, remoteNode, allNodes));
+                Throwable failure = randomBoolean()
+                        ? new Discovery.FailedToCommitClusterStateException("Fake error")
+                        : new NotMasterException("Fake error");
+                listener.onFailure(failure);
+            }
+        }.execute(request, listener);
+
+        assertThat(transport.capturedRequests().length, equalTo(1));
+        CapturingTransport.CapturedRequest capturedRequest = transport.capturedRequests()[0];
+        assertTrue(capturedRequest.node.isMasterNode());
+        assertThat(capturedRequest.request, equalTo(request));
+        assertThat(capturedRequest.action, equalTo("testAction"));
+
+        transport.handleResponse(capturedRequest.requestId, response);
+        assertTrue(listener.isDone());
+        assertThat(listener.get(), equalTo(response));
     }
 }

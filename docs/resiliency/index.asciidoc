@@ -204,6 +204,14 @@ Commonly used filters are cached in Elasticsearch. That cache is limited in size
 
 While we are working on a longer term solution ({GIT}9176[#9176]), we introduced a minimum weight of 1k for each cache entry. This puts an effective limit on the number of entries in the cache. See {GIT}8304[#8304] (STATUS: DONE, fixed in v1.4.0)
 
+[float]
+=== Do not allow stale shards to automatically be promoted to primary (STATUS: ONGOING)
+
+In some scenarios, after loss of all valid copies, a stale replica shard can be assigned as a primary. This can lead to
+a loss of acknowledged writes if the valid copies are not lost but are rather temporarily isolated. Work is underway
+({GIT}14671[#14671]) to prevent the automatic promotion of a stale primary and only allow such promotion to occur when
+a system operator manually intervenes.
+
 == Completed
 
 [float]

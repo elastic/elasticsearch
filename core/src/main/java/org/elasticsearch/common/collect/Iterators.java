@@ -28,7 +28,8 @@ public class Iterators {
             throw new NullPointerException("iterators");
         }
 
-        return new ConcatenatedIterator<>(iterators);
+        // explicit generic type argument needed for type inference
+        return new ConcatenatedIterator<T>(iterators);
     }
 
     static class ConcatenatedIterator<T> implements Iterator<T> {

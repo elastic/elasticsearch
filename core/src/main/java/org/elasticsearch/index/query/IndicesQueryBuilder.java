@@ -116,14 +116,6 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     }
 
     @Override
-    protected void setFinalBoost(Query query) {
-        if (boost != DEFAULT_BOOST) {
-            //if both the wrapped query and the wrapper hold a boost, the main one coming from the wrapper wins
-            query.setBoost(boost);
-        }
-    }
-
-    @Override
     protected IndicesQueryBuilder doReadFrom(StreamInput in) throws IOException {
         IndicesQueryBuilder indicesQueryBuilder = new IndicesQueryBuilder(in.readQuery(), in.readStringArray());
         indicesQueryBuilder.noMatchQuery = in.readQuery();

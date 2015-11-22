@@ -25,9 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 
-import java.util.Collection;
 import java.util.Collections;
-import java.util.function.Consumer;
 
 public class IndexSettingsModule extends AbstractModule {
 
@@ -39,12 +37,17 @@ public class IndexSettingsModule extends AbstractModule {
         this.index = index;
 
     }
+
     @Override
     protected void configure() {
-        bind(IndexSettings.class).toInstance(newIndexSettings(index, settings, Collections.EMPTY_LIST));
+        bind(IndexSettings.class).toInstance(newIndexSettings(index, settings));
     }
 
-    public static IndexSettings newIndexSettings(Index index, Settings settings, Collection<Consumer<Settings>> updateListeners) {
+    public static IndexSettings newIndexSettings(String index, Settings settings) {
+        return newIndexSettings(new Index(index), settings);
+    }
+
+    public static IndexSettings newIndexSettings(Index index, Settings settings) {
         Settings build = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
                 .put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, 1)
                 .put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)

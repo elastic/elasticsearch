@@ -20,7 +20,7 @@
 package org.elasticsearch.indices.store;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
@@ -195,10 +195,9 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
         // add a transport delegate that will prevent the shard active request to succeed the first time after relocation has finished.
         // node_1 will then wait for the next cluster state change before it tries a next attempt to delet the shard.
         MockTransportService transportServiceNode_1 = (MockTransportService) internalCluster().getInstance(TransportService.class, node_1);
-        String node_2_id = internalCluster().getInstance(DiscoveryService.class, node_2).localNode().id();
-        DiscoveryNode node_2_disco = internalCluster().clusterService().state().getNodes().dataNodes().get(node_2_id);
+        TransportService transportServiceNode_2 = internalCluster().getInstance(TransportService.class, node_2);
         final CountDownLatch shardActiveRequestSent = new CountDownLatch(1);
-        transportServiceNode_1.addDelegate(node_2_disco, new MockTransportService.DelegateTransport(transportServiceNode_1.original()) {
+        transportServiceNode_1.addDelegate(transportServiceNode_2, new MockTransportService.DelegateTransport(transportServiceNode_1.original()) {
             @Override
             public void sendRequest(DiscoveryNode node, long requestId, String action, TransportRequest request, TransportRequestOptions options) throws IOException, TransportException {
                 if (action.equals("internal:index/shard/exists") && shardActiveRequestSent.getCount() > 0) {

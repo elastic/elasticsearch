@@ -63,7 +63,6 @@ public final class IndicesWarmer extends AbstractComponent {
         if (shard.state() == IndexShardState.CLOSED) {
             return;
         }
-        final IndexMetaData indexMetaData = settings.getIndexMetaData();
         final Settings indexSettings = settings.getSettings();
         if (!indexSettings.getAsBoolean(INDEX_WARMER_ENABLED, settings.getNodeSettings().getAsBoolean(INDEX_WARMER_ENABLED, true))) {
             return;

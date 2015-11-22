@@ -22,9 +22,20 @@ esplugin {
   classname 'org.elasticsearch.plugin.repository.s3.S3RepositoryPlugin'
 }
 
+versions << [
+  'aws': '1.10.33'
+]
+
 dependencies {
-  compile 'com.amazonaws:aws-java-sdk-s3:1.10.19'
+  compile "com.amazonaws:aws-java-sdk-s3:${versions.aws}"
+  compile "com.amazonaws:aws-java-sdk-kms:${versions.aws}"
+  compile "com.amazonaws:aws-java-sdk-core:${versions.aws}"
   compile "org.apache.httpcomponents:httpclient:${versions.httpclient}"
+  compile "org.apache.httpcomponents:httpcore:${versions.httpcore}"
+  compile "commons-logging:commons-logging:${versions.commonslogging}"
+  compile "commons-codec:commons-codec:${versions.commonscodec}"
+  compile "com.fasterxml.jackson.core:jackson-databind:2.5.3"
+  compile "com.fasterxml.jackson.core:jackson-annotations:2.5.0"
 }
 
 dependencyLicenses {

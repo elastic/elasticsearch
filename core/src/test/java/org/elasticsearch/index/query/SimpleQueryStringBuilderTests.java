@@ -20,45 +20,30 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.Term;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
-import org.apache.lucene.search.MatchNoDocsQuery;
-import org.apache.lucene.search.Query;
-import org.apache.lucene.search.TermQuery;
+import org.apache.lucene.search.*;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentParser;
+
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Map.Entry;
 import java.util.Set;
-import java.util.TreeMap;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
 public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQueryStringBuilder> {
 
-    private String[] queryTerms;
-
     @Override
     protected SimpleQueryStringBuilder doCreateTestQueryBuilder() {
-        int numberOfTerms = randomIntBetween(1, 5);
-        queryTerms = new String[numberOfTerms];
-        StringBuilder queryString = new StringBuilder();
-        for (int i = 0; i < numberOfTerms; i++) {
-            queryTerms[i] = randomAsciiOfLengthBetween(1, 10);
-            queryString.append(queryTerms[i] + " ");
-        }
-        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(queryString.toString().trim());
+        SimpleQueryStringBuilder result = new SimpleQueryStringBuilder(randomAsciiOfLengthBetween(1, 10));
         if (randomBoolean()) {
             result.analyzeWildcard(randomBoolean());
         }
@@ -82,13 +67,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         }
         if (randomBoolean()) {
             Set<SimpleQueryStringFlag> flagSet = new HashSet<>();
-            if (numberOfTerms > 1) {
-                flagSet.add(SimpleQueryStringFlag.WHITESPACE);
-            }
             int size = randomIntBetween(0, SimpleQueryStringFlag.values().length);
             for (int i = 0; i < size; i++) {
-                SimpleQueryStringFlag randomFlag = randomFrom(SimpleQueryStringFlag.values());
-                flagSet.add(randomFlag);
+                flagSet.add(randomFrom(SimpleQueryStringFlag.values()));
             }
             if (flagSet.size() > 0) {
                 result.flags(flagSet.toArray(new SimpleQueryStringFlag[flagSet.size()]));
@@ -99,12 +80,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         Map<String, Float> fields = new HashMap<>();
         for (int i = 0; i < fieldCount; i++) {
             if (randomBoolean()) {
-                fields.put("f" + i + "_" + randomAsciiOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
+                fields.put(randomAsciiOfLengthBetween(1, 10), AbstractQueryBuilder.DEFAULT_BOOST);
             } else {
-                fields.put(randomBoolean() ? STRING_FIELD_NAME : "f" + i + "_" + randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
+                fields.put(randomBoolean() ? STRING_FIELD_NAME : randomAsciiOfLengthBetween(1, 10), 2.0f / randomIntBetween(1, 20));
             }
         }
         result.fields(fields);
+
         return result;
     }
 
@@ -250,16 +232,13 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
     }
 
     public void testDefaultFieldParsing() throws IOException {
-        QueryParseContext context = createParseContext();
         String query = randomAsciiOfLengthBetween(1, 10).toLowerCase(Locale.ROOT);
         String contentString = "{\n" +
                 "    \"simple_query_string\" : {\n" +
                 "      \"query\" : \"" + query + "\"" +
                 "    }\n" +
                 "}";
-        XContentParser parser = XContentFactory.xContent(contentString).createParser(contentString);
-        context.reset(parser);
-        SimpleQueryStringBuilder queryBuilder = new SimpleQueryStringParser().fromXContent(context);
+        SimpleQueryStringBuilder queryBuilder = (SimpleQueryStringBuilder) parseQuery(contentString);
         assertThat(queryBuilder.value(), equalTo(query));
         assertThat(queryBuilder.fields(), notNullValue());
         assertThat(queryBuilder.fields().size(), equalTo(0));
@@ -267,10 +246,10 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
 
         // the remaining tests requires either a mapping that we register with types in base test setup
         // no strict field resolution (version before V_1_4_0_Beta1)
-        if (getCurrentTypes().length > 0 || shardContext.indexQueryParserService().getIndexCreatedVersion().before(Version.V_1_4_0_Beta1)) {
+        if (getCurrentTypes().length > 0 || shardContext.indexVersionCreated().before(Version.V_1_4_0_Beta1)) {
             Query luceneQuery = queryBuilder.toQuery(shardContext);
-            assertThat(luceneQuery, instanceOf(BooleanQuery.class));
-            TermQuery termQuery = (TermQuery) ((BooleanQuery) luceneQuery).clauses().get(0).getQuery();
+            assertThat(luceneQuery, instanceOf(TermQuery.class));
+            TermQuery termQuery = (TermQuery) luceneQuery;
             assertThat(termQuery.getTerm(), equalTo(new Term(MetaData.ALL, query)));
         }
     }
@@ -287,10 +266,9 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         assertThat(query, notNullValue());
 
         if ("".equals(queryBuilder.value())) {
-            assertTrue("Query should have been MatchNoDocsQuery but was " + query.getClass().getName(), query instanceof MatchNoDocsQuery);
-        } else  {
-            assertTrue("Query should have been BooleanQuery but was " + query.getClass().getName(), query instanceof BooleanQuery);
-
+            assertThat(query, instanceOf(MatchNoDocsQuery.class));
+        } else if (queryBuilder.fields().size() > 1) {
+            assertThat(query, instanceOf(BooleanQuery.class));
             BooleanQuery boolQuery = (BooleanQuery) query;
             if (queryBuilder.lowercaseExpandedTerms()) {
                 for (BooleanClause clause : boolQuery.clauses()) {
@@ -300,53 +278,26 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
                     }
                 }
             }
-
-            assertThat(boolQuery.clauses().size(), equalTo(queryTerms.length));
-            Map<String, Float> expectedFields = new TreeMap<String, Float>(queryBuilder.fields());
-            if (expectedFields.size() == 0) {
-                expectedFields.put(MetaData.ALL, AbstractQueryBuilder.DEFAULT_BOOST);
+            assertThat(boolQuery.clauses().size(), equalTo(queryBuilder.fields().size()));
+            Iterator<Map.Entry<String, Float>> fieldsIterator = queryBuilder.fields().entrySet().iterator();
+            for (BooleanClause booleanClause : boolQuery) {
+                Map.Entry<String, Float> field = fieldsIterator.next();
+                assertTermOrBoostQuery(booleanClause.getQuery(), field.getKey(), queryBuilder.value(), field.getValue());
             }
-            for (int i = 0; i < queryTerms.length; i++) {
-                BooleanClause booleanClause = boolQuery.clauses().get(i);
-                Iterator<Entry<String, Float>> fieldsIter = expectedFields.entrySet().iterator();
-
-                if (queryTerms.length == 1 && expectedFields.size() == 1) {
-                    assertThat(booleanClause.getQuery(), instanceOf(TermQuery.class));
-                    TermQuery termQuery = (TermQuery) booleanClause.getQuery();
-                    Entry<String, Float> entry = fieldsIter.next();
-                    assertThat(termQuery.getTerm().field(), equalTo(entry.getKey()));
-                    assertThat(termQuery.getBoost(), equalTo(entry.getValue()));
-                    assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(queryTerms[i].toLowerCase(Locale.ROOT)));
-                } else {
-                    assertThat(booleanClause.getQuery(), instanceOf(BooleanQuery.class));
-                    for (BooleanClause clause : ((BooleanQuery) booleanClause.getQuery()).clauses()) {
-                        TermQuery termQuery = (TermQuery) clause.getQuery();
-                        Entry<String, Float> entry = fieldsIter.next();
-                        assertThat(termQuery.getTerm().field(), equalTo(entry.getKey()));
-                        assertThat(termQuery.getBoost(), equalTo(entry.getValue()));
-                        assertThat(termQuery.getTerm().text().toLowerCase(Locale.ROOT), equalTo(queryTerms[i].toLowerCase(Locale.ROOT)));
-                    }
-                }
-            }
-
             if (queryBuilder.minimumShouldMatch() != null) {
-                int optionalClauses = queryTerms.length;
-                if (queryBuilder.defaultOperator().equals(Operator.AND) && queryTerms.length > 1) {
-                    optionalClauses = 0;
-                }
-                int expectedMinimumShouldMatch = Queries.calculateMinShouldMatch(optionalClauses, queryBuilder.minimumShouldMatch());
-                assertEquals(expectedMinimumShouldMatch, boolQuery.getMinimumNumberShouldMatch());
+                assertThat(boolQuery.getMinimumNumberShouldMatch(), greaterThan(0));
             }
+        } else if (queryBuilder.fields().size() == 1) {
+            Map.Entry<String, Float> field = queryBuilder.fields().entrySet().iterator().next();
+            assertTermOrBoostQuery(query, field.getKey(), queryBuilder.value(), field.getValue());
+        } else if (queryBuilder.fields().size() == 0) {
+            assertTermQuery(query, MetaData.ALL, queryBuilder.value());
+        } else {
+            fail("Encountered lucene query type we do not have a validation implementation for in our " + SimpleQueryStringBuilderTests.class.getSimpleName());
         }
     }
 
-    @Override
-    protected void assertBoost(SimpleQueryStringBuilder queryBuilder, Query query) throws IOException {
-        //boost may get parsed from the random query, we then combine the main boost with that one coming from lucene
-        //instead of trying to reparse the query and guess what the boost should be, we delegate boost checks to specific boost tests below
-    }
-
-    private int shouldClauses(BooleanQuery query) {
+    private static int shouldClauses(BooleanQuery query) {
         int result = 0;
         for (BooleanClause c : query.clauses()) {
             if (c.getOccur() == BooleanClause.Occur.SHOULD) {
@@ -362,18 +313,21 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
         simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
         Query query = simpleQueryStringBuilder.toQuery(shardContext);
-        assertThat(query, instanceOf(BooleanQuery.class));
-        TermQuery wrappedQuery = (TermQuery) ((BooleanQuery) query).clauses().get(0).getQuery();
-        assertThat(wrappedQuery.getBoost(), equalTo(5f));
+        assertThat(query, instanceOf(BoostQuery.class));
+        BoostQuery boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), equalTo(5f));
+        assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
 
         simpleQueryStringBuilder = new SimpleQueryStringBuilder("test");
         simpleQueryStringBuilder.field(STRING_FIELD_NAME, 5);
         simpleQueryStringBuilder.boost(2);
         query = simpleQueryStringBuilder.toQuery(shardContext);
-        assertThat(query.getBoost(), equalTo(2f));
-        assertThat(query, instanceOf(BooleanQuery.class));
-        wrappedQuery = (TermQuery) ((BooleanQuery) query).clauses().get(0).getQuery();
-        assertThat(wrappedQuery.getBoost(), equalTo(5f));
+        boostQuery = (BoostQuery) query;
+        assertThat(boostQuery.getBoost(), equalTo(2f));
+        assertThat(boostQuery.getQuery(), instanceOf(BoostQuery.class));
+        boostQuery = (BoostQuery) boostQuery.getQuery();
+        assertThat(boostQuery.getBoost(), equalTo(5f));
+        assertThat(boostQuery.getQuery(), instanceOf(TermQuery.class));
     }
 
     public void testNegativeFlags() throws IOException {
@@ -384,40 +338,5 @@ public class SimpleQueryStringBuilderTests extends AbstractQueryTestCase<SimpleQ
         SimpleQueryStringBuilder otherBuilder = new SimpleQueryStringBuilder("foo bar");
         otherBuilder.flags(-1);
         assertThat(builder, equalTo(otherBuilder));
-    }
-
-    public void testMinimumShouldMatch() throws IOException {
-        QueryShardContext shardContext = createShardContext();
-        int numberOfTerms = randomIntBetween(1, 4);
-        int numberOfFields = randomIntBetween(1, 4);
-        StringBuilder queryString = new StringBuilder();
-        for (int i = 0; i < numberOfTerms; i++) {
-            queryString.append("t" + i + " ");
-        }
-        SimpleQueryStringBuilder simpleQueryStringBuilder = new SimpleQueryStringBuilder(queryString.toString().trim());
-        if (randomBoolean()) {
-            simpleQueryStringBuilder.defaultOperator(Operator.AND);
-        }
-        for (int i = 0; i < numberOfFields; i++) {
-            simpleQueryStringBuilder.field("f" + i);
-        }
-        int percent = randomIntBetween(1, 100);
-        simpleQueryStringBuilder.minimumShouldMatch(percent + "%");
-        BooleanQuery query = (BooleanQuery) simpleQueryStringBuilder.toQuery(shardContext);
-
-        assertEquals("query should have one should clause per term", numberOfTerms, query.clauses().size());
-        int expectedMinimumShouldMatch = numberOfTerms * percent / 100;
-        if (simpleQueryStringBuilder.defaultOperator().equals(Operator.AND) && numberOfTerms > 1) {
-            expectedMinimumShouldMatch = 0;
-        }
-
-        assertEquals(expectedMinimumShouldMatch, query.getMinimumNumberShouldMatch());
-        for (BooleanClause clause : query.clauses()) {
-            if (numberOfFields == 1 && numberOfTerms == 1) {
-                assertTrue(clause.getQuery() instanceof TermQuery);
-            } else {
-                assertEquals(numberOfFields, ((BooleanQuery) clause.getQuery()).clauses().size());
-            }
-        }
     }
 }

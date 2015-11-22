@@ -36,11 +36,13 @@ import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
 import org.apache.lucene.util.TestRuleMarkFailure;
 import org.apache.lucene.util.TestUtil;
 import org.apache.lucene.util.TimeUnits;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
 import org.elasticsearch.bootstrap.BootstrapForTesting;
 import org.elasticsearch.cache.recycler.MockPageCacheRecycler;
 import org.elasticsearch.client.Requests;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.io.PathUtilsForTesting;
 import org.elasticsearch.common.logging.ESLogger;
@@ -162,6 +164,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     // randomize and override the number of cpus so tests reproduce regardless of real number of cpus
 
     @BeforeClass
+    @SuppressForbidden(reason = "sets the number of cpus during tests")
     public static void setProcessors() {
         int numCpu = TestUtil.nextInt(random(), 1, 4);
         System.setProperty(EsExecutors.DEFAULT_SYSPROP, Integer.toString(numCpu));
@@ -169,6 +172,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     }
 
     @AfterClass
+    @SuppressForbidden(reason = "clears the number of cpus during tests")
     public static void restoreProcessors() {
         System.clearProperty(EsExecutors.DEFAULT_SYSPROP);
     }
@@ -615,5 +619,22 @@ public abstract class ESTestCase extends LuceneTestCase {
     /** Returns the suite failure marker: internal use only! */
     public static TestRuleMarkFailure getSuiteFailureMarker() {
         return suiteFailureMarker;
+    }
+
+    /** Compares two stack traces, ignoring module (which is not yet serialized) */
+    public static void assertArrayEquals(StackTraceElement expected[], StackTraceElement actual[]) {
+        assertEquals(expected.length, actual.length);
+        for (int i = 0; i < expected.length; i++) {
+            assertEquals(expected[i], actual[i]);
+        }
+    }
+
+    /** Compares two stack trace elements, ignoring module (which is not yet serialized) */
+    public static void assertEquals(StackTraceElement expected, StackTraceElement actual) {
+        assertEquals(expected.getClassName(), actual.getClassName());
+        assertEquals(expected.getMethodName(), actual.getMethodName());
+        assertEquals(expected.getFileName(), actual.getFileName());
+        assertEquals(expected.getLineNumber(), actual.getLineNumber());
+        assertEquals(expected.isNativeMethod(), actual.isNativeMethod());
     }
 }

@@ -1,3 +1,4 @@
+[[breaking_20_setting_changes]]
 === Setting changes
 
 ==== Command line flags
@@ -163,8 +164,6 @@ Log messages are now truncated at 10,000 characters. This can be changed in
 the `logging.yml` configuration file with the `file.layout.conversionPattern`
 setting.
 
-Remove mapping.date.round_ceil setting for date math parsing #8889 (issues: #8556, #8598)
-
 ==== Custom config file
 
 It is no longer possible to specify a custom config file with the `CONF_FILE`
@@ -172,8 +171,21 @@ environment variable, or the `-Des.config`, `-Des.default.config`, or
 `-Delasticsearch.config` parameters.
 
 Instead, the config file must be named `elasticsearch.yml` and must be located
-in the default `config/` directory, or in the directory specified in the
-`CONF_DIR` environment variable.
+in the default `config/` directory, unless a custom config directory is specified.
+
+The location of a custom config directory may be specified as follows:
+
+[source,sh]
+--------------
+./bin/elasticsearch --path.conf=/path/to/conf/dir
+./bin/plugin -Des.path.conf=/path/to/conf/dir install analysis-icu
+--------------
+
+When using the RPM or debian packages, the plugin script and the
+init/service scripts will consult the `CONF_DIR` environment variable
+to check for a custom config location.  The value of the `CONF_DIR`
+variable can be set in the environment config file which is located either in
+`/etc/default/elasticsearch` or `/etc/sysconfig/elasticsearch`.
 
 ==== `ES_CLASSPATH removed`
 

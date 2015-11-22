@@ -33,7 +33,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.function.BiFunction;
 
-public class SimilarityService extends AbstractIndexComponent {
+public final class SimilarityService extends AbstractIndexComponent {
 
     public final static String DEFAULT_SIMILARITY = "default";
     private final Similarity defaultSimilarity;

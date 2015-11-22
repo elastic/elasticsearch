@@ -570,7 +570,7 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
         for (int i = 0; i < numDocs; ++i) {
             leftValues.setDocument(i);
             final int numValues = leftValues.count();
-            rightValues.setDocument(i);;
+            rightValues.setDocument(i);
             assertEquals(numValues, rightValues.count());
             List<GeoPoint> leftPoints = new ArrayList<>();
             List<GeoPoint> rightPoints = new ArrayList<>();
@@ -580,11 +580,14 @@ public class DuelFieldDataTests extends AbstractFieldDataTestCase {
                 GeoPoint r = rightValues.valueAt(j);
                 rightPoints.add(new GeoPoint(r.getLat(), r.getLon()));
             }
-            for (GeoPoint l : leftPoints) {
-                assertTrue("Couldn't find " + l + " among " + rightPoints, contains(l, rightPoints, precision));
-            }
-            for (GeoPoint r : rightPoints) {
-                assertTrue("Couldn't find " + r + " among " + leftPoints, contains(r, leftPoints, precision));
+            // missing values were treated as 0,0 which are valid geopoints, this now correctly tests for missing values
+            if (leftPoints.isEmpty() == false) {
+                for (GeoPoint l : leftPoints) {
+                    assertTrue("Couldn't find " + l + " among " + rightPoints, contains(l, rightPoints, precision));
+                }
+                for (GeoPoint r : rightPoints) {
+                    assertTrue("Couldn't find " + r + " among " + leftPoints, contains(r, leftPoints, precision));
+                }
             }
         }
     }

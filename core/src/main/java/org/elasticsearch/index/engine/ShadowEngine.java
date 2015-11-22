@@ -68,7 +68,7 @@ public class ShadowEngine extends Engine {
     public ShadowEngine(EngineConfig engineConfig)  {
         super(engineConfig);
         SearcherFactory searcherFactory = new EngineSearcherFactory(engineConfig);
-        final long nonexistentRetryTime = engineConfig.getIndexSettings()
+        final long nonexistentRetryTime = engineConfig.getIndexSettings().getSettings()
                 .getAsTime(NONEXISTENT_INDEX_RETRY_WAIT, DEFAULT_NONEXISTENT_INDEX_RETRY_WAIT)
                 .getMillis();
         try {

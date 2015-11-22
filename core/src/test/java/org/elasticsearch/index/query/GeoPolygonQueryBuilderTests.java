@@ -22,7 +22,9 @@ package org.elasticsearch.index.query;
 import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 
+import org.apache.lucene.search.GeoPointInPolygonQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -56,6 +58,15 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
 
     @Override
     protected void doAssertLuceneQuery(GeoPolygonQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        Version version = context.indexVersionCreated();
+        if (version.before(Version.V_2_2_0)) {
+            assertLegacyQuery(queryBuilder, query);
+        } else {
+            assertGeoPointQuery(queryBuilder, query);
+        }
+    }
+
+    private void assertLegacyQuery(GeoPolygonQueryBuilder queryBuilder, Query query) {
         assertThat(query, instanceOf(GeoPolygonQuery.class));
         GeoPolygonQuery geoQuery = (GeoPolygonQuery) query;
         assertThat(geoQuery.fieldName(), equalTo(queryBuilder.fieldName()));
@@ -73,6 +84,24 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
             for (int i = 0; i < queryBuilderPoints.size(); i++) {
                 assertThat(queryPoints[i], equalTo(queryBuilderPoints.get(i)));
             }
+        }
+    }
+
+    private void assertGeoPointQuery(GeoPolygonQueryBuilder queryBuilder, Query query) {
+        assertThat(query, instanceOf(GeoPointInPolygonQuery.class));
+        GeoPointInPolygonQuery geoQuery = (GeoPointInPolygonQuery) query;
+        assertThat(geoQuery.getField(), equalTo(queryBuilder.fieldName()));
+        List<GeoPoint> queryBuilderPoints = queryBuilder.points();
+        double[] lats = geoQuery.getLats();
+        double[] lons = geoQuery.getLons();
+        assertThat(lats.length, equalTo(queryBuilderPoints.size()));
+        assertThat(lons.length, equalTo(queryBuilderPoints.size()));
+        for (int i=0; i < queryBuilderPoints.size(); ++i) {
+            final GeoPoint queryBuilderPoint = queryBuilderPoints.get(i);
+            final GeoPoint pointCopy = new GeoPoint(queryBuilderPoint);
+            GeoUtils.normalizePoint(pointCopy);
+            assertThat(lats[i], closeTo(pointCopy.getLat(), 1E-5D));
+            assertThat(lons[i], closeTo(pointCopy.getLon(), 1E-5D));
         }
     }
 
@@ -267,15 +296,34 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
     }
 
     private void assertGeoPolygonQuery(String query) throws IOException {
-        Query parsedQuery = parseQuery(query).toQuery(createShardContext());
-        GeoPolygonQuery filter = (GeoPolygonQuery) parsedQuery;
-        assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
-        assertThat(filter.points().length, equalTo(4));
-        assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
-        assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
-        assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
-        assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
-        assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
-        assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
+        QueryShardContext context = createShardContext();
+        Version version = context.indexVersionCreated();
+        Query parsedQuery = parseQuery(query).toQuery(context);
+        if (version.before(Version.V_2_2_0)) {
+            GeoPolygonQuery filter = (GeoPolygonQuery) parsedQuery;
+            assertThat(filter.fieldName(), equalTo(GEO_POINT_FIELD_NAME));
+            assertThat(filter.points().length, equalTo(4));
+            assertThat(filter.points()[0].lat(), closeTo(40, 0.00001));
+            assertThat(filter.points()[0].lon(), closeTo(-70, 0.00001));
+            assertThat(filter.points()[1].lat(), closeTo(30, 0.00001));
+            assertThat(filter.points()[1].lon(), closeTo(-80, 0.00001));
+            assertThat(filter.points()[2].lat(), closeTo(20, 0.00001));
+            assertThat(filter.points()[2].lon(), closeTo(-90, 0.00001));
+        } else {
+            GeoPointInPolygonQuery q = (GeoPointInPolygonQuery) parsedQuery;
+            assertThat(q.getField(), equalTo(GEO_POINT_FIELD_NAME));
+            final double[] lats = q.getLats();
+            final double[] lons = q.getLons();
+            assertThat(lats.length, equalTo(4));
+            assertThat(lons.length, equalTo(4));
+            assertThat(lats[0], closeTo(40, 1E-5));
+            assertThat(lons[0], closeTo(-70, 1E-5));
+            assertThat(lats[1], closeTo(30, 1E-5));
+            assertThat(lons[1], closeTo(-80, 1E-5));
+            assertThat(lats[2], closeTo(20, 1E-5));
+            assertThat(lons[2], closeTo(-90, 1E-5));
+            assertThat(lats[3], equalTo(lats[0]));
+            assertThat(lons[3], equalTo(lons[0]));
+        }
     }
 }

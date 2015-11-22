@@ -44,7 +44,6 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoverySettings;
 import org.elasticsearch.discovery.DiscoveryStats;
-import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.InitialStateDiscoveryListener;
 import org.elasticsearch.discovery.zen.elect.ElectMasterService;
 import org.elasticsearch.discovery.zen.fd.MasterFaultDetection;
@@ -53,6 +52,7 @@ import org.elasticsearch.discovery.zen.membership.MembershipAction;
 import org.elasticsearch.discovery.zen.ping.PingContextProvider;
 import org.elasticsearch.discovery.zen.ping.ZenPing;
 import org.elasticsearch.discovery.zen.ping.ZenPingService;
+import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.node.settings.NodeSettingsService;
@@ -60,10 +60,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -401,7 +398,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             );
         } else {
             // process any incoming joins (they will fail because we are not the master)
-            nodeJoinController.stopAccumulatingJoins();
+            nodeJoinController.stopAccumulatingJoins("not master");
 
             // send join request
             final boolean success = joinElectedMaster(masterNode);
@@ -511,7 +508,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                         return rejoin(currentState, "not enough master nodes");
                     }
                     // eagerly run reroute to remove dead nodes from routing table
-                    RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(ClusterState.builder(currentState).build());
+                    RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
+                            ClusterState.builder(currentState).build(),
+                            "[" + node + "] left");
                     return ClusterState.builder(currentState).routingResult(routingResult).build();
                 }
 
@@ -554,7 +553,9 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                     return rejoin(currentState, "not enough master nodes");
                 }
                 // eagerly run reroute to remove dead nodes from routing table
-                RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(ClusterState.builder(currentState).build());
+                RoutingAllocation.Result routingResult = routingService.getAllocationService().reroute(
+                        ClusterState.builder(currentState).build(),
+                        "[" + node + "] failed");
                 return ClusterState.builder(currentState).routingResult(routingResult).build();
             }
 

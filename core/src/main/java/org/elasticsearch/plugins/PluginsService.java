@@ -25,6 +25,7 @@ import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.bootstrap.JarHell;
@@ -37,6 +38,9 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexEventListener;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -239,22 +243,19 @@ public class PluginsService extends AbstractComponent {
         return services;
     }
 
-    public Collection<Module> indexModules(Settings indexSettings) {
-        List<Module> modules = new ArrayList<>();
+    public void onIndexModule(IndexModule indexModule) {
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            modules.addAll(plugin.v2().indexModules(indexSettings));
+            plugin.v2().onIndexModule(indexModule);
         }
-        return modules;
+        indexModule.addIndexEventListener(new IndexEventListener() {
+            @Override
+            public void afterIndexCreated(IndexService indexService) {
+                for (Tuple<PluginInfo, Plugin> plugin : plugins) {
+                    plugin.v2().onIndexService(indexService);
+                }
+            }
+        });
     }
-
-    public Collection<Class<? extends Closeable>> indexServices() {
-        List<Class<? extends Closeable>> services = new ArrayList<>();
-        for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-            services.addAll(plugin.v2().indexServices());
-        }
-        return services;
-    }
-
     /**
      * Get information about plugins (jvm and site plugins).
      */

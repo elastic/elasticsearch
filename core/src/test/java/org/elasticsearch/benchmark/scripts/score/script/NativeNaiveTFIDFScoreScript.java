@@ -70,7 +70,7 @@ public class NativeNaiveTFIDFScoreScript extends AbstractSearchScript {
                     score += indexFieldTerm.tf() * indexField.docCount() / indexFieldTerm.df();
                 }
             } catch (IOException e) {
-                throw new RuntimeException();
+                throw new RuntimeException(e);
             }
         }
         return score;

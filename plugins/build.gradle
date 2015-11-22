@@ -25,6 +25,11 @@ subprojects {
   apply plugin: 'elasticsearch.esplugin'
   apply plugin: 'com.bmuschko.nexus'
 
+  esplugin {
+    // for local ES plugins, the name of the plugin is the same as the directory
+    name project.name
+  }
+
   Task dependencyLicensesTask = DependencyLicensesTask.configure(project) {
     dependencies = project.configurations.runtime - project.configurations.provided
   }

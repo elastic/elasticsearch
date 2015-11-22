@@ -35,7 +35,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -192,7 +192,7 @@ import static org.hamcrest.Matchers.startsWith;
  * should be used, here is an example:
  * <pre>
  *
- * @ClusterScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
+ * {@literal @}ClusterScope(scope=Scope.TEST) public class SomeIT extends ESIntegTestCase {
  * public void testMethod() {}
  * }
  * </pre>
@@ -203,7 +203,7 @@ import static org.hamcrest.Matchers.startsWith;
  * determined at random and can change across tests. The {@link ClusterScope} allows configuring the initial number of nodes
  * that are created before the tests start.
  *  <pre>
- * @ClusterScope(scope=Scope.SUITE, numDataNodes=3)
+ * {@literal @}ClusterScope(scope=Scope.SUITE, numDataNodes=3)
  * public class SomeIT extends ESIntegTestCase {
  * public void testMethod() {}
  * }
@@ -2096,6 +2096,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
+    @Target(ElementType.TYPE)
     public @interface SuiteScopeTestCase {
     }
 
@@ -2104,6 +2105,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
+    @Target(ElementType.TYPE)
     public @interface SuppressLocalMode {
     }
 
@@ -2112,6 +2114,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     @Retention(RetentionPolicy.RUNTIME)
     @Inherited
+    @Target(ElementType.TYPE)
     public @interface SuppressNetworkMode {
     }
 

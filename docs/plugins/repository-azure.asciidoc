@@ -41,21 +41,36 @@ To enable Azure repositories, you have first to set your azure storage settings 
 cloud:
     azure:
         storage:
-            account: your_azure_storage_account
-            key: your_azure_storage_key
+            my_account:
+                account: your_azure_storage_account
+                key: your_azure_storage_key
 ----
 
-For information, in previous version of the azure plugin, settings were:
+Note that you can also define more than one account:
 
 [source,yaml]
 ----
 cloud:
     azure:
-        storage_account: your_azure_storage_account
-        storage_key: your_azure_storage_key
+        storage:
+            my_account1:
+                account: your_azure_storage_account1
+                key: your_azure_storage_key1
+                default: true
+            my_account2:
+                account: your_azure_storage_account2
+                key: your_azure_storage_key2
 ----
 
+`my_account1` is the default account which will be used by a repository unless you set an explicit one.
+
+
 The Azure repository supports following settings:
+
+`account`::
+
+    Azure account settings to use. Defaults to the only one if you set a single
+    account or to the one marked as `default` if you have more than one.
 
 `container`::
 
@@ -82,6 +97,11 @@ The Azure repository supports following settings:
 
     Makes repository read-only. coming[2.1.0]  Defaults to `false`.
 
+`location_mode`::
+
+    `primary_only` or `secondary_only`. Defaults to `primary_only`. Note that if you set it
+    to `secondary_only`, it will force `read_only` to true.
+
 Some examples, using scripts:
 
 [source,json]
@@ -103,6 +123,24 @@ PUT _snapshot/my_backup2
         "compress": true
     }
 }
+
+
+# With two accounts defined in elasticsearch.yml (my_account1 and my_account2)
+PUT _snapshot/my_backup3
+{
+    "type": "azure",
+    "settings": {
+        "account": "my_account1"
+    }
+}
+PUT _snapshot/my_backup4
+{
+    "type": "azure",
+    "settings": {
+        "account": "my_account2",
+        "location_mode": "primary_only"
+    }
+}
 ----
 // AUTOSENSE
 
@@ -110,7 +148,7 @@ Example using Java:
 
 [source,java]
 ----
-client.admin().cluster().preparePutRepository("my_backup3")
+client.admin().cluster().preparePutRepository("my_backup_java1")
     .setType("azure").setSettings(Settings.settingsBuilder()
         .put(Storage.CONTAINER, "backup_container")
         .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
@@ -129,27 +167,3 @@ permitted in container names.
 * All letters in a container name must be lowercase.
 * Container names must be from 3 through 63 characters long.
 
-[[repository-azure-testing]]
-==== Testing Azure
-
-Integrations tests in this plugin require working Azure configuration and therefore disabled by default.
-To enable tests prepare a config file `elasticsearch.yml` with the following content:
-
-[source,yaml]
-----
-cloud:
-  azure:
-    storage:
-      account: "YOUR-AZURE-STORAGE-NAME"
-      key: "YOUR-AZURE-STORAGE-KEY"
-----
-
-Replaces `account`, `key` with your settings. Please, note that the test will delete all snapshot/restore related
-files in the specified bucket.
-
-To run test:
-
-[source,sh]
-----
-mvn -Dtests.azure=true -Dtests.config=/path/to/config/file/elasticsearch.yml clean test
-----

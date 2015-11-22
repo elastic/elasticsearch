@@ -35,6 +35,7 @@ import org.junit.Assert;
 
 import java.io.FilePermission;
 import java.io.InputStream;
+import java.net.SocketPermission;
 import java.net.URL;
 import java.nio.file.Path;
 import java.security.Permission;
@@ -83,6 +84,9 @@ public class BootstrapForTesting {
         // initialize probes
         Bootstrap.initializeProbes();
         
+        // initialize sysprops
+        BootstrapInfo.getSystemProperties();
+        
         // check for jar hell
         try {
             JarHell.checkJarHell();
@@ -95,13 +99,10 @@ public class BootstrapForTesting {
             try {
                 // initialize paths the same exact way as bootstrap
                 Permissions perms = new Permissions();
-                // add permissions to everything in classpath
+                Security.addClasspathPermissions(perms);
+                // crazy jython
                 for (URL url : JarHell.parseClassPath()) {
                     Path path = PathUtils.get(url.toURI());
-                    // resource itself
-                    perms.add(new FilePermission(path.toString(), "read,readlink"));
-                    // classes underneath
-                    perms.add(new FilePermission(path.toString() + path.getFileSystem().getSeparator() + "-", "read,readlink"));
 
                     // crazy jython...
                     String filename = path.getFileName().toString();
@@ -130,9 +131,17 @@ public class BootstrapForTesting {
                     perms.add(new RuntimePermission("setIO"));
                 }
                 
+                // add bind permissions for testing
+                // ephemeral ports (note, on java 7 before update 51, this is a different permission)
+                // this should really be the only one allowed for tests, otherwise they have race conditions
+                perms.add(new SocketPermission("localhost:0", "listen,resolve"));
+                // ... but tests are messy. like file permissions, just let them live in a fantasy for now.
+                // TODO: cut over all tests to bind to ephemeral ports
+                perms.add(new SocketPermission("localhost:1024-", "listen,resolve"));
+                
                 // read test-framework permissions
                 final Policy testFramework = Security.readPolicy(Bootstrap.class.getResource("test-framework.policy"), JarHell.parseClassPath());
-                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions());
+                final Policy esPolicy = new ESPolicy(perms, getPluginPermissions(), true);
                 Policy.setPolicy(new Policy() {
                     @Override
                     public boolean implies(ProtectionDomain domain, Permission permission) {

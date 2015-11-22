@@ -20,11 +20,13 @@
 package org.elasticsearch.index.mapper.externalvalues;
 
 import com.spatial4j.core.shape.Point;
+
 import org.apache.lucene.document.Field;
+import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.geo.GeoPoint;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.ContentPath;
@@ -37,7 +39,9 @@ import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext;
 import org.elasticsearch.index.mapper.core.BinaryFieldMapper;
 import org.elasticsearch.index.mapper.core.BooleanFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.GeoPointFieldMapperLegacy;
 import org.elasticsearch.index.mapper.geo.GeoShapeFieldMapper;
 
 import java.io.IOException;
@@ -72,6 +76,7 @@ public class ExternalMapper extends FieldMapper {
         private BinaryFieldMapper.Builder binBuilder = new BinaryFieldMapper.Builder(Names.FIELD_BIN);
         private BooleanFieldMapper.Builder boolBuilder = new BooleanFieldMapper.Builder(Names.FIELD_BOOL);
         private GeoPointFieldMapper.Builder pointBuilder = new GeoPointFieldMapper.Builder(Names.FIELD_POINT);
+        private GeoPointFieldMapperLegacy.Builder legacyPointBuilder = new GeoPointFieldMapperLegacy.Builder(Names.FIELD_POINT);
         private GeoShapeFieldMapper.Builder shapeBuilder = new GeoShapeFieldMapper.Builder(Names.FIELD_SHAPE);
         private Mapper.Builder stringBuilder;
         private String generatedValue;
@@ -98,7 +103,8 @@ public class ExternalMapper extends FieldMapper {
             context.path().add(name);
             BinaryFieldMapper binMapper = binBuilder.build(context);
             BooleanFieldMapper boolMapper = boolBuilder.build(context);
-            GeoPointFieldMapper pointMapper = pointBuilder.build(context);
+            BaseGeoPointFieldMapper pointMapper = (context.indexCreatedVersion().before(Version.V_2_2_0)) ?
+                    legacyPointBuilder.build(context) : pointBuilder.build(context);
             GeoShapeFieldMapper shapeMapper = shapeBuilder.build(context);
             FieldMapper stringMapper = (FieldMapper)stringBuilder.build(context);
             context.path().remove();
@@ -164,13 +170,13 @@ public class ExternalMapper extends FieldMapper {
 
     private final BinaryFieldMapper binMapper;
     private final BooleanFieldMapper boolMapper;
-    private final GeoPointFieldMapper pointMapper;
+    private final BaseGeoPointFieldMapper pointMapper;
     private final GeoShapeFieldMapper shapeMapper;
     private final FieldMapper stringMapper;
 
     public ExternalMapper(String simpleName, MappedFieldType fieldType,
                           String generatedValue, String mapperName,
-                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, GeoPointFieldMapper pointMapper,
+                          BinaryFieldMapper binMapper, BooleanFieldMapper boolMapper, BaseGeoPointFieldMapper pointMapper,
                           GeoShapeFieldMapper shapeMapper, FieldMapper stringMapper, Settings indexSettings, MultiFields multiFields, CopyTo copyTo) {
         super(simpleName, fieldType, new ExternalFieldType(), indexSettings, multiFields, copyTo);
         this.generatedValue = generatedValue;
@@ -196,7 +202,7 @@ public class ExternalMapper extends FieldMapper {
         pointMapper.parse(context.createExternalValueContext(point));
 
         // Let's add a Dummy Shape
-        Point shape = ShapeBuilder.newPoint(-100, 45).build();
+        Point shape = ShapeBuilders.newPoint(-100, 45).build();
         shapeMapper.parse(context.createExternalValueContext(shape));
 
         context = context.createExternalValueContext(generatedValue);

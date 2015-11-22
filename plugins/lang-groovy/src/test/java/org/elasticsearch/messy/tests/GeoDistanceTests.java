@@ -20,13 +20,17 @@
 package org.elasticsearch.messy.tests;
 
 import org.apache.lucene.util.GeoHashUtils;
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoDistance;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.DistanceUnit;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.json.JsonXContent;
+import org.elasticsearch.index.query.GeoDistanceQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
@@ -36,6 +40,7 @@ import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.VersionUtils;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -71,10 +76,15 @@ public class GeoDistanceTests extends ESIntegTestCase {
     }
 
     public void testSimpleDistance() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -222,12 +232,15 @@ public class GeoDistanceTests extends ESIntegTestCase {
     }
 
     public void testDistanceSortingMVFields() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .field("ignore_malformed", true).field("coerce", true)
-                .endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test")
-                .addMapping("type1", xContentBuilder));
+                .startObject("properties").startObject("locations").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true).field("coerce", true);
+        }
+        xContentBuilder.field("ignore_malformed", true).endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -357,10 +370,15 @@ public class GeoDistanceTests extends ESIntegTestCase {
 
     // Regression bug: https://github.com/elasticsearch/elasticsearch/issues/2851
     public void testDistanceSortingWithMissingGeoPoint() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("locations").field("type", "geo_point").field("lat_lon", true)
-                .endObject().endObject().endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+                .startObject("properties").startObject("locations").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -407,10 +425,15 @@ public class GeoDistanceTests extends ESIntegTestCase {
         double target_lat = 32.81;
         double target_long = -117.21;
 
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("type1")
-                .startObject("properties").startObject("location").field("type", "geo_point").field("lat_lon", true).endObject().endObject()
-                .endObject().endObject();
-        assertAcked(prepareCreate("test").addMapping("type1", xContentBuilder));
+                .startObject("properties").startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject().endObject().endObject().endObject();
+        assertAcked(prepareCreate("test").setSettings(settings).addMapping("type1", xContentBuilder));
         ensureGreen();
 
         client().prepareIndex("test", "type1", "1").setSource(jsonBuilder().startObject()
@@ -425,28 +448,28 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .actionGet();
         Double resultDistance1 = searchResponse1.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance1,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.01d));
 
         SearchResponse searchResponse2 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].distance(" + target_lat + "," + target_long + ")")).execute()
                 .actionGet();
         Double resultDistance2 = searchResponse2.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance2,
-                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.0001d));
+                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.DEFAULT), 0.01d));
 
         SearchResponse searchResponse3 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].arcDistanceInKm(" + target_lat + "," + target_long + ")"))
                 .execute().actionGet();
         Double resultArcDistance3 = searchResponse3.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance3,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.01d));
 
         SearchResponse searchResponse4 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].distanceInKm(" + target_lat + "," + target_long + ")")).execute()
                 .actionGet();
         Double resultDistance4 = searchResponse4.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance4,
-                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
+                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.01d));
 
         SearchResponse searchResponse5 = client()
                 .prepareSearch()
@@ -455,7 +478,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .execute().actionGet();
         Double resultArcDistance5 = searchResponse5.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance5,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.01d));
 
         SearchResponse searchResponse6 = client()
                 .prepareSearch()
@@ -464,24 +487,26 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .execute().actionGet();
         Double resultArcDistance6 = searchResponse6.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultArcDistance6,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.KILOMETERS), 0.01d));
 
         SearchResponse searchResponse7 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].arcDistanceInMiles(" + target_lat + "," + target_long + ")"))
                 .execute().actionGet();
         Double resultDistance7 = searchResponse7.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance7,
-                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
+                closeTo(GeoDistance.ARC.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.01d));
 
         SearchResponse searchResponse8 = client().prepareSearch().addField("_source")
                 .addScriptField("distance", new Script("doc['location'].distanceInMiles(" + target_lat + "," + target_long + ")"))
                 .execute().actionGet();
         Double resultDistance8 = searchResponse8.getHits().getHits()[0].getFields().get("distance").getValue();
         assertThat(resultDistance8,
-                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.0001d));
+                closeTo(GeoDistance.PLANE.calculate(source_lat, source_long, target_lat, target_long, DistanceUnit.MILES), 0.01d));
     }
 
     public void testDistanceSortingNestedFields() throws Exception {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         XContentBuilder xContentBuilder = XContentFactory.jsonBuilder().startObject().startObject("company")
                 .startObject("properties")
                 .startObject("name").field("type", "string").endObject()
@@ -489,14 +514,17 @@ public class GeoDistanceTests extends ESIntegTestCase {
                 .field("type", "nested")
                 .startObject("properties")
                 .startObject("name").field("type", "string").endObject()
-                .startObject("location").field("type", "geo_point").field("lat_lon", true)
-                .endObject()
+                .startObject("location").field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            xContentBuilder.field("lat_lon", true);
+        }
+        xContentBuilder.endObject()
                 .endObject()
                 .endObject()
                 .endObject()
                 .endObject().endObject();
 
-        assertAcked(prepareCreate("companies").addMapping("company", xContentBuilder));
+        assertAcked(prepareCreate("companies").setSettings(settings).addMapping("company", xContentBuilder));
         ensureGreen();
 
         indexRandom(true, client().prepareIndex("companies", "company", "1").setSource(jsonBuilder().startObject()
@@ -645,29 +673,28 @@ public class GeoDistanceTests extends ESIntegTestCase {
      * Issue 3073
      */
     public void testGeoDistanceFilter() throws IOException {
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
         double lat = 40.720611;
         double lon = -73.998776;
 
         XContentBuilder mapping = JsonXContent.contentBuilder()
                 .startObject()
-                    .startObject("location")
-                        .startObject("properties")
-                            .startObject("pin")
-                                .field("type", "geo_point")
-                                .field("geohash", true)
-                                .field("geohash_precision", 24)
-                                .field("lat_lon", true)
-                            .endObject()
-                        .endObject()
-                    .endObject()
-                .endObject();
+                .startObject("location")
+                .startObject("properties")
+                .startObject("pin")
+                .field("type", "geo_point");
+        if (version.before(Version.V_2_2_0)) {
+            mapping.field("lat_lon", true);
+        }
+        mapping.endObject().endObject().endObject().endObject();
 
         XContentBuilder source = JsonXContent.contentBuilder()
                 .startObject()
                     .field("pin", GeoHashUtils.stringEncode(lon, lat))
                 .endObject();
 
-        assertAcked(prepareCreate("locations").addMapping("location", mapping));
+        assertAcked(prepareCreate("locations").setSettings(settings).addMapping("location", mapping));
         client().prepareIndex("locations", "location", "1").setCreate(true).setSource(source).execute().actionGet();
         refresh();
         client().prepareGet("locations", "location", "1").execute().actionGet();
@@ -692,11 +719,19 @@ public class GeoDistanceTests extends ESIntegTestCase {
     }
 
     public void testDuelOptimizations() throws Exception {
-        assertAcked(prepareCreate("index").addMapping("type", "location", "type=geo_point,lat_lon=true"));
+        Version version = VersionUtils.randomVersionBetween(random(), Version.V_2_0_0, Version.CURRENT);
+        Settings settings = Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, version).build();
+        if (version.before(Version.V_2_2_0)) {
+            assertAcked(prepareCreate("index").setSettings(settings)
+                    .addMapping("type", "location", "type=geo_point,lat_lon=true"));
+        } else {
+            assertAcked(prepareCreate("index").setSettings(settings).addMapping("type", "location", "type=geo_point"));
+        }
         final int numDocs = scaledRandomIntBetween(3000, 10000);
         List<IndexRequestBuilder> docs = new ArrayList<>();
         for (int i = 0; i < numDocs; ++i) {
-            docs.add(client().prepareIndex("index", "type").setSource(jsonBuilder().startObject().startObject("location").field("lat", randomLat()).field("lon", randomLon()).endObject().endObject()));
+            docs.add(client().prepareIndex("index", "type").setSource(jsonBuilder().startObject().startObject("location")
+                    .field("lat", randomLat()).field("lon", randomLon()).endObject().endObject()));
         }
         indexRandom(true, docs);
         ensureSearchable();
@@ -707,20 +742,34 @@ public class GeoDistanceTests extends ESIntegTestCase {
             final String distance = DistanceUnit.KILOMETERS.toString(randomInt(10000));
             for (GeoDistance geoDistance : Arrays.asList(GeoDistance.ARC, GeoDistance.SLOPPY_ARC)) {
                 logger.info("Now testing GeoDistance={}, distance={}, origin=({}, {})", geoDistance, distance, originLat, originLon);
-                long matches = -1;
-                for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
-                    SearchResponse resp = client().prepareSearch("index").setSize(0).setQuery(QueryBuilders.constantScoreQuery(
-                            QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance).optimizeBbox(optimizeBbox))).execute().actionGet();
-                    assertSearchResponse(resp);
-                    logger.info("{} -> {} hits", optimizeBbox, resp.getHits().totalHits());
-                    if (matches < 0) {
-                        matches = resp.getHits().totalHits();
-                    } else {
-                        assertEquals(matches, resp.getHits().totalHits());
+                GeoDistanceQueryBuilder qb = QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance);
+                long matches;
+                if (version.before(Version.V_2_2_0)) {
+                    for (String optimizeBbox : Arrays.asList("none", "memory", "indexed")) {
+                        qb.optimizeBbox(optimizeBbox);
+                        SearchResponse resp = client().prepareSearch("index").setSize(0)
+                                .setQuery(QueryBuilders.constantScoreQuery(qb)).execute().actionGet();
+                        matches = assertDuelOptimization(resp);
+                        logger.info("{} -> {} hits", optimizeBbox, matches);
                     }
+                } else {
+                    SearchResponse resp = client().prepareSearch("index").setSize(0)
+                            .setQuery(QueryBuilders.constantScoreQuery(qb)).execute().actionGet();
+                    matches = assertDuelOptimization(resp);
+                    logger.info("{} hits", matches);
                 }
             }
         }
     }
 
+    private long assertDuelOptimization(SearchResponse resp) {
+        long matches = -1;
+        assertSearchResponse(resp);
+        if (matches < 0) {
+            matches = resp.getHits().totalHits();
+        } else {
+            assertEquals(matches, matches = resp.getHits().totalHits());
+        }
+        return matches;
+    }
 }

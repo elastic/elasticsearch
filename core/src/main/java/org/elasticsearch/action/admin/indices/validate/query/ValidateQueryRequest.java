@@ -19,34 +19,27 @@
 
 package org.elasticsearch.action.admin.indices.validate.query;
 
-import org.elasticsearch.ElasticsearchGenerationException;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ValidateActions;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.QuerySourceBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
-import org.elasticsearch.client.Requests;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
-import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Map;
 
 /**
  * A request to validate a specific query.
  * <p>
- * The request requires the query source to be set either using {@link #source(QuerySourceBuilder)},
- * or {@link #source(byte[])}.
+ * The request requires the query to be set using {@link #query(QueryBuilder)}
  */
 public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest> {
 
-    private BytesReference source;
+    private QueryBuilder<?> query = new MatchAllQueryBuilder();
 
     private boolean explain;
     private boolean rewrite;
@@ -71,67 +64,21 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = super.validate();
+        if (query == null) {
+            validationException = ValidateActions.addValidationError("query cannot be null", validationException);
+        }
         return validationException;
     }
 
     /**
-     * The source to execute.
+     * The query to validate.
      */
-    public BytesReference source() {
-        return source;
+    public QueryBuilder<?> query() {
+        return query;
     }
 
-    public ValidateQueryRequest source(QuerySourceBuilder sourceBuilder) {
-        this.source = sourceBuilder.buildAsBytes(Requests.CONTENT_TYPE);
-        return this;
-    }
-
-    /**
-     * The source to execute in the form of a map.
-     */
-    public ValidateQueryRequest source(Map source) {
-        try {
-            XContentBuilder builder = XContentFactory.contentBuilder(Requests.CONTENT_TYPE);
-            builder.map(source);
-            return source(builder);
-        } catch (IOException e) {
-            throw new ElasticsearchGenerationException("Failed to generate [" + source + "]", e);
-        }
-    }
-
-    public ValidateQueryRequest source(XContentBuilder builder) {
-        this.source = builder.bytes();
-        return this;
-    }
-
-    /**
-     * The query source to validate. It is preferable to use either {@link #source(byte[])}
-     * or {@link #source(QuerySourceBuilder)}.
-     */
-    public ValidateQueryRequest source(String source) {
-        this.source = new BytesArray(source);
-        return this;
-    }
-
-    /**
-     * The source to validate.
-     */
-    public ValidateQueryRequest source(byte[] source) {
-        return source(source, 0, source.length);
-    }
-
-    /**
-     * The source to validate.
-     */
-    public ValidateQueryRequest source(byte[] source, int offset, int length) {
-        return source(new BytesArray(source, offset, length));
-    }
-
-    /**
-     * The source to validate.
-     */
-    public ValidateQueryRequest source(BytesReference source) {
-        this.source = source;
+    public ValidateQueryRequest query(QueryBuilder<?> query) {
+        this.query = query;
         return this;
     }
 
@@ -181,9 +128,7 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
-
-        source = in.readBytesReference();
-
+        query = in.readQuery();
         int typesSize = in.readVInt();
         if (typesSize > 0) {
             types = new String[typesSize];
@@ -191,7 +136,6 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
                 types[i] = in.readString();
             }
         }
-
         explain = in.readBoolean();
         rewrite = in.readBoolean();
     }
@@ -199,27 +143,18 @@ public class ValidateQueryRequest extends BroadcastRequest<ValidateQueryRequest>
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-
-        out.writeBytesReference(source);
-
+        out.writeQuery(query);
         out.writeVInt(types.length);
         for (String type : types) {
             out.writeString(type);
         }
-
         out.writeBoolean(explain);
         out.writeBoolean(rewrite);
     }
 
     @Override
     public String toString() {
-        String sSource = "_na_";
-        try {
-            sSource = XContentHelper.convertToJson(source, false);
-        } catch (Exception e) {
-            // ignore
-        }
-        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", source[" + sSource + "], explain:" + explain + 
+        return "[" + Arrays.toString(indices) + "]" + Arrays.toString(types) + ", query[" + query + "], explain:" + explain +
                 ", rewrite:" + rewrite;
     }
 }

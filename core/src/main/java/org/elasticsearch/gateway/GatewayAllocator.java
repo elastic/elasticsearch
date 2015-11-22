@@ -113,10 +113,6 @@ public class GatewayAllocator extends AbstractComponent {
     }
 
     public boolean allocateUnassigned(final RoutingAllocation allocation) {
-        // Take a snapshot of the current time and tell the RoutingService
-        // about it, so it will use a consistent timestamp for delays
-        long lastAllocateUnassignedRun = System.currentTimeMillis();
-        this.routingService.setUnassignedShardsAllocatedTimestamp(lastAllocateUnassignedRun);
         boolean changed = false;
 
         RoutingNodes.UnassignedShards unassigned = allocation.routingNodes().unassigned();
@@ -124,7 +120,7 @@ public class GatewayAllocator extends AbstractComponent {
 
         changed |= primaryShardAllocator.allocateUnassigned(allocation);
         changed |= replicaShardAllocator.processExistingRecoveries(allocation);
-        changed |= replicaShardAllocator.allocateUnassigned(allocation, lastAllocateUnassignedRun);
+        changed |= replicaShardAllocator.allocateUnassigned(allocation);
         return changed;
     }
 

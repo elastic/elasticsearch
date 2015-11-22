@@ -67,25 +67,23 @@ public class SettingsTests extends ESTestCase {
     }
 
     public void testReplacePropertiesPlaceholderSystemProperty() {
-        System.setProperty("sysProp1", "sysVal1");
-        try {
-            Settings settings = settingsBuilder()
-                    .put("setting1", "${sysProp1}")
-                    .replacePropertyPlaceholders()
-                    .build();
-            assertThat(settings.get("setting1"), equalTo("sysVal1"));
-        } finally {
-            System.clearProperty("sysProp1");
-        }
-
+        String value = System.getProperty("java.home");
+        assertFalse(value.isEmpty());
         Settings settings = settingsBuilder()
-                .put("setting1", "${sysProp1:defaultVal1}")
+                 .put("setting1", "${java.home}")
+                 .replacePropertyPlaceholders()
+                 .build();
+        assertThat(settings.get("setting1"), equalTo(value));
+
+        assertNull(System.getProperty("_test_property_should_not_exist"));
+        settings = settingsBuilder()
+                .put("setting1", "${_test_property_should_not_exist:defaultVal1}")
                 .replacePropertyPlaceholders()
                 .build();
         assertThat(settings.get("setting1"), equalTo("defaultVal1"));
 
         settings = settingsBuilder()
-                .put("setting1", "${sysProp1:}")
+                .put("setting1", "${_test_property_should_not_exist:}")
                 .replacePropertyPlaceholders()
                 .build();
         assertThat(settings.get("setting1"), is(nullValue()));

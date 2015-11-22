@@ -21,10 +21,12 @@ package org.elasticsearch.bootstrap;
 
 import org.elasticsearch.common.SuppressForbidden;
 
+import java.net.SocketPermission;
 import java.net.URL;
 import java.security.CodeSource;
 import java.security.Permission;
 import java.security.PermissionCollection;
+import java.security.Permissions;
 import java.security.Policy;
 import java.security.ProtectionDomain;
 import java.util.Map;
@@ -39,12 +41,18 @@ final class ESPolicy extends Policy {
     
     final Policy template;
     final Policy untrusted;
+    final Policy system;
     final PermissionCollection dynamic;
     final Map<String,Policy> plugins;
 
-    public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins) {
+    public ESPolicy(PermissionCollection dynamic, Map<String,Policy> plugins, boolean filterBadDefaults) {
         this.template = Security.readPolicy(getClass().getResource(POLICY_RESOURCE), JarHell.parseClassPath());
         this.untrusted = Security.readPolicy(getClass().getResource(UNTRUSTED_RESOURCE), new URL[0]);
+        if (filterBadDefaults) {
+            this.system = new SystemPolicy(Policy.getPolicy());
+        } else {
+            this.system = Policy.getPolicy();
+        }
         this.dynamic = dynamic;
         this.plugins = plugins;
     }
@@ -73,35 +81,57 @@ final class ESPolicy extends Policy {
             }
         }
 
-        // Special handling for broken AWS code which destroys all SSL security
-        // REMOVE THIS when https://github.com/aws/aws-sdk-java/pull/432 is fixed
-        if (permission instanceof RuntimePermission && "accessClassInPackage.sun.security.ssl".equals(permission.getName())) {
-            for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
-                if ("com.amazonaws.http.conn.ssl.SdkTLSSocketFactory".equals(element.getClassName()) &&
-                      "verifyMasterSecret".equals(element.getMethodName())) {
-                    // we found the horrible method: the hack begins!
-                    // force the aws code to back down, by throwing an exception that it catches.
-                    rethrow(new IllegalAccessException("no amazon, you cannot do this."));
-                }
+        // otherwise defer to template + dynamic file permissions
+        return template.implies(domain, permission) || dynamic.implies(permission) || system.implies(domain, permission);
+    }
+
+    @Override
+    public PermissionCollection getPermissions(CodeSource codesource) {
+        // code should not rely on this method, or at least use it correctly:
+        // https://bugs.openjdk.java.net/browse/JDK-8014008
+        // return them a new empty permissions object so jvisualvm etc work
+        for (StackTraceElement element : Thread.currentThread().getStackTrace()) {
+            if ("sun.rmi.server.LoaderHandler".equals(element.getClassName()) &&
+                    "loadClass".equals(element.getMethodName())) {
+                return new Permissions();
             }
         }
-        // otherwise defer to template + dynamic file permissions
-        return template.implies(domain, permission) || dynamic.implies(permission);
+        // return UNSUPPORTED_EMPTY_COLLECTION since it is safe.
+        return super.getPermissions(codesource);
     }
 
+    // TODO: remove this hack when insecure defaults are removed from java
+
+    // default policy file states:
+    // "It is strongly recommended that you either remove this permission
+    //  from this policy file or further restrict it to code sources
+    //  that you specify, because Thread.stop() is potentially unsafe."
+    // not even sure this method still works...
+    static final Permission BAD_DEFAULT_NUMBER_ONE = new RuntimePermission("stopThread");
+
+    // default policy file states:
+    // "allows anyone to listen on dynamic ports"
+    // specified exactly because that is what we want, and fastest since it won't imply any
+    // expensive checks for the implicit "resolve"
+    static final Permission BAD_DEFAULT_NUMBER_TWO = new SocketPermission("localhost:0", "listen");
+
     /**
-     * Classy puzzler to rethrow any checked exception as an unchecked one.
+     * Wraps the Java system policy, filtering out bad default permissions that
+     * are granted to all domains. Note, before java 8 these were even worse.
      */
-    private static class Rethrower<T extends Throwable> {
-        private void rethrow(Throwable t) throws T {
-            throw (T) t;
+    static class SystemPolicy extends Policy {
+        final Policy delegate;
+
+        SystemPolicy(Policy delegate) {
+            this.delegate = delegate;
         }
-    }
 
-    /**
-     * Rethrows <code>t</code> (identical object).
-     */
-    private void rethrow(Throwable t) {
-        new Rethrower<Error>().rethrow(t);
+        @Override
+        public boolean implies(ProtectionDomain domain, Permission permission) {
+            if (BAD_DEFAULT_NUMBER_ONE.equals(permission) || BAD_DEFAULT_NUMBER_TWO.equals(permission)) {
+                return false;
+            }
+            return delegate.implies(domain, permission);
+        }
     }
 }

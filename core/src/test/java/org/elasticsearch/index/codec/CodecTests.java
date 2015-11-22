@@ -39,14 +39,26 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.LuceneTestCase.SuppressCodecs;
+import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
+import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IndexSettingsModule;
 
+import java.io.IOException;
+import java.util.Collections;
+
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 
 @SuppressCodecs("*") // we test against default codec so never get a random one here!
-public class CodecTests extends ESSingleNodeTestCase {
+public class CodecTests extends ESTestCase {
     public void testResolveDefaultCodecs() throws Exception {
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMappingPostingFormatCodec.class));
@@ -90,13 +102,15 @@ public class CodecTests extends ESSingleNodeTestCase {
         dir.close();
     }
 
-    private static CodecService createCodecService() {
-        return createCodecService(Settings.Builder.EMPTY_SETTINGS);
-    }
-
-    private static CodecService createCodecService(Settings settings) {
-        IndexService indexService = createIndex("test", settings);
-        return indexService.getIndexServices().getCodecService();
+    private static CodecService createCodecService() throws IOException {
+        Settings nodeSettings = settingsBuilder()
+                .put("path.home", createTempDir())
+                .build();
+        IndexSettings settings = IndexSettingsModule.newIndexSettings(new Index("_na"), nodeSettings);
+        SimilarityService similarityService = new SimilarityService(settings, Collections.EMPTY_MAP);
+        AnalysisService analysisService = new AnalysisRegistry(null, new Environment(nodeSettings)).build(settings);
+        MapperService service = new MapperService(settings, analysisService, similarityService);
+        return new CodecService(service, ESLoggerFactory.getLogger("test"));
     }
 
 }

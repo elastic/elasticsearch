@@ -21,6 +21,7 @@ package org.elasticsearch.common.logging.log4j;
 
 import org.apache.log4j.PropertyConfigurator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.bootstrap.BootstrapInfo;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.env.Environment;
@@ -106,8 +107,8 @@ public class LogConfigurator {
             resolveConfig(environment, settingsBuilder);
         }
         settingsBuilder
-                .putProperties("elasticsearch.", System.getProperties())
-                .putProperties("es.", System.getProperties());
+                .putProperties("elasticsearch.", BootstrapInfo.getSystemProperties())
+                .putProperties("es.", BootstrapInfo.getSystemProperties());
         // add custom settings after config was added so that they are not overwritten by config
         settingsBuilder.put(settings);
         settingsBuilder.replacePropertyPlaceholders();

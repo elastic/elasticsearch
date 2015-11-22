@@ -21,11 +21,7 @@ package org.elasticsearch.test.engine;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FilterDirectoryReader;
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.search.AssertingIndexSearcher;
-import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.QueryCache;
-import org.apache.lucene.search.QueryCachingPolicy;
-import org.apache.lucene.search.SearcherManager;
+import org.apache.lucene.search.*;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.logging.ESLogger;
@@ -79,18 +75,18 @@ public final class MockEngineSupport {
     }
 
     public MockEngineSupport(EngineConfig config, Class<? extends FilterDirectoryReader> wrapper) {
-        Settings indexSettings = config.getIndexSettings();
+        Settings settings = config.getIndexSettings().getSettings();
         shardId = config.getShardId();
         filterCache = config.getQueryCache();
         filterCachingPolicy = config.getQueryCachingPolicy();
-        final long seed = indexSettings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
+        final long seed = settings.getAsLong(ESIntegTestCase.SETTING_INDEX_SEED, 0l);
         Random random = new Random(seed);
-        final double ratio = indexSettings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
+        final double ratio = settings.getAsDouble(WRAP_READER_RATIO, 0.0d); // DISABLED by default - AssertingDR is crazy slow
         boolean wrapReader = random.nextDouble() < ratio;
         if (logger.isTraceEnabled()) {
             logger.trace("Using [{}] for shard [{}] seed: [{}] wrapReader: [{}]", this.getClass().getName(), shardId, seed, wrapReader);
         }
-        mockContext = new MockContext(random, wrapReader, wrapper, indexSettings);
+        mockContext = new MockContext(random, wrapReader, wrapper, settings);
         this.searcherCloseable = new SearcherCloseable();
         LuceneTestCase.closeAfterSuite(searcherCloseable); // only one suite closeable per Engine
     }

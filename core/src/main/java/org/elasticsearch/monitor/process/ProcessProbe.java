@@ -20,6 +20,7 @@
 package org.elasticsearch.monitor.process;
 
 import org.elasticsearch.bootstrap.BootstrapInfo;
+import org.elasticsearch.monitor.Probes;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.OperatingSystemMXBean;
@@ -88,17 +89,7 @@ public class ProcessProbe {
      * Returns the process CPU usage in percent
      */
     public short getProcessCpuPercent() {
-        if (getProcessCpuLoad != null) {
-            try {
-                double load = (double) getProcessCpuLoad.invoke(osMxBean);
-                if (load >= 0) {
-                    return (short) (load * 100);
-                }
-            } catch (Throwable t) {
-                return -1;
-            }
-        }
-        return -1;
+        return Probes.getLoadAndScaleToPercent(getProcessCpuLoad, osMxBean);
     }
 
     /**

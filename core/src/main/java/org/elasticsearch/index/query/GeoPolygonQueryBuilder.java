@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.GeoPointInPolygonQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.Strings;
@@ -29,7 +30,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.IndexGeoPointFieldData;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.geo.GeoPointFieldMapper;
+import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.index.search.geo.GeoPolygonQuery;
 
 import java.io.IOException;
@@ -99,11 +100,19 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
+        MappedFieldType fieldType = context.fieldMapper(fieldName);
+        if (fieldType == null) {
+            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
+        }
+        if (!(fieldType instanceof BaseGeoPointFieldMapper.GeoPointFieldType)) {
+            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+        }
 
         List<GeoPoint> shell = new ArrayList<GeoPoint>();
         for (GeoPoint geoPoint : this.shell) {
             shell.add(new GeoPoint(geoPoint));
         }
+        final int shellSize = shell.size();
 
         final boolean indexCreatedBeforeV2_0 = context.indexVersionCreated().before(Version.V_2_0_0);
         // validation was not available prior to 2.x, so to support bwc
@@ -127,16 +136,20 @@ public class GeoPolygonQueryBuilder extends AbstractQueryBuilder<GeoPolygonQuery
             }
         }
 
-        MappedFieldType fieldType = context.fieldMapper(fieldName);
-        if (fieldType == null) {
-            throw new QueryShardException(context, "failed to find geo_point field [" + fieldName + "]");
-        }
-        if (!(fieldType instanceof GeoPointFieldMapper.GeoPointFieldType)) {
-            throw new QueryShardException(context, "field [" + fieldName + "] is not a geo_point field");
+        if (context.indexVersionCreated().before(Version.V_2_2_0)) {
+            IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
+            return new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shellSize]));
         }
 
-        IndexGeoPointFieldData indexFieldData = context.getForField(fieldType);
-        return new GeoPolygonQuery(indexFieldData, shell.toArray(new GeoPoint[shell.size()]));
+        double[] lats = new double[shellSize];
+        double[] lons = new double[shellSize];
+        GeoPoint p;
+        for (int i=0; i<shellSize; ++i) {
+            p = new GeoPoint(shell.get(i));
+            lats[i] = p.lat();
+            lons[i] = p.lon();
+        }
+        return new GeoPointInPolygonQuery(fieldType.names().fullName(), lons, lats);
     }
 
     @Override

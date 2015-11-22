@@ -37,6 +37,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
@@ -45,6 +46,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.CountDownLatch;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
@@ -78,24 +80,37 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, Listener listener) {
+        shardFailed(shardRouting, indexUUID, message, failure, null, listener);
+    }
+
+    public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, TimeValue timeout, Listener listener) {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
             logger.warn("can't send shard failed for {}, no master known.", shardRouting);
             listener.onShardFailedNoMaster();
             return;
         }
-        innerShardFailed(shardRouting, indexUUID, masterNode, message, failure, listener);
+        innerShardFailed(shardRouting, indexUUID, masterNode, message, failure, timeout, listener);
     }
 
     public void resendShardFailed(final ShardRouting shardRouting, final String indexUUID, final DiscoveryNode masterNode, final String message, @Nullable final Throwable failure, Listener listener) {
         logger.trace("{} re-sending failed shard for {}, indexUUID [{}], reason [{}]", failure, shardRouting.shardId(), shardRouting, indexUUID, message);
-        innerShardFailed(shardRouting, indexUUID, masterNode, message, failure, listener);
+        innerShardFailed(shardRouting, indexUUID, masterNode, message, failure, null, listener);
     }
 
-    private void innerShardFailed(final ShardRouting shardRouting, final String indexUUID, final DiscoveryNode masterNode, final String message, final Throwable failure, Listener listener) {
+    private void innerShardFailed(final ShardRouting shardRouting, final String indexUUID, final DiscoveryNode masterNode, final String message, final Throwable failure, TimeValue timeout, Listener listener) {
         ShardRoutingEntry shardRoutingEntry = new ShardRoutingEntry(shardRouting, indexUUID, message, failure);
+        TransportRequestOptions options = TransportRequestOptions.EMPTY;
+        if (timeout != null) {
+            options = TransportRequestOptions.builder().withTimeout(timeout).build();
+        }
         transportService.sendRequest(masterNode,
-                SHARD_FAILED_ACTION_NAME, shardRoutingEntry, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                SHARD_FAILED_ACTION_NAME, shardRoutingEntry, options, new EmptyTransportResponseHandler(ThreadPool.Names.SAME) {
+                    @Override
+                    public void handleResponse(TransportResponse.Empty response) {
+                        listener.onSuccess();
+                    }
+
                     @Override
                     public void handleException(TransportException exp) {
                         logger.warn("failed to send failed shard to {}", exp, masterNode);
@@ -167,7 +182,7 @@ public class ShardStateAction extends AbstractComponent {
 
             @Override
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
-                if (oldState != newState && newState.getRoutingNodes().hasUnassigned()) {
+                if (oldState != newState && newState.getRoutingNodes().unassigned().size() > 0) {
                     logger.trace("unassigned shards after shard failures. scheduling a reroute.");
                     routingService.reroute("unassigned shards after shard failures, scheduling a reroute");
                 }
@@ -288,6 +303,7 @@ public class ShardStateAction extends AbstractComponent {
     }
 
     public interface Listener {
+        default void onSuccess() {}
         default void onShardFailedNoMaster() {}
         default void onShardFailedFailure(final DiscoveryNode master, final TransportException e) {}
     }

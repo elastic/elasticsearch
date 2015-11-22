@@ -1,4 +1,21 @@
-import org.apache.tools.ant.filters.ReplaceTokens
+/*
+ * Licensed to Elasticsearch under one or more contributor
+ * license agreements. See the NOTICE file distributed with
+ * this work for additional information regarding copyright
+ * ownership. Elasticsearch licenses this file to you under
+ * the Apache License, Version 2.0 (the "License"); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *    http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
 
 plugins {
   id 'groovy'
@@ -8,15 +25,12 @@ plugins {
 apply plugin: 'idea'
 apply plugin: 'eclipse'
 
-/*idea {
-  project {
-    languageLevel = '1.8'
-    vcs = 'Git'
-  }
-}*/
-
 group = 'org.elasticsearch.gradle'
 archivesBaseName = 'build-tools'
+
+Properties props = new Properties()
+props.load(project.file('version.properties').newDataInputStream())
+version = props.getProperty('elasticsearch')
 
 repositories {
   mavenCentral()
@@ -30,8 +44,8 @@ repositories {
 dependencies {
   compile gradleApi()
   compile localGroovy()
-  compile 'com.carrotsearch.randomizedtesting:junit4-ant:2.2.0'
-  compile('junit:junit:4.11') {
+  compile "com.carrotsearch.randomizedtesting:junit4-ant:${props.getProperty('randomizedrunner')}"
+  compile("junit:junit:${props.getProperty('junit')}") {
     transitive = false
   }
   compile 'com.netflix.nebula:gradle-extra-configurations-plugin:3.0.3'
@@ -39,18 +53,12 @@ dependencies {
   compile 'org.eclipse.jgit:org.eclipse.jgit:3.2.0.201312181205-r'
   compile 'com.perforce:p4java:2012.3.551082' // THIS IS SUPPOSED TO BE OPTIONAL IN THE FUTURE....
   compile 'de.thetaphi:forbiddenapis:2.0'
+  compile 'com.bmuschko:gradle-nexus-plugin:2.3.1'
 }
 
-Properties props = new Properties()
-props.load(project.file('../gradle.properties').newDataInputStream())
-version = props.getProperty('version')
-
 processResources {
-  inputs.file('../gradle.properties')
-  filter ReplaceTokens, tokens: [
-    'version': props.getProperty('version'),
-    'luceneVersion': props.getProperty('luceneVersion')
-  ]
+  inputs.file('version.properties')
+  from 'version.properties'
 }
 
 extraArchive {
@@ -63,4 +71,3 @@ eclipse {
     defaultOutputDir = new File(file('build'), 'eclipse')
   }
 }
-

@@ -70,7 +70,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
 
         logger.info("start two nodes and fully start the shards");
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder().put(newNode("node1")).put(newNode("node2"))).build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
 
         for (int i = 0; i < routingTable.index("test").shards().size(); i++) {
@@ -95,7 +95,7 @@ public class ConcurrentRebalanceRoutingTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes())
                 .put(newNode("node3")).put(newNode("node4")).put(newNode("node5")).put(newNode("node6")).put(newNode("node7")).put(newNode("node8")).put(newNode("node9")).put(newNode("node10")))
                 .build();
-        routingTable = strategy.reroute(clusterState).routingTable();
+        routingTable = strategy.reroute(clusterState, "reroute").routingTable();
         clusterState = ClusterState.builder(clusterState).routingTable(routingTable).build();
         routingNodes = clusterState.getRoutingNodes();
 

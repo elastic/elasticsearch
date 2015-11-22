@@ -19,7 +19,7 @@
 
 package org.elasticsearch.index;
 
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.index.IndexAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
@@ -115,12 +115,12 @@ public class TransportIndexFailuresIT extends ESIntegTestCase {
         logger.info("--> preventing index/replica operations");
         TransportService mockTransportService = internalCluster().getInstance(TransportService.class, primaryNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
-                internalCluster().getInstance(Discovery.class, replicaNode).localNode(),
+                internalCluster().getInstance(TransportService.class, replicaNode),
                 singleton(IndexAction.NAME + "[r]")
         );
         mockTransportService = internalCluster().getInstance(TransportService.class, replicaNode);
         ((MockTransportService) mockTransportService).addFailToSendNoConnectRule(
-                internalCluster().getInstance(Discovery.class, primaryNode).localNode(),
+                internalCluster().getInstance(TransportService.class, primaryNode),
                 singleton(IndexAction.NAME + "[r]")
         );
 

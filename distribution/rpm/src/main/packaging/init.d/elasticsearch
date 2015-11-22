@@ -3,7 +3,7 @@
 # elasticsearch <summary>
 #
 # chkconfig:   2345 80 20
-# description: Starts and stops a single elasticsearch instance on this system 
+# description: Starts and stops a single elasticsearch instance on this system
 #
 
 ### BEGIN INIT INFO
@@ -32,19 +32,19 @@ if [ -f /etc/rc.d/init.d/functions ]; then
 fi
 
 # Sets the default values for elasticsearch variables used in this script
-ES_USER="${packaging.elasticsearch.user}"
-ES_GROUP="${packaging.elasticsearch.group}"
-ES_HOME="${packaging.elasticsearch.home.dir}"
-MAX_OPEN_FILES=${packaging.os.max.open.files}
-MAX_MAP_COUNT=${packaging.os.max.map.count}
-LOG_DIR="${packaging.elasticsearch.log.dir}"
-DATA_DIR="${packaging.elasticsearch.data.dir}"
-CONF_DIR="${packaging.elasticsearch.conf.dir}"
+ES_USER="elasticsearch"
+ES_GROUP="elasticsearch"
+ES_HOME="/usr/share/elasticsearch"
+MAX_OPEN_FILES=65535
+MAX_MAP_COUNT=262144
+LOG_DIR="/var/log/elasticsearch"
+DATA_DIR="/var/lib/elasticsearch"
+CONF_DIR="${path.conf}"
 
-PID_DIR="${packaging.elasticsearch.pid.dir}"
+PID_DIR="/var/run/elasticsearch"
 
 # Source the default env file
-ES_ENV_FILE="${packaging.env.file}"
+ES_ENV_FILE="${path.env}"
 if [ -f "$ES_ENV_FILE" ]; then
     . "$ES_ENV_FILE"
 fi
@@ -70,7 +70,7 @@ export JAVA_HOME
 lockfile=/var/lock/subsys/$prog
 
 # backwards compatibility for old config sysconfig files, pre 0.90.1
-if [ -n $USER ] && [ -z $ES_USER ] ; then 
+if [ -n $USER ] && [ -z $ES_USER ] ; then
    ES_USER=$USER
 fi
 
@@ -126,7 +126,7 @@ start() {
 stop() {
     echo -n $"Stopping $prog: "
     # stop it here, often "killproc $prog"
-    killproc -p $pidfile -d ${packaging.elasticsearch.stopping.timeout} $prog
+    killproc -p $pidfile -d ${stopping.timeout} $prog
     retval=$?
     echo
     [ $retval -eq 0 ] && rm -f $lockfile

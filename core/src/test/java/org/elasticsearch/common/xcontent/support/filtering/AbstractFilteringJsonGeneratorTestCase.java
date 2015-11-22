@@ -481,9 +481,9 @@ public abstract class AbstractFilteringJsonGeneratorTestCase extends ESTestCase 
         assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder("r*").startObject().field("foo", 0).rawField("raw", raw.toBytes()).endObject());
 
         // Test method: rawField(String fieldName, InputStream content)
-        assertXContentBuilder(expectedRawField, newXContentBuilder().startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
-        assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder("f*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
-        assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder("r*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes())).endObject());
+        assertXContentBuilder(expectedRawField, newXContentBuilder().startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes()), getXContentType()).endObject());
+        assertXContentBuilder(expectedRawFieldFiltered, newXContentBuilder("f*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes()), getXContentType()).endObject());
+        assertXContentBuilder(expectedRawFieldNotFiltered, newXContentBuilder("r*").startObject().field("foo", 0).rawField("raw", new ByteArrayInputStream(raw.toBytes()), getXContentType()).endObject());
     }
 
     public void testArrays() throws Exception {

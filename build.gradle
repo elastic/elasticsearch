@@ -20,17 +20,11 @@
 import com.bmuschko.gradle.nexus.NexusPlugin
 import org.gradle.plugins.ide.eclipse.model.SourceFolder
 
-buildscript {
-  repositories {
-    mavenCentral()
-  }
-  dependencies {
-    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
-  }
-}
-
 // common maven publishing configuration
 subprojects {
+  group = 'org.elasticsearch'
+  version = org.elasticsearch.gradle.VersionProperties.elasticsearch
+
   plugins.withType(NexusPlugin).whenPluginAdded {
     modifyPom {
       project {
@@ -53,7 +47,7 @@ subprojects {
       }
     }  
     extraArchive {
-      javadoc = false
+      javadoc = true
       tests = false
     }
     // we have our own username/password prompts so that they only happen once
@@ -78,46 +72,17 @@ subprojects {
   }
 }
 
-if (hasProperty('projectsPrefix') == false) {
-  allprojects {
-    project.ext['projectsPrefix'] = ''
-  }  
-}
-
 allprojects {
   // injecting groovy property variables into all projects
   project.ext {
-    // minimum java 8
-    sourceCompatibility = JavaVersion.VERSION_1_8
-    targetCompatibility = sourceCompatibility
-
-    // dependency versions that are used in more than one place
-    versions = [
-      lucene:             "${luceneVersion}",
-      randomizedrunner:   '2.2.0',
-      httpclient:         '4.3.6'
-    ]
+    // for eclipse hacks...
+    isEclipse = System.getProperty("eclipse.launcher") != null || gradle.startParameter.taskNames.contains('eclipse') || gradle.startParameter.taskNames.contains('cleanEclipse')
   }
 }
 
 subprojects {
-  repositories {
-    mavenCentral()
-    maven {
-      name 'sonatype-snapshots'
-      url 'http://oss.sonatype.org/content/repositories/snapshots/'
-    }
-    if (versions.lucene.contains('-snapshot')) {
-      String revision = (luceneVersion =~ /\d\.\d\.\d-snapshot-(\d+)/)[0][1]
-      maven {
-        name 'lucene-snapshots'
-        url "http://s3.amazonaws.com/download.elasticsearch.org/lucenesnapshots/${revision}"
-      }
-    }
-  }
-
-  // include license and notice in jars
-  gradle.projectsEvaluated {
+  project.afterEvaluate {
+    // include license and notice in jars
     tasks.withType(Jar) {
       into('META-INF') {
         from project.rootProject.rootDir
@@ -125,23 +90,68 @@ subprojects {
         include 'NOTICE.txt'   
       }
     }
+    // ignore missing javadocs
+    tasks.withType(Javadoc) { Javadoc javadoc ->
+      // the -quiet here is because of a bug in gradle, in that adding a string option
+      // by itself is not added to the options. By adding quiet, both this option and
+      // the "value" -quiet is added, separated by a space. This is ok since the javadoc
+      // command already adds -quiet, so we are just duplicating it
+      // see https://discuss.gradle.org/t/add-custom-javadoc-option-that-does-not-take-an-argument/5959
+      javadoc.options.addStringOption('Xdoclint:all,-missing', '-quiet')
+    }
   }
 
-  configurations {
-    all {
-      resolutionStrategy {
-        //failOnVersionConflict()
+  ext.projectSubstitutions = [
+    "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
+    "org.elasticsearch:elasticsearch:${version}": ':core',
+    "org.elasticsearch:test-framework:${version}": ':test-framework',
+    "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
+    "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar'
+  ]
+  configurations.all {
+    resolutionStrategy.dependencySubstitution { DependencySubstitutions subs ->
+      projectSubstitutions.each { k,v ->
+        subs.substitute(subs.module(k)).with(subs.project(v))
+      }
+    }
+  }
+}
 
-        dependencySubstitution {
-          substitute module("org.elasticsearch:rest-api-spec:${version}") with project("${projectsPrefix}:rest-api-spec")
-          substitute module("org.elasticsearch:elasticsearch:${version}") with project("${projectsPrefix}:core")
-          // so that eclipse doesn't have circular references
-          // the downside is, if you hack on test-framework, you have to gradle install
-          // the first prop detects eclipse itself, the second detects eclipse from commandline
-          if (System.getProperty("eclipse.launcher") == null && gradle.startParameter.taskNames.contains('eclipse') == false) {
-            substitute module("org.elasticsearch:test-framework:${version}") with project("${projectsPrefix}:test-framework")
+// Ensure similar tasks in dependent projects run first. The projectsEvaluated here is
+// important because, while dependencies.all will pickup future dependencies,
+// it is not necessarily true that the task exists in both projects at the time
+// the dependency is added.
+gradle.projectsEvaluated {
+  allprojects {
+    if (project.path == ':test-framework') {
+      // :test-framework:test cannot run before and after :core:test
+      return
+    }
+    configurations.all {
+      dependencies.all { Dependency dep ->
+        Project upstreamProject = null
+        if (dep instanceof ProjectDependency) {
+          upstreamProject = dep.dependencyProject
+        } else {
+          // gradle doesn't apply substitutions until resolve time, so they won't
+          // show up as a ProjectDependency above
+          String substitution = projectSubstitutions.get("${dep.group}:${dep.name}:${dep.version}")
+          if (substitution != null) {
+            upstreamProject = findProject(substitution)
           }
-          substitute module("org.elasticsearch.distribution.zip:elasticsearch:${version}") with project("${projectsPrefix}:distribution:zip")
+        }
+        if (upstreamProject != null) {
+          if (project.path == upstreamProject.path) {
+            // TODO: distribution integ tests depend on themselves (!), fix that
+            return
+          }
+          for (String taskName : ['test', 'integTest']) {
+            Task task = project.tasks.findByName(taskName)
+            Task upstreamTask = upstreamProject.tasks.findByName(taskName)
+            if (task != null && upstreamTask != null) {
+              task.mustRunAfter(upstreamTask)
+            }
+          }
         }
       }
     }
@@ -153,12 +163,10 @@ allprojects {
   apply plugin: 'idea'
 }
 
-if (hasProperty('projectsPrefix') == false) {
-  idea {
-    project {
-      languageLevel = sourceCompatibility
-      vcs = 'Git'
-    }
+idea {
+  project {
+    languageLevel = org.elasticsearch.gradle.BuildPlugin.minimumJava.toString()
+    vcs = 'Git'
   }
 }
 
@@ -178,8 +186,43 @@ allprojects {
       }
     }
   }
+  task copyEclipseSettings(type: Copy) {
+    // TODO: "package this up" for external builds
+    from new File(project.rootDir, 'buildSrc/src/main/resources/eclipse.settings')
+    into '.settings'
+  }
+  // otherwise .settings is not nuked entirely
+  tasks.cleanEclipse {
+    delete '.settings'
+  }
   // otherwise the eclipse merging is *super confusing*
-  tasks.eclipse.dependsOn(cleanEclipse)
+  tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)
 }
 
+// add buildSrc itself as a groovy project
+task buildSrcEclipse(type: GradleBuild) {
+  buildFile = 'buildSrc/build.gradle'
+  tasks = ['cleanEclipse', 'eclipse']
+}
+tasks.eclipse.dependsOn(buildSrcEclipse)
+
+// we need to add the same --debug-jvm option as
+// the real RunTask has, so we can pass it through
+class Run extends DefaultTask {
+  boolean debug = false
+
+  @org.gradle.api.internal.tasks.options.Option(
+        option = "debug-jvm",
+        description = "Enable debugging configuration, to allow attaching a debugger to elasticsearch."
+  )
+  public void setDebug(boolean enabled) {
+    project.project(':distribution').run.clusterConfig.debug = enabled
+  } 
+}
+task run(type: Run) {
+  dependsOn ':distribution:run'
+  description = 'Runs elasticsearch in the foreground'
+  group = 'Verification'
+  impliesSubProjects = true
+}
 

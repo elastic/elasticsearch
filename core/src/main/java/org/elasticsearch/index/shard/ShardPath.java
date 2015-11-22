@@ -139,7 +139,7 @@ public final class ShardPath {
             final Path dataPath;
             final Path statePath = loadedPath;
             if (indexSettings.hasCustomDataPath()) {
-                dataPath = env.resolveCustomLocation(indexSettings.getSettings(), shardId);
+                dataPath = env.resolveCustomLocation(indexSettings, shardId);
             } else {
                 dataPath = statePath;
             }
@@ -161,7 +161,7 @@ public final class ShardPath {
                 if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
                     logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
                     assert Files.isDirectory(path) : path + " is not a directory";
-                    NodeEnvironment.acquireFSLockForPaths(indexSettings.getSettings(), paths);
+                    NodeEnvironment.acquireFSLockForPaths(indexSettings, paths);
                     IOUtils.rm(path);
                 }
             }
@@ -203,7 +203,7 @@ public final class ShardPath {
         final Path statePath;
 
         if (indexSettings.hasCustomDataPath()) {
-            dataPath = env.resolveCustomLocation(indexSettings.getSettings(), shardId);
+            dataPath = env.resolveCustomLocation(indexSettings, shardId);
             statePath = env.nodePaths()[0].resolve(shardId);
         } else {
 

@@ -18,9 +18,15 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApisExtension
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
+import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.file.FileCollection
 import org.gradle.api.plugins.JavaBasePlugin
+import org.gradle.api.tasks.Exec
 import org.gradle.api.tasks.TaskContainer
 
 /**
@@ -32,7 +38,8 @@ class PrecommitTasks {
     static void configure(Project project) {
         List precommitTasks = [
                 configureForbiddenApis(project),
-                configureForbiddenPatterns(project.tasks)]
+                configureForbiddenPatterns(project.tasks),
+                configureJarHell(project)]
 
         Map precommitOptions = [
                 name: 'precommit',
@@ -65,14 +72,20 @@ class PrecommitTasks {
             signaturesURLs = [getClass().getResource('/forbidden/all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']
         }
-        project.tasks.findByName('forbiddenApisMain').configure {
-            bundledSignatures += ['jdk-system-out']
-            signaturesURLs += [
-                    getClass().getResource('/forbidden/core-signatures.txt'),
-                    getClass().getResource('/forbidden/third-party-signatures.txt')]
+        Task mainForbidden = project.tasks.findByName('forbiddenApisMain')
+        if (mainForbidden != null) {
+            mainForbidden.configure {
+                bundledSignatures += ['jdk-system-out']
+                signaturesURLs += [
+                        getClass().getResource('/forbidden/core-signatures.txt'),
+                        getClass().getResource('/forbidden/third-party-signatures.txt')]
+            }
         }
-        project.tasks.findByName('forbiddenApisTest').configure {
-            signaturesURLs += [getClass().getResource('/forbidden/test-signatures.txt')]
+        Task testForbidden = project.tasks.findByName('forbiddenApisTest')
+        if (testForbidden != null) {
+            testForbidden.configure {
+                signaturesURLs += [getClass().getResource('/forbidden/test-signatures.txt')]
+            }
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
         forbiddenApis.group = "" // clear group, so this does not show up under verification tasks
@@ -89,5 +102,45 @@ class PrecommitTasks {
             rule name: 'nocommit', pattern: /nocommit/
             rule name: 'tab', pattern: /\t/
         }
+    }
+
+    /**
+     * Adds a task to run jar hell before on the test classpath.
+     *
+     * We use a simple "marker" file that we touch when the task succeeds
+     * as the task output. This is compared against the modified time of the
+     * inputs (ie the jars/class files).
+     */
+    static Task configureJarHell(Project project) {
+        File successMarker = new File(project.buildDir, 'markers/jarHell')
+        Exec task = project.tasks.create(name: 'jarHell', type: Exec)
+        FileCollection testClasspath = project.sourceSets.test.runtimeClasspath
+        task.dependsOn(testClasspath)
+        task.inputs.files(testClasspath)
+        task.outputs.file(successMarker)
+        task.executable = new File(project.javaHome, 'bin/java')
+        task.doFirst({
+            /* JarHell doesn't like getting directories that don't exist but
+              gradle isn't especially careful about that. So we have to do it
+              filter it ourselves. */
+            def taskClasspath = testClasspath.filter { it.exists() }
+            task.args('-cp', taskClasspath.asPath, 'org.elasticsearch.bootstrap.JarHell')
+        })
+        if (task.logger.isInfoEnabled() == false) {
+            task.standardOutput = new ByteArrayOutputStream()
+            task.errorOutput = task.standardOutput
+            task.ignoreExitValue = true
+            task.doLast({
+                if (execResult.exitValue != 0) {
+                    logger.error(standardOutput.toString())
+                    throw new GradleException("JarHell failed")
+                }
+            })
+        }
+        task.doLast({
+            successMarker.parentFile.mkdirs()
+            successMarker.setText("", 'UTF-8')
+        })
+        return task
     }
 }

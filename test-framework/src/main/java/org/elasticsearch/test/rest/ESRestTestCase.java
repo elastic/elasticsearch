@@ -29,7 +29,6 @@ import org.apache.lucene.util.LuceneTestCase.SuppressFsync;
 import org.apache.lucene.util.TimeUnits;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.SuppressForbidden;
-import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.node.Node;
@@ -65,7 +64,6 @@ import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.PathMatcher;
 import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -123,9 +121,18 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
     private static final String DEFAULT_TESTS_PATH = "/rest-api-spec/test";
     private static final String DEFAULT_SPEC_PATH = "/rest-api-spec/api";
 
-    private static final String PATHS_SEPARATOR = ",";
+    /**
+     * This separator pattern matches ',' except it is preceded by a '\'. This allows us to support ',' within paths when it is escaped with
+     * a slash.
+     *
+     * For example, the path string "/a/b/c\,d/e/f,/foo/bar,/baz" is separated to "/a/b/c\,d/e/f", "/foo/bar" and "/baz".
+     *
+     * For reference, this regular expression feature is known as zero-width negative look-behind.
+     *
+     */
+    private static final String PATHS_SEPARATOR = "(?<!\\\\),";
 
-    private final PathMatcher[] blacklistPathMatchers;
+    private final List<BlacklistedPathPatternMatcher> blacklistPathMatchers = new ArrayList<>();
     private static RestTestExecutionContext restTestExecutionContext;
 
     private final RestTestCandidate testCandidate;
@@ -133,14 +140,8 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
     public ESRestTestCase(RestTestCandidate testCandidate) {
         this.testCandidate = testCandidate;
         String[] blacklist = resolvePathsProperty(REST_TESTS_BLACKLIST, null);
-        if (blacklist != null) {
-            blacklistPathMatchers = new PathMatcher[blacklist.length];
-            int i = 0;
-            for (String glob : blacklist) {
-                blacklistPathMatchers[i++] = PathUtils.getDefaultFileSystem().getPathMatcher("glob:" + glob);
-            }
-        } else {
-            blacklistPathMatchers = new PathMatcher[0];
+        for (String entry : blacklist) {
+            this.blacklistPathMatchers.add(new BlacklistedPathPatternMatcher(entry));
         }
     }
 
@@ -226,7 +227,7 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
     private static String[] resolvePathsProperty(String propertyName, String defaultValue) {
         String property = System.getProperty(propertyName);
         if (!Strings.hasLength(property)) {
-            return defaultValue == null ? null : new String[]{defaultValue};
+            return defaultValue == null ? Strings.EMPTY_ARRAY : new String[]{defaultValue};
         } else {
             return property.split(PATHS_SEPARATOR);
         }
@@ -324,11 +325,9 @@ public abstract class ESRestTestCase extends ESIntegTestCase {
     @Before
     public void reset() throws IOException, RestException {
         //skip test if it matches one of the blacklist globs
-        for (PathMatcher blacklistedPathMatcher : blacklistPathMatchers) {
-            //we need to replace a few characters otherwise the test section name can't be parsed as a path on windows
-            String testSection = testCandidate.getTestSection().getName().replace("*", "").replace("\\", "/").replaceAll("\\s+/", "/").replace(":", "").trim();
-            String testPath = testCandidate.getSuitePath() + "/" + testSection;
-            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.matches(PathUtils.get(testPath)));
+        for (BlacklistedPathPatternMatcher blacklistedPathMatcher : blacklistPathMatchers) {
+            String testPath = testCandidate.getSuitePath() + "/" + testCandidate.getTestSection().getName();
+            assumeFalse("[" + testCandidate.getTestPath() + "] skipped, reason: blacklisted", blacklistedPathMatcher.isSuffixMatch(testPath));
         }
         //The client needs non static info to get initialized, therefore it can't be initialized in the before class
         restTestExecutionContext.initClient(cluster().httpAddresses(), restClientSettings());

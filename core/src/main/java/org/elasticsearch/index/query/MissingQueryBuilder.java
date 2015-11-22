@@ -126,7 +126,7 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
             throw new QueryShardException(context, "missing must have either existence, or null_value, or both set to true");
         }
 
-        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context.mapperService().fullName(FieldNamesFieldMapper.NAME);
+        final FieldNamesFieldMapper.FieldNamesFieldType fieldNamesFieldType = (FieldNamesFieldMapper.FieldNamesFieldType) context.getMapperService().fullName(FieldNamesFieldMapper.NAME);
         if (fieldNamesFieldType == null) {
             // can only happen when no types exist, so no docs exist either
             return Queries.newMatchNoDocsQuery();

@@ -23,8 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
-import org.junit.Before;
 import org.mozilla.javascript.WrappedException;
 
 import java.util.HashMap;
@@ -37,14 +35,18 @@ public class JavaScriptSecurityTests extends ESTestCase {
     
     private JavaScriptScriptEngineService se;
 
-    @Before
-    public void setup() {
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
         se = new JavaScriptScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
+        // otherwise will exit your VM and other bad stuff
+        assumeTrue("test requires security manager to be enabled", System.getSecurityManager() != null);
     }
 
-    @After
-    public void close() {
+    @Override
+    public void tearDown() throws Exception {
         se.close();
+        super.tearDown();
     }
 
     /** runs a script */
@@ -85,5 +87,14 @@ public class JavaScriptSecurityTests extends ESTestCase {
         assertFailure("new java.net.Socket(\"localhost\", 1024)");
         // no files
         assertFailure("java.io.File.createTempFile(\"test\", \"tmp\")");
+    }
+
+    public void testDefinitelyNotOK() {
+        // no mucking with security controller
+        assertFailure("var ctx = org.mozilla.javascript.Context.getCurrentContext(); " +
+                      "ctx.setSecurityController(new org.mozilla.javascript.PolicySecurityController());");
+        // no compiling scripts from scripts
+        assertFailure("var ctx = org.mozilla.javascript.Context.getCurrentContext(); " +
+                      "ctx.compileString(\"1 + 1\", \"foobar\", 1, null); ");
     }
 }

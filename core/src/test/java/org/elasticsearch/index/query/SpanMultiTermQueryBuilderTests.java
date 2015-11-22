@@ -19,9 +19,12 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.spans.SpanBoostQuery;
 import org.apache.lucene.search.spans.SpanMultiTermQueryWrapper;
+import org.apache.lucene.search.spans.SpanQuery;
 
 import java.io.IOException;
 
@@ -37,9 +40,20 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
 
     @Override
     protected void doAssertLuceneQuery(SpanMultiTermQueryBuilder queryBuilder, Query query, QueryShardContext context) throws IOException {
+        if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            assertThat(query, instanceOf(SpanBoostQuery.class));
+            SpanBoostQuery boostQuery = (SpanBoostQuery) query;
+            assertThat(boostQuery.getBoost(), equalTo(queryBuilder.innerQuery().boost()));
+            query = boostQuery.getQuery();
+        }
         assertThat(query, instanceOf(SpanMultiTermQueryWrapper.class));
         SpanMultiTermQueryWrapper spanMultiTermQueryWrapper = (SpanMultiTermQueryWrapper) query;
         Query multiTermQuery = queryBuilder.innerQuery().toQuery(context);
+        if (queryBuilder.innerQuery().boost() != AbstractQueryBuilder.DEFAULT_BOOST) {
+            assertThat(multiTermQuery, instanceOf(BoostQuery.class));
+            BoostQuery boostQuery = (BoostQuery) multiTermQuery;
+            multiTermQuery = boostQuery.getQuery();
+        }
         assertThat(multiTermQuery, instanceOf(MultiTermQuery.class));
         assertThat(spanMultiTermQueryWrapper.getWrappedQuery(), equalTo(new SpanMultiTermQueryWrapper<>((MultiTermQuery)multiTermQuery).getWrappedQuery()));
     }
@@ -71,5 +85,11 @@ public class SpanMultiTermQueryBuilderTests extends AbstractQueryTestCase<SpanMu
                 assert(e.getMessage().contains("unsupported inner query, should be " + MultiTermQuery.class.getName()));
             }
         }
+    }
+
+    public void testToQueryInnerSpanMultiTerm() throws IOException {
+        Query query = new SpanOrQueryBuilder(createTestQueryBuilder()).toQuery(createShardContext());
+        //verify that the result is still a span query, despite the boost that might get set (SpanBoostQuery rather than BoostQuery)
+        assertThat(query, instanceOf(SpanQuery.class));
     }
 }

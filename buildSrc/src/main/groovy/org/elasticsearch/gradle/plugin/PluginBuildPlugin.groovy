@@ -18,10 +18,9 @@
  */
 package org.elasticsearch.gradle.plugin
 
-import nebula.plugin.extraconfigurations.ProvidedBasePlugin
 import org.elasticsearch.gradle.BuildPlugin
-import org.elasticsearch.gradle.ElasticsearchProperties
 import org.elasticsearch.gradle.test.RestIntegTestTask
+import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
 import org.gradle.api.Task
 import org.gradle.api.tasks.bundling.Zip
@@ -34,27 +33,21 @@ class PluginBuildPlugin extends BuildPlugin {
     @Override
     void apply(Project project) {
         super.apply(project)
-        project.pluginManager.apply(ProvidedBasePlugin)
-        // TODO: add target compatibility (java version) to elasticsearch properties and set for the project
         configureDependencies(project)
         // this afterEvaluate must happen before the afterEvaluate added by integTest configure,
         // so that the file name resolution for installing the plugin will be setup
         project.afterEvaluate {
-            project.jar.configure {
-                baseName project.pluginProperties.extension.name
-            }
-            project.bundlePlugin.configure {
-                baseName project.pluginProperties.extension.name
-            }
-            project.integTest.configure {
-                dependsOn project.bundlePlugin
-                cluster {
-                    plugin 'installPlugin', project.bundlePlugin.outputs.files
-                }
-            }
+            String name = project.pluginProperties.extension.name
+            project.jar.baseName = name
+            project.bundlePlugin.baseName = name
+            project.integTest.dependsOn(project.bundlePlugin)
+            project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+            project.tasks.run.dependsOn(project.bundlePlugin)
+            project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
         }
-        Task bundle = configureBundleTask(project)
         RestIntegTestTask.configure(project)
+        RunTask.configure(project)
+        Task bundle = configureBundleTask(project)
         project.configurations.archives.artifacts.removeAll { it.archiveTask.is project.jar }
         project.configurations.getByName('default').extendsFrom = []
         project.artifacts {
@@ -64,29 +57,29 @@ class PluginBuildPlugin extends BuildPlugin {
     }
 
     static void configureDependencies(Project project) {
-        String elasticsearchVersion = ElasticsearchProperties.version
         project.dependencies {
-            provided "org.elasticsearch:elasticsearch:${elasticsearchVersion}"
-            testCompile "org.elasticsearch:test-framework:${elasticsearchVersion}"
+            provided "org.elasticsearch:elasticsearch:${project.versions.elasticsearch}"
+            testCompile "org.elasticsearch:test-framework:${project.versions.elasticsearch}"
             // we "upgrade" these optional deps to provided for plugins, since they will run
             // with a full elasticsearch server that includes optional deps
-            // TODO: remove duplication of version here with core...
-            provided 'com.spatial4j:spatial4j:0.4.1'
-            provided 'com.vividsolutions:jts:1.13'
-            provided 'com.github.spullara.mustache.java:compiler:0.9.1'
-            provided "log4j:log4j:1.2.17"
-            provided "log4j:apache-log4j-extras:1.2.17"
-            provided "org.slf4j:slf4j-api:1.6.2"
-            provided 'net.java.dev.jna:jna:4.1.0'
+            provided "com.spatial4j:spatial4j:${project.versions.spatial4j}"
+            provided "com.vividsolutions:jts:${project.versions.jts}"
+            provided "com.github.spullara.mustache.java:compiler:${project.versions.mustache}"
+            provided "log4j:log4j:${project.versions.log4j}"
+            provided "log4j:apache-log4j-extras:${project.versions.log4j}"
+            provided "org.slf4j:slf4j-api:${project.versions.slf4j}"
+            provided "net.java.dev.jna:jna:${project.versions.jna}"
         }
     }
 
     static Task configureBundleTask(Project project) {
         PluginPropertiesTask buildProperties = project.tasks.create(name: 'pluginProperties', type: PluginPropertiesTask)
         File pluginMetadata = project.file("src/main/plugin-metadata")
-        project.processTestResources {
-            from buildProperties
-            from pluginMetadata
+        project.sourceSets.test {
+            output.dir(buildProperties.generatedResourcesDir, builtBy: 'pluginProperties')
+            resources {
+                srcDir pluginMetadata
+            }
         }
         Task bundle = project.tasks.create(name: 'bundlePlugin', type: Zip, dependsOn: [project.jar, buildProperties])
         bundle.configure {

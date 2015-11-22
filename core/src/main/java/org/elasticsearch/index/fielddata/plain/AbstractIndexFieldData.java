@@ -64,7 +64,10 @@ public abstract class AbstractIndexFieldData<FD extends AtomicFieldData> extends
     @Override
     public FD load(LeafReaderContext context) {
         if (context.reader().getFieldInfos().fieldInfo(fieldNames.indexName()) == null) {
-            // If the field doesn't exist, then don't bother with loading and adding an empty instance to the field data cache
+            // Some leaf readers may be wrapped and report different set of fields and use the same cache key.
+            // If a field can't be found then it doesn't mean it isn't there,
+            // so if a field doesn't exist then we don't cache it and just return an empty field data instance.
+            // The next time the field is found, we do cache.
             return empty(context.reader().maxDoc());
         }
 

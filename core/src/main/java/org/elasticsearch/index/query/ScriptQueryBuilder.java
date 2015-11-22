@@ -69,7 +69,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
     @Override
     protected Query doToQuery(QueryShardContext context) throws IOException {
-        return new ScriptQuery(script, context.scriptService(), context.lookup());
+        return new ScriptQuery(script, context.getScriptService(), context.lookup());
     }
 
     static class ScriptQuery extends Query {
@@ -104,10 +104,7 @@ public class ScriptQueryBuilder extends AbstractQueryBuilder<ScriptQueryBuilder>
 
         @Override
         public int hashCode() {
-            final int prime = 31;
-            int result = super.hashCode();
-            result = prime * result + Objects.hashCode(script);
-            return result;
+            return Objects.hash(super.hashCode(), script);
         }
 
         @Override

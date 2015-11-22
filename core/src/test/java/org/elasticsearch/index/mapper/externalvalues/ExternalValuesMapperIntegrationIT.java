@@ -21,7 +21,7 @@ package org.elasticsearch.index.mapper.externalvalues;
 
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.geo.ShapeRelation;
-import org.elasticsearch.common.geo.builders.ShapeBuilder;
+import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -43,7 +43,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
                 .startObject(ExternalMetadataMapper.CONTENT_TYPE)
                 .endObject()
                 .startObject("properties")
-                    .startObject("field").field("type", RegisterExternalTypes.EXTERNAL).endObject()
+                    .startObject("field").field("type", ExternalMapperPlugin.EXTERNAL).endObject()
                 .endObject()
             .endObject().endObject()).execute().get();
         ensureYellow("test-idx");
@@ -69,7 +69,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
 
         response = client().prepareSearch("test-idx")
-                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilder.newPoint(-100, 45)).relation(ShapeRelation.WITHIN))
+                .setPostFilter(QueryBuilders.geoShapeQuery("field.shape", ShapeBuilders.newPoint(-100, 45)).relation(ShapeRelation.WITHIN))
                         .execute().actionGet();
 
         assertThat(response.getHits().totalHits(), equalTo((long) 1));
@@ -85,7 +85,7 @@ public class ExternalValuesMapperIntegrationIT extends ESIntegTestCase {
         prepareCreate("test-idx").addMapping("doc",
                 XContentFactory.jsonBuilder().startObject().startObject("doc").startObject("properties")
                 .startObject("f")
-                    .field("type", RegisterExternalTypes.EXTERNAL_UPPER)
+                    .field("type", ExternalMapperPlugin.EXTERNAL_UPPER)
                     .startObject("fields")
                         .startObject("f")
                             .field("type", "string")

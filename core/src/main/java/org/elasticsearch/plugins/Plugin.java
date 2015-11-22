@@ -22,10 +22,13 @@ package org.elasticsearch.plugins;
 import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 
 import java.io.Closeable;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.List;
 
 /**
  * An extension point allowing to plug in custom functionality.
@@ -60,24 +63,30 @@ public abstract class Plugin {
     }
 
     /**
-     * Per index modules.
-     */
-    public Collection<Module> indexModules(Settings indexSettings) {
-        return Collections.emptyList();
-    }
-
-    /**
-     * Per index services that will be automatically closed.
-     */
-    public Collection<Class<? extends Closeable>> indexServices() {
-        return Collections.emptyList();
-    }
-
-    /**
      * Additional node settings loaded by the plugin. Note that settings that are explicit in the nodes settings can't be
      * overwritten with the additional settings. These settings added if they don't exist.
      */
     public Settings additionalSettings() {
         return Settings.Builder.EMPTY_SETTINGS;
     }
+
+    /**
+     * Called once the given {@link IndexService} is fully constructed but not yet published.
+     * This is used to initialize plugin services that require acess to index level resources
+     */
+    public void onIndexService(IndexService indexService) {}
+
+    /**
+     * Called before a new index is created on a node. The given module can be used to regsiter index-leve
+     * extensions.
+     */
+    public void onIndexModule(IndexModule indexModule) {}
+
+    /**
+     * Old-style guice index level extension point.
+     *
+     * @deprecated use #onIndexModule instead
+     */
+    @Deprecated
+    public final void onModule(IndexModule indexModule) {}
 }

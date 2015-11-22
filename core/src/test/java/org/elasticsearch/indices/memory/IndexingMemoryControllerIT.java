@@ -36,7 +36,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
     }
 
     public void testIndexBufferPushedToEngine() throws InterruptedException {
-        createNode(Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "100000h",
+        createNode(Settings.builder().put(IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "100000h",
                                           IndexingMemoryController.INDEX_BUFFER_SIZE_SETTING, "32mb",
                                           IndexShard.INDEX_REFRESH_INTERVAL, "-1").build());
 
@@ -65,7 +65,7 @@ public class IndexingMemoryControllerIT extends ESIntegTestCase {
     }
 
     public void testInactivePushedToShard() throws InterruptedException {
-        createNode(Settings.builder().put(IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING, "100ms",
+        createNode(Settings.builder().put(IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, "100ms",
                 IndexingMemoryController.SHARD_INACTIVE_INTERVAL_TIME_SETTING, "100ms",
                 IndexShard.INDEX_REFRESH_INTERVAL, "-1").build());
 

@@ -63,7 +63,7 @@ public class SettingsFilteringIT extends ESIntegTestCase {
         }
 
         @Override
-        public Collection<Module> indexModules(Settings indexSettings) {
+        public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new SettingsFilteringModule());
         }
     }

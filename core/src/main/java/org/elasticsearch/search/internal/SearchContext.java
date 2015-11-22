@@ -40,7 +40,6 @@ import org.elasticsearch.index.fielddata.IndexFieldDataService;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
-import org.elasticsearch.index.query.IndexQueryParserService;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -205,8 +204,6 @@ public abstract class SearchContext extends DelegatingHasContextAndHeaders imple
     public abstract MapperService mapperService();
 
     public abstract AnalysisService analysisService();
-
-    public abstract IndexQueryParserService queryParserService();
 
     public abstract SimilarityService similarityService();
 

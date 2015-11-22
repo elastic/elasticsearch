@@ -34,7 +34,6 @@ import org.elasticsearch.test.IndexSettingsModule;
 
 import java.io.IOException;
 import java.nio.file.Path;
-import java.util.Collections;
 import java.util.Locale;
 
 /**
@@ -47,7 +46,7 @@ public class IndexStoreTests extends ESTestCase {
         final IndexModule.Type type = RandomPicks.randomFrom(random(), values);
         Settings settings = Settings.settingsBuilder().put(IndexModule.STORE_TYPE, type.name().toLowerCase(Locale.ROOT))
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build();
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo"), settings, Collections.EMPTY_LIST);
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(new Index("foo"), settings);
         FsDirectoryService service = new FsDirectoryService(indexSettings, null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             switch (type) {
@@ -80,12 +79,14 @@ public class IndexStoreTests extends ESTestCase {
 
     public void testStoreDirectoryDefault() throws IOException {
         final Path tempDir = createTempDir().resolve("foo").resolve("0");
-        FsDirectoryService service = new FsDirectoryService(IndexSettingsModule.newIndexSettings(new Index("foo"), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build(), Collections.EMPTY_LIST), null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));
+        FsDirectoryService service = new FsDirectoryService(IndexSettingsModule.newIndexSettings(new Index("foo"), Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build()), null, new ShardPath(false, tempDir, tempDir, "foo", new ShardId("foo", 0)));
         try (final Directory directory = service.newFSDirectory(tempDir, NoLockFactory.INSTANCE)) {
             if (Constants.WINDOWS) {
                 assertTrue(directory.toString(), directory instanceof MMapDirectory || directory instanceof SimpleFSDirectory);
-            } else {
+            } else if (Constants.JRE_IS_64BIT) {
                 assertTrue(directory.toString(), directory instanceof FileSwitchDirectory);
+            } else {
+                assertTrue(directory.toString(), directory instanceof NIOFSDirectory);
             }
         }
     }

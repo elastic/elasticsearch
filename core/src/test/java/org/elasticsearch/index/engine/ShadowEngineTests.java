@@ -23,13 +23,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.NumericDocValuesField;
 import org.apache.lucene.document.TextField;
-import org.apache.lucene.index.IndexWriterConfig;
-import org.apache.lucene.index.KeepOnlyLastCommitDeletionPolicy;
-import org.apache.lucene.index.LiveIndexWriterConfig;
-import org.apache.lucene.index.MergePolicy;
-import org.apache.lucene.index.NoMergePolicy;
-import org.apache.lucene.index.SnapshotDeletionPolicy;
-import org.apache.lucene.index.Term;
+import org.apache.lucene.index.*;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.store.Directory;
@@ -73,24 +67,16 @@ import org.junit.Before;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasKey;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  * TODO: document me!
  */
 public class ShadowEngineTests extends ESTestCase {
-
-    private static final IndexSettings INDEX_SETTINGS = IndexSettingsModule.newIndexSettings(new Index("index"), Settings.EMPTY, Collections.emptyList());
 
     protected final ShardId shardId = new ShardId(new Index("index"), 1);
 
@@ -103,7 +89,7 @@ public class ShadowEngineTests extends ESTestCase {
     protected Engine primaryEngine;
     protected Engine replicaEngine;
 
-    private Settings defaultSettings;
+    private IndexSettings defaultSettings;
     private String codecName;
     private Path dirPath;
 
@@ -111,7 +97,7 @@ public class ShadowEngineTests extends ESTestCase {
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        CodecService codecService = new CodecService(INDEX_SETTINGS, null);
+        CodecService codecService = new CodecService(null, logger);
         String name = Codec.getDefault().getName();
         if (Arrays.asList(codecService.availableCodecs()).contains(name)) {
             // some codecs are read only so we only take the ones that we have in the service and randomly
@@ -120,12 +106,13 @@ public class ShadowEngineTests extends ESTestCase {
         } else {
             codecName = "default";
         }
-        defaultSettings = Settings.builder()
+        defaultSettings = IndexSettingsModule.newIndexSettings("test", Settings.builder()
                 .put(EngineConfig.INDEX_COMPOUND_ON_FLUSH, randomBoolean())
                 .put(EngineConfig.INDEX_GC_DELETES_SETTING, "1h") // make sure this doesn't kick in on us
                 .put(EngineConfig.INDEX_CODEC_SETTING, codecName)
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .build(); // TODO randomize more settings
+                .build()); // TODO randomize more settings
+
         threadPool = new ThreadPool(getClass().getName());
         dirPath = createTempDir();
         store = createStore(dirPath);
@@ -185,7 +172,7 @@ public class ShadowEngineTests extends ESTestCase {
 
 
     protected Store createStore(final Directory directory) throws IOException {
-        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY, Collections.emptyList());
+        IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(shardId.index(), Settings.EMPTY);
         final DirectoryService directoryService = new DirectoryService(shardId, indexSettings) {
             @Override
             public Directory newDirectory() throws IOException {
@@ -212,24 +199,24 @@ public class ShadowEngineTests extends ESTestCase {
         return createInternalEngine(defaultSettings, store, translogPath);
     }
 
-    protected ShadowEngine createShadowEngine(Settings indexSettings, Store store) {
+    protected ShadowEngine createShadowEngine(IndexSettings indexSettings, Store store) {
         return new ShadowEngine(config(indexSettings, store, null, new MergeSchedulerConfig(indexSettings), null));
     }
 
-    protected InternalEngine createInternalEngine(Settings indexSettings, Store store, Path translogPath) {
+    protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath) {
         return createInternalEngine(indexSettings, store, translogPath, newMergePolicy());
     }
 
-    protected InternalEngine createInternalEngine(Settings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
+    protected InternalEngine createInternalEngine(IndexSettings indexSettings, Store store, Path translogPath, MergePolicy mergePolicy) {
         return new InternalEngine(config(indexSettings, store, translogPath, new MergeSchedulerConfig(indexSettings), mergePolicy), true);
     }
 
-    public EngineConfig config(Settings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
+    public EngineConfig config(IndexSettings indexSettings, Store store, Path translogPath, MergeSchedulerConfig mergeSchedulerConfig, MergePolicy mergePolicy) {
         IndexWriterConfig iwc = newIndexWriterConfig();
-        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, IndexSettingsModule.newIndexSettings(shardId.index(), indexSettings, Collections.EMPTY_LIST), Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
-        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, IndexSettingsModule.newIndexSettings(shardId.index(), indexSettings, Collections.EMPTY_LIST)), indexSettings
+        TranslogConfig translogConfig = new TranslogConfig(shardId, translogPath, indexSettings, Translog.Durabilty.REQUEST, BigArrays.NON_RECYCLING_INSTANCE, threadPool);
+        EngineConfig config = new EngineConfig(shardId, threadPool, new ShardIndexingService(shardId, indexSettings), indexSettings
                 , null, store, createSnapshotDeletionPolicy(), mergePolicy, mergeSchedulerConfig,
-                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(INDEX_SETTINGS, null), new Engine.EventListener() {
+                iwc.getAnalyzer(), iwc.getSimilarity() , new CodecService(null, logger), new Engine.EventListener() {
             @Override
             public void onFailedEngine(String reason, @Nullable Throwable t) {
                 // we don't need to notify anybody in this test
@@ -282,7 +269,7 @@ public class ShadowEngineTests extends ESTestCase {
         assertThat(segments.isEmpty(), equalTo(true));
         assertThat(primaryEngine.segmentsStats().getCount(), equalTo(0l));
         assertThat(primaryEngine.segmentsStats().getMemoryInBytes(), equalTo(0l));
-        final boolean defaultCompound = defaultSettings.getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
+        final boolean defaultCompound = defaultSettings.getSettings().getAsBoolean(EngineConfig.INDEX_COMPOUND_ON_FLUSH, true);
 
         // create a doc and refresh
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
@@ -919,7 +906,7 @@ public class ShadowEngineTests extends ESTestCase {
     }
 
     public void testSettings() {
-        CodecService codecService = new CodecService(INDEX_SETTINGS, null);
+        CodecService codecService = new CodecService(null, logger);
         assertEquals(replicaEngine.config().getCodec().getName(), codecService.codec(codecName).getName());
     }
 

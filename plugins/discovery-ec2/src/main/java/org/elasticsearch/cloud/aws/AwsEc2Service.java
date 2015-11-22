@@ -49,6 +49,7 @@ public interface AwsEc2Service extends LifecycleComponent<AwsEc2Service> {
         public static final String GROUPS = "discovery.ec2.groups";
         public static final String TAG_PREFIX = "discovery.ec2.tag.";
         public static final String AVAILABILITY_ZONES = "discovery.ec2.availability_zones";
+        public static final String NODE_CACHE_TIME = "discovery.ec2.node_cache_time";
     }
 
     AmazonEC2 client();

@@ -6,8 +6,8 @@
 
   - match:
       $body: |
-               /  #host       ip                          heap.percent        ram.percent      load                node.role        master          name
-               ^  (\S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d+            \s+  \d*         \s+  (-)?\d*(\.\d+)?    \s+  [-dc]       \s+  [-*mx]    \s+   (\S+\s?)+   \s+  \n)+  $/
+               /  #host       ip                          heap.percent        ram.percent     cpu     load                node.role        master          name
+               ^  (\S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d+            \s+  \d*         \s+ \d* \s+ (-)?\d*(\.\d+)?    \s+  [-dc]       \s+  [-*mx]    \s+   (\S+\s?)+   \s+  \n)+  $/
 
   - do:
       cat.nodes:
@@ -15,8 +15,8 @@
 
   - match:
       $body: |
-               /^  host  \s+  ip                     \s+  heap\.percent   \s+  ram\.percent \s+  load           \s+  node\.role   \s+  master   \s+   name        \s+  \n
-                  (\S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d+             \s+  \d*          \s+  (-)?\d*(\.\d+)?    \s+  [-dc]        \s+  [-*mx]    \s+   (\S+\s?)+   \s+  \n)+  $/
+               /^  host  \s+  ip                     \s+  heap\.percent   \s+  ram\.percent \s+ cpu \s+ load           \s+  node\.role   \s+  master   \s+   name        \s+  \n
+                  (\S+   \s+  (\d{1,3}\.){3}\d{1,3}  \s+  \d+             \s+  \d*          \s+ \d* \s+ (-)?\d*(\.\d+)?    \s+  [-dc]        \s+  [-*mx]    \s+   (\S+\s?)+   \s+  \n)+  $/
 
   - do:
       cat.nodes:

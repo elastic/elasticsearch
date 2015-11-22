@@ -41,7 +41,7 @@ buildscript {
 allprojects {
   project.ext {
     // this is common configuration for distributions, but we also add it here for the license check to use
-    dependencyFiles = project("${projectsPrefix}:core").configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+    dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
   }
 }
 
@@ -79,7 +79,7 @@ subprojects {
      *****************************************************************************/
     libFiles = copySpec {
       into 'lib'
-      from project("${projectsPrefix}:core").jar
+      from project(':core').jar
       from dependencyFiles
     }
 

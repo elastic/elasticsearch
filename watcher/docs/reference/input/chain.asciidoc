@@ -17,15 +17,19 @@ For example, the following chain input loads data from an HTTP server using the 
   "input" : {
     "chain" : {
       "inputs" : [ <1>
-        "first" : {
-          "simple" : { "path" : "/_search" }
+        {
+          "first" : {
+            "simple" : { "path" : "/_search" }
+          }
         },
-        "second" : {
-          "http" : {
-            "request" : {
-              "host" : "localhost",
-              "port" : 9200,
-              "path" : "{{ctx.payload.first.path}}" <2>
+        {
+          "second" : {
+            "http" : {
+              "request" : {
+                "host" : "localhost",
+                "port" : 9200,
+                "path" : "{{ctx.payload.first.path}}" <2>
+              }
             }
           }
         }

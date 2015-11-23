@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,6 +29,10 @@ import java.io.IOException;
  * Parser for boosting query
  */
 public class BoostingQueryParser implements QueryParser<BoostingQueryBuilder> {
+
+    public static final ParseField POSITIVE_FIELD = new ParseField("positive");
+    public static final ParseField NEGATIVE_FIELD = new ParseField("negative");
+    public static final ParseField NEGATIVE_BOOST_FIELD = new ParseField("negative_boost");
 
     @Override
     public String[] names() {
@@ -52,21 +57,21 @@ public class BoostingQueryParser implements QueryParser<BoostingQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("positive".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, POSITIVE_FIELD)) {
                     positiveQuery = parseContext.parseInnerQueryBuilder();
                     positiveQueryFound = true;
-                } else if ("negative".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NEGATIVE_FIELD)) {
                     negativeQuery = parseContext.parseInnerQueryBuilder();
                     negativeQueryFound = true;
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("negative_boost".equals(currentFieldName) || "negativeBoost".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, NEGATIVE_BOOST_FIELD)) {
                     negativeBoost = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[boosting] query does not support [" + currentFieldName + "]");

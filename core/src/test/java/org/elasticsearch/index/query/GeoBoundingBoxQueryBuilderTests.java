@@ -24,12 +24,9 @@ import com.spatial4j.core.shape.Rectangle;
 
 import org.apache.lucene.search.*;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.search.geo.InMemoryGeoBoundingBoxQuery;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 
 import java.io.IOException;
@@ -442,5 +439,29 @@ public class GeoBoundingBoxQueryBuilderTests extends AbstractQueryTestCase<GeoBo
             assertThat(q.getMinLat(), closeTo(30, 1E-5));
             assertThat(q.getMaxLon(), closeTo(-80, 1E-5));
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"geo_bbox\" : {\n" + 
+                "    \"pin.location\" : {\n" + 
+                "      \"top_left\" : [ -74.1, 40.73 ],\n" + 
+                "      \"bottom_right\" : [ -71.12, 40.01 ]\n" + 
+                "    },\n" + 
+                "    \"validation_method\" : \"STRICT\",\n" + 
+                "    \"type\" : \"MEMORY\",\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+        GeoBoundingBoxQueryBuilder parsed = (GeoBoundingBoxQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, "pin.location", parsed.fieldName());
+        assertEquals(json, -74.1, parsed.topLeft().getLon(), 0.0001);
+        assertEquals(json, 40.73, parsed.topLeft().getLat(), 0.0001);
+        assertEquals(json, -71.12, parsed.bottomRight().getLon(), 0.0001);
+        assertEquals(json, 40.01, parsed.bottomRight().getLat(), 0.0001);
+        assertEquals(json, 1.0, parsed.boost(), 0.0001);
+        assertEquals(json, GeoExecType.MEMORY, parsed.type());
     }
 }

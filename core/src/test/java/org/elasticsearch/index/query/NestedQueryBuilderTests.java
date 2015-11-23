@@ -147,4 +147,53 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
             // expected
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"nested\" : {\n" + 
+                "    \"query\" : {\n" + 
+                "      \"bool\" : {\n" + 
+                "        \"must\" : [ {\n" + 
+                "          \"match\" : {\n" + 
+                "            \"obj1.name\" : {\n" + 
+                "              \"query\" : \"blue\",\n" + 
+                "              \"type\" : \"boolean\",\n" + 
+                "              \"operator\" : \"OR\",\n" + 
+                "              \"slop\" : 0,\n" + 
+                "              \"prefix_length\" : 0,\n" + 
+                "              \"max_expansions\" : 50,\n" + 
+                "              \"fuzzy_transpositions\" : true,\n" + 
+                "              \"lenient\" : false,\n" + 
+                "              \"zero_terms_query\" : \"NONE\",\n" + 
+                "              \"boost\" : 1.0\n" + 
+                "            }\n" + 
+                "          }\n" + 
+                "        }, {\n" + 
+                "          \"range\" : {\n" + 
+                "            \"obj1.count\" : {\n" + 
+                "              \"from\" : 5,\n" + 
+                "              \"to\" : null,\n" + 
+                "              \"include_lower\" : false,\n" + 
+                "              \"include_upper\" : true,\n" + 
+                "              \"boost\" : 1.0\n" + 
+                "            }\n" + 
+                "          }\n" + 
+                "        } ],\n" + 
+                "        \"disable_coord\" : false,\n" + 
+                "        \"adjust_pure_negative\" : true,\n" + 
+                "        \"boost\" : 1.0\n" + 
+                "      }\n" + 
+                "    },\n" + 
+                "    \"path\" : \"obj1\",\n" + 
+                "    \"score_mode\" : \"avg\",\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        NestedQueryBuilder parsed = (NestedQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, ScoreMode.Avg, parsed.scoreMode());
+    }
 }

@@ -207,7 +207,7 @@ public class TermsQueryBuilder extends AbstractQueryBuilder<TermsQueryBuilder> {
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         if (this.termsLookup != null) {
             builder.startObject(fieldName);

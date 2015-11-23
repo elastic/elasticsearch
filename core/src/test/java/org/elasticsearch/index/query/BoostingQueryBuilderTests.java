@@ -69,4 +69,38 @@ public class BoostingQueryBuilderTests extends AbstractQueryTestCase<BoostingQue
             //
         }
     }
+
+    public void testFromJson() throws IOException {
+        String query =
+                "{\n" + 
+                "  \"boosting\" : {\n" + 
+                "    \"positive\" : {\n" + 
+                "      \"term\" : {\n" + 
+                "        \"field1\" : {\n" + 
+                "          \"value\" : \"value1\",\n" + 
+                "          \"boost\" : 5.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    },\n" + 
+                "    \"negative\" : {\n" + 
+                "      \"term\" : {\n" + 
+                "        \"field2\" : {\n" + 
+                "          \"value\" : \"value2\",\n" + 
+                "          \"boost\" : 8.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    },\n" + 
+                "    \"negative_boost\" : 23.0,\n" + 
+                "    \"boost\" : 42.0\n" + 
+                "  }\n" + 
+                "}";
+
+        BoostingQueryBuilder queryBuilder = (BoostingQueryBuilder) parseQuery(query);
+        checkGeneratedJson(query, queryBuilder);
+
+        assertEquals(query, 42, queryBuilder.boost(), 0.00001);
+        assertEquals(query, 23, queryBuilder.negativeBoost(), 0.00001);
+        assertEquals(query, 8, queryBuilder.negativeQuery().boost(), 0.00001);
+        assertEquals(query, 5, queryBuilder.positiveQuery().boost(), 0.00001);
+    }
 }

@@ -152,4 +152,19 @@ public class IdsQueryBuilderTests extends AbstractQueryTestCase<IdsQueryBuilder>
             assertThat(e.getMessage(), is("Illegal value for id, expecting a string or number, got: START_ARRAY"));
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"ids\" : {\n" + 
+                "    \"type\" : [ \"my_type\" ],\n" + 
+                "    \"values\" : [ \"1\", \"100\", \"4\" ],\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+        IdsQueryBuilder parsed = (IdsQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 3, parsed.ids().size());
+        assertEquals(json, "my_type", parsed.types()[0]);
+    }
 }

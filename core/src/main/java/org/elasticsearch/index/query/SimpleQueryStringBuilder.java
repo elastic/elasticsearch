@@ -303,10 +303,10 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
 
-        builder.field("query", queryText);
+        builder.field(SimpleQueryStringParser.QUERY_FIELD.getPreferredName(), queryText);
 
         if (fieldsAndWeights.size() > 0) {
-            builder.startArray("fields");
+            builder.startArray(SimpleQueryStringParser.FIELDS_FIELD.getPreferredName());
             for (Map.Entry<String, Float> entry : fieldsAndWeights.entrySet()) {
                 builder.value(entry.getKey() + "^" + entry.getValue());
             }
@@ -314,18 +314,18 @@ public class SimpleQueryStringBuilder extends AbstractQueryBuilder<SimpleQuerySt
         }
 
         if (analyzer != null) {
-            builder.field("analyzer", analyzer);
+            builder.field(SimpleQueryStringParser.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
 
-        builder.field("flags", flags);
-        builder.field("default_operator", defaultOperator.name().toLowerCase(Locale.ROOT));
-        builder.field("lowercase_expanded_terms", settings.lowercaseExpandedTerms());
-        builder.field("lenient", settings.lenient());
-        builder.field("analyze_wildcard", settings.analyzeWildcard());
-        builder.field("locale", (settings.locale().toLanguageTag()));
+        builder.field(SimpleQueryStringParser.FLAGS_FIELD.getPreferredName(), flags);
+        builder.field(SimpleQueryStringParser.DEFAULT_OPERATOR_FIELD.getPreferredName(), defaultOperator.name().toLowerCase(Locale.ROOT));
+        builder.field(SimpleQueryStringParser.LOWERCASE_EXPANDED_TERMS_FIELD.getPreferredName(), settings.lowercaseExpandedTerms());
+        builder.field(SimpleQueryStringParser.LENIENT_FIELD.getPreferredName(), settings.lenient());
+        builder.field(SimpleQueryStringParser.ANALYZE_WILDCARD_FIELD.getPreferredName(), settings.analyzeWildcard());
+        builder.field(SimpleQueryStringParser.LOCALE_FIELD.getPreferredName(), (settings.locale().toLanguageTag()));
 
         if (minimumShouldMatch != null) {
-            builder.field("minimum_should_match", minimumShouldMatch);
+            builder.field(SimpleQueryStringParser.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
 
         printBoostAndQueryName(builder);

@@ -67,4 +67,40 @@ public class SpanOrQueryBuilderTests extends AbstractQueryTestCase<SpanOrQueryBu
             // expected
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"span_or\" : {\n" + 
+                "    \"clauses\" : [ {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value1\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value2\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value3\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    } ],\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        SpanOrQueryBuilder parsed = (SpanOrQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 3, parsed.clauses().size());
+    }
 }

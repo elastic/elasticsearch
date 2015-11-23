@@ -68,4 +68,21 @@ public class TermQueryBuilderTests extends AbstractTermQueryTestCase<TermQueryBu
             assertThat(e.getMessage(), is("[term] query does not support array of values"));
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"term\" : {\n" + 
+                "    \"exact_value\" : {\n" + 
+                "      \"value\" : \"Quick Foxes!\",\n" + 
+                "      \"boost\" : 1.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+
+        TermQueryBuilder parsed = (TermQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "Quick Foxes!", parsed.value());
+    }
 }

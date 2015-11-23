@@ -71,4 +71,46 @@ public class SpanNearQueryBuilderTests extends AbstractQueryTestCase<SpanNearQue
             // ecpected
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"span_near\" : {\n" + 
+                "    \"clauses\" : [ {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value1\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value2\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"field\" : {\n" + 
+                "          \"value\" : \"value3\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    } ],\n" + 
+                "    \"slop\" : 12,\n" + 
+                "    \"in_order\" : false,\n" + 
+                "    \"collect_payloads\" : false,\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        SpanNearQueryBuilder parsed = (SpanNearQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 3, parsed.clauses().size());
+        assertEquals(json, 12, parsed.slop());
+        assertEquals(json, false, parsed.inOrder());
+        assertEquals(json, false, parsed.collectPayloads());
+    }
 }

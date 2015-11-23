@@ -81,4 +81,24 @@ public class RegexpQueryBuilderTests extends AbstractQueryTestCase<RegexpQueryBu
             // expected
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"regexp\" : {\n" + 
+                "    \"name.first\" : {\n" + 
+                "      \"value\" : \"s.*y\",\n" + 
+                "      \"flags_value\" : 7,\n" + 
+                "      \"max_determinized_states\" : 20000,\n" + 
+                "      \"boost\" : 1.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+
+        RegexpQueryBuilder parsed = (RegexpQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "s.*y", parsed.value());
+        assertEquals(json, 20000, parsed.maxDeterminizedStates());
+    }
 }

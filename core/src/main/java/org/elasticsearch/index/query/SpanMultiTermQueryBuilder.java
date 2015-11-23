@@ -56,7 +56,7 @@ public class SpanMultiTermQueryBuilder extends AbstractQueryBuilder<SpanMultiTer
     protected void doXContent(XContentBuilder builder, Params params)
             throws IOException {
         builder.startObject(NAME);
-        builder.field(SpanMultiTermQueryParser.MATCH_NAME);
+        builder.field(SpanMultiTermQueryParser.MATCH_FIELD.getPreferredName());
         multiTermQueryBuilder.toXContent(builder, params);
         printBoostAndQueryName(builder);
         builder.endObject();

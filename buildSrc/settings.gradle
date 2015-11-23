@@ -1,0 +1,6 @@
+File elasticsearchDir = new File(settingsDir, '../../elasticsearch')
+if (elasticsearchDir.exists() == false) {
+  throw new GradleException('Elasticsearch must be checked out as a sibling directory of x-plugins')
+}
+
+project(':').projectDir = new File(elasticsearchDir, 'buildSrc')

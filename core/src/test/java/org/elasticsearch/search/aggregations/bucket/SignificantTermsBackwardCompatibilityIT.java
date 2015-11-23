@@ -49,7 +49,7 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
     static final String CLASS_FIELD = "class";
 
     /**
-     * Simple upgrade test for streaming significant terms buckets
+     * Test for streaming significant terms buckets to old es versions.
      */
     @Test
     public void testBucketStreaming() throws IOException, ExecutionException, InterruptedException {
@@ -58,17 +58,9 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings);
-
+        ensureGreen();
         logClusterState();
-        boolean upgraded;
-        int upgradedNodesCounter = 1;
-        do {
-            logger.debug("testBucketStreaming: upgrading {}st node", upgradedNodesCounter++);
-            upgraded = backwardsCluster().upgradeOneNode();
-            ensureGreen();
-            logClusterState();
-            checkSignificantTermsAggregationCorrect();
-        } while (upgraded);
+        checkSignificantTermsAggregationCorrect();
         logger.debug("testBucketStreaming: done testing significant terms while upgrading");
     }
 
@@ -104,7 +96,7 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
-        StringTerms classes = (StringTerms) response.getAggregations().get("class");
+        StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
         for (Terms.Bucket classBucket : classes.getBuckets()) {
             Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();

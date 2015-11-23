@@ -288,7 +288,7 @@ public class ConcurrentPercolatorIT extends ESIntegTestCase {
         }
 
         for (Throwable t : exceptionsHolder) {
-            logger.error("Unexpected exception {}", t, t.getMessage());
+            logger.error("Unexpected exception", t);
         }
         assertThat(exceptionsHolder.isEmpty(), equalTo(true));
     }

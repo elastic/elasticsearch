@@ -130,7 +130,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         try {
             if (latch.await(shardsClosedTimeout.seconds(), TimeUnit.SECONDS) == false) {
-                logger.warn("Not all shards are closed yet, waited {}sec - stopping service", null, shardsClosedTimeout.seconds());
+                logger.warn("Not all shards are closed yet, waited {} - stopping service", null, shardsClosedTimeout);
             }
         } catch (InterruptedException e) {
             // ignore

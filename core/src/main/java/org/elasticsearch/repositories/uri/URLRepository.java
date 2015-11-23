@@ -149,7 +149,7 @@ public class URLRepository extends BlobStoreRepository {
                 URL normalizedUrl = environment.resolveRepoURL(url);
                 if (normalizedUrl == null) {
                     logger.warn("The specified url [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] or by repositories.url.allowed_urls setting: [{}] ",
-                                null, url, Arrays.toString(environment.repoFiles()), Arrays.toString(urlWhiteList));
+                                null, url, environment.repoFiles(), urlWhiteList);
                     throw new RepositoryException(repositoryName, "file url [" + url + "] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls");
                 }
                 return normalizedUrl;

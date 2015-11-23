@@ -100,14 +100,20 @@ public interface ESLogger {
     void info(String msg, Throwable cause, Object... params);
 
     /**
-     * Logs a WARN level message.  If there is any exception associated with this meessage, pass it as as the <code>cause</code>.
-     * Ohterwise, pass <code>null</code>.
+     * Logs a WARN level message.
+     *
+     * @param cause exception that caused this warning. If you are certain no exception caused it, pass {@code null}. It's intentional
+     *        that there isn't an overload of this method without this parameter: we want to make logging a warning without the exception
+     *        inconvenient because logging exceptions is often vital for debugging.
      */
     void warn(String msg, Throwable cause, Object... params);
 
     /**
-     * Logs an ERROR level message.  If there is any exception associated with this meessage, pass it as as the <code>cause</code>.
-     * Ohterwise, pass <code>null</code>.
+     * Logs an ERROR level message.
+     *
+     * @param cause exception that caused this error. If you are certain no exception caused it, pass {@code null}. It's intentional
+     *        that there isn't an overload of this method without this parameter: we want to make logging an error without the exception
+     *        inconvenient because logging exceptions is often vital for debugging.
      */
     void error(String msg, Throwable cause, Object... params);
 

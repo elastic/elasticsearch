@@ -502,7 +502,7 @@ public class ExtendedStatsTests extends AbstractNumericTestCase {
         ShardSearchFailure[] failures = response.getShardFailures();
         if (failures.length != expectedFailures) {
             for (ShardSearchFailure failure : failures) {
-                logger.error("Shard Failure: reason [{}], failure [{}]", failure.getCause(), failure.reason(), failure.toString());
+                logger.error("Shard Failure: [{}]", failure.getCause(), failure);
             }
             fail("Unexpected shard failures!");
         }

@@ -84,6 +84,9 @@ public class BootstrapForTesting {
         // initialize probes
         Bootstrap.initializeProbes();
         
+        // initialize sysprops
+        BootstrapInfo.getSystemProperties();
+        
         // check for jar hell
         try {
             JarHell.checkJarHell();

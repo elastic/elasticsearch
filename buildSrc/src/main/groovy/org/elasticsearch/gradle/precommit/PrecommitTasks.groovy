@@ -18,6 +18,9 @@
  */
 package org.elasticsearch.gradle.precommit
 
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApis
+import de.thetaphi.forbiddenapis.gradle.CheckForbiddenApisExtension
+import de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin
 import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.Task
@@ -69,14 +72,20 @@ class PrecommitTasks {
             signaturesURLs = [getClass().getResource('/forbidden/all-signatures.txt')]
             suppressAnnotations = ['**.SuppressForbidden']
         }
-        project.tasks.findByName('forbiddenApisMain').configure {
-            bundledSignatures += ['jdk-system-out']
-            signaturesURLs += [
-                    getClass().getResource('/forbidden/core-signatures.txt'),
-                    getClass().getResource('/forbidden/third-party-signatures.txt')]
+        Task mainForbidden = project.tasks.findByName('forbiddenApisMain')
+        if (mainForbidden != null) {
+            mainForbidden.configure {
+                bundledSignatures += ['jdk-system-out']
+                signaturesURLs += [
+                        getClass().getResource('/forbidden/core-signatures.txt'),
+                        getClass().getResource('/forbidden/third-party-signatures.txt')]
+            }
         }
-        project.tasks.findByName('forbiddenApisTest').configure {
-            signaturesURLs += [getClass().getResource('/forbidden/test-signatures.txt')]
+        Task testForbidden = project.tasks.findByName('forbiddenApisTest')
+        if (testForbidden != null) {
+            testForbidden.configure {
+                signaturesURLs += [getClass().getResource('/forbidden/test-signatures.txt')]
+            }
         }
         Task forbiddenApis = project.tasks.findByName('forbiddenApis')
         forbiddenApis.group = "" // clear group, so this does not show up under verification tasks

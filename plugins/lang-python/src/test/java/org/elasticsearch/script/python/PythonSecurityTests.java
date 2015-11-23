@@ -45,9 +45,6 @@ public class PythonSecurityTests extends ESTestCase {
 
     @Override
     public void tearDown() throws Exception {
-        // We need to clear some system properties
-        System.clearProperty("python.cachedir.skip");
-        System.clearProperty("python.console.encoding");
         se.close();
         super.tearDown();
     }

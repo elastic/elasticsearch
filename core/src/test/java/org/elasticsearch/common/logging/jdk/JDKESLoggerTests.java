@@ -91,6 +91,20 @@ public class JDKESLoggerTests extends ESTestCase {
         assertThat(record.getSourceMethodName(), equalTo("testLocationInfoTest"));
     }
 
+    public void testSetLogLevelString() {
+        // verify the string based level-setters
+        esTestLogger.setLevel("error");
+        assertThat(esTestLogger.getLevel(), equalTo("SEVERE"));
+        esTestLogger.setLevel("warn");
+        assertThat(esTestLogger.getLevel(), equalTo("WARNING"));
+        esTestLogger.setLevel("info");
+        assertThat(esTestLogger.getLevel(), equalTo("INFO"));
+        esTestLogger.setLevel("debug");
+        assertThat(esTestLogger.getLevel(), equalTo("FINE"));
+        esTestLogger.setLevel("trace");
+        assertThat(esTestLogger.getLevel(), equalTo("FINEST"));
+    }
+
     private static class TestHandler extends Handler {
 
         private List<LogRecord> records = new ArrayList<>();

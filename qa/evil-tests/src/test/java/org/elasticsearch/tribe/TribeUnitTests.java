@@ -22,6 +22,7 @@ package org.elasticsearch.tribe;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeBuilder;
@@ -42,6 +43,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
  * all the time, while we need to make the tribe node accept them in this case, so that we can verify that they are not read again as part
  * of the tribe client nodes initialization. Note that the started nodes will obey to the 'node.mode' settings as the internal cluster does.
  */
+@SuppressForbidden(reason = "modifies system properties intentionally")
 public class TribeUnitTests extends ESTestCase {
 
     private static Node tribe1;

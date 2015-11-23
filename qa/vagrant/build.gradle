@@ -42,14 +42,14 @@ repositories {
 }
 
 dependencies {
-  test project(path: "${projectsPrefix}:distribution:tar", configuration: 'archives')
-  test project(path: "${projectsPrefix}:distribution:rpm", configuration: 'archives')
-  test project(path: "${projectsPrefix}:distribution:deb", configuration: 'archives')
+  test project(path: ':distribution:tar', configuration: 'archives')
+  test project(path: ':distribution:rpm', configuration: 'archives')
+  test project(path: ':distribution:deb', configuration: 'archives')
 
   // Collect all the plugins
   for (Project subproj : project.rootProject.subprojects) {
     if (subproj.path.startsWith(':plugins:')) {
-      test project("${projectsPrefix}${subproj.path}")
+      test project("${subproj.path}")
     }
   }
 

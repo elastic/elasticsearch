@@ -461,3 +461,15 @@ supports a remote debugging option:
 ---------------------------------------------------------------------------
 gradle run --debug-jvm
 ---------------------------------------------------------------------------
+
+== Building with extra plugins
+Additional plugins may be built alongside elasticsearch, where their
+dependency on elasticsearch will be substituted with the local elasticsearch
+build. To add your plugin, check it out into the extra-plugins directory.
+The build will automatically pick it up. You can verify the plugin is
+included as part of the build by checking the projects of the build.
+
+---------------------------------------------------------------------------
+gradle projects
+---------------------------------------------------------------------------
+

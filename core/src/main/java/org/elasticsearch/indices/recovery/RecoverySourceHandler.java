@@ -298,9 +298,8 @@ public class RecoverySourceHandler {
                             RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but checksums are ok", null);
                             exception.addSuppressed(remoteException);
 
-                            // nocommit this logger line is missing one argument:
                             logger.warn("{} Remote file corruption during finalization on node {}, recovering {}. local checksum OK",
-                                    corruptIndexException, shard.shardId(), request.targetNode());
+                                    corruptIndexException, shard.shardId(), request.targetNode(), request.recoveryId());
                             throw exception;
                         } else {
                             throw remoteException;

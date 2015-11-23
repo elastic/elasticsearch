@@ -196,7 +196,7 @@ public class ESUsersRealmTests extends ESTestCase {
             }
         };
         RestRequest restRequest = mock(RestRequest.class);
-        final Action action = mock(Action.class);
+        final Action<ActionRequest, ?, ?> action = mock(Action.class);
         final ActionListener listener = mock(ActionListener.class);
         BaseRestHandler handler = new BaseRestHandler(Settings.EMPTY, restController, client) {
             @Override

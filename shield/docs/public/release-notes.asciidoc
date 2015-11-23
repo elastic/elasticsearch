@@ -82,6 +82,16 @@ with the specified user's permissions.
 * Fixed a rare issue where authentication fails even when the username and password are correct.
 
 [float]
+==== 1.3.3
+
+.Bug Fixes
+* Fixed a rare issue where authentication fails even when the username and password are correct.
+* The <<audit-index, index output for auditing>> stores the type of request when available.
+
+.Enhancements
+* Tampered requests with a bad header are now audited.
+
+[float]
 ==== 1.3.2
 August 10, 2015
 

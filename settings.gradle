@@ -1,0 +1,2 @@
+project(':').projectDir = new File('../elasticsearch')
+apply from: '../elasticsearch/settings.gradle'

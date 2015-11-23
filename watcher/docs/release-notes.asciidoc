@@ -5,11 +5,8 @@
 [[version-compatibility]]
 === Version Compatibility
 
-Watcher {version} is compatible with:
-
-* Elasticsearch: {version}
-* License {version}
-* Shield {version}
+You must run the version of Watcher that matches the version of Elasticsearch you are running. For
+example, Watcher {version} requires Elasticsearch {version}. 
 
 [float]
 [[upgrade-instructions]]
@@ -38,12 +35,14 @@ bin/plugin remove watcher
 
 [float]
 ==== 2.1.0
+November 24, 2015
 
 .New Features
-* Added support for <<input-chain, chaining several inputs>>
+* Adds support for <<input-chain, chaining several inputs>>
 
 .Enhancement
-* Support for configuring a proxy in the webhook action, http input and configuring a default proxy (which is also used by the slack action), using the `watcher.http.proxy.host` and `watcher.http.proxy.port` settings.
+* Adds support for Elasticsearch 2.1.0.
+* Adds support for configuring a proxy in the webhook action, http input and configuring a default proxy (which is also used by the slack action), using the `watcher.http.proxy.host` and `watcher.http.proxy.port` settings.
 
 .Bug fixes
 * Fixed an issue where the scheduler may get stuck during Watcher startup. This caused no watches to ever fire.
@@ -53,6 +52,7 @@ bin/plugin remove watcher
 
 [float]
 ==== 2.0.1
+November 24, 2015
 
 .Bug fixes
 * Fixed an issue where under specific conditions Watcher would not start if there are not finished watch executions from the
@@ -61,6 +61,7 @@ bin/plugin remove watcher
 
 [float]
 ==== 2.0.0
+October 28, 2015
 
 .Breaking Changes
 * The dynamic index names support has been removed and Elasticsearch's date math index names support should be used instead.
@@ -100,7 +101,18 @@ bin/plugin remove watcher
 * Fixed url encoding issue in http input and webhook output. The url params were url encoded twice.
 
 [float]
+==== 1.0.1
+July 29, 2015
+
+.Enhancements
+* Dynamic index names now support specifying a time zone to be used when computing the names of the indices. The default is UTC. Previously, the computation was fixed to always use UTC when computing the names of the indices.
+
+.Bug Fixes
+* Fixed a compatibility issue with Elasticsearch 1.6.1 and 1.7.2, which were released earlier today.
+
+[float]
 ==== 1.0.0
+June 25, 2015
 
 .Enhancements
 * Added execution time aware dynamic index names support to `index`
@@ -113,6 +125,7 @@ bin/plugin remove watcher
 
 [float]
 ==== 1.0.0-rc1
+June 19, 2015
 
 .New Features
 * Added <<api-rest-execute-inline-watch, inline watch>> support to the Execute API
@@ -125,6 +138,7 @@ bin/plugin remove watcher
 
 [float]
 ==== 1.0.0-Beta2
+June 10, 2015
 
 .New Features
 * <<actions-ack-throttle, Acking and Throttling>> are now applied at the action level rather than

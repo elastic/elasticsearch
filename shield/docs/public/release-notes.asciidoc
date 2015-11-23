@@ -4,10 +4,9 @@
 [float]
 [[version-compatibility]]
 === Version Compatibility
-Shield {version} is compatible with:
 
-* Elasticsearch: {version}
-* License plugin: {version}
+You must run the version of Shield that matches the version of Elasticsearch you are running. For
+example, Shield {version} requires Elasticsearch {version}. 
 
 [float]
 [[upgrade-instructions]]
@@ -46,6 +45,7 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 
 [float]
 ==== 2.1.0
+November 24, 2015
 
 .Breaking Changes 
 * Same as 2.0.1. <<setting-up-field-and-document-level-security, Document and Field Level Security>> is now disabled by default. Set `shield.dls_fls.enabled` to `true` in `elasticsearch.yml` to enable it. You cannot submit `_bulk` update requests when document and field level security is enabled.
@@ -55,12 +55,14 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 
 [float]
 ==== 2.0.1
+November 24, 2015
 
 .Breaking Changes
 * <<setting-up-field-and-document-level-security, Document and Field Level Security>> is now disabled by default. Set `shield.dls_fls.enabled` to `true` in `elasticsearch.yml` to enable it. You cannot submit `_bulk` update requests when document and field level security is enabled.
 
 [float]
 ==== 2.0.0
+October 28, 2015
 
 .Breaking Changes
 * All files that Shield uses must be kept in the <<ref-shield-files-location, configuration directory>> due to the enhanced security of Elasticsearch 2.0.
@@ -81,6 +83,7 @@ with the specified user's permissions.
 
 [float]
 ==== 1.3.2
+August 10, 2015
 
 .Bug Fixes
 * When using the <<ldap-user-search,LDAP user search>> mechanism, connection errors during startup no longer cause the node to stop.
@@ -90,6 +93,7 @@ the correct user to index the audit events.
 
 [float]
 ==== 1.3.1
+July 21, 2015
 
 .Bug Fixes
 * Fixes <<enable-message-authentication,message authentication>> serialization to work with Shield 1.2.1 and earlier.
@@ -98,6 +102,7 @@ will be necessary. When upgrading from other versions of Shield, follow the norm
 
 [float]
 ==== 1.3.0
+June 24, 2015
 
 .Breaking Changes
 * The `sha2` and `apr1` hashing algorithms have been removed as options for the <<ref-cache-hash-algo,`cache.hash_algo` setting>>.
@@ -124,6 +129,7 @@ will be necessary. When upgrading from other versions of Shield, follow the norm
 
 [float]
 ==== 1.2.3
+July 21, 2015
 
 .Bug Fixes
 * Fixes <<enable-message-authentication,message authentication>> serialization to work with Shield 1.2.1 and earlier.
@@ -132,6 +138,7 @@ will be necessary. When upgrading from other versions of Shield, follow the norm
 
 [float]
 ==== 1.2.2
+June 24, 2015
 
 .Bug Fixes
 * The `esusers` tool no longer warns about missing roles that are properly defined in the `roles.yml` file.
@@ -144,6 +151,7 @@ will be necessary. When upgrading from other versions of Shield, follow the norm
 
 [float]
 ==== 1.2.1
+April 29, 2015
 
 .Bug Fixes
 * Several bug fixes including a fix to ensure that {ref}/disk.html[Disk-based Shard Allocation]
@@ -151,12 +159,14 @@ works properly with Shield
 
 [float]
 ==== 1.2.0
+March 24, 2015
 
 .Enhancements
 * Adds support for Elasticsearch 1.5
 
 [float]
 ==== 1.1.1
+April 29, 2015
 
 .Bug Fixes
 * Several bug fixes including a fix to ensure that {ref}/disk.html[Disk-based Shard Allocation]
@@ -164,6 +174,7 @@ works properly with Shield
 
 [float]
 ==== 1.1.0
+March 24, 2015
 
 .New Features
 * LDAP:
@@ -188,6 +199,7 @@ for more information.
 
 [float]
 ==== 1.0.2
+March 24, 2015
 
 .Bug Fixes
 * Filter out sensitive settings from the settings APIs
@@ -195,6 +207,7 @@ for more information.
 
 [float]
 ==== 1.0.1
+February 13, 2015
 
 .Bug Fixes
 * Fixed dependency issues with Elasticsearch 1.4.3 and (Lucene 4.10.3 that comes with it)

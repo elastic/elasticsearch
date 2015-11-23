@@ -413,8 +413,7 @@ public class CacheTests extends ESTestCase {
 
                 Value that = (Value) o;
 
-                return value == that.value;
-
+                return value.equals(that.value);
             }
 
             @Override

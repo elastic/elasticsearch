@@ -46,7 +46,7 @@ public final class ShardStateMetaData {
     public final String indexUUID;
     public final boolean primary;
     @Nullable
-    public final AllocationId allocationId; // can be null if we read from legacy format (see fromXContent)
+    public final AllocationId allocationId; // can be null if we read from legacy format (see fromXContent and MultiDataPathUpgrader)
 
     public ShardStateMetaData(long version, boolean primary, String indexUUID, AllocationId allocationId) {
         assert indexUUID != null;
@@ -111,7 +111,9 @@ public final class ShardStateMetaData {
             builder.field(VERSION_KEY, shardStateMetaData.version);
             builder.field(PRIMARY_KEY, shardStateMetaData.primary);
             builder.field(INDEX_UUID_KEY, shardStateMetaData.indexUUID);
-            builder.field(ALLOCATION_ID_KEY, shardStateMetaData.allocationId);
+            if (shardStateMetaData.allocationId != null) {
+                builder.field(ALLOCATION_ID_KEY, shardStateMetaData.allocationId);
+            }
         }
 
         @Override

@@ -18,7 +18,6 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -28,7 +27,6 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.test.ESBackcompatTestCase;
-import org.junit.Test;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -49,25 +47,16 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
     static final String CLASS_FIELD = "class";
 
     /**
-     * Simple upgrade test for streaming significant terms buckets
+     * Test for streaming significant terms buckets to old es versions.
      */
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/13522")
     public void testBucketStreaming() throws IOException, ExecutionException, InterruptedException {
         logger.debug("testBucketStreaming: indexing documents");
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings);
-
+        ensureGreen();
         logClusterState();
-        boolean upgraded;
-        int upgradedNodesCounter = 1;
-        do {
-            logger.debug("testBucketStreaming: upgrading {}st node", upgradedNodesCounter++);
-            upgraded = backwardsCluster().upgradeOneNode();
-            ensureGreen();
-            logClusterState();
-            checkSignificantTermsAggregationCorrect();
-        } while (upgraded);
+        checkSignificantTermsAggregationCorrect();
         logger.debug("testBucketStreaming: done testing significant terms while upgrading");
     }
 
@@ -102,7 +91,7 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
                 .execute()
                 .actionGet();
         assertSearchResponse(response);
-        StringTerms classes = (StringTerms) response.getAggregations().get("class");
+        StringTerms classes = response.getAggregations().get("class");
         assertThat(classes.getBuckets().size(), equalTo(2));
         for (Terms.Bucket classBucket : classes.getBuckets()) {
             Map<String, Aggregation> aggs = classBucket.getAggregations().asMap();

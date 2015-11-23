@@ -12,8 +12,8 @@
             "description": "_description",
             "processors": [
               {
-                "mutate" : {
-                  "update" : {
+                "add" : {
+                  "fields" : {
                     "field2" : "_value"
                   }
                 }
@@ -66,8 +66,8 @@
               "description": "_description",
               "processors": [
                 {
-                  "mutate" : {
-                    "update" : {
+                  "add" : {
+                    "fields" : {
                       "field2" : "_value"
                     }
                   }
@@ -129,15 +129,15 @@
               "description": "_description",
               "processors": [
                 {
-                  "mutate" : {
-                    "update" : {
+                  "add" : {
+                    "fields" : {
                       "field2" : "_value"
                     }
                   }
                 },
                 {
-                  "mutate" : {
-                    "update" : {
+                  "add" : {
+                    "fields" : {
                       "field3" : "third_val"
                     }
                   }
@@ -157,7 +157,7 @@
           }
   - length: { docs: 1 }
   - length: { docs.0.processor_results: 2 }
-  - match: { docs.0.processor_results.0.processor_id: "processor[mutate]-0" }
+  - match: { docs.0.processor_results.0.processor_id: "processor[add]-0" }
   - is_true: docs.0.processor_results.0.doc.modified
   - length: { docs.0.processor_results.0.doc._source: 2 }
   - match: { docs.0.processor_results.0.doc._source.foo: "bar" }
@@ -181,8 +181,8 @@
               "description": "_description",
               "processors": [
                 {
-                  "mutate" : {
-                    "uppercase" : ["foo"]
+                  "uppercase" : {
+                    "fields" : ["foo"]
                   }
                 }
               ]
@@ -226,15 +226,15 @@
               "description": "_description",
               "processors": [
                 {
-                  "mutate" : {
-                    "convert" : {
+                  "convert" : {
+                    "fields" : {
                       "foo": "integer"
                     }
                   }
                 },
                 {
-                  "mutate" : {
-                    "uppercase" : ["bar"]
+                  "uppercase" : {
+                    "fields" : ["bar"]
                   }
                 }
               ]
@@ -262,7 +262,7 @@
           }
   - length: { docs: 2 }
   - length: { docs.0.processor_results: 2 }
-  - match: { docs.0.processor_results.0.error.type: "number_format_exception" }
+  - match: { docs.0.processor_results.0.error.type: "illegal_argument_exception" }
   - match: { docs.0.processor_results.1.doc._index: "index" }
   - match: { docs.0.processor_results.1.doc._type: "type" }
   - match: { docs.0.processor_results.1.doc._id: "id" }

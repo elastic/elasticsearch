@@ -20,54 +20,55 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.CoreMatchers.equalTo;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class PipelineFactoryTests extends ESTestCase {
 
     public void testCreate() throws Exception {
-        Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
-        processorRegistry.put("mutate", new MutateProcessor.Factory());
-
         Map<String, Object> processorConfig = new HashMap<>();
-        processorConfig.put("uppercase", Arrays.asList("field1"));
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("description", "_description");
-        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("mutate", processorConfig)));
-        Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
+        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        Pipeline.Factory factory = new Pipeline.Factory();
+        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
+        Processor processor = mock(Processor.class);
+        when(processor.getType()).thenReturn("test-processor");
+        Processor.Factory processorFactory = mock(Processor.Factory.class);
+        when(processorFactory.create(processorConfig)).thenReturn(processor);
+        processorRegistry.put("test", processorFactory);
 
+        Pipeline pipeline = factory.create("_id", pipelineConfig, processorRegistry);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(pipeline.getDescription(), equalTo("_description"));
         assertThat(pipeline.getProcessors().size(), equalTo(1));
-        assertThat(pipeline.getProcessors().get(0), instanceOf(MutateProcessor.class));
+        assertThat(pipeline.getProcessors().get(0).getType(), equalTo("test-processor"));
     }
 
-    public void testCreate_unusedProcessorOptions() throws Exception {
-        Pipeline.Factory factory = new Pipeline.Factory();
-        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
-        processorRegistry.put("mutate", new MutateProcessor.Factory());
-
+    public void testCreateUnusedProcessorOptions() throws Exception {
         Map<String, Object> processorConfig = new HashMap<>();
-        processorConfig.put("uppercase", Arrays.asList("field1"));
-        processorConfig.put("foo", "bar");
+        processorConfig.put("unused", "value");
         Map<String, Object> pipelineConfig = new HashMap<>();
         pipelineConfig.put("description", "_description");
-        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("mutate", processorConfig)));
-
+        pipelineConfig.put("processors", Collections.singletonList(Collections.singletonMap("test", processorConfig)));
+        Pipeline.Factory factory = new Pipeline.Factory();
+        Map<String, Processor.Factory> processorRegistry = new HashMap<>();
+        Processor processor = mock(Processor.class);
+        when(processor.getType()).thenReturn("test-processor");
+        Processor.Factory processorFactory = mock(Processor.Factory.class);
+        when(processorFactory.create(processorConfig)).thenReturn(processor);
+        processorRegistry.put("test", processorFactory);
         try {
             factory.create("_id", pipelineConfig, processorRegistry);
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("processor [mutate] doesn't support one or more provided configuration parameters [[foo]]"));
+            assertThat(e.getMessage(), equalTo("processor [test] doesn't support one or more provided configuration parameters [unused]"));
         }
     }
-
 }

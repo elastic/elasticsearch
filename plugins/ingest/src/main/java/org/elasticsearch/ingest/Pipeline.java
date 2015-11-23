@@ -86,7 +86,7 @@ public final class Pipeline {
                             Map<String, Object> processorConfig = entry.getValue();
                             processors.add(factory.create(processorConfig));
                             if (processorConfig.isEmpty() == false) {
-                                throw new IllegalArgumentException("processor [" + entry.getKey() + "] doesn't support one or more provided configuration parameters [" + Arrays.toString(processorConfig.keySet().toArray()) + "]");
+                                throw new IllegalArgumentException("processor [" + entry.getKey() + "] doesn't support one or more provided configuration parameters " + Arrays.toString(processorConfig.keySet().toArray()));
                             }
                         } else {
                             throw new IllegalArgumentException("No processor type exist with name [" + entry.getKey() + "]");

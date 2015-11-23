@@ -24,7 +24,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.test.ESTestCase;
@@ -37,9 +36,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.anyString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
@@ -56,7 +53,7 @@ public class PipelineStoreTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         client = mock(PipelineStoreClient.class);
         Environment environment = mock(Environment.class);
-        store = new PipelineStore(Settings.EMPTY, threadPool, environment, clusterService, client, Collections.singletonMap(MutateProcessor.TYPE, new MutateProcessor.Factory()));
+        store = new PipelineStore(Settings.EMPTY, threadPool, environment, clusterService, client, Collections.emptyMap());
         store.start();
     }
 

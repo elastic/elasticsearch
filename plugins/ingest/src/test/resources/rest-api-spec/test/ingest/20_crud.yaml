@@ -12,8 +12,8 @@
             "description": "_description",
             "processors": [
               {
-                "mutate" : {
-                  "update" : {
+                "add" : {
+                  "fields" : {
                     "field2": "_value"
                   }
                 }

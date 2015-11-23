@@ -33,7 +33,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 import org.elasticsearch.plugin.ingest.PipelineStore;
@@ -43,7 +42,9 @@ import org.junit.Before;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
 
-import java.util.*;
+import java.util.Collections;
+import java.util.HashSet;
+import java.util.Set;
 
 import static org.elasticsearch.plugin.ingest.transport.IngestActionFilter.*;
 import static org.hamcrest.Matchers.equalTo;
@@ -115,7 +116,7 @@ public class IngestActionFilterTests extends ESTestCase {
         verifyZeroInteractions(executionService, actionListener);
     }
 
-    public void testApply_executed() throws Exception {
+    public void testApplyExecuted() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
         indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
@@ -139,7 +140,7 @@ public class IngestActionFilterTests extends ESTestCase {
         verifyZeroInteractions(actionListener);
     }
 
-    public void testApply_failed() throws Exception {
+    public void testApplyFailed() throws Exception {
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
         indexRequest.source("field", "value");
         indexRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
@@ -163,7 +164,7 @@ public class IngestActionFilterTests extends ESTestCase {
         verifyZeroInteractions(actionFilterChain);
     }
 
-    public void testApply_withBulkRequest() throws Exception {
+    public void testApplyWithBulkRequest() throws Exception {
         ThreadPool threadPool = new ThreadPool(
                 Settings.builder()
                         .put("name", "_name")
@@ -172,13 +173,18 @@ public class IngestActionFilterTests extends ESTestCase {
         );
         PipelineStore store = mock(PipelineStore.class);
 
-        Map<String, Object> mutateConfig = new HashMap<>();
-        Map<String, Object> update = new HashMap<>();
-        update.put("field2", "value2");
-        mutateConfig.put("update", update);
+        Processor processor = new Processor() {
+            @Override
+            public void execute(IngestDocument ingestDocument) {
+                ingestDocument.setPropertyValue("field2", "value2");
+            }
 
-        Processor mutateProcessor = (new MutateProcessor.Factory()).create(mutateConfig);
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(mutateProcessor)));
+            @Override
+            public String getType() {
+                return null;
+            }
+        };
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
         executionService = new PipelineExecutionService(store, threadPool);
         filter = new IngestActionFilter(Settings.EMPTY, executionService);
 

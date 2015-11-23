@@ -1,0 +1,132 @@
+---
+"Test mutate processors":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "add" : {
+                  "fields" : {
+                    "new_field": "new_value"
+                  }
+                }
+              },
+              {
+                "rename" : {
+                  "fields" : {
+                    "field_to_rename": "renamed_field"
+                  }
+                }
+              },
+              {
+                "remove" : {
+                  "fields" : [
+                    "field_to_remove"
+                  ]
+                }
+              },
+              {
+                "lowercase" : {
+                  "fields" : [
+                    "field_to_lowercase"
+                  ]
+                }
+              },
+              {
+                "uppercase" : {
+                  "fields" : [
+                    "field_to_uppercase"
+                  ]
+                }
+              },
+              {
+                "trim" : {
+                  "fields" : [
+                    "field_to_trim"
+                  ]
+                }
+              },
+              {
+                "split" : {
+                  "fields" : {
+                    "field_to_split": "-"
+                  }
+                }
+              },
+              {
+                "join" : {
+                  "fields" : {
+                    "field_to_join": "-"
+                  }
+                }
+              },
+              {
+                "convert" : {
+                  "fields" : {
+                    "field_to_convert": "integer"
+                  }
+                }
+              },
+              {
+                "gsub" : {
+                  "expressions" : [
+                    {
+                      "field": "field_to_gsub",
+                      "pattern" : "-",
+                      "replacement" : "."
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline"
+        body: {
+          field_to_rename: "value",
+          field_to_remove: "old_value",
+          field_to_lowercase: "LOWERCASE",
+          field_to_uppercase: "uppercase",
+          field_to_trim: "   trimmed   ",
+          field_to_split: "127-0-0-1",
+          field_to_join: ["127","0","0","1"],
+          field_to_convert: ["127","0","0","1"],
+          field_to_gsub: "127-0-0-1"
+        }
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - is_false: _source.field_to_rename
+  - is_false: _source.field_to_remove
+  - match: { _source.renamed_field: "value" }
+  - match: { _source.field_to_lowercase: "lowercase" }
+  - match: { _source.field_to_uppercase: "UPPERCASE" }
+  - match: { _source.field_to_trim: "trimmed" }
+  - match: { _source.field_to_split: ["127","0","0","1"] }
+  - match: { _source.field_to_join: "127-0-0-1" }
+  - match: { _source.field_to_convert: [127,0,0,1] }
+  - match: { _source.field_to_gsub: "127.0.0.1" }

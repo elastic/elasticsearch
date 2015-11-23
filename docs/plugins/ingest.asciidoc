@@ -3,26 +3,64 @@
 
 === Processors
 
-==== Mutate Processor
-
-The Mutate Processor applies functions on the structure of a document. The processor comes with a few
-functions to help achieve this.
-
-The following are the supported configuration actions and how to use them.
-
-===== Convert
-Convert a field's value to a different type, like turning a string to an integer.
-If the field value is an array, all members will be converted.
-
-The supported types include: `integer`, `float`, `string`, and `boolean`.
-
-`boolean` will set a field to "true" if its string value does not match any of the following: "false", "0", "off", "no".
+==== Add processor
+Adds one or more fields and associates them with the specified values. If a field already exists,
+its value will be replaced with the provided one.
 
 [source,js]
 --------------------------------------------------
 {
-  "mutate": {
-    "convert": {
+  "add": {
+    "fields": {
+      "field": 582.1
+    }
+  }
+}
+--------------------------------------------------
+
+==== Remove processor
+Removes one or more existing fields. If a field doesn't exist, nothing will happen.
+
+[source,js]
+--------------------------------------------------
+{
+  "remove": {
+    "fields": [
+      "field1","field2"
+    ]
+  }
+}
+--------------------------------------------------
+
+==== Rename processor
+Renames one or more existing fields. If a field doesn't exist, an exception will be thrown.
+
+[source,js]
+--------------------------------------------------
+{
+  "rename": {
+    "fields": {
+      "field1": "field2"
+    }
+  }
+}
+--------------------------------------------------
+
+
+==== Convert processor
+Converts one or more field value to a different type, like turning a string to an integer.
+If the field value is an array, all members will be converted.
+
+The supported types include: `integer`, `float`, `string`, and `boolean`.
+
+`boolean` will set a field to true if its string value is equal to `true` (ignore case), to
+false if its string value is equal to `false` (ignore case) and it will throw exception otherwise.
+
+[source,js]
+--------------------------------------------------
+{
+  "convert": {
+    "fields": {
       "field1": "integer",
       "field2": "float"
     }
@@ -30,131 +68,94 @@ The supported types include: `integer`, `float`, `string`, and `boolean`.
 }
 --------------------------------------------------
 
-===== Gsub
-Convert a string field by applying a regular expression and a replacement.
-If the field is not a string, no action will be taken.
+==== Gsub processor
+Converts a string field by applying a regular expression and a replacement.
+If the field is not a string, the processor will throw an exception.
 
-This configuration takes an array consisting of two elements per field/substition. One for the
-pattern to be replaced, and the second for the pattern to replace with.
+This configuration takes an `expression` array consisting of objects. Each object
+holds three elements: `field` for the field name, `pattern` for the
+pattern to be replaced, and `replacement` for the string to replace the matching patterns with.
 
 
 [source,js]
 --------------------------------------------------
 {
-  "mutate": {
-    "gsub": {
-      "field1": ["\.", "-"]
-    }
+  "gsub": {
+    "expressions": [
+      {
+        "field": "field1",
+        "pattern": "\.",
+        "replacement": "-"
+      }
+    ]
   }
 }
 --------------------------------------------------
 
-===== Join
-Join an array with a separator character. Does nothing on non-array fields.
+==== Join processor
+Joins each element of an array into a single string using a separator character between each element.
+Throws error when the field is not an array.
 
 [source,js]
 --------------------------------------------------
 {
-  "mutate": {
-    "join": {
+  "join": {
+    "fields": {
       "joined_array_field": "other_array_field"
     }
   }
 }
 --------------------------------------------------
 
-===== Lowercase
-Convert a string to its lowercase equivalent.
-
-[source,js]
---------------------------------------------------
-{
-  "mutate": {
-    "lowercase": ["foo", "bar"]
-  }
-}
---------------------------------------------------
-
-===== Remove
-Remove one or more fields.
-
-[source,js]
---------------------------------------------------
-{
-  "mutate": {
-    "remove": ["foo", "bar"]
-  }
-}
---------------------------------------------------
-
-===== Rename
-Renames one or more fields.
-
-[source,js]
---------------------------------------------------
-{
-  "mutate": {
-    "rename": {
-      "foo": "update_foo",
-      "bar": "new_bar"
-    }
-  }
-}
---------------------------------------------------
-
-===== Split
+==== Split processor
 Split a field to an array using a separator character. Only works on string fields.
 
 [source,js]
 --------------------------------------------------
 {
-  "mutate": {
-    "split": {
+  "split": {
+    "fields": {
       "message": ","
     }
   }
 }
 --------------------------------------------------
 
-===== Strip
-Strip whitespace from field. NOTE: this only works on leading and trailing whitespace.
+==== Lowercase processor
+Converts a string to its lowercase equivalent.
 
 [source,js]
 --------------------------------------------------
 {
-  "mutate": {
-    "strip": ["foo", "bar"]
+  "lowercase": {
+    "fields": ["foo", "bar"]
   }
 }
 --------------------------------------------------
 
-===== Update
-Update an existing field with a new value. If the field does not exist, then no action will be taken.
+==== Uppercase processor
+Converts a string to its uppercase equivalent.
 
 [source,js]
 --------------------------------------------------
 {
-  "mutate": {
-    "update": {
-      "field": 582.1
-    }
+  "uppercase": {
+    "fields": ["foo", "bar"]
   }
 }
 --------------------------------------------------
 
-===== Uppercase
-Convert a string to its uppercase equivalent.
+==== Trim processor
+Trims whitespace from field. NOTE: this only works on leading and trailing whitespaces.
 
 [source,js]
 --------------------------------------------------
 {
-  "mutate": {
-    "uppercase": ["foo", "bar"]
+  "trim": {
+    "fields": ["foo", "bar"]
   }
 }
 --------------------------------------------------
-
-=== Processors
 
 ==== Grok Processor
 

@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor.mutate;
+package org.elasticsearch.ingest.processor.gsub;
 
 import java.util.Objects;
 import java.util.regex.Pattern;

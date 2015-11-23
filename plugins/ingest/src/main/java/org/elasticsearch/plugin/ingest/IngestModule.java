@@ -22,10 +22,19 @@ package org.elasticsearch.plugin.ingest;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.processor.add.AddProcessor;
+import org.elasticsearch.ingest.processor.convert.ConvertProcessor;
 import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
 import org.elasticsearch.ingest.processor.grok.GrokProcessor;
-import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
+import org.elasticsearch.ingest.processor.gsub.GsubProcessor;
+import org.elasticsearch.ingest.processor.join.JoinProcessor;
+import org.elasticsearch.ingest.processor.lowercase.LowercaseProcessor;
+import org.elasticsearch.ingest.processor.remove.RemoveProcessor;
+import org.elasticsearch.ingest.processor.rename.RenameProcessor;
+import org.elasticsearch.ingest.processor.split.SplitProcessor;
+import org.elasticsearch.ingest.processor.trim.TrimProcessor;
+import org.elasticsearch.ingest.processor.uppercase.UppercaseProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulateExecutionService;
 
@@ -47,7 +56,16 @@ public class IngestModule extends AbstractModule {
         addProcessor(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory());
         addProcessor(GrokProcessor.TYPE, new GrokProcessor.Factory());
         addProcessor(DateProcessor.TYPE, new DateProcessor.Factory());
-        addProcessor(MutateProcessor.TYPE, new MutateProcessor.Factory());
+        addProcessor(AddProcessor.TYPE, new AddProcessor.Factory());
+        addProcessor(RenameProcessor.TYPE, new RenameProcessor.Factory());
+        addProcessor(RemoveProcessor.TYPE, new RemoveProcessor.Factory());
+        addProcessor(SplitProcessor.TYPE, new SplitProcessor.Factory());
+        addProcessor(JoinProcessor.TYPE, new JoinProcessor.Factory());
+        addProcessor(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory());
+        addProcessor(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory());
+        addProcessor(TrimProcessor.TYPE, new TrimProcessor.Factory());
+        addProcessor(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
+        addProcessor(GsubProcessor.TYPE, new GsubProcessor.Factory());
 
         MapBinder<String, Processor.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Factory.class);
         for (Map.Entry<String, Processor.Factory> entry : processors.entrySet()) {

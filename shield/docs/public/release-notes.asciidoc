@@ -45,6 +45,12 @@ version of Shield. We recommend copying the changes listed below to your `roles.
 === Change List
 
 [float]
+==== 2.0.1
+
+.Breaking Changes
+* <<setting-up-field-and-document-level-security, Document and Field Level Security>> is now disabled by default. Set `shield.dls_fls.enabled` to `true` in `elasticsearch.yml` to enable it. You cannot submit `_bulk` update requests when document and field level security is enabled.
+
+[float]
 ==== 2.0.0
 
 .new features

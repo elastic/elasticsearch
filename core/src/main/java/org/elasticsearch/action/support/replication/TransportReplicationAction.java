@@ -268,7 +268,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         public void onFailure(Throwable t) {
             if (t instanceof RetryOnReplicaException) {
-                logger.trace("Retrying operation on replica", t);
+                logger.trace("Retrying operation on replica, action [{}], request [{}]", t, actionName, request);
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
@@ -287,7 +287,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 });
             } else {
                 try {
-                    failReplicaIfNeeded(request.internalShardId.getIndex(), request.internalShardId.id(), t);
+                    failReplicaIfNeeded(request.internalShardId.getIndex(), request.internalShardId.id(), t, request);
                 } catch (Throwable unexpected) {
                     logger.error("{} unexpected error while failing replica", request.internalShardId.id(), unexpected);
                 } finally {
@@ -371,7 +371,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return;
             }
             if (primary.active() == false) {
-                logger.trace("primary shard [{}] is not yet active, scheduling a retry.", primary.shardId());
+                logger.trace("primary shard [{}] is not yet active, scheduling a retry. action [{}], request [{}]", primary.shardId(), actionName, internalRequest.request);
                 retryBecauseUnavailable(shardIt.shardId(), "Primary shard is not active or isn't assigned to a known node.");
                 return;
             }
@@ -533,7 +533,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         void finishAsFailed(Throwable failure) {
             if (finished.compareAndSet(false, true)) {
                 Releasables.close(indexShardReference);
-                logger.trace("operation failed", failure);
+                logger.trace("operation failed. action [{}], request [{}]", failure, actionName, internalRequest.request);
                 listener.onFailure(failure);
             } else {
                 assert false : "finishAsFailed called but operation is already finished";
@@ -541,7 +541,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         }
 
         void finishWithUnexpectedFailure(Throwable failure) {
-            logger.warn("unexpected error during the primary phase for action [{}]", failure, actionName);
+            logger.warn("unexpected error during the primary phase for action [{}], request [{}]", failure, actionName, internalRequest.request);
             if (finished.compareAndSet(false, true)) {
                 Releasables.close(indexShardReference);
                 listener.onFailure(failure);
@@ -552,7 +552,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         void finishOnRemoteSuccess(Response response) {
             if (finished.compareAndSet(false, true)) {
-                logger.trace("operation succeeded");
+                if (logger.isTraceEnabled()) {
+                    logger.trace("operation succeeded. action [{}],request [{}]", actionName, internalRequest.request);
+                }
                 listener.onResponse(response);
             } else {
                 assert false : "finishOnRemoteSuccess called but operation is already finished";
@@ -574,12 +576,14 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 PrimaryOperationRequest por = new PrimaryOperationRequest(primary.id(), internalRequest.concreteIndex(), internalRequest.request());
                 Tuple<Response, ReplicaRequest> primaryResponse = shardOperationOnPrimary(observer.observedState(), por);
                 primaryResponse.v2().primaryTerm(primary.primaryTerm());
-                logger.trace("operation completed on primary [{}]", primary);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("operation completed on primary [{}], action [{}], request [{}], cluster state version [{}]", primary, actionName, por.request, observer.observedState().version());
+                }
                 replicationPhase = new ReplicationPhase(shardsIt, primaryResponse.v2(), primaryResponse.v1(), observer, primary, internalRequest, listener, indexShardReference, shardFailedTimeout);
             } catch (Throwable e) {
                 // shard has not been allocated yet, retry it here
                 if (retryPrimaryException(e)) {
-                    logger.trace("had an error while performing operation on primary ({}), scheduling a retry.", e.getMessage());
+                    logger.trace("had an error while performing operation on primary ({}, action [{}], request [{}]), scheduling a retry.", e, primary, actionName, internalRequest.request);
                     // We have to close here because when we retry we will increment get a new reference on index shard again and we do not want to
                     // increment twice.
                     Releasables.close(indexShardReference);
@@ -644,8 +648,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
             }
 
             if (sizeActive < requiredNumber) {
-                logger.trace("not enough active copies of shard [{}] to meet write consistency of [{}] (have {}, needed {}), scheduling a retry.",
-                        shard.shardId(), consistencyLevel, sizeActive, requiredNumber);
+                logger.trace("not enough active copies of shard [{}] to meet write consistency of [{}] (have {}, needed {}), scheduling a retry. action [{}], request [{}]",
+                        shard.shardId(), consistencyLevel, sizeActive, requiredNumber, actionName, internalRequest.request);
                 return "Not enough active copies to meet write consistency of [" + consistencyLevel + "] (have " + sizeActive + ", needed " + requiredNumber + ").";
             } else {
                 return null;
@@ -664,8 +668,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         return new IndexShardReference(indexShard, opPrimaryTerm);
     }
 
-    private void failReplicaIfNeeded(String index, int shardId, Throwable t) {
-        logger.trace("failure on replica [{}][{}]", t, index, shardId);
+    private void failReplicaIfNeeded(String index, int shardId, Throwable t, ReplicaRequest request) {
+        logger.trace("failure on replica [{}][{}], action [{}], request [{}]", t, index, shardId, actionName, request);
         if (ignoreReplicaException(t) == false) {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
@@ -827,6 +831,10 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
          */
         @Override
         protected void doRun() {
+            if (logger.isTraceEnabled()) {
+                logger.trace("replication phase started. pending [{}], action [{}], request [{}], cluster state version used [{}]", pending.get(),
+                        actionName, replicaRequest, observer.observedState().version());
+            }
             if (pending.get() == 0) {
                 doFinish();
                 return;
@@ -883,7 +891,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
                             @Override
                             public void handleException(TransportException exp) {
-                                logger.trace("[{}] transport failure during replica request [{}] ", exp, node, replicaRequest);
+                                logger.trace("[{}] transport failure during replica request [{}], action [{}]", exp, node, replicaRequest, actionName);
                                 if (ignoreReplicaException(exp)) {
                                     onReplicaFailure(nodeId, exp);
                                 } else {
@@ -902,7 +910,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                                 onReplicaSuccess();
                             } catch (Throwable e) {
                                 onReplicaFailure(nodeId, e);
-                                failReplicaIfNeeded(shard.index(), shard.id(), e);
+                                failReplicaIfNeeded(shard.index(), shard.id(), e, replicaRequest);
                             }
                         }
 
@@ -918,7 +926,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                         }
                     });
                 } catch (Throwable e) {
-                    failReplicaIfNeeded(shard.index(), shard.id(), e);
+                    failReplicaIfNeeded(shard.index(), shard.id(), e, replicaRequest);
                     onReplicaFailure(nodeId, e);
                 }
             }

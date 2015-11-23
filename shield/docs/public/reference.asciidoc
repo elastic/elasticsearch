@@ -188,7 +188,8 @@ The parameters listed in this section are configured in the `config/elasticsearc
 [options="header"]
 |======
 | Name                     | Default | Description
-| `shield.dls_fls.enabled` | `true`  | This setting can be used to completely disable document and field level security regardless of how roles are configured.
+| `shield.dls_fls.enabled` | `false`  | Set to `true` to enable document and field level security.
+You cannot submit `_bulk` update requests when document and field level security is enabled.
 |======
 
 

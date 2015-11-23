@@ -8,6 +8,8 @@ Document level security permissions restrict access to particular documents with
 Field and document level permissions are specified separately, but a role can define both field and document level permissions.
 Field and document level security permissions can be configured on a per-index basis.
 
+IMPORTANT: Document and Field Level Security is disabled by default. Set `shield.dls_fls.enabled` to `true` in `elasticsearch.yml` to enable it. You cannot submit `_bulk` update requests when document and field level security is enabled.
+
 ==== Field Level Security
 
 To enable field level security, you specify the fields that each role can access in the `roles.yml` file.

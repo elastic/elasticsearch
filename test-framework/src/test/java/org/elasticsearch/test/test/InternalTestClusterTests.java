@@ -94,7 +94,7 @@ public class InternalTestClusterTests extends ESTestCase {
         }
     }
 
-    public void testBeforeTest() throws IOException {
+    public void testBeforeTest() throws Exception {
         long clusterSeed = randomLong();
         int minNumDataNodes = randomIntBetween(0, 3);
         int maxNumDataNodes = randomIntBetween(minNumDataNodes, 4);

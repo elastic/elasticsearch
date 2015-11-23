@@ -4,7 +4,7 @@ if DEFINED JAVA_HOME goto cont
 
 :err
 ECHO JAVA_HOME environment variable must be set! 1>&2
-EXIT /B 1 
+EXIT /B 1
 
 :cont
 set SCRIPT_DIR=%~dp0
@@ -14,11 +14,11 @@ for %%I in ("%SCRIPT_DIR%..") do set ES_HOME=%%~dpfI
 REM ***** JAVA options *****
 
 if "%ES_MIN_MEM%" == "" (
-set ES_MIN_MEM=${packaging.elasticsearch.heap.min}
+set ES_MIN_MEM=${heap.min}
 )
 
 if "%ES_MAX_MEM%" == "" (
-set ES_MAX_MEM=${packaging.elasticsearch.heap.max}
+set ES_MAX_MEM=${heap.max}
 )
 
 if NOT "%ES_HEAP_SIZE%" == "" (
@@ -93,7 +93,7 @@ set JAVA_OPTS=%JAVA_OPTS% -Djna.nosys=true
 
 REM check in case a user was using this mechanism
 if "%ES_CLASSPATH%" == "" (
-set ES_CLASSPATH=%ES_HOME%/lib/${project.build.finalName}.jar;%ES_HOME%/lib/*
+set ES_CLASSPATH=%ES_HOME%/lib/elasticsearch-${project.version}.jar;%ES_HOME%/lib/*
 ) else (
 ECHO Error: Don't modify the classpath with ES_CLASSPATH, Best is to add 1>&2
 ECHO additional elements via the plugin mechanism, or if code must really be 1>&2

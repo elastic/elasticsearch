@@ -226,6 +226,30 @@ Cloud Azure plugin has been split in three plugins:
 * {plugins}/repository-azure.html[Repository Azure plugin]
 * {plugins}/store-smb.html[Store SMB plugin]
 
+If you were using the `cloud-azure` plugin for snapshot and restore, you had in `elasticsearch.yml`:
+
+[source,yaml]
+-----
+cloud:
+    azure:
+        storage:
+            account: your_azure_storage_account
+            key: your_azure_storage_key
+-----
+
+You need to give a unique id to the storage details now as you can define multiple storage accounts:
+
+[source,yaml]
+-----
+cloud:
+    azure:
+        storage:
+            my_account:
+                account: your_azure_storage_account
+                key: your_azure_storage_key
+-----
+
+
 ==== Cloud GCE plugin changes
 
 Cloud GCE plugin has been renamed to {plugins}/discovery-gce.html[Discovery GCE plugin].
@@ -405,6 +429,10 @@ For simplicity, only one way of adding the ids to the existing list (empty by de
 `DocumentAlreadyExistsException` is removed and a `VersionConflictException` is thrown instead (with a better
 error description). This will influence code that use the `IndexRequest.opType()` or `IndexRequest.create()`
 to index a document only if it doesn't already exist.
+
+==== ShapeBuilders
+
+`InternalLineStringBuilder` is removed in favour of `LineStringBuilder`, `InternalPolygonBuilder` in favour of PolygonBuilder` and `Ring` has been replaced with `LineStringBuilder`. Also the abstract base classes `BaseLineStringBuilder` and `BasePolygonBuilder` haven been merged with their corresponding implementations.
 
 [[breaking_30_cache_concurrency]]
 === Cache concurrency level settings removed

@@ -138,6 +138,7 @@ final class Bootstrap {
         // Force probes to be loaded
         ProcessProbe.getInstance();
         OsProbe.getInstance();
+        JvmInfo.jvmInfo();
     }
 
     private void setup(boolean addShutdownHook, Settings settings, Environment environment) throws Exception {
@@ -230,13 +231,20 @@ final class Bootstrap {
         }
     }
 
+    /** Set the system property before anything has a chance to trigger its use */
+    // TODO: why? is it just a bad default somewhere? or is it some BS around 'but the client' garbage <-- my guess
+    @SuppressForbidden(reason = "sets logger prefix on initialization")
+    static void initLoggerPrefix() {
+        System.setProperty("es.logger.prefix", "");
+    }
+
     /**
      * This method is invoked by {@link Elasticsearch#main(String[])}
      * to startup elasticsearch.
      */
     static void init(String[] args) throws Throwable {
         // Set the system property before anything has a chance to trigger its use
-        System.setProperty("es.logger.prefix", "");
+        initLoggerPrefix();
 
         BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);

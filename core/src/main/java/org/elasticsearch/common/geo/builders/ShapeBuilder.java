@@ -444,7 +444,7 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
          *            number of points
          * @return Array of edges
          */
-        protected static Edge[] ring(int component, boolean direction, boolean handedness, BaseLineStringBuilder<?> shell,
+        protected static Edge[] ring(int component, boolean direction, boolean handedness, LineStringBuilder shell,
                                      Coordinate[] points, int offset, Edge[] edges, int toffset, int length) {
             // calculate the direction of the points:
             // find the point a the top of the set and check its

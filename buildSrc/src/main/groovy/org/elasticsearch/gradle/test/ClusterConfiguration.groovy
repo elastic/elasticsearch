@@ -40,6 +40,9 @@ class ClusterConfiguration {
     boolean daemonize = true
 
     @Input
+    boolean debug = false
+
+    @Input
     String jvmArgs = System.getProperty('tests.jvm.argline', '')
 
     Map<String, String> systemProperties = new HashMap<>()

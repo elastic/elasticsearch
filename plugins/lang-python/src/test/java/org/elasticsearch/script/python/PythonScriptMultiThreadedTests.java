@@ -24,7 +24,6 @@ import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
-import org.junit.After;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -39,12 +38,6 @@ import static org.hamcrest.Matchers.equalTo;
  *
  */
 public class PythonScriptMultiThreadedTests extends ESTestCase {
-    @After
-    public void close() {
-        // We need to clear some system properties
-        System.clearProperty("python.cachedir.skip");
-        System.clearProperty("python.console.encoding");
-    }
 
     public void testExecutableNoRuntimeParams() throws Exception {
         final PythonScriptEngineService se = new PythonScriptEngineService(Settings.Builder.EMPTY_SETTINGS);

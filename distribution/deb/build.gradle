@@ -18,7 +18,19 @@
  */
 
 task buildDeb(type: Deb) {
-  dependsOn dependencyFiles
+  dependsOn dependencyFiles, preparePackagingFiles
+  // Follow elasticsearch's deb file naming convention
+  archiveName "${packageName}-${project.version}.deb"
+  packageGroup 'web'
+  requires 'libc6'
+  requires 'adduser'
+
+  into('/usr/share/lintian/overrides') {
+    from("${project.packagingFiles}/lintian/elasticsearch")
+  }
+  into('/usr/share/doc/elasticsearch') {
+    from "${project.packagingFiles}/copyright"
+  }
 }
 
 artifacts {

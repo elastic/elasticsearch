@@ -19,6 +19,7 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -36,6 +37,7 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@LuceneTestCase.AwaitsFix(bugUrl = "http://build-us-00.elastic.co/job/es_core_master_windows-2012-r2/2074/testReport/ (boaz on it)")
 public class DelayedAllocationIT extends ESIntegTestCase {
 
     /**

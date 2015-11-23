@@ -36,4 +36,5 @@ dependencyLicenses {
 }
 
 compileJava.options.compilerArgs << '-Xlint:-deprecation,-serial'
+compileTestJava.options.compilerArgs << '-Xlint:-deprecation'
 

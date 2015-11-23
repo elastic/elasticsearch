@@ -107,5 +107,4 @@ public class AzureDiscoveryModule extends AbstractModule {
         }
         return false;
     }
-
 }

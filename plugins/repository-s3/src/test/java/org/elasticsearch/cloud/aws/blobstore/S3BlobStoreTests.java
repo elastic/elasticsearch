@@ -20,6 +20,7 @@
 package org.elasticsearch.cloud.aws.blobstore;
 
 import com.amazonaws.services.s3.model.CannedAccessControlList;
+import com.amazonaws.services.s3.model.StorageClass;
 import org.elasticsearch.common.blobstore.BlobStoreException;
 import org.elasticsearch.test.ESTestCase;
 
@@ -56,6 +57,39 @@ public class S3BlobStoreTests extends ESTestCase {
             fail("CannedACL should fail");
         } catch (BlobStoreException ex) {
             assertThat(ex.getMessage(), equalTo("cannedACL is not valid: [test_invalid]"));
+        }
+    }
+
+    public void testInitStorageClass() throws IOException {
+        // it should default to `standard`
+        assertThat(S3BlobStore.initStorageClass(null), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass(""), equalTo(StorageClass.Standard));
+
+        // it should accept [standard, standard_ia, reduced_redundancy]
+        assertThat(S3BlobStore.initStorageClass("standard"), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass("standard_ia"), equalTo(StorageClass.StandardInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("reduced_redundancy"), equalTo(StorageClass.ReducedRedundancy));
+    }
+
+    public void testCaseInsensitiveStorageClass() throws IOException {
+        assertThat(S3BlobStore.initStorageClass("sTandaRd"), equalTo(StorageClass.Standard));
+        assertThat(S3BlobStore.initStorageClass("sTandaRd_Ia"), equalTo(StorageClass.StandardInfrequentAccess));
+        assertThat(S3BlobStore.initStorageClass("reduCED_redundancy"), equalTo(StorageClass.ReducedRedundancy));
+    }
+
+    public void testInvalidStorageClass() throws IOException {
+        try {
+            S3BlobStore.initStorageClass("whatever");
+        } catch(BlobStoreException ex) {
+            assertThat(ex.getMessage(), equalTo("`whatever` is not a valid S3 Storage Class."));
+        }
+    }
+
+    public void testRejectGlacierStorageClass() throws IOException {
+        try {
+            S3BlobStore.initStorageClass("glacier");
+        } catch(BlobStoreException ex) {
+            assertThat(ex.getMessage(), equalTo("Glacier storage class is not supported"));
         }
     }
 }

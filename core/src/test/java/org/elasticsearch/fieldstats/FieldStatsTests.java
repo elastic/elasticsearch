@@ -26,6 +26,7 @@ import org.elasticsearch.action.fieldstats.IndexConstraint;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.core.DateFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
+import org.hamcrest.Matchers;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 
@@ -77,8 +78,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get("field").getMaxDoc(), equalTo(11l));
         assertThat(result.getAllFieldStats().get("field").getDocCount(), equalTo(11l));
         assertThat(result.getAllFieldStats().get("field").getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get("field").getMinValue(), equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 0))));
-        assertThat(result.getAllFieldStats().get("field").getMaxValue(), equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 10))));
+        assertThat(result.getAllFieldStats().get("field").getMinValue(), Matchers.<Comparable>equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 0))));
+        assertThat(result.getAllFieldStats().get("field").getMaxValue(), Matchers.<Comparable>equalTo(new BytesRef(String.format(Locale.ENGLISH, "%03d", 10))));
         assertThat(result.getAllFieldStats().get("field").getMinValueAsString(), equalTo(String.format(Locale.ENGLISH, "%03d", 0)));
         assertThat(result.getAllFieldStats().get("field").getMaxValueAsString(), equalTo(String.format(Locale.ENGLISH, "%03d", 10)));
     }
@@ -95,8 +96,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11l));
         assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11l));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1d));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9d));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), Matchers.<Comparable>equalTo(-1d));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), Matchers.<Comparable>equalTo(9d));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Double.toString(-1)));
     }
 
@@ -112,8 +113,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(11l));
         assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(11l));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(-1.0));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(9.0));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), Matchers.<Comparable>equalTo(-1.0));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), Matchers.<Comparable>equalTo(9.0));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(Float.toString(-1)));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(Float.toString(9)));
     }
@@ -130,8 +131,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
         assertThat(result.getAllFieldStats().get(fieldName).getMaxDoc(), equalTo(numDocs));
         assertThat(result.getAllFieldStats().get(fieldName).getDocCount(), equalTo(numDocs));
         assertThat(result.getAllFieldStats().get(fieldName).getDensity(), equalTo(100));
-        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), equalTo(min));
-        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), equalTo(max));
+        assertThat(result.getAllFieldStats().get(fieldName).getMinValue(), Matchers.<Comparable>equalTo(min));
+        assertThat(result.getAllFieldStats().get(fieldName).getMaxValue(), Matchers.<Comparable>equalTo(max));
         assertThat(result.getAllFieldStats().get(fieldName).getMinValueAsString(), equalTo(java.lang.Long.toString(min)));
         assertThat(result.getAllFieldStats().get(fieldName).getMaxValueAsString(), equalTo(java.lang.Long.toString(max)));
         client().admin().indices().prepareDelete("test").get();
@@ -218,8 +219,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1l));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3l));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), Matchers.<Comparable>equalTo(1l));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(3l));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -241,7 +242,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1l));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), Matchers.<Comparable>equalTo(1l));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -249,7 +250,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1l));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), Matchers.<Comparable>equalTo(1l));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -264,7 +265,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3l));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(3l));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -272,7 +273,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3l));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(3l));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -287,8 +288,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(1l));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(3l));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), Matchers.<Comparable>equalTo(1l));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(3l));
 
         response = client().prepareFieldStats()
                 .setFields("value")
@@ -315,8 +316,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(dateTime1.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime1.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime2.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(), equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
 
@@ -333,7 +334,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(dateTime1.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime1.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(), equalTo(dateTime1Str));
 
         response = client().prepareFieldStats()
@@ -342,7 +343,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime2.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
 
         response = client().prepareFieldStats()
@@ -358,7 +359,7 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(1));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime2.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
 
         response = client().prepareFieldStats()
@@ -367,8 +368,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(dateTime1.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime1.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime2.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(), equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
 
@@ -378,8 +379,8 @@ public class FieldStatsTests extends ESSingleNodeTestCase {
                 .setLevel("indices")
                 .get();
         assertThat(response.getIndicesMergedFieldStats().size(), equalTo(2));
-        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), equalTo(dateTime1.getMillis()));
-        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), equalTo(dateTime2.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime1.getMillis()));
+        assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValue(), Matchers.<Comparable>equalTo(dateTime2.getMillis()));
         assertThat(response.getIndicesMergedFieldStats().get("test1").get("value").getMinValueAsString(), equalTo(dateTime1Str));
         assertThat(response.getIndicesMergedFieldStats().get("test2").get("value").getMinValueAsString(), equalTo(dateTime2Str));
     }

@@ -1,5 +1,5 @@
-if (project.projectDir.name != 'extra-plugin-x-plugins') {
-  throw new GradleException('You must checkout x-plugins in a directory named extra-plugin-x-plugins')
+if (project.projectDir.name != 'x-plugins') {
+  throw new GradleException('You must checkout x-plugins in a directory named x-plugins next to elasticsearch')
 }
 
 /*

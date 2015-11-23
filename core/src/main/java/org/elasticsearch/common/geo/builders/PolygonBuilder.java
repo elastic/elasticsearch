@@ -53,7 +53,7 @@ import java.util.Objects;
 public class PolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.POLYGON;
-    static final PolygonBuilder PROTOTYPE = new PolygonBuilder();
+    public static final PolygonBuilder PROTOTYPE = new PolygonBuilder();
 
     private static final Coordinate[][] EMPTY = new Coordinate[0][];
 

@@ -36,7 +36,7 @@ import com.vividsolutions.jts.geom.Coordinate;
 public class MultiPolygonBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.MULTIPOLYGON;
-    static final MultiPolygonBuilder PROTOTYPE = new MultiPolygonBuilder();
+    public static final MultiPolygonBuilder PROTOTYPE = new MultiPolygonBuilder();
 
     private final ArrayList<PolygonBuilder> polygons = new ArrayList<>();
 

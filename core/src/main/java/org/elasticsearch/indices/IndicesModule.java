@@ -22,6 +22,7 @@ package org.elasticsearch.indices;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.cluster.metadata.MetaDataIndexUpgradeService;
 import org.elasticsearch.common.geo.ShapesAvailability;
+import org.elasticsearch.common.geo.builders.ShapeBuilderRegistry;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.util.ExtensionPoint;
 import org.elasticsearch.index.NodeServicesProvider;
@@ -218,6 +219,7 @@ public class IndicesModule extends AbstractModule {
         bind(IndicesFieldDataCacheListener.class).asEagerSingleton();
         bind(TermVectorsService.class).asEagerSingleton();
         bind(NodeServicesProvider.class).asEagerSingleton();
+        bind(ShapeBuilderRegistry.class).asEagerSingleton();
     }
 
     // public for testing

@@ -37,7 +37,7 @@ public class MultiPolygonBuilderTests extends AbstractShapeBuilderTestCase<Multi
             PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON);
             pgb.orientation = mpb.orientation;
             // NORELEASE translated might have been changed by createShape, but won't survive xContent->Parse roundtrip
-            pgb.shell().translated = false;
+            pgb.shell().translated(false);
             mpb.polygon(pgb);
         }
         return mpb;

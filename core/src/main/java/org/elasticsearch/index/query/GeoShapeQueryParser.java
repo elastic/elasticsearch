@@ -22,11 +22,9 @@ package org.elasticsearch.index.query;
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
-import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -54,7 +52,7 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
         String fieldName = null;
         ShapeRelation shapeRelation = null;
         SpatialStrategy strategy = null;
-        BytesReference shape = null;
+        ShapeBuilder shape = null;
 
         String id = null;
         String type = null;
@@ -79,8 +77,7 @@ public class GeoShapeQueryParser implements QueryParser<GeoShapeQueryBuilder> {
                         currentFieldName = parser.currentName();
                         token = parser.nextToken();
                         if (parseContext.parseFieldMatcher().match(currentFieldName, SHAPE_FIELD)) {
-                            XContentBuilder builder = XContentFactory.jsonBuilder().copyCurrentStructure(parser);
-                            shape = builder.bytes();
+                            shape = ShapeBuilder.parse(parser);
                         } else if (parseContext.parseFieldMatcher().match(currentFieldName, STRATEGY_FIELD)) {
                             String strategyName = parser.text();
                             strategy = SpatialStrategy.fromString(strategyName);

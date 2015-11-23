@@ -38,7 +38,7 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
-    static final LineStringBuilder PROTOTYPE = new LineStringBuilder();
+    public static final LineStringBuilder PROTOTYPE = new LineStringBuilder();
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
@@ -148,7 +148,7 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(points, translated);
+        return Objects.hash(points, translated());
     }
 
     @Override
@@ -161,7 +161,7 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
         }
         LineStringBuilder other = (LineStringBuilder) obj;
         return Objects.equals(points, other.points) &&
-                (translated == other.translated);
+                (translated() == other.translated());
     }
 
     @Override
@@ -170,7 +170,7 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
         for (Coordinate point : points) {
             writeCoordinateTo(point, out);
         }
-        out.writeBoolean(translated);
+        out.writeBoolean(translated());
     }
 
     @Override
@@ -180,7 +180,7 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
         for (int i=0; i < size; i++) {
             lineStringBuilder.point(readCoordinateFrom(in));
         }
-        lineStringBuilder.translated = in.readBoolean();
+        lineStringBuilder.translated(in.readBoolean());
         return lineStringBuilder;
     }
 }

@@ -29,6 +29,7 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
+import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -59,14 +60,17 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
         ShapeType shapeType = ShapeType.randomType(getRandom());
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null, shapeType);
+        // NORELEASE PolygonBuilder gets validated on creation, so the shells 'translate'  might get set
+        // this causes problems in the test, because  we can't parse this property in fromXContent
+        // so we switch it to false again.
+        if (shape instanceof PolygonBuilder) {
+            ((PolygonBuilder) shape).shell().translated(false);
+        }
+
         GeoShapeQueryBuilder builder;
         clearShapeFields();
         if (randomBoolean()) {
-            try {
-                builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            builder = new GeoShapeQueryBuilder(GEO_SHAPE_FIELD_NAME, shape);
         } else {
             indexedShapeToReturn = shape;
             indexedShapeId = randomAsciiOfLengthBetween(3, 20);
@@ -225,17 +229,18 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
 
     public void testFromJson() throws IOException {
         String json =
-                "{\n" + 
-                "  \"geo_shape\" : {\n" + 
-                "    \"location\" : {\n" + 
-                "      \"shape\" : {\n" + 
-                "        \"type\" : \"envelope\",\n" + 
-                "        \"coordinates\" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]\n" + 
-                "      },\n" + 
-                "      \"relation\" : \"intersects\"\n" + 
-                "    },\n" + 
-                "    \"boost\" : 42.0\n" + 
-                "  }\n" + 
+                "{\n" +
+                "  \"geo_shape\" : {\n" +
+                "    \"location\" : {\n" +
+                "      \"shape\" : {\n" +
+                "        \"type\" : \"envelope\",\n" +
+                "        \"orientation\" : \"right\",\n" +
+                "        \"coordinates\" : [ [ 13.0, 53.0 ], [ 14.0, 52.0 ] ]\n" +
+                "      },\n" +
+                "      \"relation\" : \"intersects\"\n" +
+                "    },\n" +
+                "    \"boost\" : 42.0\n" +
+                "  }\n" +
                 "}";
         GeoShapeQueryBuilder parsed = (GeoShapeQueryBuilder) parseQuery(json);
         checkGeneratedJson(json, parsed);

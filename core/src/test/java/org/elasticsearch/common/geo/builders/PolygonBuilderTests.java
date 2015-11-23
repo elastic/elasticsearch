@@ -36,7 +36,7 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
         PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON);
         pgb.orientation = randomFrom(Orientation.values());
         // NORELEASE translated might have been changed by createShape, but won't survive xContent->Parse roundtrip
-        pgb.shell().translated = false;
+        pgb.shell().translated(false);
         return pgb;
     }
 

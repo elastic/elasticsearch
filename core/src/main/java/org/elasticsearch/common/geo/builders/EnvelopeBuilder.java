@@ -25,7 +25,6 @@ import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-
 import java.io.IOException;
 import java.util.Locale;
 import java.util.Objects;
@@ -34,7 +33,7 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.ENVELOPE;
 
-    static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder();
+    public static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder();
 
     protected Coordinate topLeft;
     protected Coordinate bottomRight;

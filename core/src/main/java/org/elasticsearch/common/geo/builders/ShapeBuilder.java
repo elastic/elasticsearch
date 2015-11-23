@@ -708,15 +708,4 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
     public String getWriteableName() {
         return type().shapeName();
     }
-
-    // NORELEASE this should be deleted as soon as all shape builders implement writable
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-    }
-
-    // NORELEASE this should be deleted as soon as all shape builders implement writable
-    @Override
-    public ShapeBuilder readFrom(StreamInput in) throws IOException {
-        return null;
-    }
 }

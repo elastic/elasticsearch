@@ -36,7 +36,7 @@ public class CircleBuilder extends ShapeBuilder {
     public static final String FIELD_RADIUS = "radius";
     public static final GeoShapeType TYPE = GeoShapeType.CIRCLE;
 
-    static final CircleBuilder PROTOTYPE = new CircleBuilder();
+    public static final CircleBuilder PROTOTYPE = new CircleBuilder();
 
     private DistanceUnit unit;
     private double radius;

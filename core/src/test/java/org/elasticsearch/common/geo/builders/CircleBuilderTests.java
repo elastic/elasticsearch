@@ -27,7 +27,7 @@ import java.io.IOException;
 
 public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuilder> {
 
-    static CircleBuilderTests PROTOTYPE = new CircleBuilderTests();
+    final static CircleBuilderTests PROTOTYPE = new CircleBuilderTests();
 
     @Override
     protected CircleBuilder createTestShapeBuilder() {

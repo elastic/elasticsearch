@@ -39,6 +39,10 @@ import static org.apache.lucene.search.BooleanClause.Occur.MUST;
 
 final class PercolatorQuery extends Query {
 
+    public static final float MATCH_COST =
+            (1 << 14) // stored field access cost, approximated by the number of bytes in a block
+            + 1000;   // cost of matching the query against the document, arbitrary as it would be really complex to estimate
+
     static class Builder {
 
         private final IndexSearcher percolatorIndexSearcher;
@@ -163,8 +167,7 @@ final class PercolatorQuery extends Query {
 
                             @Override
                             public float matchCost() {
-                                // matching here is expensive. what is a good value?
-                                return 1f;
+                                return MATCH_COST;
                             }
                         };
                     }

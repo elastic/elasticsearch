@@ -17,10 +17,19 @@
  * under the License.
  */
 
-plugins {
-  id 'groovy'
-  id 'com.bmuschko.nexus' version '2.3.1'
+// we must use buildscript + apply so that an external plugin
+// can apply this file, since the plugins directive is not
+// supported through file includes
+buildscript {
+  repositories {
+    jcenter()
+  }
+  dependencies {
+    classpath 'com.bmuschko:gradle-nexus-plugin:2.3.1'
+  }
 }
+apply plugin: 'groovy'
+apply plugin: 'com.bmuschko.nexus'
 // TODO: move common IDE configuration to a common file to include
 apply plugin: 'idea'
 apply plugin: 'eclipse'

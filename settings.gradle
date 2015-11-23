@@ -64,9 +64,10 @@ void addSubProjects(String path, File dir) {
   if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
 
-  include path
+  String projectName = "${path}:${dir.name}"
+  include projectName
   for (File subdir : dir.listFiles()) {
-    addSubProjects("${path}:${subdir.name}", subdir)
+    addSubProjects(projectName, subdir)
   }
 }
 

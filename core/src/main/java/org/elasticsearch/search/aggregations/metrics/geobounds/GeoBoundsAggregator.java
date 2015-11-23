@@ -20,10 +20,14 @@
 package org.elasticsearch.search.aggregations.metrics.geobounds;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.geo.GeoPoint;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.MultiGeoPointValues;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -32,15 +36,19 @@ import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.metrics.MetricsAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public final class GeoBoundsAggregator extends MetricsAggregator {
+
+    static final ParseField WRAP_LONGITUDE_FIELD = new ParseField("wrap_longitude");
 
     private final ValuesSource.GeoPoint valuesSource;
     private final boolean wrapLongitude;
@@ -168,11 +176,24 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
 
     public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> {
 
-        private final boolean wrapLongitude;
+        private boolean wrapLongitude = true;
 
-        protected Factory(String name, ValuesSourceParser.Input<ValuesSource.GeoPoint> input, boolean wrapLongitude) {
-            super(name, InternalGeoBounds.TYPE, input);
+        public Factory(String name) {
+            super(name, InternalGeoBounds.TYPE, ValuesSourceType.GEOPOINT, ValueType.GEOPOINT);
+        }
+
+        /**
+         * Set whether to wrap longitudes. Defaults to true.
+         */
+        public void wrapLongitude(boolean wrapLongitude) {
             this.wrapLongitude = wrapLongitude;
+        }
+
+        /**
+         * Get whether to wrap longitudes.
+         */
+        public boolean wrapLongitude() {
+            return wrapLongitude;
         }
 
         @Override
@@ -186,6 +207,36 @@ public final class GeoBoundsAggregator extends MetricsAggregator {
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData)
                 throws IOException {
             return new GeoBoundsAggregator(name, aggregationContext, parent, valuesSource, wrapLongitude, pipelineAggregators, metaData);
+        }
+
+        @Override
+        protected ValuesSourceAggregatorFactory<ValuesSource.GeoPoint> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, StreamInput in) throws IOException {
+            Factory factory = new Factory(name);
+            factory.wrapLongitude = in.readBoolean();
+            return factory;
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            out.writeBoolean(wrapLongitude);
+        }
+
+        @Override
+        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(WRAP_LONGITUDE_FIELD.getPreferredName(), wrapLongitude);
+            return builder;
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return Objects.hash(wrapLongitude);
+        }
+
+        @Override
+        protected boolean innerEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.equals(wrapLongitude, other.wrapLongitude);
         }
 
     }

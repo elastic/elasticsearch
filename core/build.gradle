@@ -106,8 +106,6 @@ if (isEclipse) {
       test.resources.srcDirs = ['resources']
     }
   }
-
-  testCompile 'org.elasticsearch:securemock:1.1'
 }
 
 compileJava.options.compilerArgs << "-Xlint:-cast,-deprecation,-fallthrough,-overrides,-rawtypes,-serial,-try,-unchecked"

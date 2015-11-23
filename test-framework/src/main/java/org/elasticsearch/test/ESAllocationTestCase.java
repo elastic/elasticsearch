@@ -47,12 +47,7 @@ import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.lang.reflect.Constructor;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.List;
-import java.util.Map;
-import java.util.Random;
-import java.util.function.Function;
+import java.util.*;
 
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
@@ -63,32 +58,32 @@ import static org.hamcrest.CoreMatchers.is;
  */
 public abstract class ESAllocationTestCase extends ESTestCase {
 
-    public static AllocationService createAllocationService() {
+    public static MockAllocationService createAllocationService() {
         return createAllocationService(Settings.Builder.EMPTY_SETTINGS);
     }
 
-    public static AllocationService createAllocationService(Settings settings) {
+    public static MockAllocationService createAllocationService(Settings settings) {
         return createAllocationService(settings, getRandom());
     }
 
-    public static AllocationService createAllocationService(Settings settings, Random random) {
+    public static MockAllocationService createAllocationService(Settings settings, Random random) {
         return createAllocationService(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
     }
 
-    public static AllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
-        return new AllocationService(settings,
+    public static MockAllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
+        return new MockAllocationService(settings,
                 randomAllocationDeciders(settings, nodeSettingsService, random),
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
     }
 
-    public static AllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
-        return new AllocationService(settings,
+    public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
+        return new MockAllocationService(settings,
                 randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), clusterInfoService);
     }
 
-    public static AllocationService createAllocationService(Settings settings, GatewayAllocator allocator) {
-        return new AllocationService(settings,
+    public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator allocator) {
+        return new MockAllocationService(settings,
                 randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
                 new ShardsAllocators(settings, allocator), EmptyClusterInfoService.INSTANCE);
     }
@@ -187,9 +182,27 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
     }
 
+    /** A lock {@link AllocationService} allowing tests to override time */
+    protected static class MockAllocationService extends AllocationService {
+
+        private Long nanoTimeOverride = null;
+
+        public MockAllocationService(Settings settings, AllocationDeciders allocationDeciders, ShardsAllocators shardsAllocators, ClusterInfoService clusterInfoService) {
+            super(settings, allocationDeciders, shardsAllocators, clusterInfoService);
+        }
+
+        public void setNanoTimeOverride(long nanoTime) {
+            this.nanoTimeOverride = nanoTime;
+        }
+
+        @Override
+        protected long currentNanoTime() {
+            return nanoTimeOverride == null ? super.currentNanoTime() : nanoTimeOverride;
+        }
+    }
+
     /**
      * Mocks behavior in ReplicaShardAllocator to remove delayed shards from list of unassigned shards so they don't get reassigned yet.
-     * Also computes delay in UnassignedInfo based on customizable time source.
      */
     protected static class DelayedShardsMockGatewayAllocator extends GatewayAllocator {
         private final ReplicaShardAllocator replicaShardAllocator = new ReplicaShardAllocator(Settings.EMPTY) {
@@ -199,14 +212,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
         };
 
-        private volatile Function<ShardRouting, Long> timeSource;
 
         public DelayedShardsMockGatewayAllocator() {
             super(Settings.EMPTY, null, null);
-        }
-
-        public void setTimeSource(Function<ShardRouting, Long> timeSource) {
-            this.timeSource = timeSource;
         }
 
         @Override
@@ -224,8 +232,7 @@ public abstract class ESAllocationTestCase extends ESTestCase {
                 if (shard.primary() || shard.allocatedPostIndexCreate() == false) {
                     continue;
                 }
-                changed |= replicaShardAllocator.ignoreUnassignedIfDelayed(timeSource == null ? System.nanoTime() : timeSource.apply(shard),
-                        allocation, unassignedIterator, shard);
+                changed |= replicaShardAllocator.ignoreUnassignedIfDelayed(unassignedIterator, shard);
             }
             return changed;
         }

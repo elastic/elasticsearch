@@ -21,10 +21,7 @@ package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.test.ESTestCase;
 
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  */

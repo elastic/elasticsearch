@@ -20,7 +20,7 @@
 
 package org.elasticsearch.ingest.processor;
 
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -36,7 +36,7 @@ public interface Processor {
     /**
      * Introspect and potentially modify the incoming data.
      */
-    void execute(Data data);
+    void execute(IngestDocument ingestDocument);
 
     /**
      * Gets the type of a processor

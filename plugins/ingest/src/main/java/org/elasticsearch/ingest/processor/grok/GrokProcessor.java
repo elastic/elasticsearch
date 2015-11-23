@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.processor.grok;
 
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
@@ -45,13 +45,13 @@ public final class GrokProcessor implements Processor {
     }
 
     @Override
-    public void execute(Data data) {
-        Object field = data.getPropertyValue(matchField, Object.class);
+    public void execute(IngestDocument ingestDocument) {
+        Object field = ingestDocument.getPropertyValue(matchField, Object.class);
         // TODO(talevy): handle invalid field types
         if (field instanceof String) {
             Map<String, Object> matches = grok.captures((String) field);
             if (matches != null) {
-                matches.forEach((k, v) -> data.setPropertyValue(k, v));
+                matches.forEach((k, v) -> ingestDocument.setPropertyValue(k, v));
             }
         }
     }

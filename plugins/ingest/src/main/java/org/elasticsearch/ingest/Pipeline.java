@@ -44,9 +44,9 @@ public final class Pipeline {
     /**
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
      */
-    public void execute(Data data) {
+    public void execute(IngestDocument ingestDocument) {
         for (Processor processor : processors) {
-            processor.execute(data);
+            processor.execute(ingestDocument);
         }
     }
 

@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.processor.geoip;
 
 import com.maxmind.geoip2.DatabaseReader;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;
@@ -38,13 +38,13 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "82.170.213.79");
-        Data data = new Data("_index", "_type", "_id", document);
-        processor.execute(data);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", document);
+        processor.execute(ingestDocument);
 
-        assertThat(data.getDocument().size(), equalTo(2));
-        assertThat(data.getDocument().get("source_field"), equalTo("82.170.213.79"));
+        assertThat(ingestDocument.getSource().size(), equalTo(2));
+        assertThat(ingestDocument.getSource().get("source_field"), equalTo("82.170.213.79"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) data.getDocument().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
         assertThat(geoData.size(), equalTo(10));
         assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
@@ -64,13 +64,13 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "82.170.213.79");
-        Data data = new Data("_index", "_type", "_id", document);
-        processor.execute(data);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", document);
+        processor.execute(ingestDocument);
 
-        assertThat(data.getDocument().size(), equalTo(2));
-        assertThat(data.getDocument().get("source_field"), equalTo("82.170.213.79"));
+        assertThat(ingestDocument.getSource().size(), equalTo(2));
+        assertThat(ingestDocument.getSource().get("source_field"), equalTo("82.170.213.79"));
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) data.getDocument().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
         assertThat(geoData.size(), equalTo(4));
         assertThat(geoData.get("ip"), equalTo("82.170.213.79"));
         assertThat(geoData.get("country_iso_code"), equalTo("NL"));
@@ -84,10 +84,10 @@ public class GeoIpProcessorTests extends ESTestCase {
 
         Map<String, Object> document = new HashMap<>();
         document.put("source_field", "202.45.11.11");
-        Data data = new Data("_index", "_type", "_id", document);
-        processor.execute(data);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", document);
+        processor.execute(ingestDocument);
         @SuppressWarnings("unchecked")
-        Map<String, Object> geoData = (Map<String, Object>) data.getDocument().get("target_field");
+        Map<String, Object> geoData = (Map<String, Object>) ingestDocument.getSource().get("target_field");
         assertThat(geoData.size(), equalTo(0));
     }
 

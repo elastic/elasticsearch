@@ -19,7 +19,7 @@
 
 package org.elasticsearch.plugin.ingest.transport.simulate;
 
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.plugin.ingest.PipelineStore;
@@ -29,6 +29,9 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.*;
 
+import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
 import static org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequest.Fields;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -80,12 +83,12 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         assertThat(actualRequest.isVerbose(), equalTo(false));
         assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
-        for (Data data : actualRequest.getDocuments()) {
+        for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            assertThat(data.getDocument(), equalTo(expectedDocument.get(Fields.SOURCE)));
-            assertThat(data.getIndex(), equalTo(expectedDocument.get(Fields.INDEX)));
-            assertThat(data.getType(), equalTo(expectedDocument.get(Fields.TYPE)));
-            assertThat(data.getId(), equalTo(expectedDocument.get(Fields.ID)));
+            assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
+            assertThat(ingestDocument.getMetadata(INDEX), equalTo(expectedDocument.get(Fields.INDEX)));
+            assertThat(ingestDocument.getMetadata(TYPE), equalTo(expectedDocument.get(Fields.TYPE)));
+            assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(Fields.ID)));
         }
 
         assertThat(actualRequest.getPipeline().getId(), equalTo(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID));
@@ -133,12 +136,12 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         assertThat(actualRequest.isVerbose(), equalTo(false));
         assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
-        for (Data data : actualRequest.getDocuments()) {
+        for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
-            assertThat(data.getDocument(), equalTo(expectedDocument.get(Fields.SOURCE)));
-            assertThat(data.getIndex(), equalTo(expectedDocument.get(Fields.INDEX)));
-            assertThat(data.getType(), equalTo(expectedDocument.get(Fields.TYPE)));
-            assertThat(data.getId(), equalTo(expectedDocument.get(Fields.ID)));
+            assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
+            assertThat(ingestDocument.getMetadata(INDEX), equalTo(expectedDocument.get(Fields.INDEX)));
+            assertThat(ingestDocument.getMetadata(TYPE), equalTo(expectedDocument.get(Fields.TYPE)));
+            assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(Fields.ID)));
         }
 
         assertThat(actualRequest.getPipeline().getId(), equalTo(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID));

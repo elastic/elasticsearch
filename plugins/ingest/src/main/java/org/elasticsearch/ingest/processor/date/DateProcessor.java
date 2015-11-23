@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.processor.date;
 
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 import org.joda.time.DateTime;
@@ -56,8 +56,8 @@ public final class DateProcessor implements Processor {
     }
 
     @Override
-    public void execute(Data data) {
-        String value = data.getPropertyValue(matchField, String.class);
+    public void execute(IngestDocument ingestDocument) {
+        String value = ingestDocument.getPropertyValue(matchField, String.class);
         // TODO(talevy): handle custom timestamp fields
 
         DateTime dateTime = null;
@@ -75,7 +75,7 @@ public final class DateProcessor implements Processor {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
         }
 
-        data.setPropertyValue(targetField, ISODateTimeFormat.dateTime().print(dateTime));
+        ingestDocument.setPropertyValue(targetField, ISODateTimeFormat.dateTime().print(dateTime));
     }
 
     @Override

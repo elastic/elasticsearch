@@ -19,7 +19,7 @@
 
 package org.elasticsearch.ingest.processor.mutate;
 
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 
 public class MutateProcessorTests extends ESTestCase {
-    private Data data;
+    private IngestDocument ingestDocument;
 
     @Before
     public void setData() {
@@ -49,35 +49,35 @@ public class MutateProcessorTests extends ESTestCase {
         fizz.put("buzz", "hello world");
         document.put("fizz", fizz);
 
-        data = new Data("index", "type", "id", document);
+        ingestDocument = new IngestDocument("index", "type", "id", document);
     }
 
     public void testUpdate() throws IOException {
         Map<String, Object> update = new HashMap<>();
         update.put("foo", 123);
         Processor processor = new MutateProcessor(update, null, null, null, null, null, null, null, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("foo", Integer.class), equalTo(123));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("foo", Integer.class), equalTo(123));
     }
 
     public void testRename() throws IOException {
         Map<String, String> rename = new HashMap<>();
         rename.put("foo", "bar");
         Processor processor = new MutateProcessor(null, rename, null, null, null, null, null, null, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("bar", String.class), equalTo("bar"));
-        assertThat(data.hasPropertyValue("foo"), is(false));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("bar", String.class), equalTo("bar"));
+        assertThat(ingestDocument.hasPropertyValue("foo"), is(false));
     }
 
     public void testConvert() throws IOException {
         Map<String, String> convert = new HashMap<>();
         convert.put("num", "integer");
         Processor processor = new MutateProcessor(null, null, convert, null, null, null, null, null, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("num", Integer.class), equalTo(64));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("num", Integer.class), equalTo(64));
     }
 
     public void testConvertNullField() throws IOException {
@@ -85,7 +85,7 @@ public class MutateProcessorTests extends ESTestCase {
         convert.put("null", "integer");
         Processor processor = new MutateProcessor(null, null, convert, null, null, null, null, null, null, null);
         try {
-            processor.execute(data);
+            processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field \"null\" is null, cannot be converted to a/an integer"));
@@ -96,18 +96,18 @@ public class MutateProcessorTests extends ESTestCase {
         Map<String, String> convert = new HashMap<>();
         convert.put("arr", "integer");
         Processor processor = new MutateProcessor(null, null, convert, null, null, null, null, null, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("arr", List.class), equalTo(Arrays.asList(1, 2, 3)));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("arr", List.class), equalTo(Arrays.asList(1, 2, 3)));
     }
 
     public void testSplit() throws IOException {
         Map<String, String> split = new HashMap<>();
         split.put("ip", "\\.");
         Processor processor = new MutateProcessor(null, null, null, split, null, null, null, null, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("ip", List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("ip", List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
     }
 
     public void testSplitNullValue() throws IOException {
@@ -115,7 +115,7 @@ public class MutateProcessorTests extends ESTestCase {
         split.put("not.found", "\\.");
         Processor processor = new MutateProcessor(null, null, null, split, null, null, null, null, null, null);
         try {
-            processor.execute(data);
+            processor.execute(ingestDocument);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Cannot split field. [not.found] is null."));
@@ -125,16 +125,16 @@ public class MutateProcessorTests extends ESTestCase {
     public void testGsub() throws IOException {
         List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression("ip", Pattern.compile("\\."), "-"));
         Processor processor = new MutateProcessor(null, null, null, null, gsubExpressions, null, null, null, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("ip", String.class), equalTo("127-0-0-1"));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("ip", String.class), equalTo("127-0-0-1"));
     }
 
     public void testGsub_NullValue() throws IOException {
         List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression("null_field", Pattern.compile("\\."), "-"));
         Processor processor = new MutateProcessor(null, null, null, null, gsubExpressions, null, null, null, null, null);
         try {
-            processor.execute(data);
+            processor.execute(ingestDocument);
             fail("processor execution should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Field \"null_field\" is null, cannot match pattern."));
@@ -145,34 +145,34 @@ public class MutateProcessorTests extends ESTestCase {
         HashMap<String, String> join = new HashMap<>();
         join.put("arr", "-");
         Processor processor = new MutateProcessor(null, null, null, null, null, join, null, null, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("arr", String.class), equalTo("1-2-3"));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("arr", String.class), equalTo("1-2-3"));
     }
 
     public void testRemove() throws IOException {
         List<String> remove = Arrays.asList("foo", "ip");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, remove, null, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(5));
-        assertThat(data.getPropertyValue("foo", Object.class), nullValue());
-        assertThat(data.getPropertyValue("ip", Object.class), nullValue());
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(5));
+        assertThat(ingestDocument.getPropertyValue("foo", Object.class), nullValue());
+        assertThat(ingestDocument.getPropertyValue("ip", Object.class), nullValue());
     }
 
     public void testTrim() throws IOException {
         List<String> trim = Arrays.asList("to_strip", "foo");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, trim, null, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("foo", String.class), equalTo("bar"));
-        assertThat(data.getPropertyValue("to_strip", String.class), equalTo("clean"));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("foo", String.class), equalTo("bar"));
+        assertThat(ingestDocument.getPropertyValue("to_strip", String.class), equalTo("clean"));
     }
 
     public void testTrimNullValue() throws IOException {
         List<String> trim = Collections.singletonList("not.found");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, trim, null, null);
         try {
-            processor.execute(data);
+            processor.execute(ingestDocument);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Cannot trim field. [not.found] is null."));
@@ -182,16 +182,16 @@ public class MutateProcessorTests extends ESTestCase {
     public void testUppercase() throws IOException {
         List<String> uppercase = Collections.singletonList("foo");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, uppercase, null);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("foo", String.class), equalTo("BAR"));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("foo", String.class), equalTo("BAR"));
     }
 
     public void testUppercaseNullValue() throws IOException {
         List<String> uppercase = Collections.singletonList("not.found");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, uppercase, null);
         try {
-            processor.execute(data);
+            processor.execute(ingestDocument);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Cannot uppercase field. [not.found] is null."));
@@ -201,16 +201,16 @@ public class MutateProcessorTests extends ESTestCase {
     public void testLowercase() throws IOException {
         List<String> lowercase = Collections.singletonList("alpha");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, null, lowercase);
-        processor.execute(data);
-        assertThat(data.getDocument().size(), equalTo(7));
-        assertThat(data.getPropertyValue("alpha", String.class), equalTo("abcd"));
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getSource().size(), equalTo(7));
+        assertThat(ingestDocument.getPropertyValue("alpha", String.class), equalTo("abcd"));
     }
 
     public void testLowercaseNullValue() throws IOException {
         List<String> lowercase = Collections.singletonList("not.found");
         Processor processor = new MutateProcessor(null, null, null, null, null, null, null, null, null, lowercase);
         try {
-            processor.execute(data);
+            processor.execute(ingestDocument);
             fail();
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("Cannot lowercase field. [not.found] is null."));

@@ -23,7 +23,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -40,7 +40,7 @@ public class PipelineExecutionService {
         this.threadPool = threadPool;
     }
 
-    public void execute(Data data, String pipelineId, Listener listener) {
+    public void execute(IngestDocument ingestDocument, String pipelineId, Listener listener) {
         Pipeline pipeline = store.get(pipelineId);
         if (pipeline == null) {
             listener.failed(new IllegalArgumentException(LoggerMessageFormat.format("pipeline with id [{}] does not exist", pipelineId)));
@@ -51,8 +51,8 @@ public class PipelineExecutionService {
             @Override
             public void run() {
                 try {
-                    pipeline.execute(data);
-                    listener.executed(data);
+                    pipeline.execute(ingestDocument);
+                    listener.executed(ingestDocument);
                 } catch (Exception e) {
                     listener.failed(e);
                 }
@@ -62,7 +62,7 @@ public class PipelineExecutionService {
 
     public interface Listener {
 
-        void executed(Data data);
+        void executed(IngestDocument ingestDocument);
 
         void failed(Exception e);
 

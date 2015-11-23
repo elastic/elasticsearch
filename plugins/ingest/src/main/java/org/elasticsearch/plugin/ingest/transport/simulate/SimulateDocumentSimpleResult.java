@@ -22,20 +22,20 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.plugin.ingest.transport.TransportData;
 
 import java.io.IOException;
 
 public class SimulateDocumentSimpleResult implements SimulateDocumentResult<SimulateDocumentSimpleResult> {
 
-    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult((Data)null);
+    private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult((IngestDocument)null);
 
     private TransportData data;
     private Exception failure;
 
-    public SimulateDocumentSimpleResult(Data data) {
-        this.data = new TransportData(data);
+    public SimulateDocumentSimpleResult(IngestDocument ingestDocument) {
+        this.data = new TransportData(ingestDocument);
     }
 
     private SimulateDocumentSimpleResult(TransportData data) {
@@ -46,7 +46,7 @@ public class SimulateDocumentSimpleResult implements SimulateDocumentResult<Simu
         this.failure = failure;
     }
 
-    public Data getData() {
+    public IngestDocument getData() {
         if (data == null) {
             return null;
         }

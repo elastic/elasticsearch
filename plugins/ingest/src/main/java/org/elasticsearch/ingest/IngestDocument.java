@@ -24,26 +24,26 @@ import org.elasticsearch.common.Strings;
 import java.util.*;
 
 /**
- * Represents the data and meta data (like id and type) of a single document that is going to be indexed.
+ * Represents a single document being captured before indexing and holds the source and meta data (like id, type and index).
  */
-public final class Data {
+public final class IngestDocument {
 
-    private final String index;
-    private final String type;
-    private final String id;
-    private final Map<String, Object> document;
+    private final Map<String, String> metaData;
+    private final Map<String, Object> source;
 
     private boolean modified = false;
 
-    public Data(String index, String type, String id, Map<String, Object> document) {
-        this.index = index;
-        this.type = type;
-        this.id = id;
-        this.document = document;
+    public IngestDocument(String index, String type, String id, Map<String, Object> source) {
+        this.metaData = new HashMap<>();
+        this.metaData.put("_index", index);
+        this.metaData.put("_type", type);
+        this.metaData.put("_id", id);
+        this.source = source;
     }
 
-    public Data(Data other) {
-        this(other.index, other.type, other.id, new HashMap<>(other.document));
+    public IngestDocument(IngestDocument other) {
+        this.metaData = new HashMap<>(other.metaData);
+        this.source = new HashMap<>(other.source);
     }
 
     /**
@@ -116,7 +116,7 @@ public final class Data {
     }
 
     private Map<String, Object> getParent(String[] pathElements) {
-        Map<String, Object> innerMap = document;
+        Map<String, Object> innerMap = source;
         for (int i = 0; i < pathElements.length - 1; i++) {
             Object obj = innerMap.get(pathElements[i]);
             if (obj instanceof Map) {
@@ -143,7 +143,7 @@ public final class Data {
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
 
-        Map<String, Object> inner = document;
+        Map<String, Object> inner = source;
         for (int i = 0; i < pathElements.length - 1; i++) {
             String pathElement = pathElements[i];
             if (inner.containsKey(pathElement)) {
@@ -169,16 +169,8 @@ public final class Data {
         modified = true;
     }
 
-    public String getIndex() {
-        return index;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public String getId() {
-        return id;
+    public String getMetadata(MetaData metaData) {
+        return this.metaData.get(metaData.getName());
     }
 
     /**
@@ -186,8 +178,8 @@ public final class Data {
      * not be reflected to the modified flag. Modify the document instead using {@link #setPropertyValue(String, Object)}
      * and {@link #removeProperty(String)}
      */
-    public Map<String, Object> getDocument() {
-        return document;
+    public Map<String, Object> getSource() {
+        return source;
     }
 
     public boolean isModified() {
@@ -201,15 +193,35 @@ public final class Data {
             return false;
         }
 
-        Data other = (Data) obj;
-        return Objects.equals(document, other.document) &&
-                Objects.equals(index, other.index) &&
-                Objects.equals(type, other.type) &&
-                Objects.equals(id, other.id);
+        IngestDocument other = (IngestDocument) obj;
+        return Objects.equals(source, other.source) &&
+                Objects.equals(metaData, other.metaData);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(index, type, id, document);
+        return Objects.hash(metaData, source);
     }
+
+    public enum MetaData {
+
+        INDEX("_index"),
+        TYPE("_type"),
+        ID("_id"),
+        ROUTING("_routing"),
+        PARENT("_parent"),
+        TIMESTAMP("_timestamp"),
+        TTL("_ttl");
+
+        private final String name;
+
+        MetaData(String name) {
+            this.name = name;
+        }
+
+        public String getName() {
+            return name;
+        }
+    }
+
 }

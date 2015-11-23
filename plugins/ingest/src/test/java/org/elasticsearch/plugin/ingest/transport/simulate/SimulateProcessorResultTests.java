@@ -21,7 +21,7 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -39,9 +39,9 @@ public class SimulateProcessorResultTests extends ESTestCase {
         if (isFailure) {
             simulateProcessorResult = new SimulateProcessorResult(processorId, new IllegalArgumentException("test"));
         } else {
-            Data data = new Data(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
+            IngestDocument ingestDocument = new IngestDocument(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
                     Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
-            simulateProcessorResult = new SimulateProcessorResult(processorId, data);
+            simulateProcessorResult = new SimulateProcessorResult(processorId, ingestDocument);
         }
 
         BytesStreamOutput out = new BytesStreamOutput();

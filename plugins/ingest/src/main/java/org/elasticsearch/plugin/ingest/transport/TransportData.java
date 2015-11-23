@@ -25,24 +25,28 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
+
 public class TransportData implements Writeable<TransportData>, ToXContent {
 
     private static final TransportData PROTOTYPE = new TransportData(null);
 
-    private final Data data;
+    private final IngestDocument ingestDocument;
 
-    public TransportData(Data data) {
-        this.data = data;
+    public TransportData(IngestDocument ingestDocument) {
+        this.ingestDocument = ingestDocument;
     }
 
-    public Data get() {
-        return data;
+    public IngestDocument get() {
+        return ingestDocument;
     }
 
     public static TransportData readTransportDataFrom(StreamInput in) throws IOException {
@@ -55,25 +59,25 @@ public class TransportData implements Writeable<TransportData>, ToXContent {
         String type = in.readString();
         String id = in.readString();
         Map<String, Object> doc = in.readMap();
-        return new TransportData(new Data(index, type, id, doc));
+        return new TransportData(new IngestDocument(index, type, id, doc));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(data.getIndex());
-        out.writeString(data.getType());
-        out.writeString(data.getId());
-        out.writeMap(data.getDocument());
+        out.writeString(ingestDocument.getMetadata(INDEX));
+        out.writeString(ingestDocument.getMetadata(TYPE));
+        out.writeString(ingestDocument.getMetadata(ID));
+        out.writeMap(ingestDocument.getSource());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.DOCUMENT);
-        builder.field(Fields.MODIFIED, data.isModified());
-        builder.field(Fields.INDEX, data.getIndex());
-        builder.field(Fields.TYPE, data.getType());
-        builder.field(Fields.ID, data.getId());
-        builder.field(Fields.SOURCE, data.getDocument());
+        builder.field(Fields.MODIFIED, ingestDocument.isModified());
+        builder.field(Fields.INDEX, ingestDocument.getMetadata(INDEX));
+        builder.field(Fields.TYPE, ingestDocument.getMetadata(TYPE));
+        builder.field(Fields.ID, ingestDocument.getMetadata(ID));
+        builder.field(Fields.SOURCE, ingestDocument.getSource());
         builder.endObject();
         return builder;
     }
@@ -87,12 +91,12 @@ public class TransportData implements Writeable<TransportData>, ToXContent {
             return false;
         }
         TransportData that = (TransportData) o;
-        return Objects.equals(data, that.data);
+        return Objects.equals(ingestDocument, that.ingestDocument);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(data);
+        return Objects.hash(ingestDocument);
     }
 
     static final class Fields {

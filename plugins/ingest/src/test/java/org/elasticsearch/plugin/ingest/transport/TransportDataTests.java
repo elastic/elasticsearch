@@ -21,7 +21,7 @@ package org.elasticsearch.plugin.ingest.transport;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -39,7 +39,7 @@ public class TransportDataTests extends ESTestCase {
         String id = randomAsciiOfLengthBetween(1, 10);
         String fieldName = randomAsciiOfLengthBetween(1, 10);
         String fieldValue = randomAsciiOfLengthBetween(1, 10);
-        TransportData transportData = new TransportData(new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
+        TransportData transportData = new TransportData(new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
 
         boolean changed = false;
         String otherIndex;
@@ -71,23 +71,23 @@ public class TransportDataTests extends ESTestCase {
             document = Collections.singletonMap(fieldName, fieldValue);
         }
 
-        TransportData otherTransportData = new TransportData(new Data(otherIndex, otherType, otherId, document));
+        TransportData otherTransportData = new TransportData(new IngestDocument(otherIndex, otherType, otherId, document));
         if (changed) {
             assertThat(transportData, not(equalTo(otherTransportData)));
             assertThat(otherTransportData, not(equalTo(transportData)));
         } else {
             assertThat(transportData, equalTo(otherTransportData));
             assertThat(otherTransportData, equalTo(transportData));
-            TransportData thirdTransportData = new TransportData(new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
+            TransportData thirdTransportData = new TransportData(new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
             assertThat(thirdTransportData, equalTo(transportData));
             assertThat(transportData, equalTo(thirdTransportData));
         }
     }
 
     public void testSerialization() throws IOException {
-        Data data = new Data(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
+        IngestDocument ingestDocument = new IngestDocument(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
                 Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
-        TransportData transportData = new TransportData(data);
+        TransportData transportData = new TransportData(ingestDocument);
 
         BytesStreamOutput out = new BytesStreamOutput();
         transportData.writeTo(out);

@@ -25,22 +25,22 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.plugin.ingest.transport.TransportData;
 
 import java.io.IOException;
 
 public class SimulateProcessorResult implements Writeable<SimulateProcessorResult>, ToXContent {
 
-    private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult(null, (Data)null);
+    private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult(null, (IngestDocument)null);
 
     private String processorId;
     private TransportData data;
     private Exception failure;
 
-    public SimulateProcessorResult(String processorId, Data data) {
+    public SimulateProcessorResult(String processorId, IngestDocument ingestDocument) {
         this.processorId = processorId;
-        this.data = new TransportData(data);
+        this.data = new TransportData(ingestDocument);
     }
 
     private SimulateProcessorResult(String processorId, TransportData data) {
@@ -53,7 +53,7 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         this.failure = failure;
     }
 
-    public Data getData() {
+    public IngestDocument getData() {
         if (data == null) {
             return null;
         }

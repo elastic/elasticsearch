@@ -106,8 +106,8 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(response.getResults().size(), equalTo(1));
         assertThat(response.getResults().get(0), instanceOf(SimulateDocumentSimpleResult.class));
         SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) response.getResults().get(0);
-        Data expectedData = new Data("index", "type", "id", Collections.singletonMap("foo", "bar"));
-        assertThat(simulateDocumentSimpleResult.getData(), equalTo(expectedData));
+        IngestDocument expectedIngestDocument = new IngestDocument("index", "type", "id", Collections.singletonMap("foo", "bar"));
+        assertThat(simulateDocumentSimpleResult.getData(), equalTo(expectedIngestDocument));
         assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
     }
 

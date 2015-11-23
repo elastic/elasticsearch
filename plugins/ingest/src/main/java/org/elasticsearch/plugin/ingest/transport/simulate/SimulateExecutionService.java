@@ -21,7 +21,7 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,30 +40,30 @@ public class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-    SimulateDocumentResult executeItem(Pipeline pipeline, Data data) {
+    SimulateDocumentResult executeItem(Pipeline pipeline, IngestDocument ingestDocument) {
         try {
-            pipeline.execute(data);
-            return new SimulateDocumentSimpleResult(data);
+            pipeline.execute(ingestDocument);
+            return new SimulateDocumentSimpleResult(ingestDocument);
         } catch (Exception e) {
             return new SimulateDocumentSimpleResult(e);
         }
     }
 
-    SimulateDocumentVerboseResult executeVerboseItem(Pipeline pipeline, Data data) {
+    SimulateDocumentVerboseResult executeVerboseItem(Pipeline pipeline, IngestDocument ingestDocument) {
         List<SimulateProcessorResult> processorResultList = new ArrayList<>();
-        Data currentData = new Data(data);
+        IngestDocument currentIngestDocument = new IngestDocument(ingestDocument);
         for (int i = 0; i < pipeline.getProcessors().size(); i++) {
             Processor processor = pipeline.getProcessors().get(i);
             String processorId = "processor[" + processor.getType() + "]-" + i;
 
             try {
-                processor.execute(currentData);
-                processorResultList.add(new SimulateProcessorResult(processorId, currentData));
+                processor.execute(currentIngestDocument);
+                processorResultList.add(new SimulateProcessorResult(processorId, currentIngestDocument));
             } catch (Exception e) {
                 processorResultList.add(new SimulateProcessorResult(processorId, e));
             }
 
-            currentData = new Data(currentData);
+            currentIngestDocument = new IngestDocument(currentIngestDocument);
         }
         return new SimulateDocumentVerboseResult(processorResultList);
     }
@@ -73,11 +73,11 @@ public class SimulateExecutionService {
             @Override
             public void run() {
                 List<SimulateDocumentResult> responses = new ArrayList<>();
-                for (Data data : request.getDocuments()) {
+                for (IngestDocument ingestDocument : request.getDocuments()) {
                     if (request.isVerbose()) {
-                        responses.add(executeVerboseItem(request.getPipeline(), data));
+                        responses.add(executeVerboseItem(request.getPipeline(), ingestDocument));
                     } else {
-                        responses.add(executeItem(request.getPipeline(), data));
+                        responses.add(executeItem(request.getPipeline(), ingestDocument));
                     }
                 }
                 listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));

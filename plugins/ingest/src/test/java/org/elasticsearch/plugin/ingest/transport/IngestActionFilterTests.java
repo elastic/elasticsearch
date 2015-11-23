@@ -27,7 +27,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.ingest.processor.mutate.MutateProcessor;
@@ -80,7 +80,7 @@ public class IngestActionFilterTests extends ESTestCase {
 
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(Data.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        verify(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
@@ -93,7 +93,7 @@ public class IngestActionFilterTests extends ESTestCase {
 
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(Data.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        verify(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
@@ -121,16 +121,16 @@ public class IngestActionFilterTests extends ESTestCase {
         Answer answer = new Answer() {
             @Override
             public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                Data data = (Data) invocationOnMock.getArguments()[0];
+                IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
                 PipelineExecutionService.Listener listener = (PipelineExecutionService.Listener) invocationOnMock.getArguments()[2];
-                listener.executed(data);
+                listener.executed(ingestDocument);
                 return null;
             }
         };
-        doAnswer(answer).when(executionService).execute(any(Data.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(Data.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        verify(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verify(actionFilterChain).proceed("_action", indexRequest, actionListener);
         verifyZeroInteractions(actionListener);
     }
@@ -151,10 +151,10 @@ public class IngestActionFilterTests extends ESTestCase {
                 return null;
             }
         };
-        doAnswer(answer).when(executionService).execute(any(Data.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(Data.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        verify(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verify(actionListener).onFailure(exception);
         verifyZeroInteractions(actionFilterChain);
     }

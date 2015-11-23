@@ -26,7 +26,7 @@ import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.*;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.Processor;
 
 import java.io.IOException;
@@ -60,8 +60,8 @@ public final class GeoIpProcessor implements Processor {
     }
 
     @Override
-    public void execute(Data data) {
-        String ip = data.getPropertyValue(sourceField, String.class);
+    public void execute(IngestDocument ingestDocument) {
+        String ip = ingestDocument.getPropertyValue(sourceField, String.class);
         final InetAddress ipAddress;
         try {
             ipAddress = InetAddress.getByName(ip);
@@ -88,7 +88,7 @@ public final class GeoIpProcessor implements Processor {
             default:
                 throw new IllegalStateException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType() + "]");
         }
-        data.setPropertyValue(targetField, geoData);
+        ingestDocument.setPropertyValue(targetField, geoData);
     }
 
     @Override

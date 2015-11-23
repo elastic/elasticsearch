@@ -21,7 +21,7 @@ package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
         List<SimulateDocumentResult> results = new ArrayList<>(numResults);
         for (int i = 0; i < numResults; i++) {
             boolean isFailure = randomBoolean();
-            Data data = new Data(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
+            IngestDocument ingestDocument = new IngestDocument(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
                     Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
             if (isVerbose) {
                 int numProcessors = randomIntBetween(1, 10);
@@ -53,18 +53,18 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                     if (isFailure) {
                         processorResult = new SimulateProcessorResult(processorId, new IllegalArgumentException("test"));
                     } else {
-                        processorResult = new SimulateProcessorResult(processorId, data);
+                        processorResult = new SimulateProcessorResult(processorId, ingestDocument);
                     }
                     processorResults.add(processorResult);
                 }
                 results.add(new SimulateDocumentVerboseResult(processorResults));
             } else {
-                results.add(new SimulateDocumentSimpleResult(data));
+                results.add(new SimulateDocumentSimpleResult(ingestDocument));
                 SimulateDocumentSimpleResult simulateDocumentSimpleResult;
                 if (isFailure) {
                     simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(new IllegalArgumentException("test"));
                 } else {
-                    simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(data);
+                    simulateDocumentSimpleResult = new SimulateDocumentSimpleResult(ingestDocument);
                 }
                 results.add(simulateDocumentSimpleResult);
             }

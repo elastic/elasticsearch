@@ -20,7 +20,7 @@
 package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
@@ -59,25 +59,25 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
     public void testExecute_pipelineDoesNotExist() {
         when(store.get("_id")).thenReturn(null);
-        Data data = new Data("_index", "_type", "_id", Collections.emptyMap());
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", Collections.emptyMap());
         PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
-        executionService.execute(data, "_id", listener);
+        executionService.execute(ingestDocument, "_id", listener);
         verify(listener).failed(any(IllegalArgumentException.class));
-        verify(listener, times(0)).executed(data);
+        verify(listener, times(0)).executed(ingestDocument);
     }
 
     public void testExecute_success() throws Exception {
         Processor processor = mock(Processor.class);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(processor)));
 
-        Data data = new Data("_index", "_type", "_id", Collections.emptyMap());
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", Collections.emptyMap());
         PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
-        executionService.execute(data, "_id", listener);
+        executionService.execute(ingestDocument, "_id", listener);
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                verify(processor).execute(data);
-                verify(listener).executed(data);
+                verify(processor).execute(ingestDocument);
+                verify(listener).executed(ingestDocument);
                 verify(listener, times(0)).failed(any(Exception.class));
             }
         });
@@ -86,15 +86,15 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     public void testExecute_failure() throws Exception {
         Processor processor = mock(Processor.class);
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(processor)));
-        Data data = new Data("_index", "_type", "_id", Collections.emptyMap());
-        doThrow(new RuntimeException()).when(processor).execute(data);
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", Collections.emptyMap());
+        doThrow(new RuntimeException()).when(processor).execute(ingestDocument);
         PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
-        executionService.execute(data, "_id", listener);
+        executionService.execute(ingestDocument, "_id", listener);
         assertBusy(new Runnable() {
             @Override
             public void run() {
-                verify(processor).execute(data);
-                verify(listener, times(0)).executed(data);
+                verify(processor).execute(ingestDocument);
+                verify(listener, times(0)).executed(ingestDocument);
                 verify(listener).failed(any(RuntimeException.class));
             }
         });

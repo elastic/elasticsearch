@@ -30,7 +30,7 @@ import static org.hamcrest.Matchers.*;
 
 public class DataTests extends ESTestCase {
 
-    private Data data;
+    private IngestDocument ingestDocument;
 
     @Before
     public void setData() {
@@ -41,28 +41,28 @@ public class DataTests extends ESTestCase {
         innerObject.put("buzz", "hello world");
         innerObject.put("foo_null", null);
         document.put("fizz", innerObject);
-        data = new Data("index", "type", "id", document);
+        ingestDocument = new IngestDocument("index", "type", "id", document);
     }
 
     public void testSimpleGetPropertyValue() {
-        assertThat(data.getPropertyValue("foo", String.class), equalTo("bar"));
-        assertThat(data.getPropertyValue("int", Integer.class), equalTo(123));
+        assertThat(ingestDocument.getPropertyValue("foo", String.class), equalTo("bar"));
+        assertThat(ingestDocument.getPropertyValue("int", Integer.class), equalTo(123));
     }
 
     public void testGetPropertyValueNullValue() {
-        assertThat(data.getPropertyValue("fizz.foo_null", Object.class), nullValue());
+        assertThat(ingestDocument.getPropertyValue("fizz.foo_null", Object.class), nullValue());
     }
 
     public void testSimpleGetPropertyValueTypeMismatch() {
         try {
-            data.getPropertyValue("int", String.class);
+            ingestDocument.getPropertyValue("int", String.class);
             fail("getProperty should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
         }
 
         try {
-            data.getPropertyValue("foo", Integer.class);
+            ingestDocument.getPropertyValue("foo", Integer.class);
             fail("getProperty should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));
@@ -70,67 +70,67 @@ public class DataTests extends ESTestCase {
     }
 
     public void testNestedGetPropertyValue() {
-        assertThat(data.getPropertyValue("fizz.buzz", String.class), equalTo("hello world"));
+        assertThat(ingestDocument.getPropertyValue("fizz.buzz", String.class), equalTo("hello world"));
     }
 
     public void testGetPropertyValueNotFound() {
-        assertThat(data.getPropertyValue("not.here", String.class), nullValue());
+        assertThat(ingestDocument.getPropertyValue("not.here", String.class), nullValue());
     }
 
     public void testGetPropertyValueNull() {
-        assertNull(data.getPropertyValue(null, String.class));
+        assertNull(ingestDocument.getPropertyValue(null, String.class));
     }
 
     public void testGetPropertyValueEmpty() {
-        assertNull(data.getPropertyValue("", String.class));
+        assertNull(ingestDocument.getPropertyValue("", String.class));
     }
 
     public void testHasProperty() {
-        assertTrue(data.hasPropertyValue("fizz"));
+        assertTrue(ingestDocument.hasPropertyValue("fizz"));
     }
 
     public void testHasPropertyValueNested() {
-        assertTrue(data.hasPropertyValue("fizz.buzz"));
+        assertTrue(ingestDocument.hasPropertyValue("fizz.buzz"));
     }
 
     public void testHasPropertyValueNotFound() {
-        assertFalse(data.hasPropertyValue("doesnotexist"));
+        assertFalse(ingestDocument.hasPropertyValue("doesnotexist"));
     }
 
     public void testHasPropertyValueNestedNotFound() {
-        assertFalse(data.hasPropertyValue("fizz.doesnotexist"));
+        assertFalse(ingestDocument.hasPropertyValue("fizz.doesnotexist"));
     }
 
     public void testHasPropertyValueNull() {
-        assertFalse(data.hasPropertyValue(null));
+        assertFalse(ingestDocument.hasPropertyValue(null));
     }
 
     public void testHasPropertyValueNullValue() {
-        assertTrue(data.hasPropertyValue("fizz.foo_null"));
+        assertTrue(ingestDocument.hasPropertyValue("fizz.foo_null"));
     }
 
     public void testHasPropertyValueEmpty() {
-        assertFalse(data.hasPropertyValue(""));
+        assertFalse(ingestDocument.hasPropertyValue(""));
     }
 
     public void testSimpleSetPropertyValue() {
-        data.setPropertyValue("new_field", "foo");
-        assertThat(data.getDocument().get("new_field"), equalTo("foo"));
-        assertThat(data.isModified(), equalTo(true));
+        ingestDocument.setPropertyValue("new_field", "foo");
+        assertThat(ingestDocument.getSource().get("new_field"), equalTo("foo"));
+        assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
     public void testSetPropertyValueNullValue() {
-        data.setPropertyValue("new_field", null);
-        assertThat(data.getDocument().containsKey("new_field"), equalTo(true));
-        assertThat(data.getDocument().get("new_field"), nullValue());
-        assertThat(data.isModified(), equalTo(true));
+        ingestDocument.setPropertyValue("new_field", null);
+        assertThat(ingestDocument.getSource().containsKey("new_field"), equalTo(true));
+        assertThat(ingestDocument.getSource().get("new_field"), nullValue());
+        assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
     @SuppressWarnings("unchecked")
     public void testNestedSetPropertyValue() {
-        data.setPropertyValue("a.b.c.d", "foo");
-        assertThat(data.getDocument().get("a"), instanceOf(Map.class));
-        Map<String, Object> a = (Map<String, Object>) data.getDocument().get("a");
+        ingestDocument.setPropertyValue("a.b.c.d", "foo");
+        assertThat(ingestDocument.getSource().get("a"), instanceOf(Map.class));
+        Map<String, Object> a = (Map<String, Object>) ingestDocument.getSource().get("a");
         assertThat(a.get("b"), instanceOf(Map.class));
         Map<String, Object> b = (Map<String, Object>) a.get("b");
         assertThat(b.get("c"), instanceOf(Map.class));
@@ -138,110 +138,110 @@ public class DataTests extends ESTestCase {
         assertThat(c.get("d"), instanceOf(String.class));
         String d = (String) c.get("d");
         assertThat(d, equalTo("foo"));
-        assertThat(data.isModified(), equalTo(true));
+        assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
     public void testSetPropertyValueOnExistingField() {
-        data.setPropertyValue("foo", "newbar");
-        assertThat(data.getDocument().get("foo"), equalTo("newbar"));
+        ingestDocument.setPropertyValue("foo", "newbar");
+        assertThat(ingestDocument.getSource().get("foo"), equalTo("newbar"));
     }
 
     @SuppressWarnings("unchecked")
     public void testSetPropertyValueOnExistingParent() {
-        data.setPropertyValue("fizz.new", "bar");
-        assertThat(data.getDocument().get("fizz"), instanceOf(Map.class));
-        Map<String, Object> innerMap = (Map<String, Object>) data.getDocument().get("fizz");
+        ingestDocument.setPropertyValue("fizz.new", "bar");
+        assertThat(ingestDocument.getSource().get("fizz"), instanceOf(Map.class));
+        Map<String, Object> innerMap = (Map<String, Object>) ingestDocument.getSource().get("fizz");
         assertThat(innerMap.get("new"), instanceOf(String.class));
         String value = (String) innerMap.get("new");
         assertThat(value, equalTo("bar"));
-        assertThat(data.isModified(), equalTo(true));
+        assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
     public void testSetPropertyValueOnExistingParentTypeMismatch() {
         try {
-            data.setPropertyValue("fizz.buzz.new", "bar");
+            ingestDocument.setPropertyValue("fizz.buzz.new", "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to parent [buzz] of type [java.lang.String], [java.util.Map] expected instead."));
-            assertThat(data.isModified(), equalTo(false));
+            assertThat(ingestDocument.isModified(), equalTo(false));
         }
     }
 
     public void testSetPropertyValueOnExistingNullParent() {
         try {
-            data.setPropertyValue("fizz.foo_null.test", "bar");
+            ingestDocument.setPropertyValue("fizz.foo_null.test", "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to null parent, [java.util.Map] expected instead."));
-            assertThat(data.isModified(), equalTo(false));
+            assertThat(ingestDocument.isModified(), equalTo(false));
         }
     }
 
     public void testSetPropertyValueNullName() {
         try {
-            data.setPropertyValue(null, "bar");
+            ingestDocument.setPropertyValue(null, "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
-            assertThat(data.isModified(), equalTo(false));
+            assertThat(ingestDocument.isModified(), equalTo(false));
         }
     }
 
     public void testSetPropertyValueEmptyName() {
         try {
-            data.setPropertyValue("", "bar");
+            ingestDocument.setPropertyValue("", "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
-            assertThat(data.isModified(), equalTo(false));
+            assertThat(ingestDocument.isModified(), equalTo(false));
         }
     }
 
     public void testRemoveProperty() {
-        data.removeProperty("foo");
-        assertThat(data.isModified(), equalTo(true));
-        assertThat(data.getDocument().size(), equalTo(2));
-        assertThat(data.getDocument().containsKey("foo"), equalTo(false));
+        ingestDocument.removeProperty("foo");
+        assertThat(ingestDocument.isModified(), equalTo(true));
+        assertThat(ingestDocument.getSource().size(), equalTo(2));
+        assertThat(ingestDocument.getSource().containsKey("foo"), equalTo(false));
     }
 
     public void testRemoveInnerProperty() {
-        data.removeProperty("fizz.buzz");
-        assertThat(data.getDocument().size(), equalTo(3));
-        assertThat(data.getDocument().get("fizz"), instanceOf(Map.class));
+        ingestDocument.removeProperty("fizz.buzz");
+        assertThat(ingestDocument.getSource().size(), equalTo(3));
+        assertThat(ingestDocument.getSource().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
-        Map<String, Object> map = (Map<String, Object>)data.getDocument().get("fizz");
+        Map<String, Object> map = (Map<String, Object>) ingestDocument.getSource().get("fizz");
         assertThat(map.size(), equalTo(1));
         assertThat(map.containsKey("buzz"), equalTo(false));
 
-        data.removeProperty("fizz.foo_null");
+        ingestDocument.removeProperty("fizz.foo_null");
         assertThat(map.size(), equalTo(0));
-        assertThat(data.getDocument().size(), equalTo(3));
-        assertThat(data.getDocument().containsKey("fizz"), equalTo(true));
-        assertThat(data.isModified(), equalTo(true));
+        assertThat(ingestDocument.getSource().size(), equalTo(3));
+        assertThat(ingestDocument.getSource().containsKey("fizz"), equalTo(true));
+        assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
     public void testRemoveNonExistingProperty() {
-        data.removeProperty("does_not_exist");
-        assertThat(data.isModified(), equalTo(false));
-        assertThat(data.getDocument().size(), equalTo(3));
+        ingestDocument.removeProperty("does_not_exist");
+        assertThat(ingestDocument.isModified(), equalTo(false));
+        assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
     public void testRemoveExistingParentTypeMismatch() {
-        data.removeProperty("foo.test");
-        assertThat(data.isModified(), equalTo(false));
-        assertThat(data.getDocument().size(), equalTo(3));
+        ingestDocument.removeProperty("foo.test");
+        assertThat(ingestDocument.isModified(), equalTo(false));
+        assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
     public void testRemoveNullProperty() {
-        data.removeProperty(null);
-        assertThat(data.isModified(), equalTo(false));
-        assertThat(data.getDocument().size(), equalTo(3));
+        ingestDocument.removeProperty(null);
+        assertThat(ingestDocument.isModified(), equalTo(false));
+        assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
     public void testRemoveEmptyProperty() {
-        data.removeProperty("");
-        assertThat(data.isModified(), equalTo(false));
-        assertThat(data.getDocument().size(), equalTo(3));
+        ingestDocument.removeProperty("");
+        assertThat(ingestDocument.isModified(), equalTo(false));
+        assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
     public void testEqualsAndHashcode() throws Exception {
@@ -250,7 +250,7 @@ public class DataTests extends ESTestCase {
         String id = randomAsciiOfLengthBetween(1, 10);
         String fieldName = randomAsciiOfLengthBetween(1, 10);
         String fieldValue = randomAsciiOfLengthBetween(1, 10);
-        Data data = new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue));
+        IngestDocument ingestDocument = new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue));
 
         boolean changed = false;
         String otherIndex;
@@ -282,16 +282,16 @@ public class DataTests extends ESTestCase {
             document = Collections.singletonMap(fieldName, fieldValue);
         }
 
-        Data otherData = new Data(otherIndex, otherType, otherId, document);
+        IngestDocument otherIngestDocument = new IngestDocument(otherIndex, otherType, otherId, document);
         if (changed) {
-            assertThat(data, not(equalTo(otherData)));
-            assertThat(otherData, not(equalTo(data)));
+            assertThat(ingestDocument, not(equalTo(otherIngestDocument)));
+            assertThat(otherIngestDocument, not(equalTo(ingestDocument)));
         } else {
-            assertThat(data, equalTo(otherData));
-            assertThat(otherData, equalTo(data));
-            Data thirdData = new Data(index, type, id, Collections.singletonMap(fieldName, fieldValue));
-            assertThat(thirdData, equalTo(data));
-            assertThat(data, equalTo(thirdData));
+            assertThat(ingestDocument, equalTo(otherIngestDocument));
+            assertThat(otherIngestDocument, equalTo(ingestDocument));
+            IngestDocument thirdIngestDocument = new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue));
+            assertThat(thirdIngestDocument, equalTo(ingestDocument));
+            assertThat(ingestDocument, equalTo(thirdIngestDocument));
         }
     }
 }

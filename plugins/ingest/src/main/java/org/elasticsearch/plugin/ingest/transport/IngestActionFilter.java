@@ -29,7 +29,7 @@ import org.elasticsearch.action.support.ActionFilterChain;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.plugin.ingest.IngestPlugin;
 import org.elasticsearch.plugin.ingest.PipelineExecutionService;
 
@@ -82,12 +82,12 @@ public class IngestActionFilter extends AbstractComponent implements ActionFilte
         }
 
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        Data data = new Data(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
-        executionService.execute(data, pipelineId, new PipelineExecutionService.Listener() {
+        IngestDocument ingestDocument = new IngestDocument(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
+        executionService.execute(ingestDocument, pipelineId, new PipelineExecutionService.Listener() {
             @Override
-            public void executed(Data data) {
-                if (data.isModified()) {
-                    indexRequest.source(data.getDocument());
+            public void executed(IngestDocument ingestDocument) {
+                if (ingestDocument.isModified()) {
+                    indexRequest.source(ingestDocument.getSource());
                 }
                 indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
                 chain.proceed(action, indexRequest, listener);
@@ -115,12 +115,12 @@ public class IngestActionFilter extends AbstractComponent implements ActionFilte
 
         IndexRequest indexRequest = (IndexRequest) actionRequest;
         Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        Data data = new Data(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
-        executionService.execute(data, pipelineId, new PipelineExecutionService.Listener() {
+        IngestDocument ingestDocument = new IngestDocument(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
+        executionService.execute(ingestDocument, pipelineId, new PipelineExecutionService.Listener() {
             @Override
-            public void executed(Data data) {
-                if (data.isModified()) {
-                    indexRequest.source(data.getDocument());
+            public void executed(IngestDocument ingestDocument) {
+                if (ingestDocument.isModified()) {
+                    indexRequest.source(ingestDocument.getSource());
                 }
                 processBulkIndexRequest(action, listener, chain, bulkRequest, pipelineId, requests);
             }

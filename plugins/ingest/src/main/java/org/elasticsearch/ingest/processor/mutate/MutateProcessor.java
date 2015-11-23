@@ -20,7 +20,7 @@
 package org.elasticsearch.ingest.processor.mutate;
 
 import org.elasticsearch.common.Booleans;
-import org.elasticsearch.ingest.Data;
+import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
@@ -101,36 +101,36 @@ public final class MutateProcessor implements Processor {
     }
 
     @Override
-    public void execute(Data data) {
+    public void execute(IngestDocument ingestDocument) {
         if (update != null) {
-            doUpdate(data);
+            doUpdate(ingestDocument);
         }
         if (rename != null) {
-            doRename(data);
+            doRename(ingestDocument);
         }
         if (convert != null) {
-            doConvert(data);
+            doConvert(ingestDocument);
         }
         if (split != null) {
-            doSplit(data);
+            doSplit(ingestDocument);
         }
         if (gsub != null) {
-            doGsub(data);
+            doGsub(ingestDocument);
         }
         if (join != null) {
-            doJoin(data);
+            doJoin(ingestDocument);
         }
         if (remove != null) {
-            doRemove(data);
+            doRemove(ingestDocument);
         }
         if (trim != null) {
-            doTrim(data);
+            doTrim(ingestDocument);
         }
         if (uppercase != null) {
-            doUppercase(data);
+            doUppercase(ingestDocument);
         }
         if (lowercase != null) {
-            doLowercase(data);
+            doLowercase(ingestDocument);
         }
     }
 
@@ -139,18 +139,18 @@ public final class MutateProcessor implements Processor {
         return TYPE;
     }
 
-    private void doUpdate(Data data) {
+    private void doUpdate(IngestDocument ingestDocument) {
         for(Map.Entry<String, Object> entry : update.entrySet()) {
-            data.setPropertyValue(entry.getKey(), entry.getValue());
+            ingestDocument.setPropertyValue(entry.getKey(), entry.getValue());
         }
     }
 
-    private void doRename(Data data) {
+    private void doRename(IngestDocument ingestDocument) {
         for(Map.Entry<String, String> entry : rename.entrySet()) {
-            if (data.hasPropertyValue(entry.getKey())) {
-                Object oldVal = data.getPropertyValue(entry.getKey(), Object.class);
-                data.getDocument().remove(entry.getKey());
-                data.setPropertyValue(entry.getValue(), oldVal);
+            if (ingestDocument.hasPropertyValue(entry.getKey())) {
+                Object oldVal = ingestDocument.getPropertyValue(entry.getKey(), Object.class);
+                ingestDocument.getSource().remove(entry.getKey());
+                ingestDocument.setPropertyValue(entry.getValue(), oldVal);
             }
         }
     }
@@ -175,11 +175,11 @@ public final class MutateProcessor implements Processor {
     }
 
     @SuppressWarnings("unchecked")
-    private void doConvert(Data data) {
+    private void doConvert(IngestDocument ingestDocument) {
         for(Map.Entry<String, String> entry : convert.entrySet()) {
             String toType = entry.getValue();
 
-            Object oldVal = data.getPropertyValue(entry.getKey(), Object.class);
+            Object oldVal = ingestDocument.getPropertyValue(entry.getKey(), Object.class);
             Object newVal;
 
             if (oldVal instanceof List) {
@@ -194,91 +194,91 @@ public final class MutateProcessor implements Processor {
                 newVal = parseValueAsType(oldVal, toType);
             }
 
-            data.setPropertyValue(entry.getKey(), newVal);
+            ingestDocument.setPropertyValue(entry.getKey(), newVal);
         }
     }
 
-    private void doSplit(Data data) {
+    private void doSplit(IngestDocument ingestDocument) {
         for(Map.Entry<String, String> entry : split.entrySet()) {
-            Object oldVal = data.getPropertyValue(entry.getKey(), Object.class);
+            Object oldVal = ingestDocument.getPropertyValue(entry.getKey(), Object.class);
             if (oldVal == null) {
                 throw new IllegalArgumentException("Cannot split field. [" + entry.getKey() + "] is null.");
             } else if (oldVal instanceof String) {
-                data.setPropertyValue(entry.getKey(), Arrays.asList(((String) oldVal).split(entry.getValue())));
+                ingestDocument.setPropertyValue(entry.getKey(), Arrays.asList(((String) oldVal).split(entry.getValue())));
             } else {
                 throw new IllegalArgumentException("Cannot split a field that is not a String type");
             }
         }
     }
 
-    private void doGsub(Data data) {
+    private void doGsub(IngestDocument ingestDocument) {
         for (GsubExpression gsubExpression : gsub) {
-            String oldVal = data.getPropertyValue(gsubExpression.getFieldName(), String.class);
+            String oldVal = ingestDocument.getPropertyValue(gsubExpression.getFieldName(), String.class);
             if (oldVal == null) {
                 throw new IllegalArgumentException("Field \"" + gsubExpression.getFieldName() + "\" is null, cannot match pattern.");
             }
             Matcher matcher = gsubExpression.getPattern().matcher(oldVal);
             String newVal = matcher.replaceAll(gsubExpression.getReplacement());
-            data.setPropertyValue(gsubExpression.getFieldName(), newVal);
+            ingestDocument.setPropertyValue(gsubExpression.getFieldName(), newVal);
         }
     }
 
     @SuppressWarnings("unchecked")
-    private void doJoin(Data data) {
+    private void doJoin(IngestDocument ingestDocument) {
         for(Map.Entry<String, String> entry : join.entrySet()) {
-            Object oldVal = data.getPropertyValue(entry.getKey(), Object.class);
+            Object oldVal = ingestDocument.getPropertyValue(entry.getKey(), Object.class);
             if (oldVal instanceof List) {
                 String joined = (String) ((List) oldVal)
                         .stream()
                         .map(Object::toString)
                         .collect(Collectors.joining(entry.getValue()));
 
-                data.setPropertyValue(entry.getKey(), joined);
+                ingestDocument.setPropertyValue(entry.getKey(), joined);
             } else {
                 throw new IllegalArgumentException("Cannot join field:" + entry.getKey() + " with type: " + oldVal.getClass());
             }
         }
     }
 
-    private void doRemove(Data data) {
+    private void doRemove(IngestDocument ingestDocument) {
         for(String field : remove) {
-            data.getDocument().remove(field);
+            ingestDocument.getSource().remove(field);
         }
     }
 
-    private void doTrim(Data data) {
+    private void doTrim(IngestDocument ingestDocument) {
         for(String field : trim) {
-            Object val = data.getPropertyValue(field, Object.class);
+            Object val = ingestDocument.getPropertyValue(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot trim field. [" + field + "] is null.");
             } else if (val instanceof String) {
-                data.setPropertyValue(field, ((String) val).trim());
+                ingestDocument.setPropertyValue(field, ((String) val).trim());
             } else {
                 throw new IllegalArgumentException("Cannot trim field:" + field + " with type: " + val.getClass());
             }
         }
     }
 
-    private void doUppercase(Data data) {
+    private void doUppercase(IngestDocument ingestDocument) {
         for(String field : uppercase) {
-            Object val = data.getPropertyValue(field, Object.class);
+            Object val = ingestDocument.getPropertyValue(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot uppercase field. [" + field + "] is null.");
             } else if (val instanceof String) {
-                data.setPropertyValue(field, ((String) val).toUpperCase(Locale.ROOT));
+                ingestDocument.setPropertyValue(field, ((String) val).toUpperCase(Locale.ROOT));
             } else {
                 throw new IllegalArgumentException("Cannot uppercase field:" + field + " with type: " + val.getClass());
             }
         }
     }
 
-    private void doLowercase(Data data) {
+    private void doLowercase(IngestDocument ingestDocument) {
         for(String field : lowercase) {
-            Object val = data.getPropertyValue(field, Object.class);
+            Object val = ingestDocument.getPropertyValue(field, Object.class);
             if (val == null) {
                 throw new IllegalArgumentException("Cannot lowercase field. [" + field + "] is null.");
             } else if (val instanceof String) {
-                data.setPropertyValue(field, ((String) val).toLowerCase(Locale.ROOT));
+                ingestDocument.setPropertyValue(field, ((String) val).toLowerCase(Locale.ROOT));
             } else {
                 throw new IllegalArgumentException("Cannot lowercase field:" + field + " with type: " + val.getClass());
             }

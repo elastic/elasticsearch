@@ -71,7 +71,7 @@ public class MacAddressProvider {
         }
 
         if (!isValidAddress(address)) {
-            logger.warn("Unable to get a valid mac address, will use a dummy address");
+            logger.warn("Unable to get a valid mac address, will use a dummy address", null);
             address = constructDummyMulticastAddress();
         }
 

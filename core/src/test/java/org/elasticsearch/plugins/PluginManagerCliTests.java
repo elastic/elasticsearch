@@ -58,7 +58,7 @@ public class PluginManagerCliTests extends CliToolTestCase {
         CliToolTestCase.CaptureOutputTerminal terminal = new CliToolTestCase.CaptureOutputTerminal();
         Path tmpDir = createTempDir().resolve("foo deps");
         String finalDir = tmpDir.toAbsolutePath().toUri().toURL().toString();
-        logger.warn(finalDir);
+        logger.warn(finalDir, null);
         CliTool.ExitStatus execute = new PluginManagerCliParser(terminal).execute(args("install " + finalDir));
         assertThat(execute.status(), is(IO_ERROR.status()));
     }

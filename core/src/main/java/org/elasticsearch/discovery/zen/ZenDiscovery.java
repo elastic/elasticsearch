@@ -819,7 +819,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
         if (!currentNodes.masterNodeId().equals(newClusterState.nodes().masterNodeId())) {
-            logger.warn("received a cluster state from a different master than the current one, rejecting (received {}, current {})", newClusterState.nodes().masterNode(), currentNodes.masterNode());
+            logger.warn("received a cluster state from a different master than the current one, rejecting (received {}, current {})", null, newClusterState.nodes().masterNode(), currentNodes.masterNode());
             throw new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + newClusterState.nodes().masterNode() + ", current " + currentNodes.masterNode() + ")");
         }
     }
@@ -828,7 +828,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         if (!transportService.addressSupported(node.address().getClass())) {
             // TODO, what should we do now? Maybe inform that node that its crap?
-            logger.warn("received a wrong address type from [{}], ignoring...", node);
+            logger.warn("received a wrong address type from [{}], ignoring...", null, node);
         } else if (nodeJoinController == null) {
             throw new IllegalStateException("discovery module is not yet started");
         } else {
@@ -955,7 +955,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         // *** called from within an cluster state update task *** //
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
 
-        logger.warn(reason + ", current nodes: {}", clusterState.nodes());
+        logger.warn(reason + ", current nodes: {}", null, clusterState.nodes());
         nodesFD.stop();
         masterFD.stop(reason);
 
@@ -988,7 +988,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         if (otherClusterStateVersion > localClusterState.version()) {
             return rejoin(localClusterState, "zen-disco-discovered another master with a new cluster_state [" + otherMaster + "][" + reason + "]");
         } else {
-            logger.warn("discovered [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster ([{}])", otherMaster, otherMaster, reason);
+            logger.warn("discovered [{}] which is also master but with an older cluster_state, telling [{}] to rejoin the cluster ([{}])", null, otherMaster, otherMaster, reason);
             try {
                 // make sure we're connected to this node (connect to node does nothing if we're already connected)
                 // since the network connections are asymmetric, it may be that we received a state but have disconnected from the node

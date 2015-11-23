@@ -216,7 +216,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
-                logger.warn("Illegal state, should not have an empty cluster group when stopping, I should be there at teh very least...");
+                logger.warn("Illegal state, should not have an empty cluster group when stopping, I should be there at teh very least...", null);
                 return;
             }
             clusterGroup.members().remove(this);
@@ -257,7 +257,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         DiscoveryNodes newNodes = currentState.nodes().removeDeadMembers(newMembers, master.localNode.id());
                         DiscoveryNodes.Delta delta = newNodes.delta(currentState.nodes());
                         if (delta.added()) {
-                            logger.warn("No new nodes should be created when a new discovery view is accepted");
+                            logger.warn("No new nodes should be created when a new discovery view is accepted", null);
                         }
                         // reroute here, so we eagerly remove dead nodes from the routing
                         ClusterState updatedState = ClusterState.builder(currentState).nodes(newNodes).build();
@@ -433,7 +433,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                         DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
                         // everyone may have just responded
                         if (pendingNodes.length > 0) {
-                            logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", clusterState.version(), publishTimeout, pendingNodes);
+                            logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", null, clusterState.version(), publishTimeout, pendingNodes);
                         }
                     }
                 } catch (InterruptedException e) {

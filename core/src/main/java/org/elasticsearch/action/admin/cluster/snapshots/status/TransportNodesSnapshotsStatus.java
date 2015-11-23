@@ -96,8 +96,10 @@ public class TransportNodesSnapshotsStatus extends TransportNodesAction<Transpor
                 nodesList.add((NodeSnapshotStatus) resp);
             } else if (resp instanceof FailedNodeException) {
                 failures.add((FailedNodeException) resp);
+            } else if (resp instanceof Throwable) {
+                logger.warn("unknown response type, expected NodeSnapshotStatus or FailedNodeException", (Throwable) resp);
             } else {
-                logger.warn("unknown response type [{}], expected NodeSnapshotStatus or FailedNodeException", resp);
+                logger.warn("unknown response type [{}], expected NodeSnapshotStatus or FailedNodeException", null, resp);
             }
         }
         return new NodesSnapshotStatus(clusterName, nodesList.toArray(new NodeSnapshotStatus[nodesList.size()]),

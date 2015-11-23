@@ -71,16 +71,16 @@ public class FsRepository extends BlobStoreRepository {
         Path locationFile;
         String location = repositorySettings.settings().get("location", settings.get("repositories.fs.location"));
         if (location == null) {
-            logger.warn("the repository location is missing, it should point to a shared file system location that is available on all master and data nodes");
+            logger.warn("the repository location is missing, it should point to a shared file system location that is available on all master and data nodes", null);
             throw new RepositoryException(name.name(), "missing location");
         }
         locationFile = environment.resolveRepoFile(location);
         if (locationFile == null) {
             if (environment.repoFiles().length > 0) {
-                logger.warn("The specified location [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] ", location, environment.repoFiles());
+                logger.warn("The specified location [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] ", null, location, environment.repoFiles());
                 throw new RepositoryException(name.name(), "location [" + location + "] doesn't match any of the locations specified by path.repo");
             } else {
-                logger.warn("The specified location [{}] should start with a repository path specified by the path.repo setting, but the path.repo setting was not set on this node", location);
+                logger.warn("The specified location [{}] should start with a repository path specified by the path.repo setting, but the path.repo setting was not set on this node", null, location);
                 throw new RepositoryException(name.name(), "location [" + location + "] doesn't match any of the locations specified by path.repo because this setting is empty");
             }
         }

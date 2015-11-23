@@ -431,7 +431,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                         generation = currentGen;
                     }
                 } catch (NumberFormatException e) {
-                    logger.warn("file [{}] does not conform to the '{}' schema", name, DATA_BLOB_PREFIX);
+                    logger.warn("file [{}] does not conform to the '{}' schema", e, name, DATA_BLOB_PREFIX);
                 }
             }
             return generation;
@@ -453,7 +453,7 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                             latest = gen;
                         }
                     } catch (NumberFormatException ex) {
-                        logger.warn("failed to parse index file name [{}]", name);
+                        logger.warn("failed to parse index file name [{}]", ex, name);
                     }
                 }
             }
@@ -890,11 +890,11 @@ public class BlobStoreIndexShardRepository extends AbstractComponent implements 
                             store.deleteQuiet("restore", storeFile);
                             store.directory().deleteFile(storeFile);
                         } catch (IOException e) {
-                            logger.warn("[{}] failed to delete file [{}] during snapshot cleanup", snapshotId, storeFile);
+                            logger.warn("[{}] failed to delete file [{}] during snapshot cleanup", e, snapshotId, storeFile);
                         }
                     }
                 } catch (IOException e) {
-                    logger.warn("[{}] failed to list directory - some of files might not be deleted", snapshotId);
+                    logger.warn("[{}] failed to list directory - some of files might not be deleted", e, snapshotId);
                 }
             } finally {
                 store.decRef();

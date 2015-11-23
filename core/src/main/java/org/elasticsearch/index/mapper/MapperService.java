@@ -236,7 +236,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                     throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
                 } else {
-                    logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
+                    logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", null, mapper.type());
                 }
             }
             // we can add new field/object mappers while the old ones are there

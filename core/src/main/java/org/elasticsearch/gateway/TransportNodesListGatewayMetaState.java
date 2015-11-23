@@ -99,7 +99,7 @@ public class TransportNodesListGatewayMetaState extends TransportNodesAction<Tra
             } else if (resp instanceof FailedNodeException) {
                 failures.add((FailedNodeException) resp);
             } else {
-                logger.warn("unknown response type [{}], expected NodeLocalGatewayMetaState or FailedNodeException", resp);
+                logger.warn("unknown response type [{}], expected NodeLocalGatewayMetaState or FailedNodeException", null, resp);
             }
         }
         return new NodesGatewayMetaState(clusterName, nodesList.toArray(new NodeGatewayMetaState[nodesList.size()]),

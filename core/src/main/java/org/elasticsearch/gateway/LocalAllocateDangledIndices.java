@@ -136,7 +136,7 @@ public class LocalAllocateDangledIndices extends AbstractComponent {
                         }
                         if (currentState.metaData().hasAlias(indexMetaData.getIndex())) {
                             logger.warn("ignoring dangled index [{}] on node [{}] due to an existing alias with the same name",
-                                    indexMetaData.getIndex(), request.fromNode);
+                                    null, indexMetaData.getIndex(), request.fromNode);
                             continue;
                         }
                         importNeeded = true;

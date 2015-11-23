@@ -163,7 +163,7 @@ public class Gateway extends AbstractComponent implements ClusterStateListener {
                 requiredAllocation = Integer.parseInt(setting);
             }
         } catch (Exception e) {
-            logger.warn("failed to derived initial_meta from value {}", setting);
+            logger.warn("failed to derived initial_meta from value {}", e, setting);
         }
         return requiredAllocation;
     }

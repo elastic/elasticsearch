@@ -921,9 +921,9 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
 
         if (searchResponse.getFailedShards() > 0) {
-            logger.warn("Failed shards:");
+            logger.warn("Failed shards:", null);
             for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+                logger.warn("-> {}", null, shardSearchFailure);
             }
         }
         assertThat(searchResponse.getFailedShards(), equalTo(0));
@@ -941,9 +941,9 @@ public class SimpleSortTests extends ESIntegTestCase {
                 .execute().actionGet();
 
         if (searchResponse.getFailedShards() > 0) {
-            logger.warn("Failed shards:");
+            logger.warn("Failed shards:", null);
             for (ShardSearchFailure shardSearchFailure : searchResponse.getShardFailures()) {
-                logger.warn("-> {}", shardSearchFailure);
+                logger.warn("-> {}", null, shardSearchFailure);
             }
         }
         assertThat(searchResponse.getFailedShards(), equalTo(0));

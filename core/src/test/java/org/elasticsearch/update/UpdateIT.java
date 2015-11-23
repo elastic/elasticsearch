@@ -1086,7 +1086,7 @@ public class UpdateIT extends ESIntegTestCase {
                                 if (hasWaitedForNoNode) {
                                     throw nne;
                                 }
-                                logger.warn("Got NoNodeException waiting for 1 second for things to recover.");
+                                logger.warn("Got NoNodeException waiting for 1 second for things to recover.", nne);
                                 hasWaitedForNoNode = true;
                                 Thread.sleep(1000);
                             }
@@ -1103,7 +1103,7 @@ public class UpdateIT extends ESIntegTestCase {
                                 if (hasWaitedForNoNode) {
                                     throw nne;
                                 }
-                                logger.warn("Got NoNodeException waiting for 1 second for things to recover.");
+                                logger.warn("Got NoNodeException waiting for 1 second for things to recover.", nne);
                                 hasWaitedForNoNode = true;
                                 Thread.sleep(1000); //Wait for no-node to clear
                             }
@@ -1193,7 +1193,7 @@ public class UpdateIT extends ESIntegTestCase {
                     }
                 }
                 expectedVersion -= totalFailures;
-                logger.error("Actual version [{}] Expected version [{}] Total failures [{}]", response.getVersion(), expectedVersion, totalFailures);
+                logger.error("Actual version [{}] Expected version [{}] Total failures [{}]", null, response.getVersion(), expectedVersion, totalFailures);
                 assertThat(response.getVersion(), equalTo((long) expectedVersion));
                 assertThat(response.getVersion() + totalFailures,
                         equalTo(

@@ -89,7 +89,7 @@ public final class SearchSlowLog{
 
     void onQueryPhase(SearchContext context, long tookInNanos) {
         if (queryWarnThreshold >= 0 && tookInNanos > queryWarnThreshold) {
-            queryLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            queryLogger.warn("{}", null, new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
         } else if (queryInfoThreshold >= 0 && tookInNanos > queryInfoThreshold) {
             queryLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
         } else if (queryDebugThreshold >= 0 && tookInNanos > queryDebugThreshold) {
@@ -101,7 +101,7 @@ public final class SearchSlowLog{
 
     void onFetchPhase(SearchContext context, long tookInNanos) {
         if (fetchWarnThreshold >= 0 && tookInNanos > fetchWarnThreshold) {
-            fetchLogger.warn("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
+            fetchLogger.warn("{}", null, new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
         } else if (fetchInfoThreshold >= 0 && tookInNanos > fetchInfoThreshold) {
             fetchLogger.info("{}", new SlowLogSearchContextPrinter(context, tookInNanos, reformat));
         } else if (fetchDebugThreshold >= 0 && tookInNanos > fetchDebugThreshold) {

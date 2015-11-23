@@ -398,10 +398,10 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                                         persistentSettings.put(entry.getKey(), entry.getValue());
                                         changed = true;
                                     } else {
-                                        logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
+                                        logger.warn("ignoring persistent setting [{}], [{}]", null, entry.getKey(), error);
                                     }
                                 } else {
-                                    logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
+                                    logger.warn("ignoring persistent setting [{}], not dynamically updateable", null, entry.getKey());
                                 }
                             }
                             if (changed) {

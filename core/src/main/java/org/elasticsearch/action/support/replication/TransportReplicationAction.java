@@ -296,7 +296,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 try {
                     failReplicaIfNeeded(request.internalShardId.getIndex(), request.internalShardId.id(), t);
                 } catch (Throwable unexpected) {
-                    logger.error("{} unexpected error while failing replica", request.internalShardId.id(), unexpected);
+                    logger.error("{} unexpected error while failing replica", unexpected, request.internalShardId.id());
                 } finally {
                     responseWithFailure(t);
                 }

@@ -468,7 +468,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
                         if (sendPingsHandler == null) {
                             if (!closed) {
                                 // Only log when we're not closing the node. Having no send ping handler is then expected
-                                logger.warn("received ping response {} with no matching handler id [{}]", pingResponse, response.id);
+                                logger.warn("received ping response {} with no matching handler id [{}]", null, pingResponse, response.id);
                             }
                         } else {
                             sendPingsHandler.pingCollection().addPing(pingResponse);

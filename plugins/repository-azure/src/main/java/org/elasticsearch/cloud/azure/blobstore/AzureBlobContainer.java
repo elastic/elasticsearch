@@ -65,7 +65,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             return blobStore.blobExists(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}", e, blobName, blobStore.container());
         }
         return false;
     }
@@ -118,7 +118,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             blobStore.deleteBlob(blobStore.container(), buildKey(blobName));
         } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", blobName, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}", e, blobName, blobStore.container());
             throw new IOException(e);
         }
     }
@@ -129,7 +129,7 @@ public class AzureBlobContainer extends AbstractBlobContainer {
         try {
             return blobStore.listBlobsByPrefix(blobStore.container(), keyPath, prefix);
         } catch (URISyntaxException | StorageException e) {
-            logger.warn("can not access [{}] in container {{}}: {}", prefix, blobStore.container(), e.getMessage());
+            logger.warn("can not access [{}] in container {{}}", e, prefix, blobStore.container());
             throw new IOException(e);
         }
     }
@@ -144,10 +144,10 @@ public class AzureBlobContainer extends AbstractBlobContainer {
 
             blobStore.moveBlob(blobStore.container(), source, target);
         } catch (URISyntaxException e) {
-            logger.warn("can not move blob [{}] to [{}] in container {{}}: {}", sourceBlobName, targetBlobName, blobStore.container(), e.getMessage());
+            logger.warn("can not move blob [{}] to [{}] in container {{}}", e, sourceBlobName, targetBlobName, blobStore.container());
             throw new IOException(e);
         } catch (StorageException e) {
-            logger.warn("can not move blob [{}] to [{}] in container {{}}: {}", sourceBlobName, targetBlobName, blobStore.container(), e.getMessage());
+            logger.warn("can not move blob [{}] to [{}] in container {{}}", e, sourceBlobName, targetBlobName, blobStore.container());
             throw new IOException(e);
         }
     }

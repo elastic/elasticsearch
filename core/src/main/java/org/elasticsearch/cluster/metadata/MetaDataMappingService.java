@@ -243,10 +243,10 @@ public class MetaDataMappingService extends AbstractComponent {
                         continue;
                     }
 
-                    logger.warn("[{}] re-syncing mappings with cluster state for types [{}]", index, updatedTypes);
+                    logger.warn("[{}] re-syncing mappings with cluster state for types [{}]", null, index, updatedTypes);
                     dirty = true;
                 } catch (Throwable t) {
-                    logger.warn("[{}] failed to refresh-mapping in cluster state, types [{}]", index, refreshTask.types);
+                    logger.warn("[{}] failed to refresh-mapping in cluster state, types [{}]", t, index, refreshTask.types);
                 }
             } else if (task instanceof UpdateTask) {
                 UpdateTask updateTask = (UpdateTask) task;
@@ -279,10 +279,10 @@ public class MetaDataMappingService extends AbstractComponent {
                     builder.putMapping(new MappingMetaData(updatedMapper));
                     dirty = true;
                 } catch (Throwable t) {
-                    logger.warn("[{}] failed to update-mapping in cluster state, type [{}]", index, updateTask.type);
+                    logger.warn("[{}] failed to update-mapping in cluster state, type [{}]", t, index, updateTask.type);
                 }
             } else {
-                logger.warn("illegal state, got wrong mapping task type [{}]", task);
+                logger.warn("illegal state, got wrong mapping task type [{}]", null, task);
             }
         }
         return dirty;

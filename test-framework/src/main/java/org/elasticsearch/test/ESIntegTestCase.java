@@ -882,7 +882,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 sb.append("\n-> _index: [").append(hit.getIndex()).append("] type [").append(hit.getType())
                         .append("] id [").append(hit.id()).append("]");
             }
-            logger.warn(sb.toString());
+            logger.warn(sb.toString(), null);
             fail(failMsg);
         }
     }
@@ -1117,7 +1117,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                         // Compare JSON serialization
                         assertNull("clusterstate JSON serialization does not match", differenceBetweenMapsIgnoringArrayOrder(masterStateMap, localStateMap));
                     } catch (AssertionError error) {
-                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", masterClusterState.toString(), localClusterState.toString());
+                        logger.error("Cluster state from master:\n{}\nLocal cluster state:\n{}", error, masterClusterState.toString(), localClusterState.toString());
                         throw error;
                     }
                 }
@@ -1437,7 +1437,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                 // see https://github.com/elasticsearch/elasticsearch/issues/8706
                 final DeleteResponse deleteResponse = client().prepareDelete(doc.v1(), RANDOM_BOGUS_TYPE, doc.v2()).get();
                 if (deleteResponse.isFound() == false) {
-                    logger.warn("failed to delete a dummy doc [{}][{}]", doc.v1(), doc.v2());
+                    logger.warn("failed to delete a dummy doc [{}][{}]", null, doc.v1(), doc.v2());
                 }
             }
         }

@@ -138,29 +138,11 @@ public class Slf4jESLogger extends AbstractESLogger {
     }
 
     @Override
-    protected void internalWarn(String msg) {
-        if (lALogger != null) {
-            lALogger.log(null, FQCN, LocationAwareLogger.WARN_INT, msg, null, null);
-        } else {
-            logger.warn(msg);
-        }
-    }
-
-    @Override
     protected void internalWarn(String msg, Throwable cause) {
         if (lALogger != null) {
             lALogger.log(null, FQCN, LocationAwareLogger.WARN_INT, msg, null, cause);
         } else {
             logger.warn(msg);
-        }
-    }
-
-    @Override
-    protected void internalError(String msg) {
-        if (lALogger != null) {
-            lALogger.log(null, FQCN, LocationAwareLogger.ERROR_INT, msg, null, null);
-        } else {
-            logger.error(msg);
         }
     }
 

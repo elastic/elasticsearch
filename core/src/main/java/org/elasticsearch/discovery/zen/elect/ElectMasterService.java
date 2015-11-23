@@ -136,7 +136,7 @@ public class ElectMasterService extends AbstractComponent {
         DiscoveryNode masterNode = sortedNodes.get(0);
         // Sanity check: maybe we don't end up here, because serialization may have failed.
         if (masterNode.getVersion().before(minMasterVersion)) {
-            logger.warn("ignoring master [{}], because the version [{}] is lower than the minimum compatible version [{}]", masterNode, masterNode.getVersion(), minMasterVersion);
+            logger.warn("ignoring master [{}], because the version [{}] is lower than the minimum compatible version [{}]", null, masterNode, masterNode.getVersion(), minMasterVersion);
             return null;
         } else {
             return masterNode;

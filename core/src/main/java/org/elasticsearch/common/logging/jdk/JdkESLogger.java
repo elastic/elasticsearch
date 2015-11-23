@@ -132,21 +132,9 @@ public class JdkESLogger extends AbstractESLogger {
     }
 
     @Override
-    protected void internalWarn(String msg) {
-        LogRecord record = new ESLogRecord(Level.WARNING, msg);
-        logger.log(record);
-    }
-
-    @Override
     protected void internalWarn(String msg, Throwable cause) {
         LogRecord record = new ESLogRecord(Level.WARNING, msg);
         record.setThrown(cause);
-        logger.log(record);
-    }
-
-    @Override
-    protected void internalError(String msg) {
-        LogRecord record = new ESLogRecord(Level.SEVERE, msg);
         logger.log(record);
     }
 

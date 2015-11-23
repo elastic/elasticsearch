@@ -129,7 +129,7 @@ public class MemoryCircuitBreaker implements CircuitBreaker {
             }
             if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
                 logger.warn("New used memory {} [{}] from field [{}] would be larger than configured breaker: {} [{}], breaking",
-                        newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
+                        null, newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
                         memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));
                 circuitBreak(label, newUsedWithOverhead);
             }

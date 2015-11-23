@@ -68,7 +68,7 @@ public class PendingClusterStatesQueue {
         pendingStates.add(new ClusterStateContext(state));
         if (pendingStates.size() > maxQueueSize) {
             ClusterStateContext context = pendingStates.remove(0);
-            logger.warn("dropping pending state [{}]. more than [{}] pending states.", context, maxQueueSize);
+            logger.warn("dropping pending state [{}]. more than [{}] pending states.", null, context, maxQueueSize);
             if (context.committed()) {
                 context.listener.onNewClusterStateFailed(new ElasticsearchException("too many pending states ([{}] pending)", maxQueueSize));
             }
@@ -153,7 +153,7 @@ public class PendingClusterStatesQueue {
                 if (pendingContext.committed()) {
                     // this is a committed state , warn
                     logger.warn("received a cluster state (uuid[{}]/v[{}]) from a different master than the current one, rejecting (received {}, current {})",
-                            pendingState.stateUUID(), pendingState.version(),
+                            null, pendingState.stateUUID(), pendingState.version(),
                             pendingMasterNode, currentMaster);
                     pendingContext.listener.onNewClusterStateFailed(
                             new IllegalStateException("cluster state from a different master than the current one, rejecting (received " + pendingMasterNode + ", current " + currentMaster + ")")

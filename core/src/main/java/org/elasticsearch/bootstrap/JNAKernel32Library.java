@@ -54,9 +54,9 @@ final class JNAKernel32Library {
                 Native.register("kernel32");
                 logger.debug("windows/Kernel32 library loaded");
             } catch (NoClassDefFoundError e) {
-                logger.warn("JNA not found. native methods and handlers will be disabled.");
+                logger.warn("JNA not found. native methods and handlers will be disabled.", e);
             } catch (UnsatisfiedLinkError e) {
-                logger.warn("unable to link Windows/Kernel32 library. native methods and handlers will be disabled.");
+                logger.warn("unable to link Windows/Kernel32 library. native methods and handlers will be disabled.", e);
             }
         }
     }

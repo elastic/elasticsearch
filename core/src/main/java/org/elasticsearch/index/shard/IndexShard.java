@@ -346,7 +346,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         try {
             if (currentRouting != null) {
                 if (!newRouting.primary() && currentRouting.primary()) {
-                    logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode");
+                    logger.warn("suspect illegal state: trying to move shard from primary mode to replica mode", null);
                 }
                 // if its the same routing except for some metadata info, return
                 if (currentRouting.equalsIgnoringMetaData(newRouting)) {
@@ -1322,7 +1322,7 @@ public class IndexShard extends AbstractIndexShardComponent {
             }
             out.flush();
             if (corrupt != null) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                logger.warn("check index [failure]\n{}", corrupt, new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                 throw corrupt;
             }
         } else {
@@ -1337,7 +1337,9 @@ public class IndexShard extends AbstractIndexShardComponent {
                         // ignore if closed....
                         return;
                     }
-                    logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                    // We pass null as the cause here because the root cause exception will be included in CheckIndex's output which we log
+                    // in full:
+                    logger.warn("check index [failure]\n{}", null, new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                     if ("fix".equalsIgnoreCase(checkIndexOnStartup)) {
                         if (logger.isDebugEnabled()) {
                             logger.debug("fixing index, writing new segments file ...");
@@ -1525,7 +1527,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         try {
             return Translog.Durabilty.valueOf(value.toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException ex) {
-            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", TranslogConfig.INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
+            logger.warn("Can't apply {} illegal value: {} using {} instead, use one of: {}", ex, TranslogConfig.INDEX_TRANSLOG_DURABILITY, value, defaultValue, Arrays.toString(Translog.Durabilty.values()));
             return defaultValue;
         }
     }

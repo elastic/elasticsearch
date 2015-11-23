@@ -64,7 +64,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
         try {
             tmpKeyStoreType = KeyStoreType.fromString(strKeyStoreType);
         } catch (Exception e) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", KEYSTORE_TYPE,
+            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", e, KEYSTORE_TYPE,
                     strKeyStoreType, KeyStoreType.pkcs12.name());
         }
         KeyStoreType keystoreType = tmpKeyStoreType;
@@ -75,7 +75,7 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
             configuration = ManagementConfiguration.configure(new URI(Azure.ENDPOINT),
                     subscriptionId, keystorePath, keystorePassword, keystoreType);
         } catch (IOException|URISyntaxException e) {
-            logger.error("can not start azure client: {}", e.getMessage());
+            logger.error("can not start azure client", e);
             computeManagementClient = null;
             return;
         }

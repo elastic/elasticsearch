@@ -105,7 +105,7 @@ public class ScriptHeuristic extends SignificanceHeuristic {
             // Now, for version before 1.5.0 the score is computed after streaming the response but for scripts the script does not exists yet.
             // assertSearchResponse() might therefore fail although there is no problem.
             // This should be replaced by an exception in 2.0.
-            ESLoggerFactory.getLogger("script heuristic").warn("cannot compute score - script has not been initialized yet.");
+            ESLoggerFactory.getLogger("script heuristic").warn("cannot compute score - script has not been initialized yet.", null);
             return 0;
         }
         subsetSizeHolder.value = subsetSize;

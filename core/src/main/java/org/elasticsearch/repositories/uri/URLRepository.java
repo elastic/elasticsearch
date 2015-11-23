@@ -141,13 +141,13 @@ public class URLRepository extends BlobStoreRepository {
                         return url;
                     }
                 } catch (URISyntaxException ex) {
-                    logger.warn("cannot parse the specified url [{}]", url);
+                    logger.warn("cannot parse the specified url [{}]", ex, url);
                     throw new RepositoryException(repositoryName, "cannot parse the specified url [" + url + "]");
                 }
                 // We didn't match white list - try to resolve against path.repo
                 URL normalizedUrl = environment.resolveRepoURL(url);
                 if (normalizedUrl == null) {
-                    logger.warn("The specified url [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] or by repositories.url.allowed_urls setting: [{}] ", url, environment.repoFiles());
+                    logger.warn("The specified url [{}] doesn't start with any repository paths specified by the path.repo setting: [{}] or by repositories.url.allowed_urls setting: [{}] ", null, url, environment.repoFiles());
                     throw new RepositoryException(repositoryName, "file url [" + url + "] doesn't match any of the locations specified by path.repo or repositories.url.allowed_urls");
                 }
                 return normalizedUrl;

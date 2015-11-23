@@ -112,7 +112,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
             } else if (resp instanceof FailedNodeException) {
                 failures.add((FailedNodeException) resp);
             } else {
-                logger.warn("unknown response type [{}], expected NodeLocalGatewayStartedShards or FailedNodeException", resp);
+                logger.warn("unknown response type [{}], expected NodeLocalGatewayStartedShards or FailedNodeException", null, resp);
             }
         }
         return new NodesGatewayStartedShards(clusterName, nodesList.toArray(new NodeGatewayStartedShards[nodesList.size()]),
@@ -146,7 +146,7 @@ public class TransportNodesListGatewayStartedShards extends TransportNodesAction
                 // is equal to IndexMetaData.INDEX_UUID_NA_VALUE otherwise this shard doesn't belong to the requested index.
                 if (indexUUID.equals(shardStateMetaData.indexUUID) == false
                         && IndexMetaData.INDEX_UUID_NA_VALUE.equals(shardStateMetaData.indexUUID) == false) {
-                    logger.warn("{} shard state info found but indexUUID didn't match expected [{}] actual [{}]", shardId, indexUUID, shardStateMetaData.indexUUID);
+                    logger.warn("{} shard state info found but indexUUID didn't match expected [{}] actual [{}]", null, shardId, indexUUID, shardStateMetaData.indexUUID);
                 } else {
                     logger.debug("{} shard state info found: [{}]", shardId, shardStateMetaData);
                     return new NodeGatewayStartedShards(clusterService.localNode(), shardStateMetaData.version);

@@ -84,8 +84,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                 }
                 return instanceList.getItems();
             } catch (PrivilegedActionException e) {
-                logger.warn("Problem fetching instance list for zone {}", zoneId);
-                logger.debug("Full exception:", e);
+                logger.warn("Problem fetching instance list for zone {}", e, zoneId);
                 return Collections.EMPTY_LIST;
             }
         }).reduce(new ArrayList<>(), (a, b) -> {
@@ -94,7 +93,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
         });
 
         if (instances.isEmpty()) {
-            logger.warn("disabling GCE discovery. Can not get list of nodes");
+            logger.warn("disabling GCE discovery. Can not get list of nodes", null);
         }
 
         return instances;

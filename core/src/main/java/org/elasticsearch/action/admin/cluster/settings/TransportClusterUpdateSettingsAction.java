@@ -189,10 +189,10 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                             transientUpdates.put(entry.getKey(), entry.getValue());
                             changed = true;
                         } else {
-                            logger.warn("ignoring transient setting [{}], [{}]", entry.getKey(), error);
+                            logger.warn("ignoring transient setting [{}], [{}]", null, entry.getKey(), error);
                         }
                     } else {
-                        logger.warn("ignoring transient setting [{}], not dynamically updateable", entry.getKey());
+                        logger.warn("ignoring transient setting [{}], not dynamically updateable", null, entry.getKey());
                     }
                 }
 
@@ -206,10 +206,10 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                             persistentUpdates.put(entry.getKey(), entry.getValue());
                             changed = true;
                         } else {
-                            logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
+                            logger.warn("ignoring persistent setting [{}], [{}]", null, entry.getKey(), error);
                         }
                     } else {
-                        logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
+                        logger.warn("ignoring persistent setting [{}], not dynamically updateable", null, entry.getKey());
                     }
                 }
 

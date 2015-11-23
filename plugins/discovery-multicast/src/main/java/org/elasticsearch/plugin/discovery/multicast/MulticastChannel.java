@@ -365,7 +365,7 @@ abstract class MulticastChannel implements Closeable {
                             } catch (Exception e) {
                                 if (running) {
                                     if (multicastSocket.isClosed()) {
-                                        logger.warn("multicast socket closed while running, restarting...");
+                                        logger.warn("multicast socket closed while running, restarting...", e);
                                         multicastSocket = buildMulticastSocket(config);
                                     } else {
                                         logger.warn("failed to receive packet, throttling...", e);

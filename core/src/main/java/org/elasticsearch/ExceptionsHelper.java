@@ -92,6 +92,7 @@ public final class ExceptionsHelper {
         return detailedMessage(t, false, 0);
     }
 
+    // nocommit remove/ban this
     public static String detailedMessage(Throwable t, boolean newLines, int initialCounter) {
         if (t == null) {
             return "Unknown";

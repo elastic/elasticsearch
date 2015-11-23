@@ -91,7 +91,7 @@ public class AzureRepository extends BlobStoreRepository {
                 settings.getAsBytesSize(Storage.CHUNK_SIZE, new ByteSizeValue(64, ByteSizeUnit.MB)));
 
         if (this.chunkSize.getMb() > 64) {
-            logger.warn("azure repository does not support yet size > 64mb. Fall back to 64mb.");
+            logger.warn("azure repository does not support yet size > 64mb. Fall back to 64mb.", null);
             this.chunkSize = new ByteSizeValue(64, ByteSizeUnit.MB);
         }
 
@@ -164,7 +164,7 @@ public class AzureRepository extends BlobStoreRepository {
             }
             super.initializeSnapshot(snapshotId, indices, metaData);
         } catch (StorageException | URISyntaxException e) {
-            logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
+            logger.warn("can not initialize container [{}]", e, blobStore.container());
             throw new SnapshotCreationException(snapshotId, e);
         }
     }
@@ -178,7 +178,7 @@ public class AzureRepository extends BlobStoreRepository {
                     blobStore.createContainer(blobStore.container());
                 }
             } catch (StorageException | URISyntaxException e) {
-                logger.warn("can not initialize container [{}]: [{}]", blobStore.container(), e.getMessage());
+                logger.warn("can not initialize container [{}]", e, blobStore.container());
                 throw new RepositoryVerificationException(repositoryName, "can not initialize container " + blobStore.container(), e);
             }
         }

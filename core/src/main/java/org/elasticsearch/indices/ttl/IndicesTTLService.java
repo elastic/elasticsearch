@@ -286,7 +286,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                             if (logger.isTraceEnabled()) {
                                 logger.trace("bulk deletion failures for [{}]/[{}] items, failure message: [{}]", failedItems, bulkResponse.getItems().length, bulkResponse.buildFailureMessage());
                             } else {
-                                logger.error("bulk deletion failures for [{}]/[{}] items", failedItems, bulkResponse.getItems().length);
+                                logger.error("bulk deletion failures for [{}]/[{}] items", null, failedItems, bulkResponse.getItems().length);
                             }
                         } else {
                             logger.trace("bulk deletion took " + bulkResponse.getTookInMillis() + "ms");
@@ -298,7 +298,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                         if (logger.isTraceEnabled()) {
                             logger.trace("failed to execute bulk", e);
                         } else {
-                            logger.warn("failed to execute bulk: [{}]", e.getMessage());
+                            logger.warn("failed to execute bulk: [{}]", e);
                         }
                     }
                 });

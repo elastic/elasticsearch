@@ -88,7 +88,7 @@ final class Bootstrap {
         // check if the user is running as root, and bail
         if (Natives.definitelyRunningAsRoot()) {
             if (Boolean.parseBoolean(System.getProperty("es.insecure.allow.root"))) {
-                logger.warn("running as ROOT user. this is a bad idea!");
+                logger.warn("running as ROOT user. this is a bad idea!", null);
             } else {
                 throw new RuntimeException("don't run elasticsearch as root.");
             }
@@ -278,7 +278,7 @@ final class Bootstrap {
         // warn if running using the client VM
         if (JvmInfo.jvmInfo().getVmName().toLowerCase(Locale.ROOT).contains("client")) {
             ESLogger logger = Loggers.getLogger(Bootstrap.class);
-            logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line");
+            logger.warn("jvm uses the client vm, make sure to run `java` with the server vm for best performance by adding `-server` to the command line", null);
         }
 
         try {
@@ -313,7 +313,7 @@ final class Bootstrap {
                 PrintStream ps = new PrintStream(os, false, "UTF-8");
                 new StartupError(e).printStackTrace(ps);
                 ps.flush();
-                logger.error("Guice Exception: {}", os.toString("UTF-8"));
+                logger.error("Guice Exception: {}", null, os.toString("UTF-8"));
             } else {
                 // full exception
                 logger.error("Exception", e);

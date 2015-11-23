@@ -251,7 +251,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
 
         for (String index : indexes) {
             if (expectedVersions.remove(index) == false) {
-                logger.warn("Old indexes tests contain extra index: " + index);
+                logger.warn("Old indexes tests contain extra index: " + index, null);
             }
         }
         if (expectedVersions.isEmpty() == false) {

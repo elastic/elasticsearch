@@ -102,7 +102,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
             try {
                 AwsSigner.configureSigner(awsSigner, clientConfiguration);
             } catch (IllegalArgumentException e) {
-                logger.warn("wrong signer set for [{}] or [{}]: [{}]",
+                logger.warn("wrong signer set for [{}] or [{}]: [{}]", e,
                         CLOUD_EC2.SIGNER, CLOUD_AWS.SIGNER, awsSigner);
             }
         }

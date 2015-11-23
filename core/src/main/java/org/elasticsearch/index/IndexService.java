@@ -238,7 +238,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
             try {
                 path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings);
             } catch (IllegalStateException ex) {
-                logger.warn("{} failed to load shard path, trying to remove leftover", shardId);
+                logger.warn("{} failed to load shard path, trying to remove leftover", ex, shardId);
                 try {
                     ShardPath.deleteLeftoverShardDirectory(logger, nodeEnv, lock, this.indexSettings);
                     path = ShardPath.loadShardPath(logger, nodeEnv, shardId, this.indexSettings);

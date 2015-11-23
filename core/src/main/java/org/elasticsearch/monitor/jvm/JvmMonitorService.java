@@ -87,7 +87,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
             TimeValue info = entry.getValue().getAsTime("info", null);
             TimeValue debug = entry.getValue().getAsTime("debug", null);
             if (warn == null || info == null || debug == null) {
-                logger.warn("ignoring gc_threshold for [{}], missing warn/info/debug values", name);
+                logger.warn("ignoring gc_threshold for [{}], missing warn/info/debug values", null, name);
             } else {
                 gcThresholds.put(name, new GcThreshold(name, warn.millis(), info.millis(), debug.millis()));
             }
@@ -164,7 +164,7 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
 
                 if (avgCollectionTime > gcThreshold.warnThreshold) {
                     logger.warn("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
-                            gc.getName(), seq, gc.getCollectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.getTimestamp() - lastJvmStats.getTimestamp()), TimeValue.timeValueMillis(collectionTime), gc.getCollectionTime(), lastJvmStats.getMem().getHeapUsed(), currentJvmStats.getMem().getHeapUsed(), JvmInfo.jvmInfo().getMem().getHeapMax(), buildPools(lastJvmStats, currentJvmStats));
+                            null, gc.getName(), seq, gc.getCollectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.getTimestamp() - lastJvmStats.getTimestamp()), TimeValue.timeValueMillis(collectionTime), gc.getCollectionTime(), lastJvmStats.getMem().getHeapUsed(), currentJvmStats.getMem().getHeapUsed(), JvmInfo.jvmInfo().getMem().getHeapMax(), buildPools(lastJvmStats, currentJvmStats));
                 } else if (avgCollectionTime > gcThreshold.infoThreshold) {
                     logger.info("[gc][{}][{}][{}] duration [{}], collections [{}]/[{}], total [{}]/[{}], memory [{}]->[{}]/[{}], all_pools {}",
                             gc.getName(), seq, gc.getCollectionCount(), TimeValue.timeValueMillis(collectionTime), collections, TimeValue.timeValueMillis(currentJvmStats.getTimestamp() - lastJvmStats.getTimestamp()), TimeValue.timeValueMillis(collectionTime), gc.getCollectionTime(), lastJvmStats.getMem().getHeapUsed(), currentJvmStats.getMem().getHeapUsed(), JvmInfo.jvmInfo().getMem().getHeapMax(), buildPools(lastJvmStats, currentJvmStats));

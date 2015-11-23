@@ -113,12 +113,12 @@ final class JVMCheck {
      */
     static void check() {
         if (Boolean.parseBoolean(System.getProperty(JVM_BYPASS))) {
-            Loggers.getLogger(JVMCheck.class).warn("bypassing jvm version check for version [{}], this can result in data corruption!", fullVersion());
+            Loggers.getLogger(JVMCheck.class).warn("bypassing jvm version check for version [{}], this can result in data corruption!", null, fullVersion());
         } else if ("Oracle Corporation".equals(Constants.JVM_VENDOR)) {
             HotspotBug bug = JVM_BROKEN_HOTSPOT_VERSIONS.get(Constants.JVM_VERSION);
             if (bug != null) {
                 if (bug.workAround != null && ManagementFactory.getRuntimeMXBean().getInputArguments().contains(bug.workAround)) {
-                    Loggers.getLogger(JVMCheck.class).warn(bug.getWarningMessage());
+                    Loggers.getLogger(JVMCheck.class).warn(bug.getWarningMessage(), null);
                 } else {
                     throw new RuntimeException(bug.getErrorMessage());
                 }

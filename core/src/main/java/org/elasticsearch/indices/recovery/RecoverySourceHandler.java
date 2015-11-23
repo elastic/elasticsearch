@@ -286,7 +286,7 @@ public class RecoverySourceHandler {
                                     logger.debug("{} checking integrity for file {} after remove corruption exception", shard.shardId(), md);
                                     if (store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
                                         shard.failShard("recovery", corruptIndexException);
-                                        logger.warn("{} Corrupted file detected {} checksum mismatch", shard.shardId(), md);
+                                        logger.warn("{} Corrupted file detected {} checksum mismatch", corruptIndexException, shard.shardId(), md);
                                         throw corruptIndexException;
                                     }
                                 }
@@ -618,7 +618,7 @@ public class RecoverySourceHandler {
         final boolean checkIntegrity = corruptedEngine == null;
         if ((corruptIndexException = ExceptionsHelper.unwrapCorruption(t)) != null) {
             if (checkIntegrity && store.checkIntegrityNoException(md) == false) { // we are corrupted on the primary -- fail!
-                logger.warn("{} Corrupted file detected {} checksum mismatch", shardId, md);
+                logger.warn("{} Corrupted file detected {} checksum mismatch", corruptIndexException, shardId, md);
                 corruptedEngine = corruptIndexException;
             } else { // corruption has happened on the way to replica
                 RemoteTransportException exception = new RemoteTransportException("File corruption occurred on recovery but checksums are ok", null);

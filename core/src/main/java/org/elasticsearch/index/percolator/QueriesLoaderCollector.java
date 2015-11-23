@@ -80,7 +80,7 @@ final class QueriesLoaderCollector extends SimpleCollector {
                 if (parseQuery != null) {
                     queries.put(BytesRef.deepCopyOf(id), parseQuery);
                 } else {
-                    logger.warn("failed to add query [{}] - parser returned null", id);
+                    logger.warn("failed to add query [{}] - parser returned null", null, id);
                 }
 
             } catch (Exception e) {

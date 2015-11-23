@@ -64,7 +64,7 @@ public class AwsSigner {
         try {
             validateSignerType(signer, endpoint);
         } catch (IllegalArgumentException e) {
-            logger.warn(e.getMessage());
+            logger.warn("failed to validate signer type", e);
         }
 
         configuration.setSignerOverride(signer);

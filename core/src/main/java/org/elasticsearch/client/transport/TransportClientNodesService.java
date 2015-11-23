@@ -367,7 +367,7 @@ public class TransportClientNodesService extends AbstractComponent {
                                 }
                             }).txGet();
                     if (!ignoreClusterName && !clusterName.equals(livenessResponse.getClusterName())) {
-                        logger.warn("node {} not part of the cluster {}, ignoring...", listedNode, clusterName);
+                        logger.warn("node {} not part of the cluster {}, ignoring...", null, listedNode, clusterName);
                         newFilteredNodes.add(listedNode);
                     } else if (livenessResponse.getDiscoveryNode() != null) {
                         // use discovered information but do keep the original transport address, so people can control which address is exactly used.
@@ -475,7 +475,7 @@ public class TransportClientNodesService extends AbstractComponent {
             HashSet<DiscoveryNode> newFilteredNodes = new HashSet<>();
             for (Map.Entry<DiscoveryNode, ClusterStateResponse> entry : clusterStateResponses.entrySet()) {
                 if (!ignoreClusterName && !clusterName.equals(entry.getValue().getClusterName())) {
-                    logger.warn("node {} not part of the cluster {}, ignoring...", entry.getValue().getState().nodes().localNode(), clusterName);
+                    logger.warn("node {} not part of the cluster {}, ignoring...", null, entry.getValue().getState().nodes().localNode(), clusterName);
                     newFilteredNodes.add(entry.getKey());
                     continue;
                 }

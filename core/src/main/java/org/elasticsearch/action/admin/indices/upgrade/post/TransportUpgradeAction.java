@@ -109,7 +109,7 @@ public class TransportUpgradeAction extends TransportBroadcastByNodeAction<Upgra
             if (primaryCount == metaData.index(index).getNumberOfShards()) {
                 updatedVersions.put(index, new Tuple<>(versionEntry.getValue().v1(), versionEntry.getValue().v2().toString()));
             } else {
-                logger.warn("Not updating settings for the index [{}] because upgraded of some primary shards failed - expected[{}], received[{}]", index,
+                logger.warn("Not updating settings for the index [{}] because upgraded of some primary shards failed - expected[{}], received[{}]", null, index,
                         expectedPrimaryCount, primaryCount == null ? 0 : primaryCount);
             }
         }

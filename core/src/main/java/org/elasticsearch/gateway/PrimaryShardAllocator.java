@@ -151,7 +151,7 @@ public abstract class PrimaryShardAllocator extends AbstractComponent {
                     requiredAllocation = Integer.parseInt(initialShards);
                 }
             } catch (Exception e) {
-                logger.warn("[{}][{}] failed to derived initial_shards from value {}, ignore allocation for {}", shard.index(), shard.id(), initialShards, shard);
+                logger.warn("[{}][{}] failed to derived initial_shards from value {}, ignore allocation for {}", e, shard.index(), shard.id(), initialShards, shard);
             }
         }
 

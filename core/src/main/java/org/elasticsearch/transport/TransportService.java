@@ -428,7 +428,7 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             RequestHandlerRegistry replaced = requestHandlers.get(reg.getAction());
             requestHandlers = MapBuilder.newMapBuilder(requestHandlers).put(reg.getAction(), reg).immutableMap();
             if (replaced != null) {
-                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg.getHandler(), replaced.getHandler());
+                logger.warn("registered two transport handlers for action {}, handlers: {}, {}", null, reg.getAction(), reg.getHandler(), replaced.getHandler());
             }
         }
     }
@@ -521,11 +521,12 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             TimeoutInfoHolder timeoutInfoHolder = timeoutInfoHandlers.remove(requestId);
             if (timeoutInfoHolder != null) {
                 long time = System.currentTimeMillis();
-                logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, action [{}], node [{}], id [{}]", time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(), timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
+                logger.warn("Received response for a request that has timed out, sent [{}ms] ago, timed out [{}ms] ago, action [{}], node [{}], id [{}]",
+                            null, time - timeoutInfoHolder.sentTime(), time - timeoutInfoHolder.timeoutTime(), timeoutInfoHolder.action(), timeoutInfoHolder.node(), requestId);
                 action = timeoutInfoHolder.action();
                 sourceNode = timeoutInfoHolder.node();
             } else {
-                logger.warn("Transport response handler not found of id [{}]", requestId);
+                logger.warn("Transport response handler not found of id [{}]", null, requestId);
                 action = null;
                 sourceNode = null;
             }

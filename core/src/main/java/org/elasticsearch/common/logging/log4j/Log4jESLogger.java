@@ -126,18 +126,8 @@ public class Log4jESLogger extends AbstractESLogger {
     }
 
     @Override
-    protected void internalWarn(String msg) {
-        logger.log(FQCN, Level.WARN, msg, null);
-    }
-
-    @Override
     protected void internalWarn(String msg, Throwable cause) {
         logger.log(FQCN, Level.WARN, msg, cause);
-    }
-
-    @Override
-    protected void internalError(String msg) {
-        logger.log(FQCN, Level.ERROR, msg, null);
     }
 
     @Override

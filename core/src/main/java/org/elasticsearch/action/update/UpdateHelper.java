@@ -110,7 +110,7 @@ public class UpdateHelper extends AbstractComponent {
                 // (the default) or "none", meaning abort upsert
                 if (!"create".equals(scriptOpChoice)) {
                     if (!"none".equals(scriptOpChoice)) {
-                        logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", scriptOpChoice,
+                        logger.warn("Used upsert operation [{}] for script [{}], doing nothing...", null, scriptOpChoice,
                                 request.script.getScript());
                     }
                     UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(),
@@ -235,7 +235,7 @@ public class UpdateHelper extends AbstractComponent {
             update.setGetResult(extractGetResult(request, request.index(), getResult.getVersion(), updatedSourceAsMap, updateSourceContentType, getResult.internalSourceRef()));
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         } else {
-            logger.warn("Used update operation [{}] for script [{}], doing nothing...", operation, request.script.getScript());
+            logger.warn("Used update operation [{}] for script [{}], doing nothing...", null, operation, request.script.getScript());
             UpdateResponse update = new UpdateResponse(getResult.getIndex(), getResult.getType(), getResult.getId(), getResult.getVersion(), false);
             return new Result(update, Operation.NONE, updatedSourceAsMap, updateSourceContentType);
         }

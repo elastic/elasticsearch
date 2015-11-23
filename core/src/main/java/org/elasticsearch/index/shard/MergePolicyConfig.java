@@ -151,7 +151,7 @@ public final class MergePolicyConfig {
         double reclaimDeletesWeight = indexSettings.getAsDouble("index.merge.policy.reclaim_deletes_weight", DEFAULT_RECLAIM_DELETES_WEIGHT);
         this.mergesEnabled = indexSettings.getAsBoolean(INDEX_MERGE_ENABLED, true);
         if (mergesEnabled == false) {
-            logger.warn("[{}] is set to false, this should only be used in tests and can cause serious problems in production environments", INDEX_MERGE_ENABLED);
+            logger.warn("[{}] is set to false, this should only be used in tests and can cause serious problems in production environments", null, INDEX_MERGE_ENABLED);
         }
         maxMergeAtOnce = adjustMaxMergeAtOnceIfNeeded(maxMergeAtOnce, segmentsPerTier);
         mergePolicy.setNoCFSRatio(noCFSRatio);

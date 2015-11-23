@@ -135,7 +135,7 @@ public class GceDiscoveryPlugin extends Plugin {
 
     private static boolean checkProperty(String name, String value, ESLogger logger) {
         if (!Strings.hasText(value)) {
-            logger.warn("{} is not set.", name);
+            logger.warn("{} is not set.", null, name);
             return false;
         }
         return true;
@@ -143,7 +143,7 @@ public class GceDiscoveryPlugin extends Plugin {
 
     private static boolean checkProperty(String name, String[] values, ESLogger logger) {
         if (values == null || values.length == 0) {
-            logger.warn("{} is not set.", name);
+            logger.warn("{} is not set.", null, name);
             return false;
         }
         return true;

@@ -89,7 +89,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     public void waitForInitialState() {
         try {
             if (!initialStateListener.waitForInitialState(initialStateTimeout)) {
-                logger.warn("waited for {} and no initial state was set by the discovery", initialStateTimeout);
+                logger.warn("waited for {} and no initial state was set by the discovery", null, initialStateTimeout);
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

@@ -161,12 +161,12 @@ public class PluginsService extends AbstractComponent {
                     continue;
                 }
                 if (method.getParameterTypes().length == 0 || method.getParameterTypes().length > 1) {
-                    logger.warn("Plugin: {} implementing onModule with no parameters or more than one parameter", plugin.name());
+                    logger.warn("Plugin: {} implementing onModule with no parameters or more than one parameter", null, plugin.name());
                     continue;
                 }
                 Class moduleClass = method.getParameterTypes()[0];
                 if (!Module.class.isAssignableFrom(moduleClass)) {
-                    logger.warn("Plugin: {} implementing onModule by the type is not of Module type {}", plugin.name(), moduleClass);
+                    logger.warn("Plugin: {} implementing onModule by the type is not of Module type {}", null, plugin.name(), moduleClass);
                     continue;
                 }
                 list.add(new OnModuleReference(moduleClass, method));

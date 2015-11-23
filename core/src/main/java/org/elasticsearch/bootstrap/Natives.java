@@ -54,7 +54,7 @@ final class Natives {
 
     static void tryMlockall() {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot mlockall because JNA is not available");
+            logger.warn("cannot mlockall because JNA is not available", null);
             return;
         }
         JNANatives.tryMlockall();
@@ -62,7 +62,7 @@ final class Natives {
 
     static boolean definitelyRunningAsRoot() {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot check if running as root because JNA is not available");
+            logger.warn("cannot check if running as root because JNA is not available", null);
             return false;
         }
         return JNANatives.definitelyRunningAsRoot();
@@ -70,7 +70,7 @@ final class Natives {
 
     static void tryVirtualLock() {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot mlockall because JNA is not available");
+            logger.warn("cannot mlockall because JNA is not available", null);
             return;
         }
         JNANatives.tryVirtualLock();
@@ -78,7 +78,7 @@ final class Natives {
 
     static void addConsoleCtrlHandler(ConsoleCtrlHandler handler) {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot register console handler because JNA is not available");
+            logger.warn("cannot register console handler because JNA is not available", null);
             return;
         }
         JNANatives.addConsoleCtrlHandler(handler);
@@ -93,7 +93,7 @@ final class Natives {
     
     static void trySeccomp(Path tmpFile) {
         if (!JNA_AVAILABLE) {
-            logger.warn("cannot install syscall filters because JNA is not available");
+            logger.warn("cannot install syscall filters because JNA is not available", null);
             return;
         }
         JNANatives.trySeccomp(tmpFile);

@@ -115,7 +115,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
 
             if (newUpdateFrequency != null) {
                 if (newUpdateFrequency.getMillis() < TimeValue.timeValueSeconds(10).getMillis()) {
-                    logger.warn("[{}] set too low [{}] (< 10s)", INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, newUpdateFrequency);
+                    logger.warn("[{}] set too low [{}] (< 10s)", null, INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, newUpdateFrequency);
                     throw new IllegalStateException("Unable to set " + INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL + " less than 10 seconds");
                 } else {
                     logger.info("updating [{}] from [{}] to [{}]", INTERNAL_CLUSTER_INFO_UPDATE_INTERVAL, updateFrequency, newUpdateFrequency);
@@ -317,7 +317,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             @Override
             public void onFailure(Throwable e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                    logger.error("NodeStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
                         if (logger.isTraceEnabled()) {
@@ -347,7 +347,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             @Override
             public void onFailure(Throwable e) {
                 if (e instanceof ReceiveTimeoutTransportException) {
-                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob (reason [{}])", e.getMessage());
+                    logger.error("IndicesStatsAction timed out for ClusterInfoUpdateJob", e);
                 } else {
                     if (e instanceof ClusterBlockException) {
                         if (logger.isTraceEnabled()) {
@@ -367,14 +367,14 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             nodeLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // restore interrupt status
-            logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+            logger.warn("Failed to update node information for ClusterInfoUpdateJob within {} timeout", e, fetchTimeout);
         }
 
         try {
             indicesLatch.await(fetchTimeout.getMillis(), TimeUnit.MILLISECONDS);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt(); // restore interrupt status
-            logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", fetchTimeout);
+            logger.warn("Failed to update shard information for ClusterInfoUpdateJob within {} timeout", e, fetchTimeout);
         }
         ClusterInfo clusterInfo = getClusterInfo();
         for (Listener l : listeners) {
@@ -405,7 +405,7 @@ public class InternalClusterInfoService extends AbstractComponent implements Clu
             ImmutableOpenMap.Builder<String, DiskUsage> newMostAvaiableUsages) {
         for (NodeStats nodeStats : nodeStatsArray) {
             if (nodeStats.getFs() == null) {
-                logger.warn("Unable to retrieve node FS stats for {}", nodeStats.getNode().name());
+                logger.warn("Unable to retrieve node FS stats for {}", null, nodeStats.getNode().name());
             } else {
                 FsInfo.Path leastAvailablePath = null;
                 FsInfo.Path mostAvailablePath = null;

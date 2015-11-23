@@ -371,7 +371,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                         repositoriesService.repository(snapshot.snapshotId().getRepository()).finalizeSnapshot(
                                 snapshot.snapshotId(), snapshot.indices(), snapshot.startTime(), ExceptionsHelper.detailedMessage(t), 0, Collections.<SnapshotShardFailure>emptyList());
                     } catch (Throwable t2) {
-                        logger.warn("[{}] failed to close snapshot in repository", snapshot.snapshotId());
+                        logger.warn("[{}] failed to close snapshot in repository", t2, snapshot.snapshotId());
                     }
                     userCreateSnapshotListener.onFailure(t);
                 }
@@ -401,7 +401,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                     repositoriesService.repository(snapshot.snapshotId().getRepository()).finalizeSnapshot(snapshot.snapshotId(), snapshot.indices(), snapshot.startTime(),
                             ExceptionsHelper.detailedMessage(t), 0, Collections.<SnapshotShardFailure>emptyList());
                 } catch (Throwable t2) {
-                    logger.warn("[{}] failed to close snapshot in repository", snapshot.snapshotId());
+                    logger.warn("[{}] failed to close snapshot in repository", t2, snapshot.snapshotId());
                 }
             }
             userCreateSnapshotListener.onFailure(t);
@@ -564,7 +564,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                                     } else {
                                         // TODO: Restart snapshot on another node?
                                         snapshotChanged = true;
-                                        logger.warn("failing snapshot of shard [{}] on closed node [{}]", shardEntry.key, shardStatus.nodeId());
+                                        logger.warn("failing snapshot of shard [{}] on closed node [{}]", null, shardEntry.key, shardStatus.nodeId());
                                         shards.put(shardEntry.key, new ShardSnapshotStatus(shardStatus.nodeId(), State.FAILED, "node shutdown"));
                                     }
                                 }
@@ -590,7 +590,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
                                 @Override
                                 public void onFailure(Throwable t) {
-                                    logger.warn("failed to clean up abandoned snapshot {} in INIT state", snapshot.snapshotId());
+                                    logger.warn("failed to clean up abandoned snapshot {} in INIT state", t, snapshot.snapshotId());
                                 }
                             });
                         } else if (snapshot.state() == State.SUCCESS && newMaster) {
@@ -607,7 +607,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
                 @Override
                 public void onFailure(String source, Throwable t) {
-                    logger.warn("failed to update snapshot state after node removal");
+                    logger.warn("failed to update snapshot state after node removal", t);
                 }
             });
         }
@@ -682,7 +682,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 }
                 // Shard that we were waiting for went into unassigned state or disappeared - giving up
                 snapshotChanged = true;
-                logger.warn("failing snapshot of shard [{}] on unassigned shard [{}]", shardId, shardStatus.nodeId());
+                logger.warn("failing snapshot of shard [{}] on unassigned shard [{}]", null, shardId, shardStatus.nodeId());
                 shards.put(shardId, new ShardSnapshotStatus(shardStatus.nodeId(), State.FAILED, "shard is unassigned"));
             } else {
                 shards.put(shardId, shardStatus);

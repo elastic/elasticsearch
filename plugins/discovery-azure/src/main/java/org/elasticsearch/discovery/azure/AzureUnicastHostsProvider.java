@@ -120,7 +120,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         String strHostType = settings.get(Discovery.HOST_TYPE, HostType.PRIVATE_IP.name()).toUpperCase(Locale.ROOT);
         HostType tmpHostType = HostType.fromString(strHostType);
         if (tmpHostType == null) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.HOST_TYPE,
+            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", null, Discovery.HOST_TYPE,
                     strHostType, HostType.PRIVATE_IP.name().toLowerCase(Locale.ROOT));
             tmpHostType = HostType.PRIVATE_IP;
         }
@@ -135,7 +135,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
         String strDeployment = settings.get(Discovery.DEPLOYMENT_SLOT, Deployment.PRODUCTION.deployment);
         Deployment tmpDeployment = Deployment.fromString(strDeployment);
         if (tmpDeployment == null) {
-            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", Discovery.DEPLOYMENT_SLOT, strDeployment,
+            logger.warn("wrong value for [{}]: [{}]. falling back to [{}]...", null, Discovery.DEPLOYMENT_SLOT, strDeployment,
                     Deployment.PRODUCTION.deployment);
             tmpDeployment = Deployment.PRODUCTION;
         }
@@ -170,7 +170,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
             return cachedDiscoNodes;
         } catch (AzureServiceRemoteException e) {
             // We got a remote exception
-            logger.warn("can not get list of azure nodes: [{}]. Returning empty list of nodes.", e.getMessage());
+            logger.warn("can not get list of azure nodes. Returning empty list of nodes.", e);
             logger.trace("AzureServiceRemoteException caught", e);
             return cachedDiscoNodes;
         }
@@ -243,13 +243,13 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                         break;
                     default:
                         // This could never happen!
-                        logger.warn("undefined host_type [{}]. Please check your settings.", hostType);
+                        logger.warn("undefined host_type [{}]. Please check your settings.", null, hostType);
                         return cachedDiscoNodes;
                 }
 
                 if (networkAddress == null) {
                     // We have a bad parameter here or not enough information from azure
-                    logger.warn("no network address found. ignoring [{}]...", instance.getInstanceName());
+                    logger.warn("no network address found. ignoring [{}]...", null, instance.getInstanceName());
                     continue;
                 }
 
@@ -262,7 +262,7 @@ public class AzureUnicastHostsProvider extends AbstractComponent implements Unic
                             version.minimumCompatibilityVersion()));
                     }
                 } catch (Exception e) {
-                    logger.warn("can not convert [{}] to transport address. skipping. [{}]", networkAddress, e.getMessage());
+                    logger.warn("can not convert [{}] to transport address. skipping.", e, networkAddress);
                 }
             }
         }

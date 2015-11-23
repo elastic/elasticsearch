@@ -122,7 +122,7 @@ public final class ShardPath {
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, path);
             if (load != null) {
                 if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
-                    logger.warn("{} found shard on path: [{}] with a different index UUID - this shard seems to be leftover from a different index with the same name. Remove the leftover shard in order to reuse the path with the current index", shardId, path);
+                    logger.warn("{} found shard on path: [{}] with a different index UUID - this shard seems to be leftover from a different index with the same name. Remove the leftover shard in order to reuse the path with the current index", null, shardId, path);
                     throw new IllegalStateException(shardId + " index UUID in shard state was: " + load.indexUUID + " expected: " + indexUUID + " on shard path: " + path);
                 }
                 if (loadedPath == null) {
@@ -159,7 +159,7 @@ public final class ShardPath {
             ShardStateMetaData load = ShardStateMetaData.FORMAT.loadLatestState(logger, path);
             if (load != null) {
                 if (load.indexUUID.equals(indexUUID) == false && IndexMetaData.INDEX_UUID_NA_VALUE.equals(load.indexUUID) == false) {
-                    logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", lock.getShardId(), path);
+                    logger.warn("{} deleting leftover shard on path: [{}] with a different index UUID", null, lock.getShardId(), path);
                     assert Files.isDirectory(path) : path + " is not a directory";
                     NodeEnvironment.acquireFSLockForPaths(indexSettings, paths);
                     IOUtils.rm(path);

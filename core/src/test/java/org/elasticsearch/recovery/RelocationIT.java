@@ -227,14 +227,14 @@ public class RelocationIT extends ESIntegTestCase {
                         for (SearchHit hit : hits.hits()) {
                             int id = Integer.parseInt(hit.id());
                             if (!set.remove(id)) {
-                                logger.error("Extra id [{}]", id);
+                                logger.error("Extra id [{}]", null, id);
                             }
                         }
                         set.forEach(new IntProcedure() {
 
                             @Override
                             public void apply(int value) {
-                                logger.error("Missing id [{}]", value);
+                                logger.error("Missing id [{}]", null, value);
                             }
 
                         });

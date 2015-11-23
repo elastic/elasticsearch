@@ -145,7 +145,7 @@ public final class IndexingSlowLog {
 
     private void postIndexing(ParsedDocument doc, long tookInNanos) {
         if (indexWarnThreshold >= 0 && tookInNanos > indexWarnThreshold) {
-            indexLogger.warn("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, maxSourceCharsToLog));
+            indexLogger.warn("{}", null, new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, maxSourceCharsToLog));
         } else if (indexInfoThreshold >= 0 && tookInNanos > indexInfoThreshold) {
             indexLogger.info("{}", new SlowLogParsedDocumentPrinter(doc, tookInNanos, reformat, maxSourceCharsToLog));
         } else if (indexDebugThreshold >= 0 && tookInNanos > indexDebugThreshold) {

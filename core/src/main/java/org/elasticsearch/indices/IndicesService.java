@@ -130,7 +130,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         try {
             if (latch.await(shardsClosedTimeout.seconds(), TimeUnit.SECONDS) == false) {
-              logger.warn("Not all shards are closed yet, waited {}sec - stopping service", shardsClosedTimeout.seconds());
+                logger.warn("Not all shards are closed yet, waited {}sec - stopping service", null, shardsClosedTimeout.seconds());
             }
         } catch (InterruptedException e) {
             // ignore
@@ -688,13 +688,13 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                                     logger.debug("{} retry pending delete", ex, shardLock.getShardId());
                                 }
                             } else {
-                                logger.warn("{} no shard lock for pending delete", delete.shardId);
+                                logger.warn("{} no shard lock for pending delete", null, delete.shardId);
                                 iterator.remove();
                             }
                         }
                     }
                     if (remove.isEmpty() == false) {
-                        logger.warn("{} still pending deletes present for shards {} - retrying", index, remove.toString());
+                        logger.warn("{} still pending deletes present for shards {} - retrying", null, index, remove.toString());
                         Thread.sleep(sleepTime);
                         sleepTime = Math.min(maxSleepTimeMs, sleepTime * 2); // increase the sleep time gradually
                         logger.debug("{} schedule pending delete retry after {} ms", index, sleepTime);

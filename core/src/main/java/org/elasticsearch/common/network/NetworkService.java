@@ -194,7 +194,7 @@ public class NetworkService extends AbstractComponent {
             NetworkUtils.sortAddresses(sorted);
             addresses = new InetAddress[] { sorted.get(0) };
             logger.warn("publish host: {} resolves to multiple addresses, auto-selecting {{}} as single publish address", 
-                    Arrays.toString(publishHosts), NetworkAddress.format(addresses[0]));
+                    null, Arrays.toString(publishHosts), NetworkAddress.format(addresses[0]));
         }
         return addresses[0];
     }

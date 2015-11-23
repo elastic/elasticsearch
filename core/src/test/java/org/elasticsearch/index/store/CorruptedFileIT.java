@@ -205,7 +205,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
                             out.flush();
                             CheckIndex.Status status = checkIndex.checkIndex();
                             if (!status.clean) {
-                                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                                logger.warn("check index [failure]\n{}", null, new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                                 throw new IOException("index check failure");
                             }
                         }

@@ -98,7 +98,7 @@ public class ClusterRebalanceAllocationDecider extends AllocationDecider {
         try {
             type = ClusterRebalanceType.parseString(allowRebalance);
         } catch (IllegalStateException e) {
-            logger.warn("[{}] has a wrong value {}, defaulting to 'indices_all_active'", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, allowRebalance);
+            logger.warn("[{}] has a wrong value {}, defaulting to 'indices_all_active'", e, CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, allowRebalance);
             type = ClusterRebalanceType.INDICES_ALL_ACTIVE;
         }
         logger.debug("using [{}] with [{}]", CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE, type.toString().toLowerCase(Locale.ROOT));

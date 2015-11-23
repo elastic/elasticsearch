@@ -566,7 +566,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     private void warnAboutSlowTaskIfNeeded(TimeValue executionTime, String source) {
         if (executionTime.getMillis() > slowTaskLoggingThreshold.getMillis()) {
-            logger.warn("cluster state update task [{}] took {} above the warn threshold of {}", source, executionTime, slowTaskLoggingThreshold);
+            logger.warn("cluster state update task [{}] took {} above the warn threshold of {}", null, source, executionTime, slowTaskLoggingThreshold);
         }
     }
 

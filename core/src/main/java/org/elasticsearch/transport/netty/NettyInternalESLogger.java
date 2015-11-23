@@ -75,7 +75,7 @@ public class NettyInternalESLogger extends AbstractInternalLogger {
 
     @Override
     public void warn(String msg) {
-        logger.warn(msg);
+        logger.warn(msg, null);
     }
 
     @Override
@@ -85,7 +85,7 @@ public class NettyInternalESLogger extends AbstractInternalLogger {
 
     @Override
     public void error(String msg) {
-        logger.error(msg);
+        logger.error(msg, null);
     }
 
     @Override

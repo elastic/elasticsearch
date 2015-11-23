@@ -141,6 +141,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
                 }
                 if (memoryBytesLimit > 0 && newUsedWithOverhead > memoryBytesLimit) {
                     logger.warn("[{}] New used memory {} [{}] for data of [{}] would be larger than configured breaker: {} [{}], breaking",
+                            null,
                             this.name,
                             newUsedWithOverhead, new ByteSizeValue(newUsedWithOverhead), label,
                             memoryBytesLimit, new ByteSizeValue(memoryBytesLimit));

@@ -86,7 +86,7 @@ public class ShardStateAction extends AbstractComponent {
     public void shardFailed(final ShardRouting shardRouting, final String indexUUID, final String message, @Nullable final Throwable failure, TimeValue timeout, Listener listener) {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
-            logger.warn("can't send shard failed for {}, no master known.", shardRouting);
+            logger.warn("can't send shard failed for {}, no master known.", null, shardRouting);
             listener.onShardFailedNoMaster();
             return;
         }
@@ -122,7 +122,7 @@ public class ShardStateAction extends AbstractComponent {
     public void shardStarted(final ShardRouting shardRouting, String indexUUID, final String reason) {
         DiscoveryNode masterNode = clusterService.state().nodes().masterNode();
         if (masterNode == null) {
-            logger.warn("{} can't send shard started for {}, no master known.", shardRouting.shardId(), shardRouting);
+            logger.warn("{} can't send shard started for {}, no master known.", null, shardRouting.shardId(), shardRouting);
             return;
         }
         shardStarted(shardRouting, indexUUID, reason, masterNode);

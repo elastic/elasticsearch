@@ -180,7 +180,7 @@ public class PublishClusterStateAction extends AbstractComponent {
                 DiscoveryNode[] pendingNodes = publishResponseHandler.pendingNodes();
                 // everyone may have just responded
                 if (pendingNodes.length > 0) {
-                    logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", clusterState.version(), publishTimeout, pendingNodes);
+                    logger.warn("timed out waiting for all nodes to process published state [{}] (timeout [{}], pending nodes: {})", null, clusterState.version(), publishTimeout, pendingNodes);
                 }
             }
         } catch (InterruptedException e) {
@@ -375,13 +375,13 @@ public class PublishClusterStateAction extends AbstractComponent {
     void validateIncomingState(ClusterState incomingState, ClusterState lastSeenClusterState) {
         final ClusterName incomingClusterName = incomingState.getClusterName();
         if (!incomingClusterName.equals(this.clusterName)) {
-            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", incomingState.nodes().masterNode(), incomingClusterName);
+            logger.warn("received cluster state from [{}] which is also master but with a different cluster name [{}]", null, incomingState.nodes().masterNode(), incomingClusterName);
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
         final DiscoveryNodes currentNodes = nodesProvider.nodes();
 
         if (currentNodes.localNode().equals(incomingState.nodes().localNode()) == false) {
-            logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", incomingState.nodes().masterNode());
+            logger.warn("received a cluster state from [{}] and not part of the cluster, should not happen", null, incomingState.nodes().masterNode());
             throw new IllegalStateException("received state from a node that is not part of the cluster");
         }
 

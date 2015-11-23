@@ -62,7 +62,7 @@ public class Ec2CustomNodeAttributes extends AbstractComponent implements Discov
 
             String metadataResult = urlReader.readLine();
             if (metadataResult == null || metadataResult.length() == 0) {
-                logger.error("no ec2 metadata returned from {}", url);
+                logger.error("no ec2 metadata returned from {}", null, url);
                 return null;
             }
             ec2Attributes.put("aws_availability_zone", metadataResult);

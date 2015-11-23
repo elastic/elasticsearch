@@ -113,8 +113,10 @@ public class TransportNodesListShardStoreMetaData extends TransportNodesAction<T
                 nodeStoreFilesMetaDatas.add((NodeStoreFilesMetaData) resp);
             } else if (resp instanceof FailedNodeException) {
                 failures.add((FailedNodeException) resp);
+            } else if (resp instanceof Throwable) {
+                logger.warn("unknown response type, expected NodeStoreFilesMetaData or FailedNodeException", (Throwable) resp);
             } else {
-                logger.warn("unknown response type [{}], expected NodeStoreFilesMetaData or FailedNodeException", resp);
+                logger.warn("unknown response type [{}], expected NodeStoreFilesMetaData or FailedNodeException", null, resp);
             }
         }
         return new NodesStoreFilesMetaData(clusterName, nodeStoreFilesMetaDatas.toArray(new NodeStoreFilesMetaData[nodeStoreFilesMetaDatas.size()]),

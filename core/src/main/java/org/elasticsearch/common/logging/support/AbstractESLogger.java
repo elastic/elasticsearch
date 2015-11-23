@@ -95,15 +95,6 @@ public abstract class AbstractESLogger implements ESLogger {
 
 
     @Override
-    public void warn(String msg, Object... params) {
-        if (isWarnEnabled()) {
-            internalWarn(LoggerMessageFormat.format(prefix, msg, params));
-        }
-    }
-
-    protected abstract void internalWarn(String msg);
-
-    @Override
     public void warn(String msg, Throwable cause, Object... params) {
         if (isWarnEnabled()) {
             internalWarn(LoggerMessageFormat.format(prefix, msg, params), cause);
@@ -112,15 +103,6 @@ public abstract class AbstractESLogger implements ESLogger {
 
     protected abstract void internalWarn(String msg, Throwable cause);
 
-
-    @Override
-    public void error(String msg, Object... params) {
-        if (isErrorEnabled()) {
-            internalError(LoggerMessageFormat.format(prefix, msg, params));
-        }
-    }
-
-    protected abstract void internalError(String msg);
 
     @Override
     public void error(String msg, Throwable cause, Object... params) {

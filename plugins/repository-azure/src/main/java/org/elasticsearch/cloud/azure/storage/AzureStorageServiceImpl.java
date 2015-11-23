@@ -78,7 +78,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             // Register the client
             this.clients.put(azureStorageSettings.getAccount(), client);
         } catch (Exception e) {
-            logger.error("can not create azure storage client: {}", e.getMessage());
+            logger.error("can not create azure storage client", e);
         }
     }
     
@@ -125,7 +125,7 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
             CloudBlobContainer blob_container = client.getContainerReference(container);
             return blob_container.exists();
         } catch (Exception e) {
-            logger.error("can not access container [{}]", container);
+            logger.error("can not access container [{}]", e, container);
         }
         return false;
     }

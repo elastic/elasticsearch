@@ -543,7 +543,7 @@ public class NettyTransport extends AbstractLifecycleComponent<Transport> implem
             // TODO: In case of DEFAULT_PROFILE we should probably fail here, as publish address does not match any bound address
             // In case of a custom profile, we might use the publish address of the default profile
             publishPort = boundAddresses.get(0).getPort();
-            logger.warn("Publish port not found by matching publish address [{}] to bound addresses [{}], falling back to port [{}] of first bound address", publishInetAddress, boundAddresses, publishPort);
+            logger.warn("Publish port not found by matching publish address [{}] to bound addresses [{}], falling back to port [{}] of first bound address", null, publishInetAddress, boundAddresses, publishPort);
         }
 
         final TransportAddress publishAddress = new InetSocketTransportAddress(new InetSocketAddress(publishInetAddress, publishPort));

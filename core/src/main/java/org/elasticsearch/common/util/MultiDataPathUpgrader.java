@@ -125,7 +125,7 @@ public class MultiDataPathUpgrader {
             CheckIndex.Status status = checkIndex.checkIndex();
             out.flush();
             if (!status.clean) {
-                logger.warn("check index [failure]\n{}", new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
+                logger.warn("check index [failure]\n{}", null, new String(os.bytes().toBytes(), StandardCharsets.UTF_8));
                 throw new IllegalStateException("index check failure");
             }
         }

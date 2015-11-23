@@ -102,7 +102,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     final int dash = autoExpandReplicas.indexOf('-');
                     if (-1 == dash) {
                         logger.warn("failed to set [{}] for index [{}], it should be dash delimited [{}]",
-                                IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), autoExpandReplicas);
+                                null, IndexMetaData.SETTING_AUTO_EXPAND_REPLICAS, indexMetaData.getIndex(), autoExpandReplicas);
                         continue;
                     }
                     final String sMin = autoExpandReplicas.substring(0, dash);
@@ -173,7 +173,7 @@ public class MetaDataUpdateSettingsService extends AbstractComponent implements 
                     @Override
                     public void onFailure(Throwable t) {
                         for (String index : indices) {
-                            logger.warn("[{}] fail to auto expand replicas to [{}]", index, fNumberOfReplicas);
+                            logger.warn("[{}] fail to auto expand replicas to [{}]", null, index, fNumberOfReplicas);
                         }
                     }
                 });

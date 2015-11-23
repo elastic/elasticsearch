@@ -168,7 +168,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                         continue;
                     }
                     // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
-                    logger.warn("byte-sized index setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", byteSizeSetting, value);
+                    logger.warn("byte-sized index setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", null, byteSizeSetting, value);
                     if (newSettings == null) {
                         newSettings = Settings.builder();
                         newSettings.put(settings);
@@ -185,7 +185,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
                         continue;
                     }
                     // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
-                    logger.warn("time index setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", timeSetting, value);
+                    logger.warn("time index setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", null, timeSetting, value);
                     if (newSettings == null) {
                         newSettings = Settings.builder();
                         newSettings.put(settings);

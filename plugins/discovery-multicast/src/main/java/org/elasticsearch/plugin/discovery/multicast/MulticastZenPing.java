@@ -299,7 +299,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             if (logger.isDebugEnabled()) {
                 logger.debug("failed to send multicast ping request", e);
             } else {
-                logger.warn("failed to send multicast ping request: {}", ExceptionsHelper.detailedMessage(e));
+                logger.warn("failed to send multicast ping request", e);
             }
         }
     }
@@ -365,7 +365,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             }
             PingCollection responses = receivedResponses.get(request.id);
             if (responses == null) {
-                logger.warn("received ping response {} with no matching id [{}]", request.pingResponse, request.id);
+                logger.warn("received ping response {} with no matching id [{}]", null, request.pingResponse, request.id);
             } else {
                 responses.addPing(request.pingResponse);
             }
@@ -469,13 +469,13 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
 
             Map<String, Object> request = (Map<String, Object>) externalPingData.get("request");
             if (request == null) {
-                logger.warn("malformed external ping request, no 'request' element from {}, content {}", remoteAddress, externalPingData);
+                logger.warn("malformed external ping request, no 'request' element from {}, content {}", null, remoteAddress, externalPingData);
                 return;
             }
 
             final String requestClusterName = request.containsKey("cluster_name") ? request.get("cluster_name").toString() : request.containsKey("clusterName") ? request.get("clusterName").toString() : null;
             if (requestClusterName == null) {
-                logger.warn("malformed external ping request, missing 'cluster_name' element within request, from {}, content {}", remoteAddress, externalPingData);
+                logger.warn("malformed external ping request, missing 'cluster_name' element within request, from {}, content {}", null, remoteAddress, externalPingData);
                 return;
             }
 

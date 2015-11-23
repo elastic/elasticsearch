@@ -102,9 +102,9 @@ public class NodeIndexDeletedAction extends AbstractComponent {
             transportService.sendRequest(clusterState.nodes().masterNode(),
                     INDEX_STORE_DELETED_ACTION_NAME, new NodeIndexStoreDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         } catch (LockObtainFailedException exc) {
-            logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", index);
+            logger.warn("[{}] failed to lock all shards for index - timed out after 30 seconds", exc, index);
         } catch (InterruptedException e) {
-            logger.warn("[{}] failed to lock all shards for index - interrupted", index);
+            logger.warn("[{}] failed to lock all shards for index - interrupted", e, index);
         }
     }
 

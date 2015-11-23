@@ -71,7 +71,7 @@ public class RepeatOnExceptionRule implements TestRule {
                         }
                     }
                 }
-                logger.error("Giving up after [{}] failures... marking test as failed", retryCount);
+                logger.error("Giving up after [{}] failures... marking test as failed", caughtThrowable, retryCount);
                 throw caughtThrowable;
             }
         };

@@ -288,13 +288,13 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
                         @Override
                         public void onFailure(Throwable e) {
-                            logger.warn("unable to clear scroll id [{}]: {}", scrollId, e.getMessage());
+                            logger.warn("unable to clear scroll id [{}]: {}", e, scrollId);
                         }
                     });
                 }
 
                 if (failure != null) {
-                    logger.trace("scrolling document(s) terminated with failures: {}", failure.getMessage());
+                    logger.trace("scrolling document(s) terminated with failures", failure);
                     listener.onFailure(failure);
                 } else {
                     logger.trace("scrolling document(s) terminated with success");

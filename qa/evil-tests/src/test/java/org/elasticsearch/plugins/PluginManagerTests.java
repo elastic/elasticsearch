@@ -571,12 +571,12 @@ public class PluginManagerTests extends ESIntegTestCase {
             String protocol = port == 443 ? "https" : "http";
             HttpResponse response = new HttpRequestBuilder(HttpClients.createDefault()).protocol(protocol).host(host).port(port).path(resource).execute();
             if (response.getStatusCode() != 200) {
-                logger.warn("[{}{}] download service is not working. Disabling current test.", host, resource);
+                logger.warn("[{}{}] download service is not working. Disabling current test.", null, host, resource);
                 return false;
             }
             return true;
         } catch (Throwable t) {
-            logger.warn("[{}{}] download service is not working. Disabling current test.", host, resource);
+            logger.warn("[{}{}] download service is not working. Disabling current test.", t, host, resource);
         }
         return false;
     }

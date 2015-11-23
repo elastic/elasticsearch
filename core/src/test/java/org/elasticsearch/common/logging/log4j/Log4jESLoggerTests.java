@@ -84,8 +84,8 @@ public class Log4jESLoggerTests extends ESTestCase {
     }
 
     public void testLocationInfoTest() {
-        esTestLogger.error("This is an error");
-        esTestLogger.warn("This is a warning");
+        esTestLogger.error("This is an error", null);
+        esTestLogger.warn("This is a warning", null);
         esTestLogger.info("This is an info");
         esTestLogger.debug("This is a debug");
         esTestLogger.trace("This is a trace");

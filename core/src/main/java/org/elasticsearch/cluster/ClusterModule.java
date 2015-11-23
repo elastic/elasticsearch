@@ -302,7 +302,7 @@ public class ClusterModule extends AbstractModule {
         String shardsAllocatorType = shardsAllocators.bindType(binder(), settings, ClusterModule.SHARDS_ALLOCATOR_TYPE_KEY, ClusterModule.BALANCED_ALLOCATOR);
         if (shardsAllocatorType.equals(ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR)) {
             final ESLogger logger = Loggers.getLogger(getClass(), settings);
-            logger.warn("{} allocator has been removed in 2.0 using {} instead", ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, ClusterModule.BALANCED_ALLOCATOR);
+            logger.warn("{} allocator has been removed in 2.0 using {} instead", null, ClusterModule.EVEN_SHARD_COUNT_ALLOCATOR, ClusterModule.BALANCED_ALLOCATOR);
         }
         allocationDeciders.bind(binder());
         indexTemplateFilters.bind(binder());

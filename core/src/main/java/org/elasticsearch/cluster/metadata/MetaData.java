@@ -780,7 +780,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     continue;
                 }
                 // It's a naked number that previously would be interpreted as default unit (bytes); now we add it:
-                logger.warn("byte-sized cluster setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", settingName, settingValue);
+                logger.warn("byte-sized cluster setting [{}] with value [{}] is missing units; assuming default units (b) but in future versions this will be a hard error", null, settingName, settingValue);
                 if (newPersistentSettings == null) {
                     newPersistentSettings = Settings.builder();
                     newPersistentSettings.put(metaData.persistentSettings());
@@ -794,7 +794,7 @@ public class MetaData implements Iterable<IndexMetaData>, Diffable<MetaData>, Fr
                     continue;
                 }
                 // It's a naked number that previously would be interpreted as default unit (ms); now we add it:
-                logger.warn("time cluster setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", settingName, settingValue);
+                logger.warn("time cluster setting [{}] with value [{}] is missing units; assuming default units (ms) but in future versions this will be a hard error", null, settingName, settingValue);
                 if (newPersistentSettings == null) {
                     newPersistentSettings = Settings.builder();
                     newPersistentSettings.put(metaData.persistentSettings());

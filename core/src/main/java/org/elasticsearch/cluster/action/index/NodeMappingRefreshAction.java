@@ -57,7 +57,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
     public void nodeMappingRefresh(final ClusterState state, final NodeMappingRefreshRequest request) {
         final DiscoveryNodes nodes = state.nodes();
         if (nodes.masterNode() == null) {
-            logger.warn("can't send mapping refresh for [{}][{}], no master known.", request.index(), Strings.arrayToCommaDelimitedString(request.types()));
+            logger.warn("can't send mapping refresh for [{}][{}], no master known.", null, request.index(), Strings.arrayToCommaDelimitedString(request.types()));
             return;
         }
         transportService.sendRequest(nodes.masterNode(), ACTION_NAME, request, EmptyTransportResponseHandler.INSTANCE_SAME);

@@ -100,22 +100,14 @@ public interface ESLogger {
     void info(String msg, Throwable cause, Object... params);
 
     /**
-     * Logs a WARN level message.
-     */
-    void warn(String msg, Object... params);
-
-    /**
-     * Logs a WARN level message.
+     * Logs a WARN level message.  If there is any exception associated with this meessage, pass it as as the <code>cause</code>.
+     * Ohterwise, pass <code>null</code>.
      */
     void warn(String msg, Throwable cause, Object... params);
 
     /**
-     * Logs an ERROR level message.
-     */
-    void error(String msg, Object... params);
-
-    /**
-     * Logs an ERROR level message.
+     * Logs an ERROR level message.  If there is any exception associated with this meessage, pass it as as the <code>cause</code>.
+     * Ohterwise, pass <code>null</code>.
      */
     void error(String msg, Throwable cause, Object... params);
 

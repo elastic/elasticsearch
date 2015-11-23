@@ -169,7 +169,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
                 // however, serialized size should remain the same
                 assertThat(ClusterState.Builder.toBytes(clusterStateFromDiffs).length, equalTo(ClusterState.Builder.toBytes(clusterState).length));
             } catch (AssertionError error) {
-                logger.error("Cluster state:\n{}\nCluster state from diffs:\n{}", clusterState.toString(), clusterStateFromDiffs.toString());
+                logger.error("Cluster state:\n{}\nCluster state from diffs:\n{}", error, clusterState.toString(), clusterStateFromDiffs.toString());
                 throw error;
             }
         }

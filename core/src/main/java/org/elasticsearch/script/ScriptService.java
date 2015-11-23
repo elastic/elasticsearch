@@ -372,7 +372,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                     } else {
                         logger.warn(
                                 "skipping compile of script [{}], lang [{}] as all scripted operations are disabled for indexed scripts",
-                                template.getScript(), scriptLang);
+                                null, template.getScript(), scriptLang);
                     }
                 } catch (Exception e) {
                     throw new IllegalArgumentException("Unable to parse [" + template.getScript() +
@@ -530,7 +530,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
             if (scriptNameExt != null) {
                 ScriptEngineService engineService = getScriptEngineServiceForFileExt(scriptNameExt.v2());
                 if (engineService == null) {
-                    logger.warn("no script engine found for [{}]", scriptNameExt.v2());
+                    logger.warn("no script engine found for [{}]", null, scriptNameExt.v2());
                 } else {
                     try {
                         //we don't know yet what the script will be used for, but if all of the operations for this lang
@@ -544,7 +544,7 @@ public class ScriptService extends AbstractComponent implements Closeable {
                                 scriptMetrics.onCompilation();
                             }
                         } else {
-                            logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", file.toAbsolutePath());
+                            logger.warn("skipping compile of script file [{}] as all scripted operations are disabled for file scripts", null, file.toAbsolutePath());
                         }
                     } catch (Throwable e) {
                         logger.warn("failed to load/compile script [{}]", e, scriptNameExt.v1());

@@ -379,7 +379,7 @@ public class NodeJoinController extends AbstractComponent {
                         for (DiscoveryNode existingNode : currentState.nodes()) {
                             if (node.address().equals(existingNode.address())) {
                                 nodesBuilder.remove(existingNode.id());
-                                logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", node, existingNode);
+                                logger.warn("received join request from node [{}], but found existing node {} with same address, removing existing node", null, node, existingNode);
                             }
                         }
                     }

@@ -77,7 +77,7 @@ public class AzureStorageSettings {
         String key = settings.get(Storage.KEY);
         if (account != null) {
             logger.warn("[{}] and [{}] have been deprecated. Use now [{}xxx.account] and [{}xxx.key] where xxx is any name",
-                    Storage.ACCOUNT, Storage.KEY, Storage.PREFIX, Storage.PREFIX);
+                    null, Storage.ACCOUNT, Storage.KEY, Storage.PREFIX, Storage.PREFIX);
             primaryStorage = new AzureStorageSettings(null, account, key);
         } else {
             Settings storageSettings = settings.getByPrefix(Storage.PREFIX);
@@ -93,7 +93,7 @@ public class AzureStorageSettings {
                             if (primaryStorage == null) {
                                 primaryStorage = current;
                             } else {
-                                logger.warn("default storage settings has already been defined. You can not define it to [{}]", storage.getKey());
+                                logger.warn("default storage settings has already been defined. You can not define it to [{}]", null, storage.getKey());
                                 secondaryStorage.put(storage.getKey(), current);
                             }
                         } else {
@@ -109,7 +109,7 @@ public class AzureStorageSettings {
                     if (secondaryStorage.size() > 1) {
                         logger.warn("no default storage settings has been defined. " +
                                 "Add \"default\": true to the settings you want to activate by default. " +
-                                "Forcing default to [{}].", fallback.getKey());
+                                "Forcing default to [{}].", null, fallback.getKey());
                     }
                     primaryStorage = fallback.getValue();
                     secondaryStorage.remove(fallback.getKey());

@@ -74,7 +74,7 @@ class JNANatives {
                     softLimit = rlimit.rlim_cur.longValue();
                     hardLimit = rlimit.rlim_max.longValue();
                 } else {
-                    logger.warn("Unable to retrieve resource limits: " + JNACLibrary.strerror(Native.getLastError()));
+                    logger.warn("Unable to retrieve resource limits: " + JNACLibrary.strerror(Native.getLastError()), null);
                 }
             }
         } catch (UnsatisfiedLinkError e) {
@@ -83,23 +83,23 @@ class JNANatives {
         }
 
         // mlockall failed for some reason
-        logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg);
-        logger.warn("This can result in part of the JVM being swapped out.");
+        logger.warn("Unable to lock JVM Memory: error=" + errno + ",reason=" + errMsg, null);
+        logger.warn("This can result in part of the JVM being swapped out.", null);
         if (errno == JNACLibrary.ENOMEM) {
             if (rlimitSuccess) {
-                logger.warn("Increase RLIMIT_MEMLOCK, soft limit: " + rlimitToString(softLimit) + ", hard limit: " + rlimitToString(hardLimit));
+                logger.warn("Increase RLIMIT_MEMLOCK, soft limit: " + rlimitToString(softLimit) + ", hard limit: " + rlimitToString(hardLimit), null);
                 if (Constants.LINUX) {
                     // give specific instructions for the linux case to make it easy
                     String user = System.getProperty("user.name");
                     logger.warn("These can be adjusted by modifying /etc/security/limits.conf, for example: \n" +
                                 "\t# allow user '" + user + "' mlockall\n" +
                                 "\t" + user + " soft memlock unlimited\n" +
-                                "\t" + user + " hard memlock unlimited"
+                                "\t" + user + " hard memlock unlimited", null
                                );
-                    logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.");
+                    logger.warn("If you are logged in interactively, you will have to re-login for the new limits to take effect.", null);
                 }
             } else {
-                logger.warn("Increase RLIMIT_MEMLOCK (ulimit).");
+                logger.warn("Increase RLIMIT_MEMLOCK (ulimit).", null);
             }
         }
     }
@@ -137,7 +137,7 @@ class JNANatives {
             // the amount of memory we wish to lock, plus a small overhead (1MB).
             SizeT size = new SizeT(JvmInfo.jvmInfo().getMem().getHeapInit().getBytes() + (1024 * 1024));
             if (!kernel.SetProcessWorkingSetSize(process, size, size)) {
-                logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code " + Native.getLastError());
+                logger.warn("Unable to lock JVM memory. Failed to set working set size. Error code " + Native.getLastError(), null);
             } else {
                 JNAKernel32Library.MemoryBasicInformation memInfo = new JNAKernel32Library.MemoryBasicInformation();
                 long address = 0;
@@ -170,7 +170,7 @@ class JNANatives {
                 if (result) {
                     logger.debug("console ctrl handler correctly set");
                 } else {
-                    logger.warn("unknown error " + Native.getLastError() + " when adding console ctrl handler:");
+                    logger.warn("unknown error " + Native.getLastError() + " when adding console ctrl handler:", null);
                 }
             } catch (UnsatisfiedLinkError e) {
                 // this will have already been logged by Kernel32Library, no need to repeat it
@@ -191,7 +191,7 @@ class JNANatives {
             if (logger.isDebugEnabled()) {
                 logger.debug("unable to install syscall filter", t);
             }
-            logger.warn("unable to install syscall filter: " + t.getMessage());
+            logger.warn("unable to install syscall filter: " + t.getMessage(), null);
         }
     }
 }

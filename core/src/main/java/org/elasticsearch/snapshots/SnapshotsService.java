@@ -842,7 +842,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
 
             @Override
             public void onFailure(String source, Throwable t) {
-                logger.warn("[{}][{}] failed to remove snapshot metadata", t, snapshotId);
+                logger.warn("[{}][{}] failed to remove snapshot metadata", t, source, snapshotId);
             }
 
             @Override

@@ -298,7 +298,7 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
                         if (logger.isTraceEnabled()) {
                             logger.trace("failed to execute bulk", e);
                         } else {
-                            logger.warn("failed to execute bulk: [{}]", e);
+                            logger.warn("failed to execute bulk", e);
                         }
                     }
                 });

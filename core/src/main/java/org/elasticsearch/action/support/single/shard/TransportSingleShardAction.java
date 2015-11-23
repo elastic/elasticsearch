@@ -201,7 +201,7 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
                     failure = new NoShardAvailableActionException(null, LoggerMessageFormat.format("No shard available for [{}]", internalRequest.request()), failure);
                 } else {
                     if (logger.isDebugEnabled()) {
-                        logger.debug("{}: failed to execute [{}]", failure, null, internalRequest.request());
+                        logger.debug("failed to execute [{}]", failure, internalRequest.request());
                     }
                 }
                 listener.onFailure(failure);

@@ -530,7 +530,7 @@ public abstract class Engine implements Closeable {
                     closeNoLock("engine failed on: [" + reason + "]");
                 } finally {
                     if (failedEngine != null) {
-                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", reason, failure);
+                        logger.debug("tried to fail engine but engine is already failed. ignoring. [{}]", failure, reason);
                         return;
                     }
                     logger.warn("failed engine [{}]", failure, reason);
@@ -556,7 +556,7 @@ public abstract class Engine implements Closeable {
                 store.decRef();
             }
         } else {
-            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", reason, failure);
+            logger.debug("tried to fail engine but could not acquire lock - engine should be failed by now [{}]", failure, reason);
         }
     }
 

@@ -269,7 +269,7 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
             if (value.equals(currentValue)) {
                 return currentValue;
             }
-            logger.info("updating [] from [{}] to [{}]", key, currentValue, value);
+            logger.info("updating [{}] from [{}] to [{}]", key, currentValue, value);
             return value;
         }
     }

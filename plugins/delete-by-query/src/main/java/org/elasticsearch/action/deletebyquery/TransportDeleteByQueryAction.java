@@ -288,7 +288,7 @@ public class TransportDeleteByQueryAction extends HandledTransportAction<DeleteB
 
                         @Override
                         public void onFailure(Throwable e) {
-                            logger.warn("unable to clear scroll id [{}]: {}", e, scrollId);
+                            logger.warn("unable to clear scroll id [{}]", e, scrollId);
                         }
                     });
                 }

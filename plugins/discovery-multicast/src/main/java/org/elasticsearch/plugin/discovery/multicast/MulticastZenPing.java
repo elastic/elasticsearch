@@ -539,7 +539,7 @@ public class MulticastZenPing extends AbstractLifecycleComponent<ZenPing> implem
             // don't connect between two client nodes, no need for that...
             if (!discoveryNodes.localNode().shouldConnectTo(requestingNode)) {
                 if (logger.isTraceEnabled()) {
-                    logger.trace("[{}] received ping_request from [{}], both are client nodes, ignoring", id, requestingNode, requestClusterName);
+                    logger.trace("[{}] received ping_request from [{}], cluster name [{}], both are client nodes, ignoring", id, requestingNode, requestClusterName);
                 }
                 return;
             }

@@ -76,7 +76,7 @@ public class NodeIndexDeletedAction extends AbstractComponent {
         transportService.sendRequest(clusterState.nodes().masterNode(),
                 INDEX_DELETED_ACTION_NAME, new NodeIndexDeletedMessage(index, nodeId), EmptyTransportResponseHandler.INSTANCE_SAME);
         if (nodes.localNode().isDataNode() == false) {
-            logger.trace("[{}] not acking store deletion (not a data node)");
+            logger.trace("[{}] not acking store deletion (not a data node)", nodeId);
             return;
         }
         threadPool.generic().execute(new AbstractRunnable() {

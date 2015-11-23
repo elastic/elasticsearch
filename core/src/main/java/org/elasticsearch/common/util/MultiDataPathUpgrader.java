@@ -334,7 +334,7 @@ public class MultiDataPathUpgrader {
                                 upgrader.checkIndex(shardPath);
                             }
                         } else {
-                            logger.debug("{} no upgrade needed - already upgraded");
+                            logger.debug("{} no upgrade needed - already upgraded", shardId);
                         }
                     }
                 }

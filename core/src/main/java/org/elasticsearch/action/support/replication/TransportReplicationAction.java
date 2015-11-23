@@ -383,7 +383,7 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
                 return;
             }
             if (observer.observedState().nodes().nodeExists(primary.currentNodeId()) == false) {
-                logger.trace("primary shard [{}] is assigned to anode we do not know the node, scheduling a retry.", primary.shardId(), primary.currentNodeId());
+                logger.trace("primary shard [{}] is assigned to a node we do not know the node [{}], scheduling a retry.", primary.shardId(), primary.currentNodeId());
                 retryBecauseUnavailable(shardIt.shardId(), "Primary shard is not active or isn't assigned to a known node.");
                 return;
             }

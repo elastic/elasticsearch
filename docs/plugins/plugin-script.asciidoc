@@ -75,13 +75,12 @@ sudo bin/plugin install lmenezes/elasticsearch-kopf/2.x <2>
 
 When installing from Maven Central/Sonatype, `[org]` should be replaced by
 the artifact `groupId`, and `[user|component]` by the `artifactId`.  For
-instance, to install the
-https://github.com/elastic/elasticsearch-mapper-attachments[mapper attachment]
+instance, to install the {plugins}/mapper-attachments.html[`mapper-attachments`]
 plugin from Sonatype, run:
 
 [source,shell]
 -----------------------------------
-sudo bin/plugin install org.elasticsearch/elasticsearch-mapper-attachments/2.6.0 <1>
+sudo bin/plugin install org.elasticsearch.plugin/mapper-attachments/3.0.0 <1>
 -----------------------------------
 <1> When installing from `download.elastic.co` or from Maven Central/Sonatype, the
     version is required.

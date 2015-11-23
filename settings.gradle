@@ -61,19 +61,22 @@ if (isEclipse) {
   */
 void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
+  if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
 
-  String projectName = "${path}:${dir.name}"
-  include projectName
-  project(projectName).projectDir = dir
+  include path
+  project(path).projectDir = dir
 
   for (File subdir : dir.listFiles()) {
-    addSubProjects(projectName, subdir)
+    addSubProjects("${path}:${subdir.name}", subdir)
   }
 }
 
-File extraPlugins = new File(rootProject.projectDir, 'extra-plugins')
-for (File extraPluginDir : extraPlugins.listFiles()) {
-  addSubProjects('', extraPluginDir)
+// look for sibling projects with the prefix "extra-plugin-"
+File siblings = rootProject.projectDir.parentFile
+for (File extraPluginDir : siblings.listFiles()) {
+  if (extraPluginDir.name.startsWith('extra-plugin-') == false) continue;
+  String path = ":${extraPluginDir.name.substring('extra-plugin-'.size())}"
+  addSubProjects(path, extraPluginDir)
 }
 

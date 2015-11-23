@@ -832,8 +832,8 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
         @Override
         protected void doRun() {
             if (logger.isTraceEnabled()) {
-                logger.trace("replication phase started. pending [{}], action [{}], request [{}], cluster state version used [{}]", pending.get(),
-                        actionName, replicaRequest, observer.observedState().version());
+                logger.trace("replication phase started. pending [{}], action [{}], request [{}], cluster state version used [{}], primary on start", pending.get(),
+                        actionName, replicaRequest, observer.observedState().version(), originalPrimaryShard);
             }
             if (pending.get() == 0) {
                 doFinish();
@@ -961,6 +961,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         private void doFinish() {
             if (finished.compareAndSet(false, true)) {
+                if (logger.isTraceEnabled()) {
+                    logger.trace("finished replicating action [{}], request [{}], cluster state version [{}], primary on start {}", actionName, replicaRequest, observer.observedState().version(), originalPrimaryShard);
+                }
                 Releasables.close(indexShardReference);
                 final ShardId shardId = shardIt.shardId();
                 final ReplicationResponse.ShardInfo.Failure[] failuresArray;

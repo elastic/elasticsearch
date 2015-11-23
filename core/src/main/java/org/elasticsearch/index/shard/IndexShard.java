@@ -417,13 +417,22 @@ public class IndexShard extends AbstractIndexShardComponent {
         }
     }
 
-    public IndexShard relocated(String reason) throws IndexShardNotStartedException {
+    public IndexShard relocated(String reason) throws IndexShardNotStartedException, InterruptedException {
         synchronized (mutex) {
             if (state != IndexShardState.STARTED) {
                 throw new IndexShardNotStartedException(shardId, state);
             }
             changeState(IndexShardState.RELOCATED, reason);
+            // nocommit: awful hack to work around delay replications being rejected by the primary term check. This is used to make sure all in flight operation are done
+            // before primary relocation is done. proper fix coming.
+            indexShardOperationCounter.decRef();
         }
+
+        logger.info("waiting for op count to reach 0");
+        while (indexShardOperationCounter.refCount() > 0) {
+            Thread.sleep(100);
+        }
+        logger.info("{} waiting for op count reached 0. continuing...");
         return this;
     }
 
@@ -779,8 +788,12 @@ public class IndexShard extends AbstractIndexShardComponent {
                     FutureUtils.cancel(mergeScheduleFuture);
                     mergeScheduleFuture = null;
                 }
+                // nocommit: done to temporary prevent operations on a relocated primary. Remove when properly fixed.
+                final boolean decOpCounter = state != IndexShardState.RELOCATED;
                 changeState(IndexShardState.CLOSED, reason);
-                indexShardOperationCounter.decRef();
+                if (decOpCounter) {
+                    indexShardOperationCounter.decRef();
+                }
             } finally {
                 final Engine engine = this.currentEngineReference.getAndSet(null);
                 try {

@@ -40,7 +40,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CancellableThreads;
 import org.elasticsearch.common.util.CancellableThreads.Interruptable;
 import org.elasticsearch.index.engine.RecoveryEngineException;
-import org.elasticsearch.index.shard.*;
+import org.elasticsearch.index.shard.IllegalIndexShardStateException;
+import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardClosedException;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
@@ -218,7 +221,7 @@ public class RecoverySourceHandler {
                     totalSize += md.length();
                 }
                 List<StoreFileMetaData> phase1Files = new ArrayList<>(diff.different.size() + diff.missing.size());
-                phase1Files.addAll(diff.different); 
+                phase1Files.addAll(diff.different);
                 phase1Files.addAll(diff.missing);
                 for (StoreFileMetaData md : phase1Files) {
                     if (request.metadataSnapshot().asMap().containsKey(md.name())) {
@@ -319,7 +322,6 @@ public class RecoverySourceHandler {
     }
 
 
-
     protected void prepareTargetForTranslog(final Translog.View translogView) {
         StopWatch stopWatch = new StopWatch().start();
         logger.trace("{} recovery [phase1] to {}: prepare remote engine for translog", request.shardId(), request.targetNode());
@@ -395,15 +397,17 @@ public class RecoverySourceHandler {
             }
         });
 
-
-        if (request.markAsRelocated()) {
+        if (request.markAsRelocated() || request.recoveryType() == RecoveryState.Type.RELOCATION) {
             // TODO what happens if the recovery process fails afterwards, we need to mark this back to started
             try {
+                // nocommit: awful hack to work around delay replications being rejected by the primary term check. proper fix coming.
                 shard.relocated("to " + request.targetNode());
             } catch (IllegalIndexShardStateException e) {
                 // we can ignore this exception since, on the other node, when it moved to phase3
                 // it will also send shard started, which might cause the index shard we work against
                 // to move be closed by the time we get to the the relocated method
+            } catch (InterruptedException e) {
+                throw new ElasticsearchException("interrupted while waiting for pending operation to finish on relocated primary", e);
             }
         }
         stopWatch.stop();

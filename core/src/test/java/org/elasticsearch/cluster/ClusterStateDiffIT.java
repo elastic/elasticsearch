@@ -223,7 +223,7 @@ public class ClusterStateDiffIT extends ESIntegTestCase {
             for (int j = 0; j < replicaCount; j++) {
                 UnassignedInfo unassignedInfo = null;
                 if (randomInt(5) == 1) {
-                    unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10), System.nanoTime());
+                    unassignedInfo = new UnassignedInfo(randomReason(), randomAsciiOfLength(10));
                 }
                 indexShard.addShard(
                         TestShardRouting.newShardRouting(index, i, randomFrom(nodeIds), null, null, j == 0,

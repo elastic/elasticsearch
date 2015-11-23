@@ -33,9 +33,9 @@ public final class RandomShardRoutingMutator {
         switch (randomInt(3)) {
             case 0:
                 if (shardRouting.unassigned() == false) {
-                    shardRouting.moveToUnassigned(new UnassignedInfo(randomReason(), randomAsciiOfLength(10), System.nanoTime()));
+                    shardRouting.moveToUnassigned(new UnassignedInfo(randomReason(), randomAsciiOfLength(10)));
                 } else if (shardRouting.unassignedInfo() != null) {
-                    shardRouting.updateUnassignedInfo(new UnassignedInfo(randomReason(), randomAsciiOfLength(10), System.nanoTime()));
+                    shardRouting.updateUnassignedInfo(new UnassignedInfo(randomReason(), randomAsciiOfLength(10)));
                 }
                 break;
             case 1:

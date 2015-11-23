@@ -473,7 +473,7 @@ public final class ShardRouting implements Streamable, ToXContent {
         version++;
         state = ShardRoutingState.INITIALIZING;
         allocationId = AllocationId.newInitializing();
-        this.unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null, System.nanoTime());
+        this.unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.REINITIALIZED, null);
     }
 
     /**

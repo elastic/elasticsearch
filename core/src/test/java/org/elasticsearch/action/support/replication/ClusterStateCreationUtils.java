@@ -99,7 +99,7 @@ public class ClusterStateCreationUtils {
                 relocatingNode = selectAndRemove(unassignedNodes);
             }
         } else {
-            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime());
+            unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
         }
         indexShardRoutingBuilder.addShard(TestShardRouting.newShardRouting(index, 0, primaryNode, relocatingNode, null, true, primaryState, 0, unassignedInfo));
 
@@ -114,7 +114,7 @@ public class ClusterStateCreationUtils {
                     relocatingNode = selectAndRemove(unassignedNodes);
                 }
             } else {
-                unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime());
+                unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null);
             }
             indexShardRoutingBuilder.addShard(
                     TestShardRouting.newShardRouting(index, shardId.id(), replicaNode, relocatingNode, null, false, replicaState, 0, unassignedInfo));

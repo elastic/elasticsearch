@@ -195,7 +195,7 @@ public class ShardRoutingTests extends ESTestCase {
 
                     UnassignedInfo unassignedInfo = otherRouting.unassignedInfo();
                     if (unassignedInfo == null && (newState == ShardRoutingState.UNASSIGNED || newState == ShardRoutingState.INITIALIZING)) {
-                        unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test", System.nanoTime());
+                        unassignedInfo = new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test");
                     }
 
                     otherRouting = TestShardRouting.newShardRouting(otherRouting.index(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
@@ -212,8 +212,8 @@ public class ShardRoutingTests extends ESTestCase {
                 // change unassigned info
                 otherRouting = TestShardRouting.newShardRouting(otherRouting.index(), otherRouting.id(), otherRouting.currentNodeId(), otherRouting.relocatingNodeId(),
                         otherRouting.restoreSource(), otherRouting.primary(), otherRouting.state(), otherRouting.version(),
-                        otherRouting.unassignedInfo() == null ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test", System.nanoTime()) :
-                                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().getMessage() + "_1", System.nanoTime()));
+                        otherRouting.unassignedInfo() == null ? new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "test") :
+                                new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, otherRouting.unassignedInfo().getMessage() + "_1"));
             }
 
             logger.debug("comparing\nthis  {} to\nother {}", routing, otherRouting);
@@ -266,7 +266,7 @@ public class ShardRoutingTests extends ESTestCase {
                 // expected
             }
             try {
-                routing.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "foobar", System.nanoTime()));
+                routing.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REPLICA_ADDED, "foobar"));
                 fail("must be frozen");
             } catch (IllegalStateException ex) {
                 // expected

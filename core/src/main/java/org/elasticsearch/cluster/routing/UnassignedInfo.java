@@ -109,15 +109,24 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     private final String message;
     private final Throwable failure;
 
-    public UnassignedInfo(Reason reason, String message, long unassignedTimeNanos) {
-        this(reason, System.currentTimeMillis(), unassignedTimeNanos, message, null);
+    /**
+     * creates an UnassingedInfo object based **current** time
+     *
+     * @param reason  the cause for making this shard unassigned. See {@link Reason} for more information.
+     * @param message more information about cause.
+     **/
+    public UnassignedInfo(Reason reason, String message) {
+        this(reason, message, null, System.nanoTime(), System.currentTimeMillis());
     }
 
-    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Throwable failure, long unassignedTimeNanos) {
-        this(reason, System.currentTimeMillis(), unassignedTimeNanos, message, failure);
-    }
-
-    private UnassignedInfo(Reason reason, long unassignedTimeMillis, long unassignedTimeNanos, String message, Throwable failure) {
+    /**
+     * @param reason               the cause for making this shard unassigned. See {@link Reason} for more information.
+     * @param message              more information about cause.
+     * @param failure              the shard level failure that caused this shard to be unassigned, if exists.
+     * @param unassignedTimeNanos  the time to use as the base for any delayed re-assignment calculation
+     * @param unassignedTimeMillis the time of unassignment used to display to in our reporting.
+     */
+    public UnassignedInfo(Reason reason, @Nullable String message, @Nullable Throwable failure, long unassignedTimeNanos, long unassignedTimeMillis) {
         this.reason = reason;
         this.unassignedTimeMillis = unassignedTimeMillis;
         this.unassignedTimeNanos = unassignedTimeNanos;
@@ -220,6 +229,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     /**
      * Updates delay left based on current time (in nanoseconds) and index/node settings.
+     *
      * @return updated delay in nanoseconds
      */
     public long updateDelay(long nanoTimeNow, Settings settings, Settings indexSettings) {
@@ -317,14 +327,24 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
 
     @Override
     public boolean equals(Object o) {
-        if (this == o) return true;
-        if (o == null || getClass() != o.getClass()) return false;
+        if (this == o) {
+            return true;
+        }
+        if (o == null || getClass() != o.getClass()) {
+            return false;
+        }
 
         UnassignedInfo that = (UnassignedInfo) o;
 
-        if (unassignedTimeMillis != that.unassignedTimeMillis) return false;
-        if (reason != that.reason) return false;
-        if (message != null ? !message.equals(that.message) : that.message != null) return false;
+        if (unassignedTimeMillis != that.unassignedTimeMillis) {
+            return false;
+        }
+        if (reason != that.reason) {
+            return false;
+        }
+        if (message != null ? !message.equals(that.message) : that.message != null) {
+            return false;
+        }
         return !(failure != null ? !failure.equals(that.failure) : that.failure != null);
 
     }

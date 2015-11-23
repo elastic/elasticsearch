@@ -64,12 +64,12 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
      * and processes only the applicable shard.
      */
     public void testNoProcessReplica() {
-        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null, System.nanoTime()));
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
         assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
     }
 
     public void testNoProcessPrimayNotAllcoatedBefore() {
-        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, true, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null, System.nanoTime()));
+        ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, true, ShardRoutingState.UNASSIGNED, 0, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, null));
         assertThat(testAllocator.needToFindPrimaryCopy(shard), equalTo(false));
     }
 
@@ -269,7 +269,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     public void testAllocationOnAnyNodeWithSharedFs() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false,
                 ShardRoutingState.UNASSIGNED, 0,
-                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null, System.nanoTime()));
+                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
 
         Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data = new HashMap<>();
         data.put(node1, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node1, 1));
@@ -293,7 +293,7 @@ public class PrimaryShardAllocatorTests extends ESAllocationTestCase {
     public void testAllocationOnAnyNodeShouldPutNodesWithExceptionsLast() {
         ShardRouting shard = TestShardRouting.newShardRouting("test", 0, null, null, null, false,
                 ShardRoutingState.UNASSIGNED, 0,
-                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null, System.nanoTime()));
+                new UnassignedInfo(UnassignedInfo.Reason.CLUSTER_RECOVERED, null));
 
         Map<DiscoveryNode, TransportNodesListGatewayStartedShards.NodeGatewayStartedShards> data = new HashMap<>();
         data.put(node1, new TransportNodesListGatewayStartedShards.NodeGatewayStartedShards(node1, 1));

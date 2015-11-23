@@ -95,7 +95,7 @@ public class IndicesLifecycleListenerSingleNodeTests extends ESSingleNodeTestCas
             IndexService index = indicesService.createIndex(nodeServicesProvider, metaData, Arrays.asList(countingListener));
             ShardRouting newRouting = new ShardRouting(shardRouting);
             String nodeId = newRouting.currentNodeId();
-            ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom", System.nanoTime()));
+            ShardRoutingHelper.moveToUnassigned(newRouting, new UnassignedInfo(UnassignedInfo.Reason.INDEX_CREATED, "boom"));
             ShardRoutingHelper.initialize(newRouting, nodeId);
             IndexShard shard = index.createShard(0, newRouting);
             shard.updateRoutingEntry(newRouting, true);

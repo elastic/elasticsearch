@@ -198,7 +198,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         }
     };
 
-    // TODO: replace with JDK 8 native java.util.function.Predicate
     private GroupShardsIterator allSatisfyingPredicateShardsGrouped(String[] indices, boolean includeEmpty, boolean includeRelocationTargets, Predicate<ShardRouting> predicate) {
         // use list here since we need to maintain identity across shards
         ArrayList<ShardIterator> set = new ArrayList<>();
@@ -232,7 +231,6 @@ public class RoutingTable implements Iterable<IndexRoutingTable>, Diffable<Routi
         return allShardsSatisfyingPredicate(indices, Predicates.<ShardRouting>alwaysTrue(), true);
     }
 
-    // TODO: replace with JDK 8 native java.util.function.Predicate
     private ShardsIterator allShardsSatisfyingPredicate(String[] indices, Predicate<ShardRouting> predicate, boolean includeRelocationTargets) {
         // use list here since we need to maintain identity across shards
         List<ShardRouting> shards = new ArrayList<>();

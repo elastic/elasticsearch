@@ -256,7 +256,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
             logger.info("--> refreshing the index");
             refreshAndAssert();
             logger.info("--> verifying indexed content");
-            iterateAssertCount(numShards, (int) indexer.totalIndexedDocs(), 10);
+            iterateAssertCount(numShards, indexer.totalIndexedDocs(), 10);
         }
     }
 

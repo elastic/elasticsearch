@@ -559,7 +559,9 @@ public abstract class TransportReplicationAction<Request extends ReplicationRequ
 
         void finishOnRemoteSuccess(Response response) {
             if (finished.compareAndSet(false, true)) {
-                logger.trace("operation succeeded. action [{}],request [{}]", actionName, internalRequest.request);
+                if (logger.isTraceEnabled()) {
+                    logger.trace("operation succeeded. action [{}],request [{}]", actionName, internalRequest.request);
+                }
                 listener.onResponse(response);
             } else {
                 assert false : "finishOnRemoteSuccess called but operation is already finished";

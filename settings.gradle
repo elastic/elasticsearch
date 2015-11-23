@@ -65,18 +65,18 @@ void addSubProjects(String path, File dir) {
   if (new File(dir, 'build.gradle').exists() == false) return;
 
   include path
-  project(path).projectDir = dir
-
   for (File subdir : dir.listFiles()) {
     addSubProjects("${path}:${subdir.name}", subdir)
   }
 }
 
-// look for sibling projects with the prefix "extra-plugin-"
-File siblings = rootProject.projectDir.parentFile
-for (File extraPluginDir : siblings.listFiles()) {
-  if (extraPluginDir.name.startsWith('extra-plugin-') == false) continue;
-  String path = ":${extraPluginDir.name.substring('extra-plugin-'.size())}"
-  addSubProjects(path, extraPluginDir)
+// look for extra plugins for elasticsearch
+File xplugins = new File(rootProject.projectDir.parentFile, 'x-plugins')
+if (xplugins.exists()) {
+  include ':x-plugins'
+  project(':x-plugins').projectDir = xplugins
+  for (File extraPluginDir : xplugins.listFiles()) {
+    addSubProjects(':x-plugins', extraPluginDir)
+  }
 }
 

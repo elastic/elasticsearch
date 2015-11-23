@@ -28,6 +28,8 @@ import java.io.IOException;
 
 public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPointBuilder> {
 
+    static final MultiPointBuilderTests PROTOTYPE = new MultiPointBuilderTests();
+
     @Override
     protected MultiPointBuilder createTestShapeBuilder() {
         return (MultiPointBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.MULTIPOINT);

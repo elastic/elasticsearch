@@ -26,6 +26,8 @@ import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
 public class PointBuilderTests extends AbstractShapeBuilderTestCase<PointBuilder> {
 
+    static PointBuilderTests PROTOTYPE = new PointBuilderTests();
+
     @Override
     protected PointBuilder createTestShapeBuilder() {
         return (PointBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POINT);

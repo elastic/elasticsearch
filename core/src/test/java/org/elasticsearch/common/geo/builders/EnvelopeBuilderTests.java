@@ -29,6 +29,8 @@ import java.io.IOException;
 
 public class EnvelopeBuilderTests extends AbstractShapeBuilderTestCase<EnvelopeBuilder> {
 
+    static final EnvelopeBuilderTests PROTOTYPE = new EnvelopeBuilderTests();
+
     @Override
     protected EnvelopeBuilder createTestShapeBuilder() {
         EnvelopeBuilder envelope = new EnvelopeBuilder(randomFrom(Orientation.values()));

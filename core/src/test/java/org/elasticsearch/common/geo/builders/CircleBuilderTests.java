@@ -25,7 +25,9 @@ import org.elasticsearch.common.unit.DistanceUnit;
 
 import java.io.IOException;
 
-public class CirlceBuilderTests extends AbstractShapeBuilderTestCase<CircleBuilder> {
+public class CircleBuilderTests extends AbstractShapeBuilderTestCase<CircleBuilder> {
+
+    static CircleBuilderTests PROTOTYPE = new CircleBuilderTests();
 
     @Override
     protected CircleBuilder createTestShapeBuilder() {

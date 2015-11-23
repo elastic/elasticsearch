@@ -29,6 +29,8 @@ import java.io.IOException;
 
 public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBuilder> {
 
+    static final PolygonBuilderTests PROTOTYPE = new PolygonBuilderTests();
+
     @Override
     protected PolygonBuilder createTestShapeBuilder() {
         PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON);

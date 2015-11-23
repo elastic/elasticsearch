@@ -408,6 +408,14 @@ public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWri
         public static final Orientation COUNTER_CLOCKWISE = Orientation.RIGHT;
         public static final Orientation CW = Orientation.LEFT;
         public static final Orientation CCW = Orientation.RIGHT;
+
+        public void writeTo (StreamOutput out) throws IOException {
+            out.writeBoolean(this == Orientation.RIGHT);
+        }
+
+        public static Orientation readFrom (StreamInput in) throws IOException {
+            return in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
+        }
     }
 
     public static final String FIELD_TYPE = "type";

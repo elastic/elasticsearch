@@ -28,6 +28,8 @@ import java.io.IOException;
 
 public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStringBuilder> {
 
+    static final LineStringBuilderTests PROTOTYPE = new LineStringBuilderTests();
+
     @Override
     protected LineStringBuilder createTestShapeBuilder() {
         LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.LINESTRING);

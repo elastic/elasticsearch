@@ -27,6 +27,8 @@ import java.io.IOException;
 
 public class MultiPolygonBuilderTests extends AbstractShapeBuilderTestCase<MultiPolygonBuilder> {
 
+    static final MultiPolygonBuilderTests PROTOTYPE = new MultiPolygonBuilderTests();
+
     @Override
     protected MultiPolygonBuilder createTestShapeBuilder() {
         MultiPolygonBuilder mpb = new MultiPolygonBuilder(randomFrom(Orientation.values()));

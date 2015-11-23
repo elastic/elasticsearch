@@ -108,15 +108,14 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(orientation == Orientation.RIGHT);
+        orientation.writeTo(out);
         writeCoordinateTo(topLeft, out);
         writeCoordinateTo(bottomRight, out);
     }
 
     @Override
     public EnvelopeBuilder readFrom(StreamInput in) throws IOException {
-        Orientation orientation = in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
-        return new EnvelopeBuilder(orientation)
+        return new EnvelopeBuilder(Orientation.readFrom(in))
                 .topLeft(readCoordinateFrom(in))
                 .bottomRight(readCoordinateFrom(in));
     }

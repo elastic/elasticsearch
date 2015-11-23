@@ -28,6 +28,8 @@ import java.io.IOException;
 
 public class MultiLineStringBuilderTests extends AbstractShapeBuilderTestCase<MultiLineStringBuilder> {
 
+    static final MultiLineStringBuilderTests PROTOTYPE = new MultiLineStringBuilderTests();
+
     @Override
     protected MultiLineStringBuilder createTestShapeBuilder() {
         return (MultiLineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.MULTILINESTRING);

@@ -562,7 +562,7 @@ public class PolygonBuilder extends ShapeBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(orientation == Orientation.RIGHT);
+        orientation.writeTo(out);
         shell.writeTo(out);
         out.writeVInt(holes.size());
         for (LineStringBuilder hole : holes) {
@@ -572,8 +572,7 @@ public class PolygonBuilder extends ShapeBuilder {
 
     @Override
     public PolygonBuilder readFrom(StreamInput in) throws IOException {
-        Orientation orientation = in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
-        PolygonBuilder polyBuilder = new PolygonBuilder(orientation);
+        PolygonBuilder polyBuilder = new PolygonBuilder(Orientation.readFrom(in));
         polyBuilder.shell = LineStringBuilder.PROTOTYPE.readFrom(in);
         int holes = in.readVInt();
         for (int i = 0; i < holes; i++) {

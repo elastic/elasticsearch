@@ -20,17 +20,24 @@
 package org.elasticsearch.common.geo.builders;
 
 import com.spatial4j.core.shape.Shape;
+
 import org.elasticsearch.common.geo.XShapeCollection;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Objects;
 
 public class GeometryCollectionBuilder extends ShapeBuilder {
 
     public static final GeoShapeType TYPE = GeoShapeType.GEOMETRYCOLLECTION;
+
+    public static final GeometryCollectionBuilder PROTOTYPE = new GeometryCollectionBuilder();
 
     protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
 
@@ -103,6 +110,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD_TYPE, TYPE.shapeName());
+        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
         builder.startArray(FIELD_GEOMETRIES);
         for (ShapeBuilder shape : shapes) {
             shape.toXContent(builder, params);
@@ -130,6 +138,42 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
         else
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(orientation, shapes);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (this == obj) {
+            return true;
+        }
+        if (obj == null || getClass() != obj.getClass()) {
+            return false;
+        }
+        GeometryCollectionBuilder other = (GeometryCollectionBuilder) obj;
+        return Objects.equals(orientation, other.orientation) && Objects.equals(shapes, other.shapes);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        orientation.writeTo(out);
+        out.writeVInt(shapes.size());
+        for (ShapeBuilder shape : shapes) {
+            out.writeShape(shape);
+        }
+    }
+
+    @Override
+    public GeometryCollectionBuilder readFrom(StreamInput in) throws IOException {
+        GeometryCollectionBuilder geometryCollectionBuilder = new GeometryCollectionBuilder(Orientation.readFrom(in));
+        int shapes = in.readVInt();
+        for (int i = 0; i < shapes; i++) {
+            geometryCollectionBuilder.shape(in.readShape());
+        }
+        return geometryCollectionBuilder;
     }
 
 }

@@ -123,7 +123,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(orientation == Orientation.RIGHT);
+        orientation.writeTo(out);
         out.writeVInt(polygons.size());
         for (PolygonBuilder polygon : polygons) {
             polygon.writeTo(out);
@@ -132,8 +132,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
     @Override
     public MultiPolygonBuilder readFrom(StreamInput in) throws IOException {
-        Orientation orientation = in.readBoolean() ? Orientation.RIGHT : Orientation.LEFT;
-        MultiPolygonBuilder polyBuilder = new MultiPolygonBuilder(orientation);
+        MultiPolygonBuilder polyBuilder = new MultiPolygonBuilder(Orientation.readFrom(in));
         int holes = in.readVInt();
         for (int i = 0; i < holes; i++) {
             polyBuilder.polygon(PolygonBuilder.PROTOTYPE.readFrom(in));

@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,6 +29,10 @@ import java.io.IOException;
  * Parser for missing query
  */
 public class MissingQueryParser implements QueryParser<MissingQueryBuilder> {
+
+    public static final ParseField FIELD_FIELD = new ParseField("field");
+    public static final ParseField NULL_VALUE_FIELD = new ParseField("null_value");
+    public static final ParseField EXISTENCE_FIELD = new ParseField("existence");
 
     @Override
     public String[] names() {
@@ -50,15 +55,15 @@ public class MissingQueryParser implements QueryParser<MissingQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("field".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, FIELD_FIELD)) {
                     fieldPattern = parser.text();
-                } else if ("null_value".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, NULL_VALUE_FIELD)) {
                     nullValue = parser.booleanValue();
-                } else if ("existence".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, EXISTENCE_FIELD)) {
                     existence = parser.booleanValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + MissingQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");

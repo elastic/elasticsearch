@@ -78,4 +78,28 @@ public class SpanFirstQueryBuilderTests extends AbstractQueryTestCase<SpanFirstQ
             }
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"span_first\" : {\n" + 
+                "    \"match\" : {\n" + 
+                "      \"span_term\" : {\n" + 
+                "        \"user\" : {\n" + 
+                "          \"value\" : \"kimchy\",\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    },\n" + 
+                "    \"end\" : 3,\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        SpanFirstQueryBuilder parsed = (SpanFirstQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 3, parsed.end());
+        assertEquals(json, "kimchy", ((SpanTermQueryBuilder) parsed.innerQuery()).value());
+    }
 }

@@ -19,11 +19,14 @@
 
 package org.elasticsearch.cluster.routing;
 
+import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.gateway.CorruptStateException;
 
 import java.io.IOException;
 
@@ -37,8 +40,11 @@ import java.io.IOException;
  * behavior to how ShardRouting#currentNodeId is used.
  */
 public class AllocationId implements ToXContent {
+    private static final String ID_KEY = "id";
+    private static final String RELOCATION_ID_KEY = "relocation_id";
 
     private final String id;
+    @Nullable
     private final String relocationId;
 
     AllocationId(StreamInput in) throws IOException {
@@ -148,12 +154,45 @@ public class AllocationId implements ToXContent {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("allocation_id");
-        builder.field("id", id);
+        builder.startObject();
+        builder.field(ID_KEY, id);
         if (relocationId != null) {
-            builder.field("relocation_id", relocationId);
+            builder.field(RELOCATION_ID_KEY, relocationId);
         }
         builder.endObject();
         return builder;
+    }
+
+    public static AllocationId fromXContent(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == null) { // fresh parser? move to the first real token under object
+            token = parser.nextToken();
+        }
+        assert token == XContentParser.Token.START_OBJECT;
+
+        String id = null;
+        String relocationId = null;
+
+        String currentFieldName = null;
+
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                currentFieldName = parser.currentName();
+            } else if (token.isValue()) {
+                if (ID_KEY.equals(currentFieldName)) {
+                    id = parser.text();
+                } else if (RELOCATION_ID_KEY.equals(currentFieldName)) {
+                    relocationId = parser.text();
+                } else {
+                    throw new CorruptStateException("unexpected field in allocation id [" + currentFieldName + "]");
+                }
+            } else {
+                throw new CorruptStateException("unexpected token in allocation id [" + token.name() + "]");
+            }
+        }
+        if (id == null) {
+            throw new CorruptStateException("missing value for [id] in allocation id");
+        }
+        return new AllocationId(id, relocationId);
     }
 }

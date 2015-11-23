@@ -384,4 +384,23 @@ public class GeoDistanceQueryBuilderTests extends AbstractQueryTestCase<GeoDista
             assertThat(q.getRadiusMeters(), closeTo(distanceUnit.convert(distance, DistanceUnit.MILES), 1E-5D));
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"geo_distance\" : {\n" + 
+                "    \"pin.location\" : [ -70.0, 40.0 ],\n" + 
+                "    \"distance\" : 12000.0,\n" + 
+                "    \"distance_type\" : \"sloppy_arc\",\n" + 
+                "    \"optimize_bbox\" : \"memory\",\n" + 
+                "    \"validation_method\" : \"STRICT\",\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+        GeoDistanceQueryBuilder parsed = (GeoDistanceQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, -70.0, parsed.point().getLon(), 0.0001);
+        assertEquals(json, 40.0, parsed.point().getLat(), 0.0001);
+        assertEquals(json, 12000.0, parsed.distance(), 0.0001);
+    }
 }

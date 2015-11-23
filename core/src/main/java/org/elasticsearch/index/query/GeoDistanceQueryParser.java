@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.geo.GeoDistance;
 import org.elasticsearch.common.geo.GeoPoint;
@@ -40,6 +41,14 @@ import java.io.IOException;
  * </pre>
  */
 public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuilder> {
+
+    public static final ParseField VALIDATION_METHOD_FIELD = new ParseField("validation_method");
+    public static final ParseField IGNORE_MALFORMED_FIELD = new ParseField("ignore_malformed");
+    public static final ParseField COERCE_FIELD = new ParseField("coerce", "normalize");
+    public static final ParseField OPTIMIZE_BBOX_FIELD = new ParseField("optimize_bbox");
+    public static final ParseField DISTANCE_TYPE_FIELD = new ParseField("distance_type");
+    public static final ParseField UNIT_FIELD = new ParseField("unit");
+    public static final ParseField DISTANCE_FIELD = new ParseField("distance");
 
     @Override
     public String[] names() {
@@ -95,15 +104,15 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
                     }
                 }
             } else if (token.isValue()) {
-                if ("distance".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, DISTANCE_FIELD)) {
                     if (token == XContentParser.Token.VALUE_STRING) {
                         vDistance = parser.text(); // a String
                     } else {
                         vDistance = parser.numberValue(); // a Number
                     }
-                } else if ("unit".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, UNIT_FIELD)) {
                     unit = DistanceUnit.fromString(parser.text());
-                } else if ("distance_type".equals(currentFieldName) || "distanceType".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DISTANCE_TYPE_FIELD)) {
                     geoDistance = GeoDistance.fromString(parser.text());
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.LAT_SUFFIX)) {
                     point.resetLat(parser.doubleValue());
@@ -114,20 +123,20 @@ public class GeoDistanceQueryParser implements QueryParser<GeoDistanceQueryBuild
                 } else if (currentFieldName.endsWith(GeoPointFieldMapper.Names.GEOHASH_SUFFIX)) {
                     point.resetFromGeoHash(parser.text());
                     fieldName = currentFieldName.substring(0, currentFieldName.length() - GeoPointFieldMapper.Names.GEOHASH_SUFFIX.length());
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("optimize_bbox".equals(currentFieldName) || "optimizeBbox".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIMIZE_BBOX_FIELD)) {
                     optimizeBbox = parser.textOrNull();
-                } else if ("coerce".equals(currentFieldName) || ("normalize".equals(currentFieldName))) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, COERCE_FIELD)) {
                     coerce = parser.booleanValue();
                     if (coerce == true) {
                         ignoreMalformed = true;
                     }
-                } else if ("ignore_malformed".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, IGNORE_MALFORMED_FIELD)) {
                     ignoreMalformed = parser.booleanValue();
-                } else if ("validation_method".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALIDATION_METHOD_FIELD)) {
                     validationMethod = GeoValidationMethod.fromString(parser.text());
                 } else {
                     if (fieldName == null) {

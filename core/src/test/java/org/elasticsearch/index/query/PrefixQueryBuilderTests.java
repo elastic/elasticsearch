@@ -82,4 +82,16 @@ public class PrefixQueryBuilderTests extends AbstractQueryTestCase<PrefixQueryBu
             assertThat(prefixQuery.getRewriteMethod(), instanceOf(MultiTermQuery.TopTermsBlendedFreqScoringRewrite.class));
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{    \"prefix\" : { \"user\" :  { \"value\" : \"ki\", \"boost\" : 2.0 } }}";
+
+        PrefixQueryBuilder parsed = (PrefixQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "ki", parsed.value());
+        assertEquals(json, 2.0, parsed.boost(), 0.00001);
+        assertEquals(json, "user", parsed.fieldName());
+    }
 }

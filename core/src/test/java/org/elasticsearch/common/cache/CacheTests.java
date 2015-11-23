@@ -413,8 +413,7 @@ public class CacheTests extends ESTestCase {
 
                 Value that = (Value) o;
 
-                return value == that.value;
-
+                return value.equals(that.value);
             }
 
             @Override
@@ -633,7 +632,7 @@ public class CacheTests extends ESTestCase {
                         first = random.nextBoolean();
                         second = random.nextBoolean();
                     } while (first && second);
-                    if (first && !second) {
+                    if (first) {
                         try {
                             cache.computeIfAbsent(key, k -> {
                                 if (random.nextBoolean()) {
@@ -647,9 +646,9 @@ public class CacheTests extends ESTestCase {
                             assertThat(e.getCause(), instanceOf(Exception.class));
                             assertEquals(e.getCause().getMessage(), "testCachePollution");
                         }
-                    } else if (!first && second) {
+                    } else if (second) {
                         cache.invalidate(key);
-                    } else if (!first && !second) {
+                    } else {
                         cache.get(key);
                     }
                 }

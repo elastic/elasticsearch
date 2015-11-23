@@ -104,9 +104,9 @@ public class MissingQueryBuilder extends AbstractQueryBuilder<MissingQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("field", fieldPattern);
-        builder.field("null_value", nullValue);
-        builder.field("existence", existence);
+        builder.field(MissingQueryParser.FIELD_FIELD.getPreferredName(), fieldPattern);
+        builder.field(MissingQueryParser.NULL_VALUE_FIELD.getPreferredName(), nullValue);
+        builder.field(MissingQueryParser.EXISTENCE_FIELD.getPreferredName(), existence);
         printBoostAndQueryName(builder);
         builder.endObject();
     }

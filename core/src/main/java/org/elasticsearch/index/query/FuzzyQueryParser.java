@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -26,6 +27,13 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import java.io.IOException;
 
 public class FuzzyQueryParser implements QueryParser<FuzzyQueryBuilder> {
+
+    public static final ParseField TERM_FIELD = new ParseField("term");
+    public static final ParseField VALUE_FIELD = new ParseField("value");
+    public static final ParseField PREFIX_LENGTH_FIELD = new ParseField("prefix_length");
+    public static final ParseField MAX_EXPANSIONS_FIELD = new ParseField("max_expansions");
+    public static final ParseField TRANSPOSITIONS_FIELD = new ParseField("transpositions");
+    public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
 
     @Override
     public String[] names() {
@@ -60,23 +68,23 @@ public class FuzzyQueryParser implements QueryParser<FuzzyQueryBuilder> {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else {
-                    if ("term".equals(currentFieldName)) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
                         value = parser.objectBytes();
-                    } else if ("value".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                         value = parser.objectBytes();
-                    } else if ("boost".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                         boost = parser.floatValue();
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
                         fuzziness = Fuzziness.parse(parser);
-                    } else if ("prefix_length".equals(currentFieldName) || "prefixLength".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, PREFIX_LENGTH_FIELD)) {
                         prefixLength = parser.intValue();
-                    } else if ("max_expansions".equals(currentFieldName) || "maxExpansions".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_EXPANSIONS_FIELD)) {
                         maxExpansions = parser.intValue();
-                    } else if ("transpositions".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, TRANSPOSITIONS_FIELD)) {
                         transpositions = parser.booleanValue();
-                    } else if ("rewrite".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                         rewrite = parser.textOrNull();
-                    } else if ("_name".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                         queryName = parser.text();
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "[fuzzy] query does not support [" + currentFieldName + "]");

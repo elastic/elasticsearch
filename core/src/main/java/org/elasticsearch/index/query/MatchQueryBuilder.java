@@ -129,6 +129,11 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         return this;
     }
 
+    /** Returns the operator to use in a boolean query.*/
+    public Operator operator() {
+        return this.operator;
+    }
+
     /**
      * Explicitly set the analyzer to use. Defaults to use explicit mapping config for the field, or, if not
      * set, the default search analyzer.
@@ -312,30 +317,30 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
         builder.startObject(NAME);
         builder.startObject(fieldName);
 
-        builder.field("query", value);
-        builder.field("type", type.toString().toLowerCase(Locale.ENGLISH));
-        builder.field("operator", operator.toString());
+        builder.field(MatchQueryParser.QUERY_FIELD.getPreferredName(), value);
+        builder.field(MatchQueryParser.TYPE_FIELD.getPreferredName(), type.toString().toLowerCase(Locale.ENGLISH));
+        builder.field(MatchQueryParser.OPERATOR_FIELD.getPreferredName(), operator.toString());
         if (analyzer != null) {
-            builder.field("analyzer", analyzer);
+            builder.field(MatchQueryParser.ANALYZER_FIELD.getPreferredName(), analyzer);
         }
-        builder.field("slop", slop);
+        builder.field(MatchQueryParser.SLOP_FIELD.getPreferredName(), slop);
         if (fuzziness != null) {
             fuzziness.toXContent(builder, params);
         }
-        builder.field("prefix_length", prefixLength);
-        builder.field("max_expansions", maxExpansions);
+        builder.field(MatchQueryParser.PREFIX_LENGTH_FIELD.getPreferredName(), prefixLength);
+        builder.field(MatchQueryParser.MAX_EXPANSIONS_FIELD.getPreferredName(), maxExpansions);
         if (minimumShouldMatch != null) {
-            builder.field("minimum_should_match", minimumShouldMatch);
+            builder.field(MatchQueryParser.MINIMUM_SHOULD_MATCH_FIELD.getPreferredName(), minimumShouldMatch);
         }
         if (fuzzyRewrite != null) {
-            builder.field("fuzzy_rewrite", fuzzyRewrite);
+            builder.field(MatchQueryParser.FUZZY_REWRITE_FIELD.getPreferredName(), fuzzyRewrite);
         }
         // LUCENE 4 UPGRADE we need to document this & test this
-        builder.field("fuzzy_transpositions", fuzzyTranspositions);
-        builder.field("lenient", lenient);
-        builder.field("zero_terms_query", zeroTermsQuery.toString());
+        builder.field(MatchQueryParser.FUZZY_TRANSPOSITIONS_FIELD.getPreferredName(), fuzzyTranspositions);
+        builder.field(MatchQueryParser.LENIENT_FIELD.getPreferredName(), lenient);
+        builder.field(MatchQueryParser.ZERO_TERMS_QUERY_FIELD.getPreferredName(), zeroTermsQuery.toString());
         if (cutoffFrequency != null) {
-            builder.field("cutoff_frequency", cutoffFrequency);
+            builder.field(MatchQueryParser.CUTOFF_FREQUENCY_FIELD.getPreferredName(), cutoffFrequency);
         }
         printBoostAndQueryName(builder);
         builder.endObject();

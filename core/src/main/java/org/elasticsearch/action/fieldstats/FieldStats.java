@@ -107,18 +107,36 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     }
 
     /**
+     * @return the lowest value in the field.
+     *
+     * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
+     */
+    public T getMinValue() {
+        return minValue;
+    }
+
+    /**
+     * @return the highest value in the field.
+     *
+     * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
+     */
+    public T getMaxValue() {
+        return maxValue;
+    }
+
+    /**
      * @return the lowest value in the field represented as a string.
      *
      * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
      */
-    public abstract String getMinValue();
+    public abstract String getMinValueAsString();
 
     /**
      * @return the highest value in the field represented as a string.
      *
      * Note that, documents marked as deleted that haven't yet been merged way aren't taken into account.
      */
-    public abstract String getMaxValue();
+    public abstract String getMaxValueAsString();
 
     /**
      * @param value The string to be parsed
@@ -192,8 +210,10 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
     }
 
     protected void toInnerXContent(XContentBuilder builder) throws IOException {
-        builder.field(Fields.MIN_VALUE, minValue);
-        builder.field(Fields.MAX_VALUE, maxValue);
+        builder.field(Fields.MIN_VALUE, getMinValue());
+        builder.field(Fields.MIN_VALUE_AS_STRING, getMinValueAsString());
+        builder.field(Fields.MAX_VALUE, getMaxValue());
+        builder.field(Fields.MAX_VALUE_AS_STRING, getMaxValueAsString());
     }
 
     @Override
@@ -229,12 +249,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return String.valueOf(minValue.longValue());
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return String.valueOf(maxValue.longValue());
         }
 
@@ -282,12 +302,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return String.valueOf(minValue.floatValue());
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return String.valueOf(maxValue.floatValue());
         }
 
@@ -335,12 +355,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return String.valueOf(minValue.doubleValue());
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return String.valueOf(maxValue.doubleValue());
         }
 
@@ -388,12 +408,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return minValue.utf8ToString();
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return maxValue.utf8ToString();
         }
 
@@ -419,8 +439,8 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
 
         @Override
         protected void toInnerXContent(XContentBuilder builder) throws IOException {
-            builder.field(Fields.MIN_VALUE, getMinValue());
-            builder.field(Fields.MAX_VALUE, getMaxValue());
+            builder.field(Fields.MIN_VALUE, getMinValueAsString());
+            builder.field(Fields.MAX_VALUE, getMaxValueAsString());
         }
 
         @Override
@@ -452,12 +472,12 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         }
 
         @Override
-        public String getMinValue() {
+        public String getMinValueAsString() {
             return dateFormatter.printer().print(minValue);
         }
 
         @Override
-        public String getMaxValue() {
+        public String getMaxValueAsString() {
             return dateFormatter.printer().print(maxValue);
         }
 
@@ -468,12 +488,6 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
                 dateFormatter = Joda.forPattern(optionalFormat);
             }
             return dateFormatter.parser().parseMillis(value);
-        }
-
-        @Override
-        protected void toInnerXContent(XContentBuilder builder) throws IOException {
-            builder.field(Fields.MIN_VALUE, getMinValue());
-            builder.field(Fields.MAX_VALUE, getMaxValue());
         }
 
         @Override
@@ -525,7 +539,9 @@ public abstract class FieldStats<T extends Comparable<T>> implements Streamable,
         final static XContentBuilderString SUM_DOC_FREQ = new XContentBuilderString("sum_doc_freq");
         final static XContentBuilderString SUM_TOTAL_TERM_FREQ = new XContentBuilderString("sum_total_term_freq");
         final static XContentBuilderString MIN_VALUE = new XContentBuilderString("min_value");
+        final static XContentBuilderString MIN_VALUE_AS_STRING = new XContentBuilderString("min_value_as_string");
         final static XContentBuilderString MAX_VALUE = new XContentBuilderString("max_value");
+        final static XContentBuilderString MAX_VALUE_AS_STRING = new XContentBuilderString("max_value_as_string");
 
     }
 

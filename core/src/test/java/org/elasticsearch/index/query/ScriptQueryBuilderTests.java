@@ -51,4 +51,24 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
             // expected
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"script\" : {\n" + 
+                "    \"script\" : {\n" + 
+                "      \"inline\" : \"5\",\n" + 
+                "      \"lang\" : \"mockscript\",\n" + 
+                "      \"params\" : { }\n" + 
+                "    },\n" + 
+                "    \"boost\" : 1.0,\n" + 
+                "    \"_name\" : \"PcKdEyPOmR\"\n" + 
+                "  }\n" + 
+                "}";
+
+        ScriptQueryBuilder parsed = (ScriptQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "mockscript", parsed.script().getLang());
+    }
 }

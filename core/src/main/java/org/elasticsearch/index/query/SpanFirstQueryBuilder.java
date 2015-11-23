@@ -74,9 +74,9 @@ public class SpanFirstQueryBuilder extends AbstractQueryBuilder<SpanFirstQueryBu
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("match");
+        builder.field(SpanFirstQueryParser.MATCH_FIELD.getPreferredName());
         matchBuilder.toXContent(builder, params);
-        builder.field("end", end);
+        builder.field(SpanFirstQueryParser.END_FIELD.getPreferredName(), end);
         printBoostAndQueryName(builder);
         builder.endObject();
     }

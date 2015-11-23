@@ -40,4 +40,16 @@ public class MatchNoneQueryBuilderTests extends AbstractQueryTestCase<MatchNoneQ
         BooleanQuery booleanQuery = (BooleanQuery) query;
         assertThat(booleanQuery.clauses().size(), equalTo(0));
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"match_none\" : {\n" + 
+                "    \"boost\" : 1.2\n" + 
+                "  }\n" + 
+                "}";
+        MatchNoneQueryBuilder parsed = (MatchNoneQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 1.2, parsed.boost(), 0.0001);
+    }
 }

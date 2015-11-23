@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -60,6 +61,17 @@ import java.util.Map;
  */
 public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBuilder> {
 
+    public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    public static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
+    public static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    public static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms");
+    public static final ParseField LOCALE_FIELD = new ParseField("locale");
+    public static final ParseField FLAGS_FIELD = new ParseField("flags");
+    public static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
+    public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+
     @Override
     public String[] names() {
         return new String[]{SimpleQueryStringBuilder.NAME, Strings.toCamelCase(SimpleQueryStringBuilder.NAME)};
@@ -88,7 +100,7 @@ public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBui
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("fields".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String fField = null;
                         float fBoost = 1;
@@ -111,15 +123,15 @@ public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBui
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("query".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     queryBody = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("analyzer".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
                     analyzerName = parser.text();
-                } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DEFAULT_OPERATOR_FIELD)) {
                     defaultOperator = Operator.fromString(parser.text());
-                } else if ("flags".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FLAGS_FIELD)) {
                     if (parser.currentToken() != XContentParser.Token.VALUE_NUMBER) {
                         // Possible options are:
                         // ALL, NONE, AND, OR, PREFIX, PHRASE, PRECEDENCE, ESCAPE, WHITESPACE, FUZZY, NEAR, SLOP
@@ -130,18 +142,18 @@ public class SimpleQueryStringParser implements QueryParser<SimpleQueryStringBui
                             flags = SimpleQueryStringFlag.ALL.value();
                         }
                     }
-                } else if ("locale".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
                     String localeStr = parser.text();
                     locale = Locale.forLanguageTag(localeStr);
-                } else if ("lowercase_expanded_terms".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOWERCASE_EXPANDED_TERMS_FIELD)) {
                     lowercaseExpandedTerms = parser.booleanValue();
-                } else if ("lenient".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
                     lenient = parser.booleanValue();
-                } else if ("analyze_wildcard".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZE_WILDCARD_FIELD)) {
                     analyzeWildcard = parser.booleanValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("minimum_should_match".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
                     minimumShouldMatch = parser.textOrNull();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + SimpleQueryStringBuilder.NAME + "] unsupported field [" + parser.currentName() + "]");

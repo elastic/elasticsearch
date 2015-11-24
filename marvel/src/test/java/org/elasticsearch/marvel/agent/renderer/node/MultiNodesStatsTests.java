@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.node;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -19,9 +18,8 @@ import org.junit.After;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.greaterThan;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/994")
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, numClientNodes = 0, transportClientRatio = 0.0)
 public class MultiNodesStatsTests extends MarvelIntegTestCase {
 

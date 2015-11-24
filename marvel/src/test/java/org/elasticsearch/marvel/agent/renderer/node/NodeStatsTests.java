@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.node;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsCollector;
@@ -22,7 +21,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.greaterThan;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/994")
 // numClientNodes is set to 0 because Client nodes don't have Filesystem stats
 @ClusterScope(scope = Scope.TEST, numClientNodes = 0, transportClientRatio = 0.0)
 public class NodeStatsTests extends MarvelIntegTestCase {

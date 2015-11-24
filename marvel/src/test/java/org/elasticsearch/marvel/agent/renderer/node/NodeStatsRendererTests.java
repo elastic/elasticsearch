@@ -5,7 +5,6 @@
  */
 package org.elasticsearch.marvel.agent.renderer.node;
 
-import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.marvel.agent.collector.node.NodeStatsMarvelDoc;
 import org.elasticsearch.marvel.agent.renderer.Renderer;
@@ -14,7 +13,6 @@ import org.elasticsearch.node.service.NodeService;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.StreamsUtils;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/pull/994")
 public class NodeStatsRendererTests extends ESSingleNodeTestCase {
     private static final String SAMPLE_FILE = "/samples/node_stats.json";
 

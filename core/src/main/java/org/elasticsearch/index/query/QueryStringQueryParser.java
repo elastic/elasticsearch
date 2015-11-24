@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -34,6 +35,32 @@ import java.util.Map;
  */
 public class QueryStringQueryParser implements QueryParser {
 
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField FIELDS_FIELD = new ParseField("fields");
+    public static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
+    public static final ParseField DEFAULT_OPERATOR_FIELD = new ParseField("default_operator");
+    public static final ParseField ANALYZER_FIELD = new ParseField("analyzer");
+    public static final ParseField QUOTE_ANALYZER_FIELD = new ParseField("quote_analyzer");
+    public static final ParseField ALLOW_LEADING_WILDCARD_FIELD = new ParseField("allow_leading_wildcard");
+    public static final ParseField AUTO_GENERATED_PHRASE_QUERIES_FIELD = new ParseField("auto_generated_phrase_queries");
+    public static final ParseField MAX_DETERMINED_STATES_FIELD = new ParseField("max_determined_states");
+    public static final ParseField LOWERCASE_EXPANDED_TERMS_FIELD = new ParseField("lowercase_expanded_terms");
+    public static final ParseField ENABLE_POSITION_INCREMENTS_FIELD = new ParseField("enable_position_increment");
+    public static final ParseField ESCAPE_FIELD = new ParseField("escape");
+    public static final ParseField USE_DIS_MAX_FIELD = new ParseField("use_dis_max");
+    public static final ParseField FUZZY_PREFIX_LENGTH_FIELD = new ParseField("fuzzy_prefix_length");
+    public static final ParseField FUZZY_MAX_EXPANSIONS_FIELD = new ParseField("fuzzy_max_expansions");
+    public static final ParseField FUZZY_REWRITE_FIELD = new ParseField("fuzzy_rewrite");
+    public static final ParseField PHRASE_SLOP_FIELD = new ParseField("phrase_slop");
+    public static final ParseField TIE_BREAKER_FIELD = new ParseField("tie_breaker");
+    public static final ParseField ANALYZE_WILDCARD_FIELD = new ParseField("analyze_wildcard");
+    public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
+    public static final ParseField MINIMUM_SHOULD_MATCH_FIELD = new ParseField("minimum_should_match");
+    public static final ParseField QUOTE_FIELD_SUFFIX_FIELD = new ParseField("quote_field_suffix");
+    public static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    public static final ParseField LOCALE_FIELD = new ParseField("locale");
+    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+  
     @Override
     public String[] names() {
         return new String[]{QueryStringQueryBuilder.NAME, Strings.toCamelCase(QueryStringQueryBuilder.NAME)};
@@ -76,7 +103,7 @@ public class QueryStringQueryParser implements QueryParser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("fields".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, FIELDS_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String fField = null;
                         float fBoost = AbstractQueryBuilder.DEFAULT_BOOST;
@@ -99,64 +126,64 @@ public class QueryStringQueryParser implements QueryParser {
                     throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("query".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     queryString = parser.text();
-                } else if ("default_field".equals(currentFieldName) || "defaultField".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DEFAULT_FIELD_FIELD)) {
                     defaultField = parser.text();
-                } else if ("default_operator".equals(currentFieldName) || "defaultOperator".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, DEFAULT_OPERATOR_FIELD)) {
                     defaultOperator = Operator.fromString(parser.text());
-                } else if ("analyzer".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZER_FIELD)) {
                     analyzer = parser.text();
-                } else if ("quote_analyzer".equals(currentFieldName) || "quoteAnalyzer".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, QUOTE_ANALYZER_FIELD)) {
                     quoteAnalyzer = parser.text();
-                } else if ("allow_leading_wildcard".equals(currentFieldName) || "allowLeadingWildcard".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ALLOW_LEADING_WILDCARD_FIELD)) {
                     allowLeadingWildcard = parser.booleanValue();
-                } else if ("auto_generate_phrase_queries".equals(currentFieldName) || "autoGeneratePhraseQueries".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AUTO_GENERATED_PHRASE_QUERIES_FIELD)) {
                     autoGeneratePhraseQueries = parser.booleanValue();
-                } else if ("max_determinized_states".equals(currentFieldName) || "maxDeterminizedStates".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_DETERMINED_STATES_FIELD)) {
                     maxDeterminizedStates = parser.intValue();
-                } else if ("lowercase_expanded_terms".equals(currentFieldName) || "lowercaseExpandedTerms".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOWERCASE_EXPANDED_TERMS_FIELD)) {
                     lowercaseExpandedTerms = parser.booleanValue();
-                } else if ("enable_position_increments".equals(currentFieldName) || "enablePositionIncrements".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ENABLE_POSITION_INCREMENTS_FIELD)) {
                     enablePositionIncrements = parser.booleanValue();
-                } else if ("escape".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ESCAPE_FIELD)) {
                     escape = parser.booleanValue();
-                } else if ("use_dis_max".equals(currentFieldName) || "useDisMax".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, USE_DIS_MAX_FIELD)) {
                     useDisMax = parser.booleanValue();
-                } else if ("fuzzy_prefix_length".equals(currentFieldName) || "fuzzyPrefixLength".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZY_PREFIX_LENGTH_FIELD)) {
                     fuzzyPrefixLength = parser.intValue();
-                } else if ("fuzzy_max_expansions".equals(currentFieldName) || "fuzzyMaxExpansions".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZY_MAX_EXPANSIONS_FIELD)) {
                     fuzzyMaxExpansions = parser.intValue();
-                } else if ("fuzzy_rewrite".equals(currentFieldName) || "fuzzyRewrite".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, FUZZY_REWRITE_FIELD)) {
                     fuzzyRewrite = parser.textOrNull();
-                } else if ("phrase_slop".equals(currentFieldName) || "phraseSlop".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PHRASE_SLOP_FIELD)) {
                     phraseSlop = parser.intValue();
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, Fuzziness.FIELD)) {
                     fuzziness = Fuzziness.parse(parser);
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("tie_breaker".equals(currentFieldName) || "tieBreaker".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TIE_BREAKER_FIELD)) {
                     tieBreaker = parser.floatValue();
-                } else if ("analyze_wildcard".equals(currentFieldName) || "analyzeWildcard".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, ANALYZE_WILDCARD_FIELD)) {
                     analyzeWildcard = parser.booleanValue();
-                } else if ("rewrite".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                     rewrite = parser.textOrNull();
-                } else if ("minimum_should_match".equals(currentFieldName) || "minimumShouldMatch".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, MINIMUM_SHOULD_MATCH_FIELD)) {
                     minimumShouldMatch = parser.textOrNull();
-                } else if ("quote_field_suffix".equals(currentFieldName) || "quoteFieldSuffix".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, QUOTE_FIELD_SUFFIX_FIELD)) {
                     quoteFieldSuffix = parser.textOrNull();
-                } else if ("lenient".equalsIgnoreCase(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LENIENT_FIELD)) {
                     lenient = parser.booleanValue();
-                } else if ("locale".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, LOCALE_FIELD)) {
                     String localeStr = parser.text();
                     locale = Locale.forLanguageTag(localeStr);
-                } else if ("time_zone".equals(currentFieldName) || "timeZone".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TIME_ZONE_FIELD)) {
                     try {
                         timeZone = parser.text();
                     } catch (IllegalArgumentException e) {
                         throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] time_zone [" + parser.text() + "] is unknown");
                     }
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + QueryStringQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");

@@ -92,15 +92,20 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                 throw new MapperParsingException(NAME + " is not configurable");
             }
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             parseField(builder, builder.name, node, parserContext);
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new UidFieldMapper(indexSettings, fieldType);
         }
     }
 
@@ -133,11 +138,11 @@ public class UidFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public UidFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private UidFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, Defaults.FIELD_TYPE, indexSettings);
     }
 
-    protected UidFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
+    private UidFieldMapper(MappedFieldType fieldType, MappedFieldType defaultFieldType, Settings indexSettings) {
         super(NAME, fieldType, defaultFieldType, indexSettings);
     }
 

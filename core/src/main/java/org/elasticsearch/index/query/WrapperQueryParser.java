@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -28,6 +29,8 @@ import java.io.IOException;
  * Query parser for JSON Queries.
  */
 public class WrapperQueryParser implements QueryParser {
+
+    public static final ParseField QUERY_FIELD = new ParseField("query");
 
     @Override
     public String[] names() {
@@ -43,7 +46,7 @@ public class WrapperQueryParser implements QueryParser {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed");
         }
         String fieldName = parser.currentName();
-        if (!fieldName.equals("query")) {
+        if (! parseContext.parseFieldMatcher().match(fieldName, QUERY_FIELD)) {
             throw new ParsingException(parser.getTokenLocation(), "[wrapper] query malformed, expected `query` but was" + fieldName);
         }
         parser.nextToken();

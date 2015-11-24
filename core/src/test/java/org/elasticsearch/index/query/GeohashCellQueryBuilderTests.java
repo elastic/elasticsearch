@@ -131,4 +131,19 @@ public class GeohashCellQueryBuilderTests extends AbstractQueryTestCase<Builder>
         String pointTest3 = "{\"geohash_cell\": {\"pin\": [" + point.getX() + "," + point.getY() + "]}}";
         assertParsedQuery(pointTest3, pointTestBuilder);
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"geohash_cell\" : {\n" + 
+                "    \"neighbors\" : true,\n" + 
+                "    \"precision\" : 3,\n" + 
+                "    \"pin\" : \"t4mk70fgk067\",\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+        GeohashCellQuery.Builder parsed = (GeohashCellQuery.Builder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 3, parsed.precision().intValue());
+    }
 }

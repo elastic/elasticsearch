@@ -99,12 +99,12 @@ public class WildcardQueryBuilder extends AbstractQueryBuilder<WildcardQueryBuil
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field("wildcard", value);
+        builder.field(WildcardQueryParser.WILDCARD_FIELD.getPreferredName(), value);
         if (rewrite != null) {
-            builder.field("rewrite", rewrite);
+            builder.field(WildcardQueryParser.REWRITE_FIELD.getPreferredName(), rewrite);
         }
         printBoostAndQueryName(builder);
         builder.endObject();

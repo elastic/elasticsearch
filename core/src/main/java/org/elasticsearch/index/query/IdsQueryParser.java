@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -31,6 +32,10 @@ import java.util.List;
  * Parser for ids query
  */
 public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
+
+    public static final ParseField TYPE_FIELD = new ParseField("type", "types", "_type");
+    
+    public static final ParseField VALUES_FIELD = new ParseField("values");
 
     @Override
     public String[] names() {
@@ -55,7 +60,7 @@ public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("values".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, VALUES_FIELD)) {
                     idsProvided = true;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if ((token == XContentParser.Token.VALUE_STRING) ||
@@ -70,7 +75,7 @@ public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
                                     + token);
                         }
                     }
-                } else if ("types".equals(currentFieldName) || "type".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         String value = parser.textOrNull();
                         if (value == null) {
@@ -82,11 +87,11 @@ public class IdsQueryParser implements QueryParser<IdsQueryBuilder> {
                     throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("type".equals(currentFieldName) || "_type".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                     types = Collections.singletonList(parser.text());
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + IdsQueryBuilder.NAME + "] query does not support [" + currentFieldName + "]");

@@ -231,14 +231,14 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        doXArrayContent("must", mustClauses, builder, params);
-        doXArrayContent("filter", filterClauses, builder, params);
-        doXArrayContent("must_not", mustNotClauses, builder, params);
-        doXArrayContent("should", shouldClauses, builder, params);
-        builder.field("disable_coord", disableCoord);
-        builder.field("adjust_pure_negative", adjustPureNegative);
+        doXArrayContent(BoolQueryParser.MUST, mustClauses, builder, params);
+        doXArrayContent(BoolQueryParser.FILTER, filterClauses, builder, params);
+        doXArrayContent(BoolQueryParser.MUST_NOT, mustNotClauses, builder, params);
+        doXArrayContent(BoolQueryParser.SHOULD, shouldClauses, builder, params);
+        builder.field(BoolQueryParser.DISABLE_COORD_FIELD.getPreferredName(), disableCoord);
+        builder.field(BoolQueryParser.ADJUST_PURE_NEGATIVE.getPreferredName(), adjustPureNegative);
         if (minimumShouldMatch != null) {
-            builder.field("minimum_should_match", minimumShouldMatch);
+            builder.field(BoolQueryParser.MINIMUM_SHOULD_MATCH.getPreferredName(), minimumShouldMatch);
         }
         printBoostAndQueryName(builder);
         builder.endObject();

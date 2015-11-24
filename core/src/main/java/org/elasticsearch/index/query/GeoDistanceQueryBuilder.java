@@ -239,21 +239,21 @@ public class GeoDistanceQueryBuilder extends AbstractQueryBuilder<GeoDistanceQue
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startArray(fieldName).value(center.lon()).value(center.lat()).endArray();
-        builder.field("distance", distance);
-        builder.field("distance_type", geoDistance.name().toLowerCase(Locale.ROOT));
-        builder.field("optimize_bbox", optimizeBbox);
-        builder.field("validation_method", validationMethod);
+        builder.field(GeoDistanceQueryParser.DISTANCE_FIELD.getPreferredName(), distance);
+        builder.field(GeoDistanceQueryParser.DISTANCE_TYPE_FIELD.getPreferredName(), geoDistance.name().toLowerCase(Locale.ROOT));
+        builder.field(GeoDistanceQueryParser.OPTIMIZE_BBOX_FIELD.getPreferredName(), optimizeBbox);
+        builder.field(GeoDistanceQueryParser.VALIDATION_METHOD_FIELD.getPreferredName(), validationMethod);
         printBoostAndQueryName(builder);
         builder.endObject();
     }
 
     @Override
-    public int doHashCode() {
+    protected int doHashCode() {
         return Objects.hash(center, geoDistance, optimizeBbox, distance, validationMethod);
     }
 
     @Override
-    public boolean doEquals(GeoDistanceQueryBuilder other) {
+    protected boolean doEquals(GeoDistanceQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 (distance == other.distance) &&
                 Objects.equals(validationMethod, other.validationMethod) &&

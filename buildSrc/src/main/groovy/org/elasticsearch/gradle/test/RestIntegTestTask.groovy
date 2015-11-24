@@ -75,7 +75,7 @@ class RestIntegTestTask extends RandomizedTestingTask {
             ClusterFormationTasks.setup(project, this, clusterConfig)
             configure {
                 parallelism '1'
-                systemProperty 'tests.cluster', "localhost:${clusterConfig.transportPort}"
+                systemProperty 'tests.cluster', "localhost:${clusterConfig.baseTransportPort}"
             }
         }
     }

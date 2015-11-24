@@ -72,9 +72,9 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder<?, ?> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder();
             for (Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator(); iterator.hasNext();) {
                 Map.Entry<String, Object> entry = iterator.next();
@@ -85,6 +85,11 @@ public class VersionFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new VersionFieldMapper(indexSettings);
         }
     }
 
@@ -118,7 +123,7 @@ public class VersionFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public VersionFieldMapper(Settings indexSettings) {
+    private VersionFieldMapper(Settings indexSettings) {
         super(NAME, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE, indexSettings);
     }
 

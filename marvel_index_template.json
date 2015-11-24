@@ -202,6 +202,40 @@
         }
       }
     },
+    "node": {
+      "properties": {
+        "state_uuid": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "node": {
+          "properties": {
+            "id": { "type": "string", "index": "not_analyzed" },
+            "name": { "type": "string", "index": "not_analyzed" },
+            "transport_address": { "type": "string", "index": "not_analyzed" },
+            "master": { "type": "boolean" },
+            "attributes": { "type": "object" }
+          }
+        }
+      }
+    },
+    "nodes": {
+      "properties": {
+        "state_uuid": {
+          "type": "string",
+          "index": "not_analyzed"
+        },
+        "node": {
+          "properties": {
+            "id": { "type": "string", "index": "not_analyzed" },
+            "name": { "type": "string", "index": "not_analyzed" },
+            "transport_address": { "type": "string", "index": "not_analyzed" },
+            "master": { "type": "boolean" },
+            "attributes": { "type": "object" }
+          }
+        }
+      }
+    },
     "shards": {
       "properties": {
         "state_uuid": {
@@ -222,8 +256,12 @@
     },
     "index_recovery": {
       "properties": {
-        "shards": {
-          "type": "object"
+        "index_recovery": {
+          "properties": {
+            "shards": {
+              "type": "object"
+            }
+          }
         }
       }
     }

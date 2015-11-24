@@ -8,16 +8,11 @@ esplugin {
   isolated false
 }
 
-configurations {
-  licensePluginZip
-}
-
 ext.versions = [
   okhttp: '2.3.0'
 ]
 
 dependencies {
-  licensePluginZip project(path: ':x-plugins:license:plugin') // zip
   provided project(path: ':x-plugins:license:plugin', configuration: 'runtime')
   provided project(path: ':x-plugins:shield', configuration: 'runtime')
 
@@ -44,22 +39,9 @@ dependencies {
 compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
 
-/*ext.expansions = [
-  'integ.http.port': integTest.cluster.httpPort
-]
-
-processTestResources {
-  inputs.properties(expansions)
-  with copySpec {
-    MavenFilteringHack.filter(it, expansions)
-  }
-}
-*/
-
 integTest {
-  dependsOn configurations.licensePluginZip
   cluster {
-    plugin 'installLicensePlugin', configurations.licensePluginZip
+    plugin 'license', project(':x-plugins:license:plugin')
   }
 }
 

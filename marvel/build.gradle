@@ -8,16 +8,11 @@ esplugin {
   isolated false
 }
 
-configurations {
-  licensePluginZip
-}
-
 ext.versions = [
   okhttp: '2.3.0'
 ]
 
 dependencies {
-  licensePluginZip project(path: ':x-plugins:license:plugin') // zip
   provided project(path: ':x-plugins:license:plugin', configuration: 'runtime')
   provided project(path: ':x-plugins:shield', configuration: 'runtime')
   testCompile 'org.elasticsearch:securemock:1.1'
@@ -49,9 +44,8 @@ processTestResources {
 }
 
 integTest {
-  dependsOn configurations.licensePluginZip
   cluster {
-    plugin 'license', configurations.licensePluginZip
+    plugin 'license', project(':x-plugins:license:plugin')
   }
 }
 

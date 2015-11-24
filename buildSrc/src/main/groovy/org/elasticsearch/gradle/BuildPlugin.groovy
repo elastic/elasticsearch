@@ -322,6 +322,8 @@ class BuildPlugin implements Plugin<Project> {
         return {
             jvm "${project.javaHome}/bin/java"
             parallelism System.getProperty('tests.jvms', 'auto')
+            ifNoTests 'fail'
+            leaveTemporary true
 
             // TODO: why are we not passing maxmemory to junit4?
             jvmArg '-Xmx' + System.getProperty('tests.heap.size', '512m')

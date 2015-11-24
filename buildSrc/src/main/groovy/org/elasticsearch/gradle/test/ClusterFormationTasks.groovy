@@ -167,7 +167,14 @@ class ClusterFormationTasks {
             'repositories.url.allowed_urls'   : 'http://snapshot.test*'
         ]
 
-        return project.tasks.create(name: name, type: DefaultTask, dependsOn: setup) << {
+        Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
+        copyConfig.into(new File(node.homeDir, 'config')) // copy must always have a general dest dir, even though we don't use it
+        for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
+            copyConfig.from(extraConfigFile.getValue())
+                      .into(new File(node.homeDir, 'config/' + extraConfigFile.getKey()))
+        }
+        copyConfig.doLast {
+            // write elasticsearch.yml last, it cannot be overriden
             File configFile = new File(node.homeDir, 'config/elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')

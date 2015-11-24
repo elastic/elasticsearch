@@ -229,6 +229,34 @@ public class IngestActionFilterTests extends ESTestCase {
         threadPool.shutdown();
     }
 
+
+    public void testApplyWithBulkRequestWithFailureAllFailed() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");
+        int numRequest = scaledRandomIntBetween(0, 8);
+        for (int i = 0; i < numRequest; i++) {
+            IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
+            indexRequest.source("field1", "value1");
+            bulkRequest.add(indexRequest);
+        }
+
+        RuntimeException exception = new RuntimeException();
+        Answer answer = (invocationOnMock) -> {
+            PipelineExecutionService.Listener listener = (PipelineExecutionService.Listener) invocationOnMock.getArguments()[2];
+            listener.failed(exception);
+            return null;
+        };
+        doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+
+        @SuppressWarnings("unchecked")
+        ActionListener<BulkResponse> actionListener = mock(ActionListener.class);
+        RecordRequestAFC actionFilterChain = new RecordRequestAFC();
+
+        filter.apply("_action", bulkRequest, actionListener, actionFilterChain);
+
+        verify(actionListener, times(1)).onResponse(any());
+    }
+
     public void testApplyWithBulkRequestWithFailure() throws Exception {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id");

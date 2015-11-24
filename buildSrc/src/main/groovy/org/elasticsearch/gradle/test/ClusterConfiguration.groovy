@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.gradle.api.GradleException
 import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
@@ -65,6 +66,9 @@ class ClusterConfiguration {
 
     Map<String, String> settings = new HashMap<>()
 
+    // map from destination path, to source file
+    Map<String, Object> extraConfigFiles = new HashMap<>()
+
     LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
@@ -92,5 +96,17 @@ class ClusterConfiguration {
     @Input
     void setupCommand(String name, Object... args) {
         setupCommands.put(name, args)
+    }
+
+    /**
+     * Add an extra configuration file. The path is relative to the config dir, and the sourceFile
+     * is anything accepted by project.file()
+     */
+    @Input
+    void extraConfigFile(String path, Object sourceFile) {
+        if (path == 'elasticsearch.yml') {
+            throw new GradleException('Overwriting elasticsearch.yml is not allowed, add additional settings using cluster { setting "foo", "bar" }')
+        }
+        extraConfigFiles.put(path, sourceFile)
     }
 }

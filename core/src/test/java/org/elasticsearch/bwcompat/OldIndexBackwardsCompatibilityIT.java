@@ -27,6 +27,10 @@ import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.indices.get.GetIndexResponse;
+import org.elasticsearch.action.admin.indices.segments.IndexSegments;
+import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
+import org.elasticsearch.action.admin.indices.segments.ShardSegments;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
@@ -40,6 +44,7 @@ import org.elasticsearch.common.util.MultiDataPathUpgrader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.engine.Segment;
 import org.elasticsearch.index.mapper.string.StringFieldMapperPositionIncrementGapTests;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
@@ -324,7 +329,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         Version version = extractVersion(index);
         String indexName = loadIndex(index);
         importIndex(indexName);
-        assertIndexSanity(indexName);
+        assertIndexSanity(indexName, version);
         assertBasicSearchWorks(indexName);
         assertBasicAggregationWorks(indexName);
         assertRealtimeGetWorks(indexName);
@@ -344,11 +349,22 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
                 version.luceneVersion.minor == Version.CURRENT.luceneVersion.minor;
     }
 
-    void assertIndexSanity(String indexName) {
+    void assertIndexSanity(String indexName, Version indexCreated) {
         GetIndexResponse getIndexResponse = client().admin().indices().prepareGetIndex().addIndices(indexName).get();
         assertEquals(1, getIndexResponse.indices().length);
         assertEquals(indexName, getIndexResponse.indices()[0]);
+        Version actualVersionCreated = Version.indexCreated(getIndexResponse.getSettings().get(indexName));
+        assertEquals(indexCreated, actualVersionCreated);
         ensureYellow(indexName);
+        IndicesSegmentResponse segmentsResponse = client().admin().indices().prepareSegments(indexName).get();
+        IndexSegments segments = segmentsResponse.getIndices().get(indexName);
+        for (IndexShardSegments indexShardSegments : segments) {
+            for (ShardSegments shardSegments : indexShardSegments) {
+                for (Segment segment : shardSegments) {
+                    assertEquals(indexCreated.toString(), indexCreated.luceneVersion, segment.version);
+                }
+            }
+        }
         SearchResponse test = client().prepareSearch(indexName).get();
         assertThat(test.getHits().getTotalHits(), greaterThanOrEqualTo(1l));
     }

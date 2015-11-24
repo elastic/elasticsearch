@@ -24,6 +24,7 @@ import com.google.common.collect.Maps;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -33,7 +34,8 @@ import java.util.Map;
 public class ApiCallSection {
 
     private final String api;
-    private final Map<String, String> params = Maps.newHashMap();
+    private final Map<String, String> params = new HashMap<>();
+    private final Map<String, String> headers = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
 
     public ApiCallSection(String api) {
@@ -55,6 +57,18 @@ public class ApiCallSection {
             value = Joiner.on(",").join(existingValue, value);
         }
         this.params.put(key, value);
+    }
+
+    public void addHeaders(Map<String, String> otherHeaders) {
+        this.headers.putAll(otherHeaders);
+    }
+
+    public void addHeader(String key, String value) {
+        this.headers.put(key, value);
+    }
+
+    public Map<String, String> getHeaders() {
+        return Collections.unmodifiableMap(headers);
     }
 
     public List<Map<String, Object>> getBodies() {

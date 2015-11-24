@@ -132,7 +132,7 @@ public class RestClient implements Closeable {
      * @throws RestException if the obtained status code is non ok, unless the specific error code needs to be ignored
      * according to the ignore parameter received as input (which won't get sent to elasticsearch)
      */
-    public RestResponse callApi(String apiName, Map<String, String> params, String body) throws IOException, RestException {
+    public RestResponse callApi(String apiName, Map<String, String> params, String body, Map<String, String> headers) throws IOException, RestException {
 
         List<Integer> ignores = new ArrayList<>();
         Map<String, String> requestParams = null;
@@ -151,6 +151,9 @@ public class RestClient implements Closeable {
         }
 
         HttpRequestBuilder httpRequestBuilder = callApiBuilder(apiName, requestParams, body);
+        for (Map.Entry<String, String> header : headers.entrySet()) {
+            httpRequestBuilder.addHeader(header.getKey(), header.getValue());
+        }
         logger.debug("calling api [{}]", apiName);
         HttpResponse httpResponse = httpRequestBuilder.execute();
 

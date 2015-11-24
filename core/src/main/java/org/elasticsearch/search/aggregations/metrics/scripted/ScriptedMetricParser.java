@@ -147,13 +147,19 @@ public class ScriptedMetricParser implements Aggregator.Parser {
         if (mapScript == null) {
             throw new SearchParseException(context, "map_script field is required in [" + aggregationName + "].", parser.getTokenLocation());
         }
-        return new ScriptedMetricAggregator.Factory(aggregationName, initScript, mapScript, combineScript, reduceScript, params);
+
+        ScriptedMetricAggregator.Factory factory = new ScriptedMetricAggregator.Factory(aggregationName);
+        factory.initScript(initScript);
+        factory.mapScript(mapScript);
+        factory.combineScript(combineScript);
+        factory.reduceScript(reduceScript);
+        factory.params(params);
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return null;
+        return new AggregatorFactory[] { new ScriptedMetricAggregator.Factory(null) };
     }
 
 }

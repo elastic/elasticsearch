@@ -60,6 +60,9 @@ November 24, 2015
 .Breaking Changes
 * <<setting-up-field-and-document-level-security, Document and Field Level Security>> is now disabled by default. Set `shield.dls_fls.enabled` to `true` in `elasticsearch.yml` to enable it. You cannot submit `_bulk` update requests when document and field level security is enabled.
 
+.Enhancement
+* Adds support for Elasticsearch 2.0.1.
+
 [float]
 ==== 2.0.0
 October 28, 2015

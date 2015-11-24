@@ -54,6 +54,9 @@ November 24, 2015
 ==== 2.0.1
 November 24, 2015
 
+.Enhancement
+* Adds support for Elasticsearch 2.0.1.
+
 .Bug fixes
 * Fixed an issue where under specific conditions Watcher would not start if there are not finished watch executions from the
   previous time that watcher was running and those watch execution are unable the execute during the current start process.

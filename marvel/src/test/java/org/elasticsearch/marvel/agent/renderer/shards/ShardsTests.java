@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.renderer.shards;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -30,6 +31,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ClusterScope(scope = Scope.TEST)
 public class ShardsTests extends MarvelIntegTestCase {
     private static final String INDEX_PREFIX = "test-shards-";

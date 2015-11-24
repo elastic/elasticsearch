@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.audit.index;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.admin.indices.template.delete.DeleteIndexTemplateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -22,6 +23,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.is;
 
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ClusterScope(scope = Scope.TEST, randomDynamicTemplates = false)
 public class IndexAuditTrailEnabledTests extends ShieldIntegTestCase {
     IndexNameResolver.Rollover rollover = randomFrom(IndexNameResolver.Rollover.values());

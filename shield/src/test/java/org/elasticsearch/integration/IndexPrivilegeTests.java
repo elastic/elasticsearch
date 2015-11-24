@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.test.rest.client.http.HttpResponse;
@@ -17,6 +18,8 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.hamcrest.Matchers.is;
 
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class IndexPrivilegeTests extends AbstractPrivilegeTestCase {
 
     private String jsonDoc = "{ \"name\" : \"elasticsearch\"}";

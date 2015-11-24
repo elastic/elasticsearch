@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.authc.support;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.shield.User;
@@ -24,6 +25,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class CachingUsernamePasswordRealmTests extends ESTestCase {
     private Settings globalSettings;
 

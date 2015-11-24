@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.collector.cluster;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +23,8 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class ClusterInfoCollectorTests extends AbstractCollectorTestCase {
     public void testClusterInfoCollector() throws Exception {
         Collection<MarvelDoc> results = newClusterInfoCollector().doCollect();

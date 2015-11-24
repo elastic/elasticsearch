@@ -31,10 +31,10 @@ class ClusterConfiguration {
     int numNodes = 1
 
     @Input
-    int httpPort = 9400
+    int baseHttpPort = 9400
 
     @Input
-    int transportPort = 9500
+    int baseTransportPort = 9500
 
     @Input
     boolean daemonize = true
@@ -45,20 +45,42 @@ class ClusterConfiguration {
     @Input
     String jvmArgs = System.getProperty('tests.jvm.argline', '')
 
+    /**
+     * A closure to call before the cluster is considered ready. The closure is passed the node info,
+     * as well as a groovy AntBuilder, to enable running ant condition checks. The default wait
+     * condition is for http on the http port.
+     */
+    @Input
+    Closure waitCondition = { NodeInfo node, AntBuilder ant ->
+        File tmpFile = new File(node.cwd, 'wait.success')
+        ant.get(src: "http://localhost:${node.httpPort()}",
+                dest: tmpFile.toString(),
+                ignoreerrors: true, // do not fail on error, so logging buffers can be flushed by the wait task
+                retries: 10)
+        return tmpFile.exists()
+    }
+
     Map<String, String> systemProperties = new HashMap<>()
+
+    Map<String, String> settings = new HashMap<>()
 
     LinkedHashMap<String, FileCollection> plugins = new LinkedHashMap<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
     @Input
-    void plugin(String name, FileCollection file) {
-        plugins.put(name, file)
+    void systemProperty(String property, String value) {
+        systemProperties.put(property, value)
     }
 
     @Input
-    void systemProperty(String property, String value) {
-        systemProperties.put(property, value)
+    void setting(String name, String value) {
+        settings.put(name, value)
+    }
+
+    @Input
+    void plugin(String name, FileCollection file) {
+        plugins.put(name, file)
     }
 
     @Input

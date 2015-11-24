@@ -48,8 +48,8 @@ public class PreBuiltTokenFilterFactoryFactoryTests extends ESTestCase {
     public void testThatDifferentVersionsCanBeLoaded() {
         PreBuiltTokenFilterFactoryFactory factory = new PreBuiltTokenFilterFactoryFactory(PreBuiltTokenFilters.STOP.getTokenFilterFactory(Version.CURRENT));
 
-        TokenFilterFactory former090TokenizerFactory = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
-        TokenFilterFactory former090TokenizerFactoryCopy = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
+        TokenFilterFactory former090TokenizerFactory = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_3).build());
+        TokenFilterFactory former090TokenizerFactoryCopy = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_4).build());
         TokenFilterFactory currentTokenizerFactory = factory.create("stop", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));

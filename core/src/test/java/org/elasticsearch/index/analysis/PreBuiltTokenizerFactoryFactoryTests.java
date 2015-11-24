@@ -37,8 +37,8 @@ public class PreBuiltTokenizerFactoryFactoryTests extends ESTestCase {
         PreBuiltTokenizerFactoryFactory factory = new PreBuiltTokenizerFactoryFactory(PreBuiltTokenizers.STANDARD.getTokenizerFactory(Version.CURRENT));
 
         // different es versions, same lucene version, thus cached
-        TokenizerFactory former090TokenizerFactory = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_1).build());
-        TokenizerFactory former090TokenizerFactoryCopy = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_2).build());
+        TokenizerFactory former090TokenizerFactory = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_3).build());
+        TokenizerFactory former090TokenizerFactoryCopy = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_0_90_4).build());
         TokenizerFactory currentTokenizerFactory = factory.create("standard", Settings.settingsBuilder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT).build());
 
         assertThat(currentTokenizerFactory, is(not(former090TokenizerFactory)));

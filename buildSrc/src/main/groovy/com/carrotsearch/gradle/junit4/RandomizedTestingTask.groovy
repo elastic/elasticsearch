@@ -2,6 +2,7 @@ package com.carrotsearch.gradle.junit4
 
 import com.carrotsearch.ant.tasks.junit4.ListenersList
 import com.carrotsearch.ant.tasks.junit4.listeners.AggregatedEventListener
+import com.esotericsoftware.kryo.serializers.FieldSerializer
 import groovy.xml.NamespaceBuilder
 import groovy.xml.NamespaceBuilderSupport
 import org.apache.tools.ant.BuildException
@@ -57,6 +58,14 @@ class RandomizedTestingTask extends DefaultTask {
     @Optional
     @Input
     boolean enableSystemAssertions = true
+
+    @Optional
+    @Input
+    boolean leaveTemporary = false
+
+    @Optional
+    @Input
+    String ifNoTests = 'ignore'
 
     TestLoggingConfiguration testLoggingConfig = new TestLoggingConfiguration()
 
@@ -172,9 +181,6 @@ class RandomizedTestingTask extends DefaultTask {
         }
     }
 
-    // TODO: add leaveTemporary
-    // TODO: add ifNoTests!
-
     @TaskAction
     void executeTests() {
         Map attributes = [
@@ -184,7 +190,9 @@ class RandomizedTestingTask extends DefaultTask {
             dir: workingDir,
             tempdir: new File(workingDir, 'temp'),
             haltOnFailure: true, // we want to capture when a build failed, but will decide whether to rethrow later
-            shuffleOnSlave: shuffleOnSlave
+            shuffleOnSlave: shuffleOnSlave,
+            leaveTemporary: leaveTemporary,
+            ifNoTests: ifNoTests
         ]
 
         DefaultLogger listener = null

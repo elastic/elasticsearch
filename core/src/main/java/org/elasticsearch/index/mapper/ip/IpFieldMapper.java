@@ -31,6 +31,7 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Numbers;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
@@ -48,6 +49,7 @@ import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.index.mapper.core.LongFieldMapper.CustomLongNumericField;
 import org.elasticsearch.index.mapper.core.NumberFieldMapper;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.search.aggregations.bucket.range.ipv4.InternalIPv4Range;
 
 import java.io.IOException;
 import java.util.Iterator;
@@ -76,7 +78,6 @@ public class IpFieldMapper extends NumberFieldMapper {
     }
 
     private static final Pattern pattern = Pattern.compile("\\.");
-    private static final Pattern MASK_PATTERN = Pattern.compile("(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})\\.(\\d{1,3})/(\\d{1,3})");
 
     public static long ipToLong(String ip) {
         try {
@@ -95,64 +96,6 @@ public class IpFieldMapper extends NumberFieldMapper {
             }
             throw new IllegalArgumentException("failed to parse ip [" + ip + "]", e);
         }
-    }
-
-    /**
-     * Computes the min &amp; max ip addresses (represented as long values -
-     * same way as stored in index) represented by the given CIDR mask
-     * expression. The returned array has the length of 2, where the first entry
-     * represents the {@code min} address and the second the {@code max}. A
-     * {@code -1} value for either the {@code min} or the {@code max},
-     * represents an unbounded end. In other words:
-     *
-     * <p>
-     * {@code min == -1 == "0.0.0.0" }
-     * </p>
-     *
-     * and
-     *
-     * <p>
-     * {@code max == -1 == "255.255.255.255" }
-     * </p>
-     */
-    public static long[] cidrMaskToMinMax(String cidr) {
-        Matcher matcher = MASK_PATTERN.matcher(cidr);
-        if (!matcher.matches()) {
-            return null;
-        }
-        int addr = ((Integer.parseInt(matcher.group(1)) << 24) & 0xFF000000) | ((Integer.parseInt(matcher.group(2)) << 16) & 0xFF0000)
-                | ((Integer.parseInt(matcher.group(3)) << 8) & 0xFF00) | (Integer.parseInt(matcher.group(4)) & 0xFF);
-
-        int mask = (-1) << (32 - Integer.parseInt(matcher.group(5)));
-
-        if (Integer.parseInt(matcher.group(5)) == 0) {
-            mask = 0 << 32;
-        }
-
-        int from = addr & mask;
-        long longFrom = intIpToLongIp(from);
-        if (longFrom == 0) {
-            longFrom = -1;
-        }
-
-        int to = from + (~mask);
-        long longTo = intIpToLongIp(to) + 1; // we have to +1 here as the range
-                                             // is non-inclusive on the "to"
-                                             // side
-
-        if (longTo == MAX_IP) {
-            longTo = -1;
-        }
-
-        return new long[] { longFrom, longTo };
-    }
-
-    private static long intIpToLongIp(int i) {
-        long p1 = ((long) ((i >> 24) & 0xFF)) << 24;
-        int p2 = ((i >> 16) & 0xFF) << 16;
-        int p3 = ((i >> 8) & 0xFF) << 8;
-        int p4 = i & 0xFF;
-        return p1 + p2 + p3 + p4;
     }
 
     public static class Defaults extends NumberFieldMapper.Defaults {
@@ -274,13 +217,13 @@ public class IpFieldMapper extends NumberFieldMapper {
             if (value != null) {
                 long[] fromTo;
                 if (value instanceof BytesRef) {
-                    fromTo = cidrMaskToMinMax(((BytesRef) value).utf8ToString());
+                    fromTo = Cidrs.cidrMaskToMinMax(((BytesRef) value).utf8ToString());
                 } else {
-                    fromTo = cidrMaskToMinMax(value.toString());
+                    fromTo = Cidrs.cidrMaskToMinMax(value.toString());
                 }
                 if (fromTo != null) {
-                    return rangeQuery(fromTo[0] < 0 ? null : fromTo[0],
-                            fromTo[1] < 0 ? null : fromTo[1], true, false);
+                    return rangeQuery(fromTo[0] == 0 ? null : fromTo[0],
+                            fromTo[1] == InternalIPv4Range.MAX_IP ? null : fromTo[1], true, false);
                 }
             }
             return super.termQuery(value, context);

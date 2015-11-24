@@ -142,4 +142,36 @@ public class DisMaxQueryBuilderTests extends AbstractQueryTestCase<DisMaxQueryBu
         assertThat(firstQ.getPrefix(), equalTo(new Term(STRING_FIELD_NAME, "sh")));
 
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"dis_max\" : {\n" + 
+                "    \"tie_breaker\" : 0.7,\n" + 
+                "    \"queries\" : [ {\n" + 
+                "      \"term\" : {\n" + 
+                "        \"age\" : {\n" + 
+                "          \"value\" : 34,\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    }, {\n" + 
+                "      \"term\" : {\n" + 
+                "        \"age\" : {\n" + 
+                "          \"value\" : 35,\n" + 
+                "          \"boost\" : 1.0\n" + 
+                "        }\n" + 
+                "      }\n" + 
+                "    } ],\n" + 
+                "    \"boost\" : 1.2\n" + 
+                "  }\n" + 
+                "}";
+
+        DisMaxQueryBuilder parsed = (DisMaxQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 1.2, parsed.boost(), 0.0001);
+        assertEquals(json, 0.7, parsed.tieBreaker(), 0.0001);
+        assertEquals(json, 2, parsed.innerQueries().size());
+    }
 }

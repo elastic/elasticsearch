@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.search.join.ScoreMode;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,6 +31,10 @@ import java.io.IOException;
 public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
 
     private static final NestedQueryBuilder PROTOTYPE = new NestedQueryBuilder("", EmptyQueryBuilder.PROTOTYPE);
+    public static final ParseField SCORE_MODE_FIELD = new ParseField("score_mode");
+    public static final ParseField PATH_FIELD = new ParseField("path");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField INNER_HITS_FIELD = new ParseField("inner_hits");
 
     @Override
     public String[] names() {
@@ -51,19 +56,19 @@ public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("query".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, QUERY_FIELD)) {
                     query = parseContext.parseInnerQueryBuilder();
-                } else if ("inner_hits".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, INNER_HITS_FIELD)) {
                     queryInnerHits = new QueryInnerHits(parser);
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("path".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, PATH_FIELD)) {
                     path = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("score_mode".equals(currentFieldName) || "scoreMode".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SCORE_MODE_FIELD)) {
                     String sScoreMode = parser.text();
                     if ("avg".equals(sScoreMode)) {
                         scoreMode = ScoreMode.Avg;
@@ -78,7 +83,7 @@ public class NestedQueryParser implements QueryParser<NestedQueryBuilder> {
                     } else {
                         throw new ParsingException(parser.getTokenLocation(), "illegal score_mode for nested query [" + sScoreMode + "]");
                     }
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[nested] query does not support [" + currentFieldName + "]");

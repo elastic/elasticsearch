@@ -30,7 +30,12 @@ import java.io.IOException;
  */
 public class RegexpQueryParser implements QueryParser<RegexpQueryBuilder> {
 
-    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of regexp query");
+    public static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of regexp query");
+    public static final ParseField FLAGS_VALUE_FIELD = new ParseField("flags_value");
+    public static final ParseField MAX_DETERMINIZED_STATES_FIELD = new ParseField("max_determinized_states");
+    public static final ParseField FLAGS_FIELD = new ParseField("flags");
+    public static final ParseField REWRITE_FIELD = new ParseField("rewrite");
+    public static final ParseField VALUE_FIELD = new ParseField("value");
 
     @Override
     public String[] names() {
@@ -62,20 +67,20 @@ public class RegexpQueryParser implements QueryParser<RegexpQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if ("value".equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                             value = parser.textOrNull();
-                        } else if ("boost".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
-                        } else if ("rewrite".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, REWRITE_FIELD)) {
                             rewrite = parser.textOrNull();
-                        } else if ("flags".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, FLAGS_FIELD)) {
                             String flags = parser.textOrNull();
                             flagsValue = RegexpFlag.resolveValue(flags);
-                        } else if ("max_determinized_states".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, MAX_DETERMINIZED_STATES_FIELD)) {
                             maxDeterminizedStates = parser.intValue();
-                        } else if ("flags_value".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, FLAGS_VALUE_FIELD)) {
                             flagsValue = parser.intValue();
-                        } else if ("_name".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "[regexp] query does not support [" + currentFieldName + "]");

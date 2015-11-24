@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -32,6 +33,11 @@ import java.util.List;
  */
 public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
 
+    public static final ParseField SLOP_FIELD = new ParseField("slop");
+    public static final ParseField COLLECT_PAYLOADS_FIELD = new ParseField("collect_payloads");
+    public static final ParseField CLAUSES_FIELD = new ParseField("clauses");
+    public static final ParseField IN_ORDER_FIELD = new ParseField("in_order");
+  
     @Override
     public String[] names() {
         return new String[]{SpanNearQueryBuilder.NAME, Strings.toCamelCase(SpanNearQueryBuilder.NAME)};
@@ -55,7 +61,7 @@ public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("clauses".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, CLAUSES_FIELD)) {
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         QueryBuilder query = parseContext.parseInnerQueryBuilder();
                         if (!(query instanceof SpanQueryBuilder)) {
@@ -67,15 +73,15 @@ public class SpanNearQueryParser implements QueryParser<SpanNearQueryBuilder> {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("in_order".equals(currentFieldName) || "inOrder".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, IN_ORDER_FIELD)) {
                     inOrder = parser.booleanValue();
-                } else if ("collect_payloads".equals(currentFieldName) || "collectPayloads".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, COLLECT_PAYLOADS_FIELD)) {
                     collectPayloads = parser.booleanValue();
-                } else if ("slop".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, SLOP_FIELD)) {
                     slop = parser.intValue();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_near] query does not support [" + currentFieldName + "]");

@@ -90,8 +90,8 @@ public class IdsQueryBuilder extends AbstractQueryBuilder<IdsQueryBuilder> {
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.array("types", types);
-        builder.startArray("values");
+        builder.array(IdsQueryParser.TYPE_FIELD.getPreferredName(), types);
+        builder.startArray(IdsQueryParser.VALUES_FIELD.getPreferredName());
         for (String value : ids) {
             builder.value(value);
         }

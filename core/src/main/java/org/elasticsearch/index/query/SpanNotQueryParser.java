@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.query;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -30,6 +31,12 @@ import java.io.IOException;
  */
 public class SpanNotQueryParser implements QueryParser<SpanNotQueryBuilder> {
 
+    public static final ParseField POST_FIELD = new ParseField("post");
+    public static final ParseField PRE_FIELD = new ParseField("pre");
+    public static final ParseField DIST_FIELD = new ParseField("dist");
+    public static final ParseField EXCLUDE_FIELD = new ParseField("exclude");
+    public static final ParseField INCLUDE_FIELD = new ParseField("include");
+  
     @Override
     public String[] names() {
         return new String[]{SpanNotQueryBuilder.NAME, Strings.toCamelCase(SpanNotQueryBuilder.NAME)};
@@ -56,13 +63,13 @@ public class SpanNotQueryParser implements QueryParser<SpanNotQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("include".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, INCLUDE_FIELD)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (!(query instanceof SpanQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(), "spanNot [include] must be of type span query");
                     }
                     include = (SpanQueryBuilder) query;
-                } else if ("exclude".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, EXCLUDE_FIELD)) {
                     QueryBuilder query = parseContext.parseInnerQueryBuilder();
                     if (!(query instanceof SpanQueryBuilder)) {
                         throw new ParsingException(parser.getTokenLocation(), "spanNot [exclude] must be of type span query");
@@ -72,15 +79,15 @@ public class SpanNotQueryParser implements QueryParser<SpanNotQueryBuilder> {
                     throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");
                 }
             } else {
-                if ("dist".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, DIST_FIELD)) {
                     dist = parser.intValue();
-                } else if ("pre".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, PRE_FIELD)) {
                     pre = parser.intValue();
-                } else if ("post".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, POST_FIELD)) {
                     post = parser.intValue();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[span_not] query does not support [" + currentFieldName + "]");

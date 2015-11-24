@@ -190,6 +190,8 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         e = ExceptionsHelper.unwrapCause(e);
                         if (e instanceof VersionConflictEngineException) {
                             if (retryCount < request.retryOnConflict()) {
+                                logger.trace("Retry attempt [{}] of [{}] on version conflict on [{}][{}][{}]",
+                                        retryCount + 1, request.retryOnConflict(), request.index(), request.shardId(), request.id());
                                 threadPool.executor(executor()).execute(new ActionRunnable<UpdateResponse>(listener) {
                                     @Override
                                     protected void doRun() {

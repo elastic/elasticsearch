@@ -35,8 +35,8 @@ import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentType;
+import org.elasticsearch.index.mapper.MetadataFieldMapper.TypeParser;
 import org.elasticsearch.index.mapper.internal.AllFieldMapper;
-import org.elasticsearch.index.mapper.internal.FieldNamesFieldMapper;
 import org.elasticsearch.index.mapper.internal.IdFieldMapper;
 import org.elasticsearch.index.mapper.internal.IndexFieldMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -46,14 +46,8 @@ import org.elasticsearch.index.mapper.internal.TTLFieldMapper;
 import org.elasticsearch.index.mapper.internal.TimestampFieldMapper;
 import org.elasticsearch.index.mapper.internal.TypeFieldMapper;
 import org.elasticsearch.index.mapper.internal.UidFieldMapper;
-import org.elasticsearch.index.mapper.internal.VersionFieldMapper;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.mapper.object.RootObjectMapper;
-import org.elasticsearch.script.ExecutableScript;
-import org.elasticsearch.script.Script;
-import org.elasticsearch.script.ScriptContext;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.script.ScriptService.ScriptType;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -76,7 +70,7 @@ public class DocumentMapper implements ToXContent {
 
     public static class Builder {
 
-        private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers = new LinkedHashMap<>();
+        private Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers = new LinkedHashMap<>();
 
         private final Settings indexSettings;
 
@@ -91,25 +85,12 @@ public class DocumentMapper implements ToXContent {
             this.builderContext = new Mapper.BuilderContext(indexSettings, new ContentPath(1));
             this.rootObjectMapper = builder.build(builderContext);
 
-            // TODO: find a cleaner way to handle existing root mappings and using their field type as the default.
-            // the vast majority of these root mappers only need the existing type for backwards compatibility, since
-            // the pre 2.0 field type settings could be modified
-
-            // UID first so it will be the first stored field to load (so will benefit from "fields: []" early termination
-            this.rootMappers.put(UidFieldMapper.class, new UidFieldMapper(indexSettings, mapperService.fullName(UidFieldMapper.NAME)));
-            this.rootMappers.put(IdFieldMapper.class, new IdFieldMapper(indexSettings, mapperService.fullName(IdFieldMapper.NAME)));
-            this.rootMappers.put(RoutingFieldMapper.class, new RoutingFieldMapper(indexSettings, mapperService.fullName(RoutingFieldMapper.NAME)));
-            // add default mappers, order is important (for example analyzer should come before the rest to set context.analyzer)
-            this.rootMappers.put(IndexFieldMapper.class, new IndexFieldMapper(indexSettings, mapperService.fullName(IndexFieldMapper.NAME)));
-            this.rootMappers.put(SourceFieldMapper.class, new SourceFieldMapper(indexSettings));
-            this.rootMappers.put(TypeFieldMapper.class, new TypeFieldMapper(indexSettings, mapperService.fullName(TypeFieldMapper.NAME)));
-            this.rootMappers.put(AllFieldMapper.class, new AllFieldMapper(indexSettings, mapperService.fullName(AllFieldMapper.NAME)));
-            this.rootMappers.put(TimestampFieldMapper.class, new TimestampFieldMapper(indexSettings, mapperService.fullName(TimestampFieldMapper.NAME)));
-            this.rootMappers.put(TTLFieldMapper.class, new TTLFieldMapper(indexSettings));
-            this.rootMappers.put(VersionFieldMapper.class, new VersionFieldMapper(indexSettings));
-            this.rootMappers.put(ParentFieldMapper.class, new ParentFieldMapper(indexSettings, mapperService.fullName(ParentFieldMapper.NAME), /* parent type */builder.name()));
-            // _field_names last so that it can see all other fields
-            this.rootMappers.put(FieldNamesFieldMapper.class, new FieldNamesFieldMapper(indexSettings, mapperService.fullName(FieldNamesFieldMapper.NAME)));
+            for (Map.Entry<String, MetadataFieldMapper.TypeParser> entry : mapperService.mapperRegistry.getMetadataMapperParsers().entrySet()) {
+                final String name = entry.getKey();
+                final TypeParser parser = entry.getValue();
+                final MetadataFieldMapper metadataMapper = parser.getDefault(indexSettings, mapperService.fullName(name), builder.name());
+                metadataMappers.put(metadataMapper.getClass(), metadataMapper);
+            }
         }
 
         public Builder meta(Map<String, Object> meta) {
@@ -119,13 +100,13 @@ public class DocumentMapper implements ToXContent {
 
         public Builder put(MetadataFieldMapper.Builder<?, ?> mapper) {
             MetadataFieldMapper metadataMapper = mapper.build(builderContext);
-            rootMappers.put(metadataMapper.getClass(), metadataMapper);
+            metadataMappers.put(metadataMapper.getClass(), metadataMapper);
             return this;
         }
 
         public DocumentMapper build(MapperService mapperService, DocumentMapperParser docMapperParser) {
             Objects.requireNonNull(rootObjectMapper, "Mapper builder must have the root object mapper set");
-            return new DocumentMapper(mapperService, indexSettings, docMapperParser, rootObjectMapper, meta, rootMappers, mapperService.mappingLock);
+            return new DocumentMapper(mapperService, indexSettings, docMapperParser, rootObjectMapper, meta, metadataMappers, mapperService.mappingLock);
         }
     }
 
@@ -152,7 +133,7 @@ public class DocumentMapper implements ToXContent {
     public DocumentMapper(MapperService mapperService, @Nullable Settings indexSettings, DocumentMapperParser docMapperParser,
                           RootObjectMapper rootObjectMapper,
                           Map<String, Object> meta,
-                          Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> rootMappers,
+                          Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper> metadataMappers,
                           ReentrantReadWriteLock mappingLock) {
         this.mapperService = mapperService;
         this.type = rootObjectMapper.name();
@@ -160,16 +141,16 @@ public class DocumentMapper implements ToXContent {
         this.mapping = new Mapping(
                 Version.indexCreated(indexSettings),
                 rootObjectMapper,
-                rootMappers.values().toArray(new MetadataFieldMapper[rootMappers.values().size()]),
+                metadataMappers.values().toArray(new MetadataFieldMapper[metadataMappers.values().size()]),
                 meta);
         this.documentParser = new DocumentParser(indexSettings, docMapperParser, this, new ReleasableLock(mappingLock.readLock()));
 
         this.mappingWriteLock = new ReleasableLock(mappingLock.writeLock());
         this.mappingLock = mappingLock;
 
-        if (rootMapper(ParentFieldMapper.class).active()) {
+        if (metadataMapper(ParentFieldMapper.class).active()) {
             // mark the routing field mapper as required
-            rootMapper(RoutingFieldMapper.class).markAsRequired();
+            metadataMapper(RoutingFieldMapper.class).markAsRequired();
         }
 
         // collect all the mappers for this type
@@ -227,52 +208,52 @@ public class DocumentMapper implements ToXContent {
     }
 
     public UidFieldMapper uidMapper() {
-        return rootMapper(UidFieldMapper.class);
+        return metadataMapper(UidFieldMapper.class);
     }
 
     @SuppressWarnings({"unchecked"})
-    public <T extends MetadataFieldMapper> T rootMapper(Class<T> type) {
-        return mapping.rootMapper(type);
+    public <T extends MetadataFieldMapper> T metadataMapper(Class<T> type) {
+        return mapping.metadataMapper(type);
     }
 
     public IndexFieldMapper indexMapper() {
-        return rootMapper(IndexFieldMapper.class);
+        return metadataMapper(IndexFieldMapper.class);
     }
 
     public TypeFieldMapper typeMapper() {
-        return rootMapper(TypeFieldMapper.class);
+        return metadataMapper(TypeFieldMapper.class);
     }
 
     public SourceFieldMapper sourceMapper() {
-        return rootMapper(SourceFieldMapper.class);
+        return metadataMapper(SourceFieldMapper.class);
     }
 
     public AllFieldMapper allFieldMapper() {
-        return rootMapper(AllFieldMapper.class);
+        return metadataMapper(AllFieldMapper.class);
     }
 
     public IdFieldMapper idFieldMapper() {
-        return rootMapper(IdFieldMapper.class);
+        return metadataMapper(IdFieldMapper.class);
     }
 
     public RoutingFieldMapper routingFieldMapper() {
-        return rootMapper(RoutingFieldMapper.class);
+        return metadataMapper(RoutingFieldMapper.class);
     }
 
     public ParentFieldMapper parentFieldMapper() {
-        return rootMapper(ParentFieldMapper.class);
+        return metadataMapper(ParentFieldMapper.class);
     }
 
     public TimestampFieldMapper timestampFieldMapper() {
-        return rootMapper(TimestampFieldMapper.class);
+        return metadataMapper(TimestampFieldMapper.class);
     }
 
     public TTLFieldMapper TTLFieldMapper() {
-        return rootMapper(TTLFieldMapper.class);
+        return metadataMapper(TTLFieldMapper.class);
     }
 
     public IndexFieldMapper IndexFieldMapper() {
-        return rootMapper(IndexFieldMapper.class);
+        return metadataMapper(IndexFieldMapper.class);
     }
 
     public Query typeFilter() {

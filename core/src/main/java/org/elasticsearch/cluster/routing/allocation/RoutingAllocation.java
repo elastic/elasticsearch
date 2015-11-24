@@ -120,19 +120,27 @@ public class RoutingAllocation {
 
     private boolean hasPendingAsyncFetch = false;
 
+    private final long currentNanoTime;
+
 
     /**
      * Creates a new {@link RoutingAllocation}
-     * 
-     * @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
-     * @param routingNodes Routing nodes in the current cluster 
+     *  @param deciders {@link AllocationDeciders} to used to make decisions for routing allocations
+     * @param routingNodes Routing nodes in the current cluster
      * @param nodes TODO: Documentation
+     * @param currentNanoTime the nano time to use for all delay allocation calculation (typically {@link System#nanoTime()})
      */
-    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ClusterInfo clusterInfo) {
+    public RoutingAllocation(AllocationDeciders deciders, RoutingNodes routingNodes, DiscoveryNodes nodes, ClusterInfo clusterInfo, long currentNanoTime) {
         this.deciders = deciders;
         this.routingNodes = routingNodes;
         this.nodes = nodes;
         this.clusterInfo = clusterInfo;
+        this.currentNanoTime = currentNanoTime;
+    }
+
+    /** returns the nano time captured at the beginning of the allocation. used to make sure all time based decisions are aligned */
+    public long getCurrentNanoTime() {
+        return currentNanoTime;
     }
 
     /**

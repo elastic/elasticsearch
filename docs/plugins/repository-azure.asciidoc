@@ -117,7 +117,7 @@ PUT _snapshot/my_backup2
 {
     "type": "azure",
     "settings": {
-        "container": "backup_container",
+        "container": "backup-container",
         "base_path": "backups",
         "chunk_size": "32m",
         "compress": true
@@ -150,7 +150,7 @@ Example using Java:
 ----
 client.admin().cluster().preparePutRepository("my_backup_java1")
     .setType("azure").setSettings(Settings.settingsBuilder()
-        .put(Storage.CONTAINER, "backup_container")
+        .put(Storage.CONTAINER, "backup-container")
         .put(Storage.CHUNK_SIZE, new ByteSizeValue(32, ByteSizeUnit.MB))
     ).get();
 ----

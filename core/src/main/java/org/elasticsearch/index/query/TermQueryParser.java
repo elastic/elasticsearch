@@ -30,8 +30,8 @@ import java.io.IOException;
  */
 public class TermQueryParser implements QueryParser<TermQueryBuilder> {
 
-    private static final ParseField NAME_FIELD = new ParseField("_name").withAllDeprecated("query name is not supported in short version of term query");
-    private static final ParseField BOOST_FIELD = new ParseField("boost").withAllDeprecated("boost is not supported in short version of term query");
+    public static final ParseField TERM_FIELD = new ParseField("term");
+    public static final ParseField VALUE_FIELD = new ParseField("value");
 
     @Override
     public String[] names() {
@@ -63,13 +63,13 @@ public class TermQueryParser implements QueryParser<TermQueryBuilder> {
                     if (token == XContentParser.Token.FIELD_NAME) {
                         currentFieldName = parser.currentName();
                     } else {
-                        if ("term".equals(currentFieldName)) {
+                        if (parseContext.parseFieldMatcher().match(currentFieldName, TERM_FIELD)) {
                             value = parser.objectBytes();
-                        } else if ("value".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                             value = parser.objectBytes();
-                        } else if ("_name".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                             queryName = parser.text();
-                        } else if ("boost".equals(currentFieldName)) {
+                        } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                             boost = parser.floatValue();
                         } else {
                             throw new ParsingException(parser.getTokenLocation(), "[term] query does not support [" + currentFieldName + "]");
@@ -77,17 +77,11 @@ public class TermQueryParser implements QueryParser<TermQueryBuilder> {
                     }
                 }
             } else if (token.isValue()) {
-                if (parseContext.parseFieldMatcher().match(currentFieldName, NAME_FIELD)) {
-                    queryName = parser.text();
-                } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOOST_FIELD)) {
-                    boost = parser.floatValue();
-                } else {
-                    if (fieldName != null) {
-                        throw new ParsingException(parser.getTokenLocation(), "[term] query does not support different field names, use [bool] query instead");
-                    }
-                    fieldName = currentFieldName;
-                    value = parser.objectBytes();
+                if (fieldName != null) {
+                    throw new ParsingException(parser.getTokenLocation(), "[term] query does not support different field names, use [bool] query instead");
                 }
+                fieldName = currentFieldName;
+                value = parser.objectBytes();
             } else if (token == XContentParser.Token.START_ARRAY) {
                 throw new ParsingException(parser.getTokenLocation(), "[term] query does not support array of values");
             }

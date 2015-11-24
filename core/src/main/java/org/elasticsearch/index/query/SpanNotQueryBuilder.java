@@ -125,12 +125,12 @@ public class SpanNotQueryBuilder extends AbstractQueryBuilder<SpanNotQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("include");
+        builder.field(SpanNotQueryParser.INCLUDE_FIELD.getPreferredName());
         include.toXContent(builder, params);
-        builder.field("exclude");
+        builder.field(SpanNotQueryParser.EXCLUDE_FIELD.getPreferredName());
         exclude.toXContent(builder, params);
-        builder.field("pre", pre);
-        builder.field("post", post);
+        builder.field(SpanNotQueryParser.PRE_FIELD.getPreferredName(), pre);
+        builder.field(SpanNotQueryParser.POST_FIELD.getPreferredName(), post);
         printBoostAndQueryName(builder);
         builder.endObject();
     }

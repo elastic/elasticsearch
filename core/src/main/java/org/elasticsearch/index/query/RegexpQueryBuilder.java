@@ -135,14 +135,14 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     @Override
-    public void doXContent(XContentBuilder builder, Params params) throws IOException {
+    protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field("value", this.value);
-        builder.field("flags_value", flagsValue);
-        builder.field("max_determinized_states", maxDeterminizedStates);
+        builder.field(RegexpQueryParser.VALUE_FIELD.getPreferredName(), this.value);
+        builder.field(RegexpQueryParser.FLAGS_VALUE_FIELD.getPreferredName(), flagsValue);
+        builder.field(RegexpQueryParser.MAX_DETERMINIZED_STATES_FIELD.getPreferredName(), maxDeterminizedStates);
         if (rewrite != null) {
-            builder.field("rewrite", rewrite);
+            builder.field(RegexpQueryParser.REWRITE_FIELD.getPreferredName(), rewrite);
         }
         printBoostAndQueryName(builder);
         builder.endObject();
@@ -155,7 +155,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     @Override
-    public Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
+    protected Query doToQuery(QueryShardContext context) throws QueryShardException, IOException {
         MultiTermQuery.RewriteMethod method = QueryParsers.parseRewriteMethod(context.parseFieldMatcher(), rewrite, null);
 
         Query query = null;
@@ -174,7 +174,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     @Override
-    public RegexpQueryBuilder doReadFrom(StreamInput in) throws IOException {
+    protected RegexpQueryBuilder doReadFrom(StreamInput in) throws IOException {
         RegexpQueryBuilder regexpQueryBuilder = new RegexpQueryBuilder(in.readString(), in.readString());
         regexpQueryBuilder.flagsValue = in.readVInt();
         regexpQueryBuilder.maxDeterminizedStates = in.readVInt();
@@ -183,7 +183,7 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     @Override
-    public void doWriteTo(StreamOutput out) throws IOException {
+    protected void doWriteTo(StreamOutput out) throws IOException {
         out.writeString(fieldName);
         out.writeString(value);
         out.writeVInt(flagsValue);
@@ -192,12 +192,12 @@ public class RegexpQueryBuilder extends AbstractQueryBuilder<RegexpQueryBuilder>
     }
 
     @Override
-    public int doHashCode() {
+    protected int doHashCode() {
         return Objects.hash(fieldName, value, flagsValue, maxDeterminizedStates, rewrite);
     }
 
     @Override
-    public boolean doEquals(RegexpQueryBuilder other) {
+    protected boolean doEquals(RegexpQueryBuilder other) {
         return Objects.equals(fieldName, other.fieldName) &&
                 Objects.equals(value, other.value) &&
                 Objects.equals(flagsValue, other.flagsValue) &&

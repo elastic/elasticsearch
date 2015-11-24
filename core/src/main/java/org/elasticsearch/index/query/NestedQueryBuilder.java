@@ -117,11 +117,11 @@ public class NestedQueryBuilder extends AbstractQueryBuilder<NestedQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query");
+        builder.field(NestedQueryParser.QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
-        builder.field("path", path);
+        builder.field(NestedQueryParser.PATH_FIELD.getPreferredName(), path);
         if (scoreMode != null) {
-            builder.field("score_mode", scoreMode.name().toLowerCase(Locale.ROOT));
+            builder.field(NestedQueryParser.SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
         }
         printBoostAndQueryName(builder);
         if (queryInnerHits != null) {

@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.xcontent.XContentParser;
 
@@ -29,6 +30,8 @@ import java.io.IOException;
  * Parser for type query
  */
 public class TypeQueryParser implements QueryParser<TypeQueryBuilder> {
+
+    public static final ParseField VALUE_FIELD = new ParseField("value");
 
     @Override
     public String[] names() {
@@ -49,11 +52,11 @@ public class TypeQueryParser implements QueryParser<TypeQueryBuilder> {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token.isValue()) {
-                if ("_name".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
-                } else if ("value".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, VALUE_FIELD)) {
                     type = parser.utf8Bytes();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[" + TypeQueryBuilder.NAME + "] filter doesn't support [" + currentFieldName + "]");

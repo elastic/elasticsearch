@@ -79,11 +79,21 @@ document and field.
 
 `min_value`::
 
-The lowest value in the field represented in a displayable form.
+The lowest value in the field.
+
+`min_value_as_string`::
+
+The lowest value in the field represented in a displayable form. All fields,
+but string fields returns this. (since string fields, represent values already as strings)
 
 `max_value`::
 
-The highest value in the field represented in a displayable form.
+The highest value in the field.
+
+`max_value_as_string`::
+
+The highest value in the field represented in a displayable form. All fields,
+but string fields returns this. (since string fields, represent values already as strings)
 
 NOTE: Documents marked as deleted (but not yet removed by the merge process)
 still affect all the mentioned statistics.

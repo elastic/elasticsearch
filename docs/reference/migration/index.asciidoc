@@ -20,6 +20,8 @@ include::migrate_3_0.asciidoc[]
 
 include::migrate_2_1.asciidoc[]
 
+include::migrate_2_2.asciidoc[]
+
 include::migrate_2_0.asciidoc[]
 
 include::migrate_1_6.asciidoc[]

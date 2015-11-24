@@ -32,6 +32,7 @@ List projects = [
   'plugins:store-smb',
   'qa:evil-tests',
   'qa:smoke-test-client',
+  'qa:smoke-test-multinode',
   'qa:smoke-test-plugins',
   'qa:vagrant',
 ]
@@ -60,19 +61,23 @@ if (isEclipse) {
   */
 void addSubProjects(String path, File dir) {
   if (dir.isDirectory() == false) return;
+  if (dir.name == 'buildSrc') return;
   if (new File(dir, 'build.gradle').exists() == false) return;
 
   String projectName = "${path}:${dir.name}"
   include projectName
-  project(projectName).projectDir = dir
-
   for (File subdir : dir.listFiles()) {
     addSubProjects(projectName, subdir)
   }
 }
 
-File extraPlugins = new File(rootProject.projectDir, 'extra-plugins')
-for (File extraPluginDir : extraPlugins.listFiles()) {
-  addSubProjects('', extraPluginDir)
+// look for extra plugins for elasticsearch
+File xplugins = new File(rootProject.projectDir.parentFile, 'x-plugins')
+if (xplugins.exists()) {
+  include ':x-plugins'
+  project(':x-plugins').projectDir = xplugins
+  for (File extraPluginDir : xplugins.listFiles()) {
+    addSubProjects(':x-plugins', extraPluginDir)
+  }
 }
 

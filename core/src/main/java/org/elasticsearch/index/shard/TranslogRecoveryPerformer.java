@@ -131,7 +131,6 @@ public class TranslogRecoveryPerformer {
                                     .routing(index.routing()).parent(index.parent()).timestamp(index.timestamp()).ttl(index.ttl()),
                             index.version(), index.versionType().versionTypeForReplicationAndRecovery(), Engine.Operation.Origin.RECOVERY);
                     maybeAddMappingUpdate(engineIndex.type(), engineIndex.parsedDoc().dynamicMappingsUpdate(), engineIndex.id(), allowMappingUpdates);
-                    postPrepareIndex(engineIndex);
                     if (logger.isTraceEnabled()) {
                         logger.trace("[translog] recover [index] op of [{}][{}]", index.type(), index.id());
                     }
@@ -185,9 +184,6 @@ public class TranslogRecoveryPerformer {
      */
     public Map<String, Mapping> getRecoveredTypes() {
         return recoveredTypes;
-    }
-
-    protected void postPrepareIndex(Engine.Index operation) {
     }
 
 }

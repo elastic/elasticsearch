@@ -38,6 +38,7 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.*;
@@ -74,7 +75,8 @@ public class PercolateDocumentParserTests extends ESTestCase {
                 Settings.EMPTY, Collections.emptyList()
         );
         AnalysisService analysisService = new AnalysisService(indexSettings, Collections.<String, AnalyzerProvider>emptyMap(), Collections.<String, TokenizerFactory>emptyMap(), Collections.<String, CharFilterFactory>emptyMap(), Collections.<String, TokenFilterFactory>emptyMap());
-        mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()));
+        MapperRegistry mapperRegistry = new MapperRegistry(Collections.emptyMap(), Collections.emptyMap());
+        mapperService = new MapperService(indexSettings, analysisService, new SimilarityService(indexSettings, Collections.emptyMap()), mapperRegistry);
 
         Set<QueryParser> parsers = Collections.singleton(new TermQueryParser());
         IndicesQueriesRegistry indicesQueriesRegistry = new IndicesQueriesRegistry(indexSettings.getSettings(), parsers, new NamedWriteableRegistry());

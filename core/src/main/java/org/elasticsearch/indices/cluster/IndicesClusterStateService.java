@@ -59,6 +59,7 @@ import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoverySource;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.indices.recovery.RecoveryTarget;
+import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.RestoreService;
@@ -117,9 +118,10 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
                                       NodeMappingRefreshAction nodeMappingRefreshAction,
                                       RepositoriesService repositoriesService, RestoreService restoreService,
                                       SearchService searchService, SyncedFlushService syncedFlushService,
-                                      RecoverySource recoverySource, NodeServicesProvider nodeServicesProvider, IndexingMemoryController indexingMemoryController) {
+                                      RecoverySource recoverySource, NodeServicesProvider nodeServicesProvider,
+                                      IndexingMemoryController indexingMemoryController, PercolatorService percolatorService) {
         super(settings);
-        this.buildInIndexListener = Arrays.asList(recoverySource, recoveryTarget, searchService, syncedFlushService, indexingMemoryController);
+        this.buildInIndexListener = Arrays.asList(recoverySource, recoveryTarget, searchService, syncedFlushService, indexingMemoryController, percolatorService);
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.threadPool = threadPool;

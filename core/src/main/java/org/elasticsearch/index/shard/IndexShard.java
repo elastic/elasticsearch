@@ -451,22 +451,10 @@ public class IndexShard extends AbstractIndexShardComponent {
 
     public Engine.Index prepareIndex(SourceToParse source, long version, VersionType versionType, Engine.Operation.Origin origin) {
         try {
-            Engine.Index operation = prepareIndex(docMapper(source.type()), source, version, versionType, origin);
-            postPrepareIndex(operation);
-            return operation;
+            return prepareIndex(docMapper(source.type()), source, version, versionType, origin);
         } catch (Throwable t) {
             verifyNotClosed(t);
             throw t;
-        }
-    }
-
-    private void postPrepareIndex(Engine.Index operation) {
-        if (operation.type().equals(PercolatorService.TYPE_NAME)) {
-            Query query = percolatorQueriesRegistry.parsePercolatorDocument(operation.id(), operation.source());
-            boolean onOrAfter3x = indexSettings().getSettings().getAsVersion(IndexMetaData.SETTING_VERSION_CREATED, null).onOrAfter(Version.V_3_0_0);
-            if (onOrAfter3x) {
-                QueryMetadataService.extractQueryMetadata(query, operation.parsedDoc().rootDoc());
-            }
         }
     }
 
@@ -1475,10 +1463,6 @@ public class IndexShard extends AbstractIndexShardComponent {
                 recoveryState.getTranslog().incrementRecoveredOperations();
             }
 
-            @Override
-            protected void postPrepareIndex(Engine.Index operation) {
-                IndexShard.this.postPrepareIndex(operation);
-            }
         };
         final Engine.Warmer engineWarmer = (searcher, toLevel) -> warmer.warm(searcher, this, idxSettings, toLevel);
         return new EngineConfig(shardId,

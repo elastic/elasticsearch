@@ -42,9 +42,11 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.percolator.PercolatorFieldMapper;
 import org.elasticsearch.index.percolator.PercolatorQueriesRegistry;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardContext;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.script.ScriptService;
@@ -63,7 +65,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-public class PercolatorService extends AbstractComponent {
+public class PercolatorService extends AbstractComponent implements IndexEventListener {
 
     public final static float NO_SCORE = Float.NEGATIVE_INFINITY;
     public final static String TYPE_NAME = ".percolator";
@@ -123,6 +125,10 @@ public class PercolatorService extends AbstractComponent {
         percolatorTypes.put(topMatchingPercolator.id(), topMatchingPercolator);
     }
 
+    @Override
+    public void afterIndexCreated(IndexService indexService) {
+        indexService.mapperService().documentMapperParser().putTypeParser(PercolatorFieldMapper.CONTENT_TYPE, new PercolatorFieldMapper.TypeParser(indexService));
+    }
 
     public ReduceResult reduce(byte percolatorTypeId, List<PercolateShardResponse> shardResults, HasContextAndHeaders headersContext) {
         PercolatorType percolatorType = percolatorTypes.get(percolatorTypeId);

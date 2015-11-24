@@ -67,7 +67,9 @@ class RestIntegTestTask extends RandomizedTestingTask {
     }
 
     RestIntegTestTask() {
-        project.afterEvaluate {
+        // this must run after all projects have been configured, so we know any project
+        // references can be accessed as a fully configured
+        project.gradle.projectsEvaluated {
             Task test = project.tasks.findByName('test')
             if (test != null) {
                 mustRunAfter(test)

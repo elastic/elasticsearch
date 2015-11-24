@@ -21,7 +21,9 @@ package org.elasticsearch.gradle.test
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.VersionProperties
+import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.api.*
+import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logger
 import org.gradle.api.tasks.Copy
@@ -102,14 +104,11 @@ class ClusterFormationTasks {
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
         // install plugins
-        for (Map.Entry<String, FileCollection> plugin : node.config.plugins.entrySet()) {
+        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
             // replace every dash followed by a character with just the uppercase character
             String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
             String actionName = "install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}Plugin"
-            // delay reading the file location until execution time by wrapping in a closure within a GString
-            String file = "${-> new File(node.pluginsTmpDir, plugin.getValue().singleFile.getName()).toURI().toURL().toString()}"
-            Object[] args = [new File(node.homeDir, 'bin/plugin'), 'install', file]
-            setup = configureExecTask(taskName(task, node, actionName), project, setup, node, args)
+            setup = configureInstallPluginTask(taskName(task, node, actionName), project, setup, node, plugin.getValue())
         }
 
         // extra setup commands
@@ -183,10 +182,42 @@ class ClusterFormationTasks {
             return setup
         }
 
+        List<FileCollection> pluginFiles = []
+        for (Object plugin : node.config.plugins.values()) {
+            if (plugin instanceof Project) {
+                Project pluginProject = plugin
+                if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
+                    throw new GradleException("Task ${name} cannot project ${pluginProject.path} which is not an esplugin")
+                }
+                String configurationName = "_plugin_${pluginProject.path}"
+                Configuration configuration = project.configurations.findByName(configurationName)
+                if (configuration == null) {
+                    configuration = project.configurations.create(configurationName)
+                }
+                project.dependencies.add(configurationName, pluginProject)
+                setup.dependsOn(pluginProject.tasks.bundlePlugin)
+                plugin = configuration
+            }
+            pluginFiles.add(plugin)
+        }
+
         return project.tasks.create(name: name, type: Copy, dependsOn: setup) {
             into node.pluginsTmpDir
-            from(node.config.plugins.values())
+            from(pluginFiles)
         }
+    }
+
+    static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {
+        FileCollection pluginZip
+        if (plugin instanceof Project) {
+            pluginZip = project.configurations.getByName("_plugin_${plugin.path}")
+        } else {
+            pluginZip = plugin
+        }
+        // delay reading the file location until execution time by wrapping in a closure within a GString
+        String file = "${-> new File(node.pluginsTmpDir, pluginZip.singleFile.getName()).toURI().toURL().toString()}"
+        Object[] args = [new File(node.homeDir, 'bin/plugin'), 'install', file]
+        return configureExecTask(name, project, setup, node, args)
     }
 
     /** Adds a task to execute a command to help setup the cluster */

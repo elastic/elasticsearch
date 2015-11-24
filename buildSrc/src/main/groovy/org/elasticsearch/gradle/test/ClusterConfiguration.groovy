@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.gradle.api.Project
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 
@@ -64,7 +65,7 @@ class ClusterConfiguration {
 
     Map<String, String> settings = new HashMap<>()
 
-    LinkedHashMap<String, FileCollection> plugins = new LinkedHashMap<>()
+    LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
 
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
@@ -81,6 +82,11 @@ class ClusterConfiguration {
     @Input
     void plugin(String name, FileCollection file) {
         plugins.put(name, file)
+    }
+
+    @Input
+    void plugin(String name, Project pluginProject) {
+        plugins.put(name, pluginProject)
     }
 
     @Input

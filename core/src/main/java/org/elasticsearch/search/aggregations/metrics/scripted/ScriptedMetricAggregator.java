@@ -20,6 +20,9 @@
 package org.elasticsearch.search.aggregations.metrics.scripted;
 
 import org.apache.lucene.index.LeafReaderContext;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.LeafSearchScript;
 import org.elasticsearch.script.Script;
@@ -43,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.Objects;
 
 public class ScriptedMetricAggregator extends MetricsAggregator {
 
@@ -113,13 +117,43 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
         private Script reduceScript;
         private Map<String, Object> params;
 
-        public Factory(String name, Script initScript, Script mapScript, Script combineScript, Script reduceScript,
-                Map<String, Object> params) {
+        public Factory(String name) {
             super(name, InternalScriptedMetric.TYPE);
+        }
+
+        /**
+         * Set the <tt>init</tt> script.
+         */
+        public void initScript(Script initScript) {
             this.initScript = initScript;
+        }
+
+        /**
+         * Set the <tt>map</tt> script.
+         */
+        public void mapScript(Script mapScript) {
             this.mapScript = mapScript;
+        }
+
+        /**
+         * Set the <tt>combine</tt> script.
+         */
+        public void combineScript(Script combineScript) {
             this.combineScript = combineScript;
+        }
+
+        /**
+         * Set the <tt>reduce</tt> script.
+         */
+        public void reduceScript(Script reduceScript) {
             this.reduceScript = reduceScript;
+        }
+
+        /**
+         * Set parameters that will be available in the <tt>init</tt>,
+         * <tt>map</tt> and <tt>combine</tt> phases.
+         */
+        public void params(Map<String, Object> params) {
             this.params = params;
         }
 
@@ -186,6 +220,73 @@ public class ScriptedMetricAggregator extends MetricsAggregator {
                         + original.getClass().getCanonicalName(), null);
             }
             return clone;
+        }
+
+        @Override
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params builderParams) throws IOException {
+            builder.startObject();
+            if (initScript != null) {
+                builder.field(ScriptedMetricParser.INIT_SCRIPT_FIELD.getPreferredName(), initScript);
+            }
+
+            if (mapScript != null) {
+                builder.field(ScriptedMetricParser.MAP_SCRIPT_FIELD.getPreferredName(), mapScript);
+            }
+
+            if (combineScript != null) {
+                builder.field(ScriptedMetricParser.COMBINE_SCRIPT_FIELD.getPreferredName(), combineScript);
+            }
+
+            if (reduceScript != null) {
+                builder.field(ScriptedMetricParser.REDUCE_SCRIPT_FIELD.getPreferredName(), reduceScript);
+            }
+            if (params != null) {
+                builder.field(ScriptedMetricParser.PARAMS_FIELD.getPreferredName());
+                builder.map(params);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+            Factory factory = new Factory(name);
+            factory.initScript = in.readOptionalStreamable(Script.SUPPLIER);
+            factory.mapScript = in.readOptionalStreamable(Script.SUPPLIER);
+            factory.combineScript = in.readOptionalStreamable(Script.SUPPLIER);
+            factory.reduceScript = in.readOptionalStreamable(Script.SUPPLIER);
+            if (in.readBoolean()) {
+                factory.params = in.readMap();
+            }
+            return factory;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            out.writeOptionalStreamable(initScript);
+            out.writeOptionalStreamable(mapScript);
+            out.writeOptionalStreamable(combineScript);
+            out.writeOptionalStreamable(reduceScript);
+            boolean hasParams = params != null;
+            out.writeBoolean(hasParams);
+            if (hasParams) {
+                out.writeMap(params);
+            }
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(initScript, mapScript, combineScript, reduceScript, params);
+        }
+
+        @Override
+        protected boolean doEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.equals(initScript, other.initScript)
+                    && Objects.equals(mapScript, other.mapScript)
+                    && Objects.equals(combineScript, other.combineScript)
+                    && Objects.equals(reduceScript, other.reduceScript)
+                    && Objects.equals(params, other.params);
         }
 
     }

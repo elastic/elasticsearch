@@ -34,12 +34,24 @@ import org.elasticsearch.script.ScriptService.ScriptType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.function.Supplier;
 
 /**
  * Script holds all the parameters necessary to compile or find in cache and then execute a script.
  */
 public class Script implements ToXContent, Streamable {
 
+    /**
+     * A {@link Supplier} implementation for use when reading a {@link Script}
+     * using {@link StreamInput#readOptionalStreamable(Supplier)}
+     */
+    public static final Supplier<Script> SUPPLIER = new Supplier<Script>() {
+
+        @Override
+        public Script get() {
+            return new Script();
+        }
+    };
     public static final ScriptType DEFAULT_TYPE = ScriptType.INLINE;
     private static final ScriptParser PARSER = new ScriptParser();
 
@@ -74,7 +86,7 @@ public class Script implements ToXContent, Streamable {
 
     /**
      * Constructor for Script.
-     * 
+     *
      * @param script
      *            The cache key of the script to be compiled/executed. For
      *            inline scripts this is the actual script source code. For
@@ -112,7 +124,7 @@ public class Script implements ToXContent, Streamable {
 
     /**
      * Method for getting the type.
-     * 
+     *
      * @return The type of script -- inline, indexed, or file.
      */
     public ScriptType getType() {
@@ -121,7 +133,7 @@ public class Script implements ToXContent, Streamable {
 
     /**
      * Method for getting language.
-     * 
+     *
      * @return The language of the script to be compiled/executed.
      */
     public String getLang() {
@@ -130,7 +142,7 @@ public class Script implements ToXContent, Streamable {
 
     /**
      * Method for getting the parameters.
-     * 
+     *
      * @return The map of parameters the script will be executed with.
      */
     public Map<String, Object> getParams() {

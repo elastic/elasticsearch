@@ -98,8 +98,8 @@ https://download.elastic.co/elasticsearch/release/org/elasticsearch/plugin/watch
 +
 [source,shell]
 ----------------------------------------------------------
-bin/plugin install file:///path/to/file/license-2.0.0.zip <1>
-bin/plugin install file:///path/to/file/watcher-2.0.0.zip 
+bin/plugin install file:///path/to/file/license-2.1.0.zip <1>
+bin/plugin install file:///path/to/file/watcher-2.1.0.zip
 ----------------------------------------------------------
 <1> Note that you must specify an absolute path to the zip file after the `file://` protocol.
 

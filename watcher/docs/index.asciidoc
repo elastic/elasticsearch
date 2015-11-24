@@ -7,7 +7,7 @@
 :java-client-ref: 	http://www.elastic.co/guide/en/elasticsearch/client/java-api/master
 :blog-ref:			https://www.elastic.co/blog/
 :forum:				https://discuss.elastic.co/c/watcher
-:version:           2.0.0-beta2
+:version:           2.1.0
 
 include::introduction.asciidoc[]
 

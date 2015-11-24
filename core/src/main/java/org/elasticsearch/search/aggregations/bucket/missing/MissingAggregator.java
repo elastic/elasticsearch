@@ -20,17 +20,22 @@ package org.elasticsearch.search.aggregations.bucket.missing;
 
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
+import org.elasticsearch.search.aggregations.metrics.valuecount.ValueCountAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
+import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,10 +86,10 @@ public class MissingAggregator extends SingleBucketAggregator {
         return new InternalMissing(name, 0, buildEmptySubAggregations(), pipelineAggregators(), metaData());
     }
 
-    public static class Factory extends ValuesSourceAggregatorFactory<ValuesSource>  {
+    public static class Factory<VS extends ValuesSource> extends ValuesSourceAggregatorFactory<VS> {
 
-        public Factory(String name, ValuesSourceParser.Input valueSourceInput) {
-            super(name, InternalMissing.TYPE, valueSourceInput);
+        public Factory(String name, ValuesSourceType valuesSourceType, ValueType valueType) {
+            super(name, InternalMissing.TYPE, valuesSourceType, valueType);
         }
 
         @Override
@@ -94,9 +99,35 @@ public class MissingAggregator extends SingleBucketAggregator {
         }
 
         @Override
-        protected MissingAggregator doCreateInternal(ValuesSource valuesSource, AggregationContext aggregationContext, Aggregator parent,
+        protected MissingAggregator doCreateInternal(VS valuesSource, AggregationContext aggregationContext, Aggregator parent,
                 boolean collectsFromSingleBucket, List<PipelineAggregator> pipelineAggregators, Map<String, Object> metaData) throws IOException {
             return new MissingAggregator(name, factories, valuesSource, aggregationContext, parent, pipelineAggregators, metaData);
+        }
+
+        @Override
+        protected ValuesSourceAggregatorFactory<VS> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, StreamInput in) {
+            return new ValueCountAggregator.Factory<VS>(name, valuesSourceType, targetValueType);
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) {
+            // Do nothing, no extra state to write to stream
+        }
+
+        @Override
+        public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected boolean innerEquals(Object obj) {
+            return true;
         }
     }
 

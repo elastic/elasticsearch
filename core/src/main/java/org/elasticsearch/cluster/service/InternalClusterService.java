@@ -286,12 +286,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             final UpdateTask<T> updateTask = new UpdateTask<>(source, task, config, executor, listener);
 
             synchronized (updateTasksPerExecutor) {
-                List<UpdateTask> pendingTasks = updateTasksPerExecutor.get(executor);
-                if (pendingTasks == null) {
-                    pendingTasks = new ArrayList<>();
-                    updateTasksPerExecutor.put(executor, pendingTasks);
-                }
-                pendingTasks.add(updateTask);
+                updateTasksPerExecutor.computeIfAbsent(executor, k -> new ArrayList<>()).add(updateTask);
             }
 
             if (config.timeout() != null) {

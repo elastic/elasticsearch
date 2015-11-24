@@ -104,12 +104,7 @@ public class MetaDataMappingService extends AbstractComponent {
             if (task.index == null) {
                 logger.debug("ignoring a mapping task of type [{}] with a null index.", task);
             }
-            List<RefreshTask> indexTasks = tasksPerIndex.get(task.index);
-            if (indexTasks == null) {
-                indexTasks = new ArrayList<>();
-                tasksPerIndex.put(task.index, indexTasks);
-            }
-            indexTasks.add(task);
+            tasksPerIndex.computeIfAbsent(task.index, k -> new ArrayList<>()).add(task);
         }
 
         boolean dirty = false;

@@ -182,7 +182,7 @@ public class ShieldPlugin extends Plugin {
     @Override
     public void onIndexService(IndexService indexService) {
         if (enabled && clientMode == false) {
-            failIfShieldQueryCacheIsNotActive(settings, false);
+            failIfShieldQueryCacheIsNotActive(indexService.getIndexSettings().getSettings(), false);
         }
     }
 

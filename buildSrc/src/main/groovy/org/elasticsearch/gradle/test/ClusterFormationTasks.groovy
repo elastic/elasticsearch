@@ -105,9 +105,7 @@ class ClusterFormationTasks {
 
         // install plugins
         for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
-            // replace every dash followed by a character with just the uppercase character
-            String camelName = plugin.getKey().replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
-            String actionName = "install${camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1)}Plugin"
+            String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
             setup = configureInstallPluginTask(taskName(task, node, actionName), project, setup, node, plugin.getValue())
         }
 
@@ -176,16 +174,23 @@ class ClusterFormationTasks {
         }
     }
 
-    /** Adds a task to copy plugins to a temp dir, which they will later be installed from. */
+    /**
+     * Adds a task to copy plugins to a temp dir, which they will later be installed from.
+     *
+     * For each plugin, if the plugin has rest spec apis in its tests, those api files are also copied
+     * to the test resources for this project.
+     */
     static Task configureCopyPluginsTask(String name, Project project, Task setup, NodeInfo node) {
         if (node.config.plugins.isEmpty()) {
             return setup
         }
+        Copy copyPlugins = project.tasks.create(name: name, type: Copy, dependsOn: setup)
 
         List<FileCollection> pluginFiles = []
-        for (Object plugin : node.config.plugins.values()) {
-            if (plugin instanceof Project) {
-                Project pluginProject = plugin
+        for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
+            FileCollection pluginZip
+            if (plugin.getValue() instanceof Project) {
+                Project pluginProject = plugin.getValue()
                 if (pluginProject.plugins.hasPlugin(PluginBuildPlugin) == false) {
                     throw new GradleException("Task ${name} cannot project ${pluginProject.path} which is not an esplugin")
                 }
@@ -196,15 +201,29 @@ class ClusterFormationTasks {
                 }
                 project.dependencies.add(configurationName, pluginProject)
                 setup.dependsOn(pluginProject.tasks.bundlePlugin)
-                plugin = configuration
+                pluginZip = configuration
+
+                // also allow rest tests to use the rest spec from the plugin
+                Copy copyRestSpec = null
+                for (File resourceDir : pluginProject.sourceSets.test.resources.srcDirs) {
+                    File restApiDir = new File(resourceDir, 'rest-api-spec/api')
+                    if (restApiDir.exists() == false) continue
+                    if (copyRestSpec == null) {
+                        copyRestSpec = project.tasks.create(name: pluginTaskName('copy', plugin.getKey(), 'PluginRestSpec'), type: Copy)
+                        copyPlugins.dependsOn(copyRestSpec)
+                        copyRestSpec.into(project.sourceSets.test.output.resourcesDir)
+                    }
+                    copyRestSpec.from(resourceDir).include('rest-api-spec/api/**')
+                }
+            } else {
+                pluginZip = plugin.getValue()
             }
-            pluginFiles.add(plugin)
+            pluginFiles.add(pluginZip)
         }
 
-        return project.tasks.create(name: name, type: Copy, dependsOn: setup) {
-            into node.pluginsTmpDir
-            from(pluginFiles)
-        }
+        copyPlugins.into(node.pluginsTmpDir)
+        copyPlugins.from(pluginFiles)
+        return copyPlugins
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {
@@ -447,6 +466,12 @@ class ClusterFormationTasks {
         } else {
             return "${parentTask.name}#${action}"
         }
+    }
+
+    static String pluginTaskName(String action, String name, String suffix) {
+        // replace every dash followed by a character with just the uppercase character
+        String camelName = name.replaceAll(/-(\w)/) { _, c -> c.toUpperCase(Locale.ROOT) }
+        return action + camelName[0].toUpperCase(Locale.ROOT) + camelName.substring(1) + suffix
     }
 
     /** Runs an ant command, sending output to the given out and error streams */

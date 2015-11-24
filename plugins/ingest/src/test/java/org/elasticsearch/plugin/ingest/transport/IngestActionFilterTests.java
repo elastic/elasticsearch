@@ -47,9 +47,7 @@ import java.util.HashSet;
 import java.util.Set;
 
 import static org.elasticsearch.plugin.ingest.transport.IngestActionFilter.*;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 import static org.mockito.Matchers.any;
 import static org.mockito.Matchers.eq;
 import static org.mockito.Mockito.*;
@@ -254,13 +252,19 @@ public class IngestActionFilterTests extends ESTestCase {
         };
         doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
 
-        @SuppressWarnings("unchecked")
-        ActionListener<BulkResponse> actionListener = mock(ActionListener.class);
+        CaptureActionListener actionListener = new CaptureActionListener();
         RecordRequestAFC actionFilterChain = new RecordRequestAFC();
 
         filter.apply("_action", bulkRequest, actionListener, actionFilterChain);
 
-        verify(actionListener, times(1)).onResponse(any());
+        assertThat(actionFilterChain.request, nullValue());
+        ActionResponse response = actionListener.response;
+        assertThat(response, instanceOf(BulkResponse.class));
+        BulkResponse bulkResponse = (BulkResponse) response;
+        assertThat(bulkResponse.getItems().length, equalTo(numRequest));
+        for (BulkItemResponse bulkItemResponse : bulkResponse) {
+            assertThat(bulkItemResponse.isFailed(), equalTo(true));
+        }
     }
 
     public void testApplyWithBulkRequestWithFailure() throws Exception {
@@ -269,20 +273,20 @@ public class IngestActionFilterTests extends ESTestCase {
         int numRequest = scaledRandomIntBetween(8, 64);
         int numNonIndexRequests = 0;
         for (int i = 0; i < numRequest; i++) {
-            if (i % 2 == 0) {
+            ActionRequest request;
+            if (randomBoolean()) {
                 numNonIndexRequests++;
-                ActionRequest request;
                 if (randomBoolean()) {
                     request = new DeleteRequest("_index", "_type", "_id");
                 } else {
                     request = new UpdateRequest("_index", "_type", "_id");
                 }
-                bulkRequest.add(request);
             } else {
                 IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id");
                 indexRequest.source("field1", "value1");
-                bulkRequest.add(indexRequest);
+                request = indexRequest;
             }
+            bulkRequest.add(request);
         }
 
         RuntimeException exception = new RuntimeException();
@@ -316,7 +320,7 @@ public class IngestActionFilterTests extends ESTestCase {
         int i = 0;
         Set<Integer> failedSlots = new HashSet<>();
         while (bulkRequestModifier.hasNext()) {
-            IndexRequest indexRequest = (IndexRequest) bulkRequestModifier.next();
+            bulkRequestModifier.next();
             if (randomBoolean()) {
                 bulkRequestModifier.markCurrentItemAsFailed(new RuntimeException());
                 failedSlots.add(i);
@@ -358,6 +362,7 @@ public class IngestActionFilterTests extends ESTestCase {
 
         }
 
+        @SuppressWarnings("unchecked")
         public <T extends ActionRequest<T>> T getRequest() {
             return (T) request;
         }

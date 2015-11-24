@@ -38,6 +38,7 @@ import static org.elasticsearch.index.mapper.ip.IpFieldMapper.MAX_IP;
  *
  */
 public class InternalIPv4Range extends InternalRange<InternalIPv4Range.Bucket, InternalIPv4Range> {
+    public static final long MAX_IP = 1L << 32;
 
     public final static Type TYPE = new Type("ip_range", "iprange");
 

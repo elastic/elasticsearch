@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
 import org.junit.Before;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -39,7 +38,6 @@ public class DateAttachmentMapperTests extends AttachmentUnitTestCase {
     @Before
     public void setupMapperParser() throws Exception {
         mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
-        mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
     }
 
     public void testSimpleMappings() throws Exception {

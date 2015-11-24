@@ -67,9 +67,9 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     protected abstract void doXContent(XContentBuilder builder, Params params) throws IOException;
 
     protected void printBoostAndQueryName(XContentBuilder builder) throws IOException {
-        builder.field("boost", boost);
+        builder.field(BOOST_FIELD.getPreferredName(), boost);
         if (queryName != null) {
-            builder.field("_name", queryName);
+            builder.field(NAME_FIELD.getPreferredName(), queryName);
         }
     }
 
@@ -107,7 +107,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     protected abstract Query doToQuery(QueryShardContext context) throws IOException;
 
     /**
-     * Returns the query name for the query.
+     * Sets the query name for the query.
      */
     @SuppressWarnings("unchecked")
     @Override
@@ -117,7 +117,7 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder> exte
     }
 
     /**
-     * Sets the query name for the query.
+     * Returns the query name for the query.
      */
     @Override
     public final String queryName() {

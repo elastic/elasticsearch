@@ -53,7 +53,6 @@ public class LanguageDetectionAttachmentMapperTests extends AttachmentUnitTestCa
             Settings.settingsBuilder()
                 .put("index.mapping.attachment.detect_language", langDetect)
             .build()).documentMapperParser();
-        mapperParser.putTypeParser(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/language/language-mapping.json");
         docMapper = mapperParser.parse(mapping);
 

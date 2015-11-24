@@ -93,10 +93,10 @@ public class IndicesQueryBuilder extends AbstractQueryBuilder<IndicesQueryBuilde
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("indices", indices);
-        builder.field("query");
+        builder.field(IndicesQueryParser.INDICES_FIELD.getPreferredName(), indices);
+        builder.field(IndicesQueryParser.QUERY_FIELD.getPreferredName());
         innerQuery.toXContent(builder, params);
-        builder.field("no_match_query");
+        builder.field(IndicesQueryParser.NO_MATCH_QUERY.getPreferredName());
         noMatchQuery.toXContent(builder, params);
         printBoostAndQueryName(builder);
         builder.endObject();

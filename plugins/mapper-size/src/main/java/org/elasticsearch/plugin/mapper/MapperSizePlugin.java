@@ -19,12 +19,9 @@
 
 package org.elasticsearch.plugin.mapper;
 
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.size.SizeFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
-
-import java.io.Closeable;
-import java.util.List;
 
 public class MapperSizePlugin extends Plugin {
 
@@ -38,10 +35,7 @@ public class MapperSizePlugin extends Plugin {
         return "A mapper that allows document to record their uncompressed size";
     }
 
-    @Override
-    public void onIndexService(IndexService indexService) {
-        indexService.mapperService().documentMapperParser().putRootTypeParser(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
+    public void onModule(IndicesModule indicesModule) {
+        indicesModule.registerMetadataMapper(SizeFieldMapper.NAME, new SizeFieldMapper.TypeParser());
     }
-
-
 }

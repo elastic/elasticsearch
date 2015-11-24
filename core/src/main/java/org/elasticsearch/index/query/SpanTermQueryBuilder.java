@@ -68,7 +68,7 @@ public class SpanTermQueryBuilder extends BaseTermQueryBuilder<SpanTermQueryBuil
     }
 
     @Override
-    public SpanQuery doToQuery(QueryShardContext context) throws IOException {
+    protected SpanQuery doToQuery(QueryShardContext context) throws IOException {
         BytesRef valueBytes = null;
         String fieldName = this.fieldName;
         MappedFieldType mapper = context.fieldMapper(fieldName);

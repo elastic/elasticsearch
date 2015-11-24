@@ -32,8 +32,11 @@ import java.util.Collection;
  */
 public class IndicesQueryParser implements QueryParser {
 
-    private static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query");
+    public static final ParseField QUERY_FIELD = new ParseField("query");
+    public static final ParseField NO_MATCH_QUERY = new ParseField("no_match_query");
+    public static final ParseField INDEX_FIELD = new ParseField("index");
+    public static final ParseField INDICES_FIELD = new ParseField("indices");
+    
 
     @Override
     public String[] names() {
@@ -65,7 +68,7 @@ public class IndicesQueryParser implements QueryParser {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("indices".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, INDICES_FIELD)) {
                     if (indices.isEmpty() == false) {
                         throw new ParsingException(parser.getTokenLocation(), "[indices] indices or index already specified");
                     }
@@ -80,16 +83,16 @@ public class IndicesQueryParser implements QueryParser {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");
                 }
             } else if (token.isValue()) {
-                if ("index".equals(currentFieldName)) {
+                if (parseContext.parseFieldMatcher().match(currentFieldName, INDEX_FIELD)) {
                     if (indices.isEmpty() == false) {
                         throw new ParsingException(parser.getTokenLocation(), "[indices] indices or index already specified");
                     }
                     indices.add(parser.text());
                 } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_QUERY)) {
                     noMatchQuery = parseNoMatchQuery(parser.text());
-                } else if ("_name".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.NAME_FIELD)) {
                     queryName = parser.text();
-                } else if ("boost".equals(currentFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(currentFieldName, AbstractQueryBuilder.BOOST_FIELD)) {
                     boost = parser.floatValue();
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "[indices] query does not support [" + currentFieldName + "]");

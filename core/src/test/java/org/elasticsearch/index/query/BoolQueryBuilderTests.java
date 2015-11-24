@@ -24,6 +24,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentType;
+
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -242,5 +243,66 @@ public class BoolQueryBuilderTests extends AbstractQueryTestCase<BoolQueryBuilde
         BooleanClause innerBooleanClause2 = innerBooleanQuery.clauses().get(1);
         assertThat(innerBooleanClause2.getOccur(), equalTo(BooleanClause.Occur.SHOULD));
         assertThat(innerBooleanClause2.getQuery(), instanceOf(MatchAllDocsQuery.class));
+    }
+
+    public void testFromJson() throws IOException {
+        String query =
+                "{" +
+                "\"bool\" : {" +
+                "  \"must\" : [ {" +
+                "    \"term\" : {" +
+                "      \"user\" : {" +
+                "        \"value\" : \"kimchy\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  } ]," +
+                "  \"filter\" : [ {" +
+                "    \"term\" : {" +
+                "      \"tag\" : {" +
+                "        \"value\" : \"tech\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  } ]," +
+                "  \"must_not\" : [ {" +
+                "    \"range\" : {" +
+                "      \"age\" : {" +
+                "        \"from\" : 10," +
+                "        \"to\" : 20," +
+                "        \"include_lower\" : true," +
+                "        \"include_upper\" : true," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  } ]," +
+                "  \"should\" : [ {" +
+                "    \"term\" : {" +
+                "      \"tag\" : {" +
+                "        \"value\" : \"wow\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  }, {" +
+                "    \"term\" : {" +
+                "      \"tag\" : {" +
+                "        \"value\" : \"elasticsearch\"," +
+                "        \"boost\" : 1.0" +
+                "      }" +
+                "    }" +
+                "  } ]," +
+                "  \"disable_coord\" : false," +
+                "  \"adjust_pure_negative\" : true," +
+                "  \"minimum_should_match\" : \"23\"," +
+                "  \"boost\" : 42.0" +
+                "}" +
+              "}";
+
+        BoolQueryBuilder queryBuilder = (BoolQueryBuilder) parseQuery(query);
+        checkGeneratedJson(query, queryBuilder);
+
+        assertEquals(query, 42, queryBuilder.boost, 0.00001);
+        assertEquals(query, "23", queryBuilder.minimumShouldMatch());
+        assertEquals(query, "kimchy", ((TermQueryBuilder)queryBuilder.must().get(0)).value());
     }
 }

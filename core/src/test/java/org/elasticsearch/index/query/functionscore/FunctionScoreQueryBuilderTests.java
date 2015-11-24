@@ -34,6 +34,7 @@ import org.elasticsearch.common.lucene.search.function.WeightFactorFunction;
 import org.elasticsearch.common.xcontent.XContentType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.AbstractQueryTestCase;
+import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -599,5 +600,35 @@ public class FunctionScoreQueryBuilderTests extends AbstractQueryTestCase<Functi
         } catch(ParsingException e) {
             assertThat(e.getMessage(), containsString("[field_value_factor] field 'factor' does not support lists or objects"));
         }
+    }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"function_score\" : {\n" + 
+                "    \"query\" : { },\n" + 
+                "    \"functions\" : [ {\n" + 
+                "      \"filter\" : { },\n" + 
+                "      \"weight\" : 23.0,\n" + 
+                "      \"random_score\" : { }\n" + 
+                "    }, {\n" + 
+                "      \"filter\" : { },\n" + 
+                "      \"weight\" : 5.0\n" + 
+                "    } ],\n" + 
+                "    \"score_mode\" : \"multiply\",\n" + 
+                "    \"boost_mode\" : \"multiply\",\n" + 
+                "    \"max_boost\" : 100.0,\n" + 
+                "    \"min_score\" : 1.0,\n" + 
+                "    \"boost\" : 42.0\n" + 
+                "  }\n" + 
+                "}";
+
+        FunctionScoreQueryBuilder parsed = (FunctionScoreQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 2, parsed.filterFunctionBuilders().length);
+        assertEquals(json, 42, parsed.boost(), 0.0001);
+        assertEquals(json, 100, parsed.maxBoost(), 0.00001);
+        assertEquals(json, 1, parsed.getMinScore(), 0.0001);
     }
 }

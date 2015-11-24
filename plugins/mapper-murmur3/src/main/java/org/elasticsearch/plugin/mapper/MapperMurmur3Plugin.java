@@ -19,12 +19,9 @@
 
 package org.elasticsearch.plugin.mapper;
 
-import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.murmur3.Murmur3FieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.Plugin;
-
-import java.io.Closeable;
-import java.util.List;
 
 public class MapperMurmur3Plugin extends Plugin {
 
@@ -38,9 +35,8 @@ public class MapperMurmur3Plugin extends Plugin {
         return "A mapper that allows to precompute murmur3 hashes of values at index-time and store them in the index";
     }
 
-    @Override
-    public void onIndexService(IndexService indexService) {
-        indexService.mapperService().documentMapperParser().putTypeParser(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
+    public void onModule(IndicesModule indicesModule) {
+        indicesModule.registerMapper(Murmur3FieldMapper.CONTENT_TYPE, new Murmur3FieldMapper.TypeParser());
     }
 
 }

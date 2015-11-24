@@ -82,4 +82,15 @@ public class WildcardQueryBuilderTests extends AbstractQueryTestCase<WildcardQue
         WildcardQueryBuilder wildcardQueryBuilder = new WildcardQueryBuilder(getRandomType(), "");
         assertEquals(wildcardQueryBuilder.toQuery(context).getClass(), WildcardQuery.class);
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{    \"wildcard\" : { \"user\" : { \"wildcard\" : \"ki*y\", \"boost\" : 2.0 } }}";
+
+        WildcardQueryBuilder parsed = (WildcardQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "ki*y", parsed.value());
+        assertEquals(json, 2.0, parsed.boost(), 0.0001);
+    }
 }

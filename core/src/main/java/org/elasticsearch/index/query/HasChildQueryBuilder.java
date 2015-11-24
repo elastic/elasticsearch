@@ -185,12 +185,12 @@ public class HasChildQueryBuilder extends AbstractQueryBuilder<HasChildQueryBuil
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("query");
+        builder.field(HasChildQueryParser.QUERY_FIELD.getPreferredName());
         query.toXContent(builder, params);
-        builder.field("child_type", type);
-        builder.field("score_mode", scoreMode.name().toLowerCase(Locale.ROOT));
-        builder.field("min_children", minChildren);
-        builder.field("max_children", maxChildren);
+        builder.field(HasChildQueryParser.TYPE_FIELD.getPreferredName(), type);
+        builder.field(HasChildQueryParser.SCORE_MODE_FIELD.getPreferredName(), scoreMode.name().toLowerCase(Locale.ROOT));
+        builder.field(HasChildQueryParser.MIN_CHILDREN_FIELD.getPreferredName(), minChildren);
+        builder.field(HasChildQueryParser.MAX_CHILDREN_FIELD.getPreferredName(), maxChildren);
         printBoostAndQueryName(builder);
         if (queryInnerHits != null) {
             queryInnerHits.toXContent(builder, params);

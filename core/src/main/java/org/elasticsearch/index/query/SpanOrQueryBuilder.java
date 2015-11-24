@@ -67,7 +67,7 @@ public class SpanOrQueryBuilder extends AbstractQueryBuilder<SpanOrQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.startArray("clauses");
+        builder.startArray(SpanOrQueryParser.CLAUSES_FIELD.getPreferredName());
         for (SpanQueryBuilder clause : clauses) {
             clause.toXContent(builder, params);
         }

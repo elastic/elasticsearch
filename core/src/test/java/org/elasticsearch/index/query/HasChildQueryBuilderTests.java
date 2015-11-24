@@ -28,6 +28,7 @@ import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
@@ -197,8 +198,9 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(positiveValue, foo.maxChildren());
     }
 
-    public void testParseFromJSON() throws IOException {
-        String query = "{\n" +
+    public void testFromJson() throws IOException {
+        String query =
+                "{\n" +
                 "  \"has_child\" : {\n" +
                 "    \"query\" : {\n" +
                 "      \"range\" : {\n" +
@@ -211,7 +213,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "        }\n" +
                 "      }\n" +
                 "    },\n" +
-                "    \"child_type\" : \"child\",\n" +
+                "    \"type\" : \"child\",\n" +
                 "    \"score_mode\" : \"avg\",\n" +
                 "    \"min_children\" : 883170873,\n" +
                 "    \"max_children\" : 1217235442,\n" +
@@ -229,6 +231,7 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 "  }\n" +
                 "}";
         HasChildQueryBuilder queryBuilder = (HasChildQueryBuilder) parseQuery(query);
+        checkGeneratedJson(query, queryBuilder);
         assertEquals(query, queryBuilder.maxChildren(), 1217235442);
         assertEquals(query, queryBuilder.minChildren(), 883170873);
         assertEquals(query, queryBuilder.boost(), 2.0f, 0.0f);
@@ -237,38 +240,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
         assertEquals(query, queryBuilder.scoreMode(), ScoreMode.Avg);
         assertNotNull(query, queryBuilder.innerHit());
         assertEquals(query, queryBuilder.innerHit(), new QueryInnerHits("inner_hits_name", new InnerHitsBuilder.InnerHit().setSize(100).addSort("mapped_string", SortOrder.ASC)));
-        // now assert that we actually generate the same JSON
-        XContentBuilder builder = XContentFactory.jsonBuilder().prettyPrint();
-        queryBuilder.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        logger.info(msg(query, builder.string()));
-        assertEquals(query, builder.string());
-    }
 
-    private String msg(String left, String right) {
-        int size = Math.min(left.length(), right.length());
-        StringBuilder builder = new StringBuilder("size: " + left.length() + " vs. " + right.length());
-        builder.append(" content: <<");
-        for (int i = 0; i < size; i++) {
-            if (left.charAt(i) == right.charAt(i)) {
-                builder.append(left.charAt(i));
-            } else {
-                builder.append(">> ").append("until offset: ").append(i)
-                        .append(" [").append(left.charAt(i)).append(" vs.").append(right.charAt(i))
-                        .append("] [").append((int)left.charAt(i) ).append(" vs.").append((int)right.charAt(i)).append(']');
-                return builder.toString();
-            }
-        }
-        if (left.length() != right.length()) {
-            int leftEnd = Math.max(size, left.length()) - 1;
-            int rightEnd = Math.max(size, right.length()) - 1;
-            builder.append(">> ").append("until offset: ").append(size)
-                    .append(" [").append(left.charAt(leftEnd)).append(" vs.").append(right.charAt(rightEnd))
-                    .append("] [").append((int)left.charAt(leftEnd)).append(" vs.").append((int)right.charAt(rightEnd)).append(']');
-            return builder.toString();
-        }
-        return "";
     }
-
     public void testToQueryInnerQueryType() throws IOException {
         String[] searchTypes = new String[]{PARENT_TYPE};
         QueryShardContext.setTypes(searchTypes);

@@ -1,18 +1,10 @@
 apply plugin: 'elasticsearch.rest-test'
 
-configurations {
-  licensePluginZip
-  shieldPluginZip
-}
-
 dependencies {
-  licensePluginZip project(path: ':x-plugins:license:plugin')
-  shieldPluginZip project(path: ':x-plugins:shield')
   testCompile project(path: ':x-plugins:shield', configuration: 'runtime')
 }
 
 integTest {
-  dependsOn configurations.licensePluginZip, configurations.shieldPluginZip
   includePackaged true
   systemProperty 'tests.rest.blacklist', 
     ['indices.get/10_basic/*allow_no_indices*',
@@ -38,8 +30,8 @@ integTest {
      'bulk/40_fields/Fields'].join(',')
 
   cluster {
-    plugin 'license', configurations.licensePluginZip
-    plugin 'shield', configurations.shieldPluginZip
+    plugin 'license', project(':x-plugins:license:plugin')
+    plugin 'shield', project(':x-plugins:shield')
     setupCommand 'setupDummyUser',
                  'bin/shield/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { node, ant ->

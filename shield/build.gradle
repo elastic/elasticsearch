@@ -6,12 +6,7 @@ esplugin {
   isolated false
 }
 
-configurations {
-  licensePluginZip
-}
-
 dependencies {
-  licensePluginZip project(path: ':x-plugins:license:plugin') // zip
   provided project(path: ':x-plugins:license:plugin', configuration: 'runtime')
   compile project(':x-plugins:license:plugin-api')
   compile 'dk.brics.automaton:automaton:1.11-8'

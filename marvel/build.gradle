@@ -35,7 +35,7 @@ compileTestJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked'
 
 ext.expansions = [
   'project.version': version,
-  'integ.http.port': integTest.cluster.httpPort
+  'integ.http.port': integTest.cluster.baseHttpPort
 ]
 
 processResources {

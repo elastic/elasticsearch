@@ -79,6 +79,7 @@ import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.script.*;
 import org.elasticsearch.script.Script.ScriptParseException;
@@ -189,6 +190,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     public void configure() {
                         // skip services
                         bindQueryParsersExtension();
+                        bindMapperExtension();
                     }
                 },
                 new ScriptModule(settings) {
@@ -239,7 +241,8 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         AnalysisService analysisService = new AnalysisRegistry(null, new Environment(settings)).build(idxSettings);
         ScriptService scriptService = injector.getInstance(ScriptService.class);
         SimilarityService similarityService = new SimilarityService(idxSettings, Collections.EMPTY_MAP);
-        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService);
+        MapperRegistry mapperRegistry = injector.getInstance(MapperRegistry.class);
+        MapperService mapperService = new MapperService(idxSettings, analysisService, similarityService, mapperRegistry);
         indexFieldDataService = new IndexFieldDataService(idxSettings, injector.getInstance(IndicesFieldDataCache.class), injector.getInstance(CircuitBreakerService.class), mapperService);
         BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(idxSettings, new IndicesWarmer(idxSettings.getNodeSettings(), null), new BitsetFilterCache.Listener() {
             @Override

@@ -397,7 +397,7 @@ public class SimpleAllMapperTests extends ESSingleNodeTestCase {
     }
 
     // issue https://github.com/elasticsearch/elasticsearch/issues/5864
-    public void testRootMappersStillWorking() {
+    public void testMetadataMappersStillWorking() {
         String mapping = "{";
         Map<String, String> rootTypes = new HashMap<>();
         //just pick some example from DocumentMapperParser.rootTypeParsers

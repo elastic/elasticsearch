@@ -98,9 +98,9 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             if (parserContext.indexVersionCreated().before(Version.V_2_0_0_beta1)) {
                 parseField(builder, builder.name, node, parserContext);
@@ -118,6 +118,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new RoutingFieldMapper(indexSettings, fieldType);
         }
     }
 
@@ -153,11 +158,11 @@ public class RoutingFieldMapper extends MetadataFieldMapper {
     private boolean required;
     private final String path;
 
-    public RoutingFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private RoutingFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing == null ? Defaults.FIELD_TYPE.clone() : existing.clone(), Defaults.REQUIRED, Defaults.PATH, indexSettings);
     }
 
-    protected RoutingFieldMapper(MappedFieldType fieldType, boolean required, String path, Settings indexSettings) {
+    private RoutingFieldMapper(MappedFieldType fieldType, boolean required, String path, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.required = required;
         this.path = path;

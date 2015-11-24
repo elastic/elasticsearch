@@ -20,6 +20,7 @@
 package org.elasticsearch.index.mapper;
 
 import com.carrotsearch.hppc.ObjectHashSet;
+
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.DelegatingAnalyzerWrapper;
 import org.apache.lucene.index.IndexOptions;
@@ -45,6 +46,7 @@ import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.InvalidTypeNameException;
 import org.elasticsearch.indices.TypeMissingException;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.percolator.PercolatorService;
 import org.elasticsearch.script.ScriptService;
 
@@ -104,15 +106,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
 
     private volatile Set<String> parentTypes = emptySet();
 
+    final MapperRegistry mapperRegistry;
+
     public MapperService(IndexSettings indexSettings, AnalysisService analysisService,
-                         SimilarityService similarityService) {
+                         SimilarityService similarityService, MapperRegistry mapperRegistry) {
         super(indexSettings);
         this.analysisService = analysisService;
         this.fieldTypes = new FieldTypeLookup();
-        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService);
+        this.documentParser = new DocumentMapperParser(indexSettings, this, analysisService, similarityService, mapperRegistry);
         this.indexAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultIndexAnalyzer(), p -> p.indexAnalyzer());
         this.searchAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchAnalyzer(), p -> p.searchAnalyzer());
         this.searchQuoteAnalyzer = new MapperAnalyzerWrapper(analysisService.defaultSearchQuoteAnalyzer(), p -> p.searchQuoteAnalyzer());
+        this.mapperRegistry = mapperRegistry;
 
         this.dynamic = this.indexSettings.getSettings().getAsBoolean("index.mapper.dynamic", true);
         defaultPercolatorMappingSource = "{\n" +

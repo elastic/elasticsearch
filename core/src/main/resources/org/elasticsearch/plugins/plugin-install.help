@@ -48,6 +48,7 @@ OFFICIAL PLUGINS
     - mapper-attachments
     - mapper-murmur3
     - mapper-size
+    - repository-hdfs
 
 
 OPTIONS

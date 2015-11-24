@@ -86,7 +86,8 @@ public class PluginManager {
                     "lang-python",
                     "mapper-attachments",
                     "mapper-murmur3",
-                    "mapper-size"
+                    "mapper-size",
+                    "repository-hdfs"
             ).build();
 
     private final Environment environment;

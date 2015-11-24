@@ -48,7 +48,8 @@ integTest {
               dest: tmpFile.toString(),
               username: 'test_user',
               password: 'changeme',
-              ignoreerrors: true)
+              ignoreerrors: true,
+              retries: 10)
       return tmpFile.exists()
     }
   }

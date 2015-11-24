@@ -31,13 +31,29 @@ public final class IngestDocument {
     private final Map<String, String> metaData;
     private final Map<String, Object> source;
 
-    private boolean modified = false;
+    private boolean sourceModified = false;
 
     public IngestDocument(String index, String type, String id, Map<String, Object> source) {
+        this(index, type, id, null, null, null, null, source);
+    }
+
+    public IngestDocument(String index, String type, String id, String routing, String parent, String timestamp, String ttl, Map<String, Object> source) {
         this.metaData = new HashMap<>();
         this.metaData.put(MetaData.INDEX.getFieldName(), index);
         this.metaData.put(MetaData.TYPE.getFieldName(), type);
         this.metaData.put(MetaData.ID.getFieldName(), id);
+        if (routing != null) {
+            this.metaData.put(MetaData.ROUTING.getFieldName(), routing);
+        }
+        if (parent != null) {
+            this.metaData.put(MetaData.PARENT.getFieldName(), parent);
+        }
+        if (timestamp != null) {
+            this.metaData.put(MetaData.TIMESTAMP.getFieldName(), timestamp);
+        }
+        if (ttl != null) {
+            this.metaData.put(MetaData.TTL.getFieldName(), ttl);
+        }
         this.source = source;
     }
 
@@ -109,7 +125,7 @@ public final class IngestDocument {
         if (parent != null) {
             String leafKey = pathElements[pathElements.length - 1];
             if (parent.containsKey(leafKey)) {
-                modified = true;
+                sourceModified = true;
                 parent.remove(leafKey);
             }
         }
@@ -166,11 +182,15 @@ public final class IngestDocument {
 
         String leafKey = pathElements[pathElements.length - 1];
         inner.put(leafKey, value);
-        modified = true;
+        sourceModified = true;
     }
 
     public String getMetadata(MetaData metaData) {
         return this.metaData.get(metaData.getFieldName());
+    }
+
+    public void setMetaData(MetaData metaData, String value) {
+        this.metaData.put(metaData.getFieldName(), value);
     }
 
     /**
@@ -182,8 +202,8 @@ public final class IngestDocument {
         return source;
     }
 
-    public boolean isModified() {
-        return modified;
+    public boolean isSourceModified() {
+        return sourceModified;
     }
 
     @Override
@@ -201,6 +221,14 @@ public final class IngestDocument {
     @Override
     public int hashCode() {
         return Objects.hash(metaData, source);
+    }
+
+    @Override
+    public String toString() {
+        return "IngestDocument{" +
+                "metaData=" + metaData +
+                ", source=" + source +
+                '}';
     }
 
     public enum MetaData {
@@ -222,6 +250,28 @@ public final class IngestDocument {
         public String getFieldName() {
             return fieldName;
         }
+
+        public static MetaData fromString(String value) {
+            switch (value) {
+                case "_index":
+                    return INDEX;
+                case "_type":
+                    return TYPE;
+                case "_id":
+                    return ID;
+                case "_routing":
+                    return ROUTING;
+                case "_parent":
+                    return PARENT;
+                case "_timestamp":
+                    return TIMESTAMP;
+                case "_ttl":
+                    return TTL;
+                default:
+                    throw new IllegalArgumentException("no valid metadata field name [" + value + "]");
+            }
+        }
+
     }
 
 }

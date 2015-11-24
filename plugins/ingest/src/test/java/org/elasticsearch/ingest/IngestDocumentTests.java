@@ -116,14 +116,14 @@ public class IngestDocumentTests extends ESTestCase {
     public void testSimpleSetFieldValue() {
         ingestDocument.setFieldValue("new_field", "foo");
         assertThat(ingestDocument.getSource().get("new_field"), equalTo("foo"));
-        assertThat(ingestDocument.isModified(), equalTo(true));
+        assertThat(ingestDocument.isSourceModified(), equalTo(true));
     }
 
     public void testSetFieldValueNullValue() {
         ingestDocument.setFieldValue("new_field", null);
         assertThat(ingestDocument.getSource().containsKey("new_field"), equalTo(true));
         assertThat(ingestDocument.getSource().get("new_field"), nullValue());
-        assertThat(ingestDocument.isModified(), equalTo(true));
+        assertThat(ingestDocument.isSourceModified(), equalTo(true));
     }
 
     @SuppressWarnings("unchecked")
@@ -138,7 +138,7 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(c.get("d"), instanceOf(String.class));
         String d = (String) c.get("d");
         assertThat(d, equalTo("foo"));
-        assertThat(ingestDocument.isModified(), equalTo(true));
+        assertThat(ingestDocument.isSourceModified(), equalTo(true));
     }
 
     public void testSetFieldValueOnExistingField() {
@@ -154,7 +154,7 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(innerMap.get("new"), instanceOf(String.class));
         String value = (String) innerMap.get("new");
         assertThat(value, equalTo("bar"));
-        assertThat(ingestDocument.isModified(), equalTo(true));
+        assertThat(ingestDocument.isSourceModified(), equalTo(true));
     }
 
     public void testSetFieldValueOnExistingParentTypeMismatch() {
@@ -163,7 +163,7 @@ public class IngestDocumentTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to parent [buzz] of type [java.lang.String], [java.util.Map] expected instead."));
-            assertThat(ingestDocument.isModified(), equalTo(false));
+            assertThat(ingestDocument.isSourceModified(), equalTo(false));
         }
     }
 
@@ -173,7 +173,7 @@ public class IngestDocumentTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to null parent, [java.util.Map] expected instead."));
-            assertThat(ingestDocument.isModified(), equalTo(false));
+            assertThat(ingestDocument.isSourceModified(), equalTo(false));
         }
     }
 
@@ -183,7 +183,7 @@ public class IngestDocumentTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
-            assertThat(ingestDocument.isModified(), equalTo(false));
+            assertThat(ingestDocument.isSourceModified(), equalTo(false));
         }
     }
 
@@ -193,13 +193,13 @@ public class IngestDocumentTests extends ESTestCase {
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
-            assertThat(ingestDocument.isModified(), equalTo(false));
+            assertThat(ingestDocument.isSourceModified(), equalTo(false));
         }
     }
 
     public void testRemoveField() {
         ingestDocument.removeField("foo");
-        assertThat(ingestDocument.isModified(), equalTo(true));
+        assertThat(ingestDocument.isSourceModified(), equalTo(true));
         assertThat(ingestDocument.getSource().size(), equalTo(2));
         assertThat(ingestDocument.getSource().containsKey("foo"), equalTo(false));
     }
@@ -217,30 +217,30 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(map.size(), equalTo(0));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
         assertThat(ingestDocument.getSource().containsKey("fizz"), equalTo(true));
-        assertThat(ingestDocument.isModified(), equalTo(true));
+        assertThat(ingestDocument.isSourceModified(), equalTo(true));
     }
 
     public void testRemoveNonExistingField() {
         ingestDocument.removeField("does_not_exist");
-        assertThat(ingestDocument.isModified(), equalTo(false));
+        assertThat(ingestDocument.isSourceModified(), equalTo(false));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
     public void testRemoveExistingParentTypeMismatch() {
         ingestDocument.removeField("foo.test");
-        assertThat(ingestDocument.isModified(), equalTo(false));
+        assertThat(ingestDocument.isSourceModified(), equalTo(false));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
     public void testRemoveNullField() {
         ingestDocument.removeField(null);
-        assertThat(ingestDocument.isModified(), equalTo(false));
+        assertThat(ingestDocument.isSourceModified(), equalTo(false));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
     public void testRemoveEmptyField() {
         ingestDocument.removeField("");
-        assertThat(ingestDocument.isModified(), equalTo(false));
+        assertThat(ingestDocument.isSourceModified(), equalTo(false));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 

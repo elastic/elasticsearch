@@ -83,7 +83,7 @@ public class IngestActionFilterTests extends ESTestCase {
 
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
@@ -96,7 +96,7 @@ public class IngestActionFilterTests extends ESTestCase {
 
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verifyZeroInteractions(actionFilterChain);
     }
 
@@ -121,19 +121,15 @@ public class IngestActionFilterTests extends ESTestCase {
         ActionListener actionListener = mock(ActionListener.class);
         ActionFilterChain actionFilterChain = mock(ActionFilterChain.class);
 
-        Answer answer = new Answer() {
-            @Override
-            public Object answer(InvocationOnMock invocationOnMock) throws Throwable {
-                IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
-                PipelineExecutionService.Listener listener = (PipelineExecutionService.Listener) invocationOnMock.getArguments()[2];
-                listener.executed(ingestDocument);
-                return null;
-            }
+        Answer answer = invocationOnMock -> {
+            PipelineExecutionService.Listener listener = (PipelineExecutionService.Listener) invocationOnMock.getArguments()[2];
+            listener.executed(new IngestDocument(indexRequest.index(), indexRequest.type(), indexRequest.id(), indexRequest.sourceAsMap()));
+            return null;
         };
-        doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verify(actionFilterChain).proceed("_action", indexRequest, actionListener);
         verifyZeroInteractions(actionListener);
     }
@@ -154,10 +150,10 @@ public class IngestActionFilterTests extends ESTestCase {
                 return null;
             }
         };
-        doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         filter.apply("_action", indexRequest, actionListener, actionFilterChain);
 
-        verify(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        verify(executionService).execute(any(IndexRequest.class), eq("_id"), any(PipelineExecutionService.Listener.class));
         verify(actionListener).onFailure(exception);
         verifyZeroInteractions(actionFilterChain);
     }
@@ -250,7 +246,7 @@ public class IngestActionFilterTests extends ESTestCase {
             listener.failed(exception);
             return null;
         };
-        doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(PipelineExecutionService.Listener.class));
 
         CaptureActionListener actionListener = new CaptureActionListener();
         RecordRequestAFC actionFilterChain = new RecordRequestAFC();
@@ -295,7 +291,7 @@ public class IngestActionFilterTests extends ESTestCase {
             listener.failed(exception);
             return null;
         };
-        doAnswer(answer).when(executionService).execute(any(IngestDocument.class), eq("_id"), any(PipelineExecutionService.Listener.class));
+        doAnswer(answer).when(executionService).execute(any(IndexRequest.class), eq("_id"), any(PipelineExecutionService.Listener.class));
 
         ActionListener actionListener = mock(ActionListener.class);
         RecordRequestAFC actionFilterChain = new RecordRequestAFC();

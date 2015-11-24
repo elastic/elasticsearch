@@ -84,15 +84,9 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             chain.proceed(action, indexRequest, listener);
             return;
         }
-
-        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
-        executionService.execute(ingestDocument, pipelineId, new PipelineExecutionService.Listener() {
+        executionService.execute(indexRequest, pipelineId, new PipelineExecutionService.Listener() {
             @Override
             public void executed(IngestDocument ingestDocument) {
-                if (ingestDocument.isModified()) {
-                    indexRequest.source(ingestDocument.getSource());
-                }
                 indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
                 chain.proceed(action, indexRequest, listener);
             }
@@ -127,14 +121,9 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
 
         IndexRequest indexRequest = (IndexRequest) actionRequest;
-        Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
-        IngestDocument ingestDocument = new IngestDocument(indexRequest.index(), indexRequest.type(), indexRequest.id(), sourceAsMap);
-        executionService.execute(ingestDocument, pipelineId, new PipelineExecutionService.Listener() {
+        executionService.execute(indexRequest, pipelineId, new PipelineExecutionService.Listener() {
             @Override
             public void executed(IngestDocument ingestDocument) {
-                if (ingestDocument.isModified()) {
-                    indexRequest.source(ingestDocument.getSource());
-                }
                 processBulkIndexRequest(bulkRequestModifier, pipelineId, action, chain, listener);
             }
 

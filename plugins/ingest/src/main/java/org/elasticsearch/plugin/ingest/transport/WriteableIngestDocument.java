@@ -31,9 +31,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.*;
 
 public class WriteableIngestDocument implements Writeable<WriteableIngestDocument>, ToXContent {
 
@@ -58,8 +56,12 @@ public class WriteableIngestDocument implements Writeable<WriteableIngestDocumen
         String index = in.readString();
         String type = in.readString();
         String id = in.readString();
+        String routing = in.readOptionalString();
+        String parent = in.readOptionalString();
+        String timestamp = in.readOptionalString();
+        String ttl = in.readOptionalString();
         Map<String, Object> doc = in.readMap();
-        return new WriteableIngestDocument(new IngestDocument(index, type, id, doc));
+        return new WriteableIngestDocument(new IngestDocument(index, type, id, routing, parent, timestamp, ttl, doc));
     }
 
     @Override
@@ -67,16 +69,24 @@ public class WriteableIngestDocument implements Writeable<WriteableIngestDocumen
         out.writeString(ingestDocument.getMetadata(INDEX));
         out.writeString(ingestDocument.getMetadata(TYPE));
         out.writeString(ingestDocument.getMetadata(ID));
+        out.writeOptionalString(ingestDocument.getMetadata(ROUTING));
+        out.writeOptionalString(ingestDocument.getMetadata(PARENT));
+        out.writeOptionalString(ingestDocument.getMetadata(TIMESTAMP));
+        out.writeOptionalString(ingestDocument.getMetadata(TTL));
         out.writeMap(ingestDocument.getSource());
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(Fields.DOCUMENT);
-        builder.field(Fields.MODIFIED, ingestDocument.isModified());
+        builder.field(Fields.MODIFIED, ingestDocument.isSourceModified());
         builder.field(Fields.INDEX, ingestDocument.getMetadata(INDEX));
         builder.field(Fields.TYPE, ingestDocument.getMetadata(TYPE));
         builder.field(Fields.ID, ingestDocument.getMetadata(ID));
+        builder.field(Fields.ROUTING, ingestDocument.getMetadata(ROUTING));
+        builder.field(Fields.PARENT, ingestDocument.getMetadata(PARENT));
+        builder.field(Fields.TIMESTAMP, ingestDocument.getMetadata(TIMESTAMP));
+        builder.field(Fields.TTL, ingestDocument.getMetadata(TTL));
         builder.field(Fields.SOURCE, ingestDocument.getSource());
         builder.endObject();
         return builder;
@@ -105,6 +115,10 @@ public class WriteableIngestDocument implements Writeable<WriteableIngestDocumen
         static final XContentBuilderString INDEX = new XContentBuilderString(IngestDocument.MetaData.INDEX.getFieldName());
         static final XContentBuilderString TYPE = new XContentBuilderString(IngestDocument.MetaData.TYPE.getFieldName());
         static final XContentBuilderString ID = new XContentBuilderString(IngestDocument.MetaData.ID.getFieldName());
+        static final XContentBuilderString ROUTING = new XContentBuilderString(IngestDocument.MetaData.ROUTING.getFieldName());
+        static final XContentBuilderString PARENT = new XContentBuilderString(IngestDocument.MetaData.PARENT.getFieldName());
+        static final XContentBuilderString TIMESTAMP = new XContentBuilderString(IngestDocument.MetaData.TIMESTAMP.getFieldName());
+        static final XContentBuilderString TTL = new XContentBuilderString(IngestDocument.MetaData.TTL.getFieldName());
         static final XContentBuilderString SOURCE = new XContentBuilderString("_source");
     }
 }

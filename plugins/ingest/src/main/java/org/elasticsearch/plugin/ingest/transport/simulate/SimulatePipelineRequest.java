@@ -36,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
+import static org.elasticsearch.ingest.IngestDocument.MetaData;
 
 public class SimulatePipelineRequest extends ActionRequest {
 
@@ -96,9 +97,6 @@ public class SimulatePipelineRequest extends ActionRequest {
         static final String PIPELINE = "pipeline";
         static final String DOCS = "docs";
         static final String SOURCE = "_source";
-        static final String INDEX = "_index";
-        static final String TYPE = "_type";
-        static final String ID = "_id";
     }
 
     static class Parsed {
@@ -149,9 +147,13 @@ public class SimulatePipelineRequest extends ActionRequest {
         List<IngestDocument> ingestDocumentList = new ArrayList<>();
         for (Map<String, Object> dataMap : docs) {
             Map<String, Object> document = ConfigurationUtils.readMap(dataMap, Fields.SOURCE);
-            IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(dataMap, Fields.INDEX),
-                    ConfigurationUtils.readStringProperty(dataMap, Fields.TYPE),
-                    ConfigurationUtils.readStringProperty(dataMap, Fields.ID),
+            IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(dataMap, MetaData.INDEX.getFieldName()),
+                    ConfigurationUtils.readStringProperty(dataMap, MetaData.TYPE.getFieldName()),
+                    ConfigurationUtils.readStringProperty(dataMap, MetaData.ID.getFieldName()),
+                    ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.ROUTING.getFieldName()),
+                    ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.PARENT.getFieldName()),
+                    ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.TIMESTAMP.getFieldName()),
+                    ConfigurationUtils.readOptionalStringProperty(dataMap, MetaData.TTL.getFieldName()),
                     document);
             ingestDocumentList.add(ingestDocument);
         }

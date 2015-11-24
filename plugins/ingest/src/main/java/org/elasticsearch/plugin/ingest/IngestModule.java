@@ -35,6 +35,7 @@ import org.elasticsearch.ingest.processor.rename.RenameProcessor;
 import org.elasticsearch.ingest.processor.split.SplitProcessor;
 import org.elasticsearch.ingest.processor.trim.TrimProcessor;
 import org.elasticsearch.ingest.processor.uppercase.UppercaseProcessor;
+import org.elasticsearch.ingest.processor.meta.MetaDataProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
 import org.elasticsearch.plugin.ingest.transport.simulate.SimulateExecutionService;
 
@@ -65,6 +66,7 @@ public class IngestModule extends AbstractModule {
         addProcessor(TrimProcessor.TYPE, new TrimProcessor.Factory());
         addProcessor(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
         addProcessor(GsubProcessor.TYPE, new GsubProcessor.Factory());
+        addProcessor(MetaDataProcessor.TYPE, new MetaDataProcessor.Factory());
 
         MapBinder<String, Processor.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Factory.class);
         for (Map.Entry<String, Processor.Factory> entry : processors.entrySet()) {

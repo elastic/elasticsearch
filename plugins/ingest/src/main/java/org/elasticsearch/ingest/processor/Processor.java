@@ -49,7 +49,10 @@ public interface Processor {
     interface Factory<P extends Processor> extends Closeable {
 
         /**
-         * Creates a processor based on the specified map of maps config
+         * Creates a processor based on the specified map of maps config.
+         *
+         * Implementations are responsible for removing the used keys, so that after creating a pipeline ingest can
+         * verify if all configurations settings have been used.
          */
         P create(Map<String, Object> config) throws IOException;
 

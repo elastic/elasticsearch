@@ -396,6 +396,55 @@ An example that adds the parsed date to the `timestamp` field based on the `init
 }
 --------------------------------------------------
 
+==== Meta processor
+
+The `meta` processor allows to modify metadata properties of a document being processed.
+
+The following example changes the index of a document to `alternative_index` instead of indexing it into an index
+that was specified in the index or bulk request:
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "meta" : {
+        "_index" : "alternative_index"
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
+The following metadata attributes can be modified in this processor: `_index`, `_type`, `_id`, `_routing`, `_parent`,
+`_timestamp` and `_ttl`. All these metadata attributes can be specified in the body of the `meta` processor.
+
+Also the metadata settings in this processor are templatable which allows metadata field values to be replaced with
+field values in the source of the document being indexed. The mustache template language is used and anything between
+`{{` and `}}` can contain a template and point to any field in the source of the document.
+
+The following example documents being processed end up being indexed into an index based on the resolved city name by
+the `geoip` processor. (for example `city-amsterdam`)
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors" : [
+    {
+      "geoip" : {
+        "source" : "ip"
+      }
+    },
+    {
+      "meta" : {
+        "_index" : "city-{{geoip.city_name}}"
+      }
+    }
+  ]
+}
+--------------------------------------------------
 
 === Put pipeline API
 

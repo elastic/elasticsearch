@@ -197,6 +197,12 @@
                                 </artifactItem>
                                 <artifactItem>
                                     <groupId>org.elasticsearch.plugin</groupId>
+                                    <artifactId>mapper-attachments</artifactId>
+                                    <version>${elasticsearch.version}</version>
+                                    <type>zip</type>
+                                </artifactItem>
+                                <artifactItem>
+                                    <groupId>org.elasticsearch.plugin</groupId>
                                     <artifactId>mapper-size</artifactId>
                                     <version>${elasticsearch.version}</version>
                                     <type>zip</type>

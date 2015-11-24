@@ -239,6 +239,10 @@ fi
     install_and_check_plugin lang python jython-standalone-*.jar
 }
 
+@test "[$GROUP] install mapper attachments" {
+    install_and_check_plugin mapper attachments
+}
+
 @test "[$GROUP] install murmur3 mapper" {
     install_and_check_plugin mapper murmur3
 }
@@ -329,6 +333,10 @@ fi
 
 @test "[$GROUP] remove python plugin" {
     remove_plugin lang-python
+}
+
+@test "[$GROUP] remove mapper attachments" {
+    remove_plugin mapper-attachments
 }
 
 @test "[$GROUP] remove murmur3 mapper" {

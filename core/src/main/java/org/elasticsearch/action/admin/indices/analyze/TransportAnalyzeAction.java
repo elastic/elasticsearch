@@ -53,13 +53,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.io.Reader;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.HashSet;
-import java.util.Set;
-import java.util.TreeMap;
+import java.util.*;
 
 /**
  * Transport action used to execute analyze requests
@@ -294,7 +288,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
 
         CustomAnalyzer customAnalyzer = null;
         if (analyzer instanceof CustomAnalyzer) {
-            customAnalyzer = (CustomAnalyzer)analyzer;
+            customAnalyzer = (CustomAnalyzer) analyzer;
         } else if (analyzer instanceof NamedAnalyzer && ((NamedAnalyzer) analyzer).analyzer() instanceof CustomAnalyzer) {
             customAnalyzer = (CustomAnalyzer) ((NamedAnalyzer) analyzer).analyzer();
         }
@@ -367,7 +361,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
 
             TokenListCreator tokenListCreator = new TokenListCreator();
-            for (String text : request.text()){
+            for (String text : request.text()) {
                 tokenListCreator.analyze(analyzer.tokenStream(field, text), analyzer, field,
                         includeAttributes);
             }
@@ -447,7 +441,7 @@ public class TransportAnalyzeAction extends TransportSingleShardAction<AnalyzeRe
             }
         }
 
-        private AnalyzeResponse.AnalyzeToken[] getArrayTokens(){
+        private AnalyzeResponse.AnalyzeToken[] getArrayTokens() {
             return tokens.toArray(new AnalyzeResponse.AnalyzeToken[tokens.size()]);
         }
 

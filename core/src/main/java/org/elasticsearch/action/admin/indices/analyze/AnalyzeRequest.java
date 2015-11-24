@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.single.shard.SingleShardRequest;
 import org.elasticsearch.common.Strings;
@@ -161,8 +162,10 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         tokenFilters = in.readStringArray();
         charFilters = in.readStringArray();
         field = in.readOptionalString();
-        detail = in.readBoolean();
-        attributes = in.readStringArray();
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            detail = in.readBoolean();
+            attributes = in.readStringArray();
+        }
     }
 
     @Override
@@ -174,7 +177,9 @@ public class AnalyzeRequest extends SingleShardRequest<AnalyzeRequest> {
         out.writeStringArray(tokenFilters);
         out.writeStringArray(charFilters);
         out.writeOptionalString(field);
-        out.writeBoolean(detail);
-        out.writeStringArray(attributes);
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeBoolean(detail);
+            out.writeStringArray(attributes);
+        }
     }
 }

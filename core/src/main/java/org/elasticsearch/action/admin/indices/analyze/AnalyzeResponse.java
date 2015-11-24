@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.action.admin.indices.analyze;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -112,7 +113,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             endOffset = in.readInt();
             position = in.readVInt();
             type = in.readOptionalString();
-            attributes = (Map<String, Object>) in.readGenericValue();
+            if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+                attributes = (Map<String, Object>) in.readGenericValue();
+            }
         }
 
         @Override
@@ -122,7 +125,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
             out.writeInt(endOffset);
             out.writeVInt(position);
             out.writeOptionalString(type);
-            out.writeGenericValue(attributes);
+            if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+                out.writeGenericValue(attributes);
+            }
         }
     }
 
@@ -177,7 +182,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         for (int i = 0; i < size; i++) {
             tokens.add(AnalyzeToken.readAnalyzeToken(in));
         }
-        detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
+        if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
+            detail = in.readOptionalStreamable(DetailAnalyzeResponse::new);
+        }
     }
 
     @Override
@@ -191,7 +198,9 @@ public class AnalyzeResponse extends ActionResponse implements Iterable<AnalyzeR
         } else {
             out.writeVInt(0);
         }
-        out.writeOptionalStreamable(detail);
+        if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
+            out.writeOptionalStreamable(detail);
+        }
     }
 
     static final class Fields {

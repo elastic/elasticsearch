@@ -5,8 +5,6 @@
  */
 package org.elasticsearch.watcher.transform.search;
 
-import com.google.common.base.Charsets;
-
 import org.elasticsearch.action.indexedscripts.put.PutIndexedScriptRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
@@ -53,6 +51,7 @@ import org.joda.time.chrono.ISOChronology;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -199,7 +198,7 @@ public class SearchTransformTests extends ESIntegTestCase {
         assertThat(map.get("query"), instanceOf(String.class));
 
         String queryAsBase64 = (String) map.get("query");
-        String decodedQuery = new String(Base64.decode(queryAsBase64), Charsets.UTF_8);
+        String decodedQuery = new String(Base64.decode(queryAsBase64), StandardCharsets.UTF_8);
         assertThat(decodedQuery, containsString("_unknown_query_"));
     }
 

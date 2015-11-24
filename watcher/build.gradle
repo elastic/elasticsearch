@@ -22,7 +22,7 @@ dependencies {
   provided project(path: ':x-plugins:shield', configuration: 'runtime')
 
   compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
-  compile 'com.google.guava:guava:19.0-rc2'
+  compile 'com.google.guava:guava:16.0.1'
   compile 'com.google.code.findbugs:jsr305:3.0.1'
   compile 'com.sun.mail:javax.mail:1.5.3'
   compile 'javax.activation:activation:1.1.1'

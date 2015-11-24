@@ -26,7 +26,7 @@ import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.plugin.ingest.transport.TransportData;
+import org.elasticsearch.plugin.ingest.transport.WriteableIngestDocument;
 
 import java.io.IOException;
 
@@ -35,17 +35,17 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
     private static final SimulateProcessorResult PROTOTYPE = new SimulateProcessorResult(null, (IngestDocument)null);
 
     private String processorId;
-    private TransportData data;
+    private WriteableIngestDocument ingestDocument;
     private Exception failure;
 
     public SimulateProcessorResult(String processorId, IngestDocument ingestDocument) {
         this.processorId = processorId;
-        this.data = new TransportData(ingestDocument);
+        this.ingestDocument = new WriteableIngestDocument(ingestDocument);
     }
 
-    private SimulateProcessorResult(String processorId, TransportData data) {
+    private SimulateProcessorResult(String processorId, WriteableIngestDocument ingestDocument) {
         this.processorId = processorId;
-        this.data = data;
+        this.ingestDocument = ingestDocument;
     }
 
     public SimulateProcessorResult(String processorId, Exception failure) {
@@ -53,11 +53,11 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         this.failure = failure;
     }
 
-    public IngestDocument getData() {
-        if (data == null) {
+    public IngestDocument getIngestDocument() {
+        if (ingestDocument == null) {
             return null;
         }
-        return data.get();
+        return ingestDocument.getIngestDocument();
     }
 
     public String getProcessorId() {
@@ -79,7 +79,7 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
             Exception exception = in.readThrowable();
             return new SimulateProcessorResult(processorId, exception);
         }
-        return new SimulateProcessorResult(processorId, TransportData.readTransportDataFrom(in));
+        return new SimulateProcessorResult(processorId, WriteableIngestDocument.readWriteableIngestDocumentFrom(in));
     }
 
     @Override
@@ -87,7 +87,7 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         out.writeString(processorId);
         if (failure == null) {
             out.writeBoolean(false);
-            data.writeTo(out);
+            ingestDocument.writeTo(out);
         } else {
             out.writeBoolean(true);
             out.writeThrowable(failure);
@@ -99,7 +99,7 @@ public class SimulateProcessorResult implements Writeable<SimulateProcessorResul
         builder.startObject();
         builder.field(Fields.PROCESSOR_ID, processorId);
         if (failure == null) {
-            data.toXContent(builder, params);
+            ingestDocument.toXContent(builder, params);
         } else {
             ElasticsearchException.renderThrowable(builder, params, failure);
         }

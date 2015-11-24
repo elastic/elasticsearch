@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
-import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.action.update.UpdateResponse;
@@ -116,7 +115,7 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(response.getResults().get(0), instanceOf(SimulateDocumentSimpleResult.class));
         SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) response.getResults().get(0);
         IngestDocument expectedIngestDocument = new IngestDocument("index", "type", "id", Collections.singletonMap("foo", "bar"));
-        assertThat(simulateDocumentSimpleResult.getData(), equalTo(expectedIngestDocument));
+        assertThat(simulateDocumentSimpleResult.getIngestDocument(), equalTo(expectedIngestDocument));
         assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
     }
 

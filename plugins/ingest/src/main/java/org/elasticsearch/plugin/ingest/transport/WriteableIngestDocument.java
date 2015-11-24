@@ -35,31 +35,31 @@ import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
 import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
 
-public class TransportData implements Writeable<TransportData>, ToXContent {
+public class WriteableIngestDocument implements Writeable<WriteableIngestDocument>, ToXContent {
 
-    private static final TransportData PROTOTYPE = new TransportData(null);
+    private static final WriteableIngestDocument PROTOTYPE = new WriteableIngestDocument(null);
 
     private final IngestDocument ingestDocument;
 
-    public TransportData(IngestDocument ingestDocument) {
+    public WriteableIngestDocument(IngestDocument ingestDocument) {
         this.ingestDocument = ingestDocument;
     }
 
-    public IngestDocument get() {
+    public IngestDocument getIngestDocument() {
         return ingestDocument;
     }
 
-    public static TransportData readTransportDataFrom(StreamInput in) throws IOException {
+    public static WriteableIngestDocument readWriteableIngestDocumentFrom(StreamInput in) throws IOException {
         return PROTOTYPE.readFrom(in);
     }
 
     @Override
-    public TransportData readFrom(StreamInput in) throws IOException {
+    public WriteableIngestDocument readFrom(StreamInput in) throws IOException {
         String index = in.readString();
         String type = in.readString();
         String id = in.readString();
         Map<String, Object> doc = in.readMap();
-        return new TransportData(new IngestDocument(index, type, id, doc));
+        return new WriteableIngestDocument(new IngestDocument(index, type, id, doc));
     }
 
     @Override
@@ -90,7 +90,7 @@ public class TransportData implements Writeable<TransportData>, ToXContent {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
-        TransportData that = (TransportData) o;
+        WriteableIngestDocument that = (WriteableIngestDocument) o;
         return Objects.equals(ingestDocument, that.ingestDocument);
     }
 

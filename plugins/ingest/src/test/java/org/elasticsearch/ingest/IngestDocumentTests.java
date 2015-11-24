@@ -28,12 +28,12 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.*;
 
-public class DataTests extends ESTestCase {
+public class IngestDocumentTests extends ESTestCase {
 
     private IngestDocument ingestDocument;
 
     @Before
-    public void setData() {
+    public void setIngestDocument() {
         Map<String, Object> document = new HashMap<>();
         document.put("foo", "bar");
         document.put("int", 123);

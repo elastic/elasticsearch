@@ -31,7 +31,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.not;
 
-public class TransportDataTests extends ESTestCase {
+public class WriteableIngestDocumentTests extends ESTestCase {
 
     public void testEqualsAndHashcode() throws Exception {
         String index = randomAsciiOfLengthBetween(1, 10);
@@ -39,7 +39,7 @@ public class TransportDataTests extends ESTestCase {
         String id = randomAsciiOfLengthBetween(1, 10);
         String fieldName = randomAsciiOfLengthBetween(1, 10);
         String fieldValue = randomAsciiOfLengthBetween(1, 10);
-        TransportData transportData = new TransportData(new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
+        WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
 
         boolean changed = false;
         String otherIndex;
@@ -71,28 +71,28 @@ public class TransportDataTests extends ESTestCase {
             document = Collections.singletonMap(fieldName, fieldValue);
         }
 
-        TransportData otherTransportData = new TransportData(new IngestDocument(otherIndex, otherType, otherId, document));
+        WriteableIngestDocument otherWriteableIngestDocument = new WriteableIngestDocument(new IngestDocument(otherIndex, otherType, otherId, document));
         if (changed) {
-            assertThat(transportData, not(equalTo(otherTransportData)));
-            assertThat(otherTransportData, not(equalTo(transportData)));
+            assertThat(writeableIngestDocument, not(equalTo(otherWriteableIngestDocument)));
+            assertThat(otherWriteableIngestDocument, not(equalTo(writeableIngestDocument)));
         } else {
-            assertThat(transportData, equalTo(otherTransportData));
-            assertThat(otherTransportData, equalTo(transportData));
-            TransportData thirdTransportData = new TransportData(new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
-            assertThat(thirdTransportData, equalTo(transportData));
-            assertThat(transportData, equalTo(thirdTransportData));
+            assertThat(writeableIngestDocument, equalTo(otherWriteableIngestDocument));
+            assertThat(otherWriteableIngestDocument, equalTo(writeableIngestDocument));
+            WriteableIngestDocument thirdWriteableIngestDocument = new WriteableIngestDocument(new IngestDocument(index, type, id, Collections.singletonMap(fieldName, fieldValue)));
+            assertThat(thirdWriteableIngestDocument, equalTo(writeableIngestDocument));
+            assertThat(writeableIngestDocument, equalTo(thirdWriteableIngestDocument));
         }
     }
 
     public void testSerialization() throws IOException {
         IngestDocument ingestDocument = new IngestDocument(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10),
                 Collections.singletonMap(randomAsciiOfLengthBetween(1, 10), randomAsciiOfLengthBetween(1, 10)));
-        TransportData transportData = new TransportData(ingestDocument);
+        WriteableIngestDocument writeableIngestDocument = new WriteableIngestDocument(ingestDocument);
 
         BytesStreamOutput out = new BytesStreamOutput();
-        transportData.writeTo(out);
+        writeableIngestDocument.writeTo(out);
         StreamInput streamInput = StreamInput.wrap(out.bytes());
-        TransportData otherTransportData = TransportData.readTransportDataFrom(streamInput);
-        assertThat(otherTransportData, equalTo(transportData));
+        WriteableIngestDocument otherWriteableIngestDocument = WriteableIngestDocument.readWriteableIngestDocumentFrom(streamInput);
+        assertThat(otherWriteableIngestDocument, equalTo(writeableIngestDocument));
     }
 }

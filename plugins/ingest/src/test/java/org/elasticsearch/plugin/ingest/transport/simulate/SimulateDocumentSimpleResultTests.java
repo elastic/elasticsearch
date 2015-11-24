@@ -48,7 +48,7 @@ public class SimulateDocumentSimpleResultTests extends ESTestCase {
         StreamInput streamInput = StreamInput.wrap(out.bytes());
         SimulateDocumentSimpleResult otherSimulateDocumentSimpleResult = SimulateDocumentSimpleResult.readSimulateDocumentSimpleResult(streamInput);
 
-        assertThat(otherSimulateDocumentSimpleResult.getData(), equalTo(simulateDocumentSimpleResult.getData()));
+        assertThat(otherSimulateDocumentSimpleResult.getIngestDocument(), equalTo(simulateDocumentSimpleResult.getIngestDocument()));
         if (isFailure) {
             assertThat(otherSimulateDocumentSimpleResult.getFailure(), instanceOf(IllegalArgumentException.class));
             IllegalArgumentException e = (IllegalArgumentException) otherSimulateDocumentSimpleResult.getFailure();

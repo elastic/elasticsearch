@@ -49,7 +49,7 @@ public class SimulateProcessorResultTests extends ESTestCase {
         StreamInput streamInput = StreamInput.wrap(out.bytes());
         SimulateProcessorResult otherSimulateProcessorResult = SimulateProcessorResult.readSimulateProcessorResultFrom(streamInput);
         assertThat(otherSimulateProcessorResult.getProcessorId(), equalTo(simulateProcessorResult.getProcessorId()));
-        assertThat(otherSimulateProcessorResult.getData(), equalTo(simulateProcessorResult.getData()));
+        assertThat(otherSimulateProcessorResult.getIngestDocument(), equalTo(simulateProcessorResult.getIngestDocument()));
         if (isFailure) {
             assertThat(otherSimulateProcessorResult.getFailure(), instanceOf(IllegalArgumentException.class));
             IllegalArgumentException e = (IllegalArgumentException) otherSimulateProcessorResult.getFailure();

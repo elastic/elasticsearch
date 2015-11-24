@@ -91,7 +91,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 for (SimulateProcessorResult simulateProcessorResult : simulateDocumentVerboseResult.getProcessorResults()) {
                     SimulateProcessorResult expectedProcessorResult = expectedProcessorResultIterator.next();
                     assertThat(simulateProcessorResult.getProcessorId(), equalTo(expectedProcessorResult.getProcessorId()));
-                    assertThat(simulateProcessorResult.getData(), equalTo(expectedProcessorResult.getData()));
+                    assertThat(simulateProcessorResult.getIngestDocument(), equalTo(expectedProcessorResult.getIngestDocument()));
                     if (expectedProcessorResult.getFailure() == null) {
                         assertThat(simulateProcessorResult.getFailure(), nullValue());
                     } else {
@@ -104,7 +104,7 @@ public class SimulatePipelineResponseTests extends ESTestCase {
                 SimulateDocumentSimpleResult expectedSimulateDocumentSimpleResult = (SimulateDocumentSimpleResult) expectedResultIterator.next();
                 assertThat(result, instanceOf(SimulateDocumentSimpleResult.class));
                 SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) result;
-                assertThat(simulateDocumentSimpleResult.getData(), equalTo(expectedSimulateDocumentSimpleResult.getData()));
+                assertThat(simulateDocumentSimpleResult.getIngestDocument(), equalTo(expectedSimulateDocumentSimpleResult.getIngestDocument()));
                 if (expectedSimulateDocumentSimpleResult.getFailure() == null) {
                     assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
                 } else {

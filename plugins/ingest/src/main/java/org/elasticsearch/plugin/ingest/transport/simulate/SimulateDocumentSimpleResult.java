@@ -23,7 +23,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.ingest.IngestDocument;
-import org.elasticsearch.plugin.ingest.transport.TransportData;
+import org.elasticsearch.plugin.ingest.transport.WriteableIngestDocument;
 
 import java.io.IOException;
 
@@ -31,26 +31,26 @@ public class SimulateDocumentSimpleResult implements SimulateDocumentResult<Simu
 
     private static final SimulateDocumentSimpleResult PROTOTYPE = new SimulateDocumentSimpleResult((IngestDocument)null);
 
-    private TransportData data;
+    private WriteableIngestDocument ingestDocument;
     private Exception failure;
 
     public SimulateDocumentSimpleResult(IngestDocument ingestDocument) {
-        this.data = new TransportData(ingestDocument);
+        this.ingestDocument = new WriteableIngestDocument(ingestDocument);
     }
 
-    private SimulateDocumentSimpleResult(TransportData data) {
-        this.data = data;
+    private SimulateDocumentSimpleResult(WriteableIngestDocument ingestDocument) {
+        this.ingestDocument = ingestDocument;
     }
 
     public SimulateDocumentSimpleResult(Exception failure) {
         this.failure = failure;
     }
 
-    public IngestDocument getData() {
-        if (data == null) {
+    public IngestDocument getIngestDocument() {
+        if (ingestDocument == null) {
             return null;
         }
-        return data.get();
+        return ingestDocument.getIngestDocument();
     }
 
     public Exception getFailure() {
@@ -67,14 +67,14 @@ public class SimulateDocumentSimpleResult implements SimulateDocumentResult<Simu
             Exception exception = in.readThrowable();
             return new SimulateDocumentSimpleResult(exception);
         }
-        return new SimulateDocumentSimpleResult(TransportData.readTransportDataFrom(in));
+        return new SimulateDocumentSimpleResult(WriteableIngestDocument.readWriteableIngestDocumentFrom(in));
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         if (failure == null) {
             out.writeBoolean(false);
-            data.writeTo(out);
+            ingestDocument.writeTo(out);
         } else {
             out.writeBoolean(true);
             out.writeThrowable(failure);
@@ -85,7 +85,7 @@ public class SimulateDocumentSimpleResult implements SimulateDocumentResult<Simu
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (failure == null) {
-            data.toXContent(builder, params);
+            ingestDocument.toXContent(builder, params);
         } else {
             ElasticsearchException.renderThrowable(builder, params, failure);
         }

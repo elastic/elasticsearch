@@ -1,8 +1,0 @@
-<?xml version="1.0"?>
-<project name="smoke-test-x-plugins"
-         xmlns:ac="antlib:net.sf.antcontrib">
-
-  <import file="${elasticsearch.integ.antfile.default}"/>
-  <import file="${elasticsearch.tools.directory}/ant/shield-overrides.xml"/>
-
-</project>

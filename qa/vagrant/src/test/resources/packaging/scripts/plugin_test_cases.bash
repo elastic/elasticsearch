@@ -223,6 +223,10 @@ fi
     install_and_check_plugin discovery multicast
 }
 
+@test "[$GROUP] install index-by-search plugin" {
+    install_and_check_plugin - index-by-search
+}
+
 @test "[$GROUP] install lang-expression plugin" {
     install_and_check_plugin lang expression
 }
@@ -329,6 +333,10 @@ fi
 
 @test "[$GROUP] remove multicast discovery plugin" {
     remove_plugin discovery-multicast
+}
+
+@test "[$GROUP] remove index-by-search plugin" {
+    remove_plugin index-by-search
 }
 
 @test "[$GROUP] remove lang-expression plugin" {

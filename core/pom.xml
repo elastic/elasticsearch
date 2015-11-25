@@ -296,6 +296,8 @@
                                 <include>org/elasticsearch/search/aggregations/bucket/script/NativeSignificanceScoreScriptWithParams$*.class</include>
                                 <include>org/elasticsearch/search/aggregations/bucket/script/TestScript.class</include>
                                 <include>org/elasticsearch/search/aggregations/metrics/AbstractNumericTestCase.class</include>
+                                <include>org/elasticsearch/snapshots/SnapshotSharedTest.class</include>
+                                <include>org/elasticsearch/snapshots/SnapshotSharedTest$*.class</include>
                                 <include>org/elasticsearch/percolator/PercolatorTestUtil.class</include>
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler.class</include>
                                 <include>org/elasticsearch/cache/recycler/MockPageCacheRecycler$*.class</include>

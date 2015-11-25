@@ -21,6 +21,7 @@ package org.elasticsearch.snapshots;
 
 import com.google.common.base.Predicate;
 import com.google.common.collect.ImmutableMap;
+
 import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
@@ -28,7 +29,6 @@ import org.elasticsearch.action.ListenableActionFuture;
 import org.elasticsearch.action.admin.cluster.repositories.put.PutRepositoryResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.delete.DeleteSnapshotResponse;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStage;
@@ -37,7 +37,6 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexStat
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.flush.FlushResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.count.CountResponse;
@@ -57,7 +56,6 @@ import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.routing.allocation.decider.FilterAllocationDecider;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -67,6 +65,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryException;
+import org.elasticsearch.snapshots.SnapshotSharedTest.AfterSnapshotAction;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
@@ -75,122 +74,38 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.client.Requests.getSnapshotsRequest;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.index.shard.IndexShard.INDEX_REFRESH_INTERVAL;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.*;
-import static org.hamcrest.Matchers.*;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAliasesExist;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAliasesMissing;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateExists;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertIndexTemplateMissing;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertThrows;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCase {
-
-    @Test
-    public void basicWorkFlowTest() throws Exception {
-        Client client = client();
-
-        logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
-                        .put("location", randomRepoPath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
-        createIndex("test-idx-1", "test-idx-2", "test-idx-3");
-        ensureGreen();
-
-        logger.info("--> indexing some data");
-        for (int i = 0; i < 100; i++) {
-            index("test-idx-1", "doc", Integer.toString(i), "foo", "bar" + i);
-            index("test-idx-2", "doc", Integer.toString(i), "foo", "baz" + i);
-            index("test-idx-3", "doc", Integer.toString(i), "foo", "baz" + i);
-        }
-        refresh();
-        assertHitCount(client.prepareCount("test-idx-1").get(), 100L);
-        assertHitCount(client.prepareCount("test-idx-2").get(), 100L);
-        assertHitCount(client.prepareCount("test-idx-3").get(), 100L);
-
-        ListenableActionFuture<FlushResponse> flushResponseFuture = null;
-        if (randomBoolean()) {
-            ArrayList<String> indicesToFlush = new ArrayList<>();
-            for (int i = 1; i < 4; i++) {
-                if (randomBoolean()) {
-                    indicesToFlush.add("test-idx-" + i);
-                }
-            }
-            if (!indicesToFlush.isEmpty()) {
-                String[] indices = indicesToFlush.toArray(new String[indicesToFlush.size()]);
-                logger.info("--> starting asynchronous flush for indices {}", Arrays.toString(indices));
-                flushResponseFuture = client.admin().indices().prepareFlush(indices).execute();
-            }
-        }
-        logger.info("--> snapshot");
-        CreateSnapshotResponse createSnapshotResponse = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-3").get();
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponse.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponse.getSnapshotInfo().totalShards()));
-
-        SnapshotInfo snapshotInfo = client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-snap").get().getSnapshots().get(0);
-        assertThat(snapshotInfo.state(), equalTo(SnapshotState.SUCCESS));
-        assertThat(snapshotInfo.version(), equalTo(Version.CURRENT));
-
-        logger.info("--> delete some data");
-        for (int i = 0; i < 50; i++) {
-            client.prepareDelete("test-idx-1", "doc", Integer.toString(i)).get();
-        }
-        for (int i = 50; i < 100; i++) {
-            client.prepareDelete("test-idx-2", "doc", Integer.toString(i)).get();
-        }
-        for (int i = 0; i < 100; i += 2) {
-            client.prepareDelete("test-idx-3", "doc", Integer.toString(i)).get();
-        }
-        assertAllSuccessful(refresh());
-        assertHitCount(client.prepareCount("test-idx-1").get(), 50L);
-        assertHitCount(client.prepareCount("test-idx-2").get(), 50L);
-        assertHitCount(client.prepareCount("test-idx-3").get(), 50L);
-
-        logger.info("--> close indices");
-        client.admin().indices().prepareClose("test-idx-1", "test-idx-2").get();
-
-        logger.info("--> restore all indices from the snapshot");
-        RestoreSnapshotResponse restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).execute().actionGet();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-
-        ensureGreen();
-        for (int i=0; i<5; i++) {
-            assertHitCount(client.prepareCount("test-idx-1").get(), 100L);
-            assertHitCount(client.prepareCount("test-idx-2").get(), 100L);
-            assertHitCount(client.prepareCount("test-idx-3").get(), 50L);
-        }
-
-        // Test restore after index deletion
-        logger.info("--> delete indices");
-        cluster().wipeIndices("test-idx-1", "test-idx-2");
-        logger.info("--> restore one index after deletion");
-        restoreSnapshotResponse = client.admin().cluster().prepareRestoreSnapshot("test-repo", "test-snap").setWaitForCompletion(true).setIndices("test-idx-*", "-test-idx-2").execute().actionGet();
-        assertThat(restoreSnapshotResponse.getRestoreInfo().totalShards(), greaterThan(0));
-
-        ensureGreen();
-        for (int i=0; i<5; i++) {
-            assertHitCount(client.prepareCount("test-idx-1").get(), 100L);
-        }
-        ClusterState clusterState = client.admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.getMetaData().hasIndex("test-idx-1"), equalTo(true));
-        assertThat(clusterState.getMetaData().hasIndex("test-idx-2"), equalTo(false));
-
-        if (flushResponseFuture != null) {
-            // Finish flush
-            flushResponseFuture.actionGet();
-        }
+    public void testBasicWorkflow() throws Exception {
+        SnapshotSharedTest.testBasicWorkflow(logger, this, AfterSnapshotAction.NOOP, equalTo(Version.CURRENT));
     }
-
 
     @Test
     public void singleGetAfterRestoreTest() throws Exception {
@@ -1571,66 +1486,8 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
         logger.info("--> done");
     }
 
-    public void testSnapshotMoreThanOnce() throws ExecutionException, InterruptedException {
-        Client client = client();
-
-        logger.info("-->  creating repository");
-        assertAcked(client.admin().cluster().preparePutRepository("test-repo")
-                .setType("fs").setSettings(Settings.settingsBuilder()
-                        .put("location", randomRepoPath())
-                        .put("compress", randomBoolean())
-                        .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
-
-        // only one shard
-        assertAcked(prepareCreate("test").setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
-        ensureGreen();
-        logger.info("-->  indexing");
-
-        final int numdocs = randomIntBetween(10, 100);
-        IndexRequestBuilder[] builders = new IndexRequestBuilder[numdocs];
-        for (int i = 0; i < builders.length; i++) {
-            builders[i] = client().prepareIndex("test", "doc", Integer.toString(i)).setSource("foo", "bar" + i);
-        }
-        indexRandom(true, builders);
-        flushAndRefresh();
-        assertNoFailures(client().admin().indices().prepareForceMerge("test").setFlush(true).setMaxNumSegments(1).get());
-
-        CreateSnapshotResponse createSnapshotResponseFirst = client.admin().cluster().prepareCreateSnapshot("test-repo", "test").setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseFirst.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseFirst.getSnapshotInfo().totalShards()));
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-        {
-            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test").get().getSnapshots().get(0);
-            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
-            for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), greaterThan(1));
-            }
-        }
-
-        CreateSnapshotResponse createSnapshotResponseSecond = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-1").setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseSecond.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseSecond.getSnapshotInfo().totalShards()));
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-1").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-        {
-            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-1").get().getSnapshots().get(0);
-            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
-            for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), equalTo(0));
-            }
-        }
-
-        client().prepareDelete("test", "doc", "1").get();
-        CreateSnapshotResponse createSnapshotResponseThird = client.admin().cluster().prepareCreateSnapshot("test-repo", "test-2").setWaitForCompletion(true).setIndices("test").get();
-        assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(), greaterThan(0));
-        assertThat(createSnapshotResponseThird.getSnapshotInfo().successfulShards(), equalTo(createSnapshotResponseThird.getSnapshotInfo().totalShards()));
-        assertThat(client.admin().cluster().prepareGetSnapshots("test-repo").setSnapshots("test-2").get().getSnapshots().get(0).state(), equalTo(SnapshotState.SUCCESS));
-        {
-            SnapshotStatus snapshotStatus = client.admin().cluster().prepareSnapshotStatus("test-repo").setSnapshots("test-2").get().getSnapshots().get(0);
-            List<SnapshotIndexShardStatus> shards = snapshotStatus.getShards();
-            for (SnapshotIndexShardStatus status : shards) {
-                assertThat(status.getStats().getProcessedFiles(), equalTo(2)); // we flush before the snapshot such that we have to process the segments_N files plus the .del file
-            }
-        }
+    public void testSnapshotMoreThanOnce() throws Exception {
+        SnapshotSharedTest.testSnapshotMoreThanOnce(logger, this, AfterSnapshotAction.NOOP);
     }
 
     @Test

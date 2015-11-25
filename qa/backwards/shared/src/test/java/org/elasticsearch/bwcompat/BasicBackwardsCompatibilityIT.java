@@ -24,7 +24,6 @@ import org.apache.lucene.index.Fields;
 import org.apache.lucene.util.English;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.Version;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -47,6 +46,7 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
@@ -217,7 +217,7 @@ public class BasicBackwardsCompatibilityIT extends ESBackcompatTestCase {
      */
     public void testNoRecoveryFromNewNodes() throws ExecutionException, InterruptedException {
         assumeFalse("Only makes sense if backwards version isn't the current version",
-                Version.fromString(backwardsCompatibilityVersion()).equals(Version.CURRENT));
+                backwardsCompatibilityVersion().equals(Version.CURRENT));
         assertAcked(prepareCreate("test").setSettings(Settings.builder().put("index.routing.allocation.exclude._name", backwardsCluster().backwardsNodePattern()).put(indexSettings())));
         if (backwardsCluster().numNewDataNodes() == 0) {
             backwardsCluster().startNewNode();

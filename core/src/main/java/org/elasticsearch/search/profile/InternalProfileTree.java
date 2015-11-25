@@ -74,7 +74,7 @@ final class InternalProfileTree {
     public ProfileBreakdown getQueryBreakdown(Query query) {
         int token = currentToken;
 
-        boolean stackEmpty = stack.size() == 0;
+        boolean stackEmpty = stack.isEmpty();
 
         // If the stack is empty, we are a new root query
         if (stackEmpty) {

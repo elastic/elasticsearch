@@ -474,7 +474,7 @@ public class SearchRequestBuilder extends ActionRequestBuilder<SearchRequest, Se
     }
 
     /**
-     * Should the query be profiled. Defaults to <tt>False</tt>
+     * Should the query be profiled. Defaults to <code>false</code>
      */
     public SearchRequestBuilder setProfile(boolean profile) {
         sourceBuilder().profile(profile);

@@ -105,6 +105,7 @@ public final class ProfileBreakdown {
      * @param other Another Breakdown to merge with this one
      */
     public void merge(ProfileBreakdown other) {
+        assert(timings.length == other.timings.length);
         for (int i = 0; i < timings.length; ++i) {
             timings[i] += other.timings[i];
         }

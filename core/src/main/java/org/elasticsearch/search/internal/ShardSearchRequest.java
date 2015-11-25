@@ -63,13 +63,12 @@ public interface ShardSearchRequest extends HasContextAndHeaders {
      * Sets if this shard search needs to be profiled or not
      * @param profile True if the shard should be profiled
      */
-    void profile(boolean profile);
+    void setProfile(boolean profile);
 
     /**
-     * Returns if this shard search is being profiled or not
+     * Returns true if this shard search is being profiled or not
      */
-    boolean profile();
-
+    boolean isProfile();
 
     /**
      * Returns the cache key for this shard search request, based on its content

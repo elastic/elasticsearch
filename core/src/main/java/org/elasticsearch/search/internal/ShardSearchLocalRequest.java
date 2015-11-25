@@ -168,12 +168,12 @@ public class ShardSearchLocalRequest extends ContextAndHeaderHolder implements S
     }
 
     @Override
-    public void profile(boolean profile) {
+    public void setProfile(boolean profile) {
         this.profile = profile;
     }
 
     @Override
-    public boolean profile() {
+    public boolean isProfile() {
         return profile;
     }
 

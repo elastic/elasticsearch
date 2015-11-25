@@ -152,12 +152,12 @@ public class ShardSearchTransportRequest extends TransportRequest implements Sha
     }
 
     @Override
-    public void profile(boolean profile) {
-        shardSearchLocalRequest.profile(profile);
+    public void setProfile(boolean profile) {
+        shardSearchLocalRequest.setProfile(profile);
     }
 
     @Override
-    public boolean profile() {
-        return shardSearchLocalRequest.profile();
+    public boolean isProfile() {
+        return shardSearchLocalRequest.isProfile();
     }
 }

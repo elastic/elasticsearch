@@ -128,8 +128,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Returns the profiled results for this search, or null if it was not profiled
      * @return The profiled results, or null
      */
-    public @Nullable
-    List<InternalProfileShardResult> profileResults() {
+    public @Nullable List<InternalProfileShardResult> profileResults() {
         return profileShardResults;
     }
 

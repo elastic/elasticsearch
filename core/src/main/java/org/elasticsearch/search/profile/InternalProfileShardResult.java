@@ -93,10 +93,8 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
 
     @Override
     public void readFrom(StreamInput in) throws IOException {
-
         int profileSize = in.readVInt();
         profileResults = new ArrayList<>(profileSize);
-
         for (int j = 0; j < profileSize; j++) {
             profileResults.add(InternalProfileResult.readProfileResult(in));
         }
@@ -106,28 +104,22 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
             profileCollector = InternalProfileCollector.readProfileCollectorFromStream(in);
 
         }
-
         rewriteTime = in.readLong();
-
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-
         out.writeVInt(profileResults.size());
         for (InternalProfileResult p : profileResults) {
             p.writeTo(out);
         }
-
         if (profileCollector == null) {
             out.writeBoolean(false);
         } else {
             out.writeBoolean(true);
             profileCollector.writeTo(out);
         }
-
         out.writeLong(rewriteTime);
-
     }
 
 }

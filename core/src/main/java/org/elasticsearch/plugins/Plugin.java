@@ -71,12 +71,6 @@ public abstract class Plugin {
     }
 
     /**
-     * Called once the given {@link IndexService} is fully constructed but not yet published.
-     * This is used to initialize plugin services that require acess to index level resources
-     */
-    public void onIndexService(IndexService indexService) {}
-
-    /**
      * Called before a new index is created on a node. The given module can be used to regsiter index-leve
      * extensions.
      */

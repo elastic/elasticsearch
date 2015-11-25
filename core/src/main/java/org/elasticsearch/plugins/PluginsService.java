@@ -247,14 +247,6 @@ public class PluginsService extends AbstractComponent {
         for (Tuple<PluginInfo, Plugin> plugin : plugins) {
             plugin.v2().onIndexModule(indexModule);
         }
-        indexModule.addIndexEventListener(new IndexEventListener() {
-            @Override
-            public void afterIndexCreated(IndexService indexService) {
-                for (Tuple<PluginInfo, Plugin> plugin : plugins) {
-                    plugin.v2().onIndexService(indexService);
-                }
-            }
-        });
     }
     /**
      * Get information about plugins (jvm and site plugins).

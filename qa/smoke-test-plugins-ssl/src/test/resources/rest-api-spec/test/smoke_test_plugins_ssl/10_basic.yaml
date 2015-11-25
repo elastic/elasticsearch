@@ -11,6 +11,6 @@
         nodes.info: {}
 
     - match:  { nodes.$master.plugins.15.name: license }
-    - match:  { nodes.$master.plugins.18.name: marvel-agent }
-    - match:  { nodes.$master.plugins.21.name: shield }
-    - match:  { nodes.$master.plugins.24.name: watcher }
+    - match:  { nodes.$master.plugins.19.name: marvel-agent }
+    - match:  { nodes.$master.plugins.22.name: shield }
+    - match:  { nodes.$master.plugins.25.name: watcher }

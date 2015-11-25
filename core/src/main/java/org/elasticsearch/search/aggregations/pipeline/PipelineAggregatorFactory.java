@@ -143,7 +143,7 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
         }
         builder.startObject(type);
 
-        if (bucketsPaths != null) {
+        if (!overrideBucketsPath() && bucketsPaths != null) {
             builder.startArray(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName());
             for (String path : bucketsPaths) {
                 builder.value(path);
@@ -156,6 +156,14 @@ public abstract class PipelineAggregatorFactory extends ToXContentToBytes implem
         builder.endObject();
 
         return builder.endObject();
+    }
+
+    /**
+     * @return <code>true</code> if the {@link PipelineAggregatorFactory}
+     *         overrides the XContent rendering of the bucketPath option.
+     */
+    protected boolean overrideBucketsPath() {
+        return false;
     }
 
     // NORELEASE make this method abstract when agg refactor complete

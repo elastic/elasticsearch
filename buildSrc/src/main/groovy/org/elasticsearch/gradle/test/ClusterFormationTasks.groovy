@@ -184,17 +184,20 @@ class ClusterFormationTasks {
         Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
         copyConfig.into(new File(node.homeDir, 'config')) // copy must always have a general dest dir, even though we don't use it
         for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
-            File srcConfigFile = project.file(extraConfigFile.getValue())
-            if (srcConfigFile.isDirectory()) {
-                throw new GradleException("Source for extraConfigFile must be a file: ${srcConfigFile}")
-            }
-            if (srcConfigFile.exists() == false) {
-                throw new GradleException("Source file for extraConfigFile does not exist: ${srcConfigFile}")
+            Closure delayedSrc = {
+                File srcConfigFile = project.file(extraConfigFile.getValue())
+                if (srcConfigFile.isDirectory()) {
+                    throw new GradleException("Source for extraConfigFile must be a file: ${srcConfigFile}")
+                }
+                if (srcConfigFile.exists() == false) {
+                    throw new GradleException("Source file for extraConfigFile does not exist: ${srcConfigFile}")
+                }
+                return srcConfigFile
             }
             File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFile.getKey())
-            copyConfig.from(srcConfigFile)
-                    .into(destConfigFile.canonicalFile.parentFile)
-                    .rename { destConfigFile.name }
+            copyConfig.from(delayedSrc)
+                      .into(destConfigFile.canonicalFile.parentFile)
+                      .rename { destConfigFile.name }
         }
         return copyConfig
     }

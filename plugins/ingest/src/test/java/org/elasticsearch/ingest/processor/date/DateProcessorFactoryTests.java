@@ -85,7 +85,7 @@ public class DateProcessorFactoryTests extends ESTestCase {
         config.put("locale", locale.toLanguageTag());
 
         DateProcessor processor = factory.create(config);
-        assertThat(processor.getLocale(), equalTo(locale));
+        assertThat(processor.getLocale().toLanguageTag(), equalTo(locale.toLanguageTag()));
     }
 
     public void testParseTimezone() throws Exception {

@@ -1,0 +1,44 @@
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch:watcher', configuration: 'runtime')
+}
+
+// bring in watcher rest test suite
+task copyWatcherRestTests(type: Copy) {
+  into project.sourceSets.test.output.resourcesDir
+  from project(':x-plugins:elasticsearch:watcher').sourceSets.test.resources.srcDirs
+  include 'rest-api-spec/test/**'
+}
+
+integTest {
+  dependsOn copyWatcherRestTests
+  systemProperty 'tests.rest.blacklist',
+    ['hijack/10_basic/*',
+     'array_compare_watch/10_basic/Basic array_compare watch'].join(',')
+
+  cluster {
+    plugin 'license', project(':x-plugins:elasticsearch:license:plugin')
+    plugin 'shield', project(':x-plugins:elasticsearch:shield')
+    plugin 'watcher', project(':x-plugins:elasticsearch:watcher')
+    extraConfigFile 'shield/roles.yml', 'roles.yml'
+    setupCommand 'setupTestAdminUser',
+                 'bin/shield/esusers', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'setupWatcherManagerUser',
+                 'bin/shield/esusers', 'useradd', 'watcher_manager', '-p', 'changeme', '-r', 'watcher_manager'
+    setupCommand 'setupPowerlessUser',
+                 'bin/shield/esusers', 'useradd', 'powerless_user', '-p', 'changeme', '-r', 'crapy_role'
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://localhost:${node.httpPort()}",
+              dest: tmpFile.toString(),
+              username: 'test_admin',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+    }
+  }
+}
+

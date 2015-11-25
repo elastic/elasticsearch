@@ -1,9 +1,0 @@
-[[moving-on]]
-=== Moving On
-
-Now that you have Shield up and running, you might want to:
-
-* <<defining-roles, Define and Use Custom Roles>> for fine-grained access control.
-* Integrate with <<ldap, LDAP>> or <<active-directory, Active Directory>>, or <<pki, require certificates>> for authentication.
-* Use <<ssl-tls, SSL/TLS encryption>> to secure communications to and from nodes.
-* Use <<ip-filtering, IP Filtering>> to allow or deny requests from particular IP addresses or address ranges.

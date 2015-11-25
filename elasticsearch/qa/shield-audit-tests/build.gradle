@@ -1,0 +1,28 @@
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+}
+
+integTest {
+  cluster {
+    plugin 'license', project(':x-plugins:elasticsearch:license:plugin')
+    plugin 'shield', project(':x-plugins:elasticsearch:shield')
+    // TODO: these should be settings?
+    systemProperty 'es.shield.audit.enabled', 'true'
+    systemProperty 'es.shield.audit.outputs', 'index'
+    setupCommand 'setupDummyUser',
+                 'bin/shield/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://localhost:${node.httpPort()}",
+              dest: tmpFile.toString(),
+              username: 'test_user',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+    }
+  }
+}
+

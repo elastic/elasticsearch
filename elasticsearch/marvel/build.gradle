@@ -1,0 +1,59 @@
+import org.elasticsearch.gradle.MavenFilteringHack
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'marvel-agent'
+  description 'Elasticsearch Marvel'
+  classname 'org.elasticsearch.marvel.MarvelPlugin'
+  isolated false
+}
+
+ext.versions = [
+  okhttp: '2.3.0'
+]
+
+dependencies {
+  provided project(path: ':x-plugins:elasticsearch:license:plugin', configuration: 'runtime')
+  provided project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+  testCompile 'org.elasticsearch:securemock:1.1'
+
+  // mock web server
+  testCompile "com.squareup.okhttp:mockwebserver:${versions.okhttp}"
+  testCompile "com.squareup.okhttp:okhttp:${versions.okhttp}"
+  testCompile "com.squareup.okhttp:okhttp-ws:${versions.okhttp}"
+  testCompile 'com.squareup.okio:okio:1.3.0'
+  testCompile 'org.bouncycastle:bcprov-jdk15on:1.50'
+}
+
+compileJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked'
+compileTestJava.options.compilerArgs << '-Xlint:-rawtypes,-unchecked'
+
+ext.expansions = [
+  'project.version': version,
+  'integ.http.port': integTest.cluster.baseHttpPort
+]
+
+processResources {
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
+}
+
+processTestResources {
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
+}
+
+integTest {
+  cluster {
+    plugin 'license', project(':x-plugins:elasticsearch:license:plugin')
+  }
+}
+
+dependencyLicenses.enabled = false
+
+bundlePlugin {
+  from(projectDir) {
+    include 'LICENSE.txt'
+    include 'NOTICE.txt'
+  }
+}

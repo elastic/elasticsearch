@@ -1,0 +1,9 @@
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compile project(':x-plugins:elasticsearch:license:base')
+  compile "org.elasticsearch:elasticsearch:${version}"
+  testCompile "org.elasticsearch:test-framework:${version}"
+}
+
+dependencyLicenses.enabled = false

@@ -1,0 +1,75 @@
+import org.elasticsearch.gradle.MavenFilteringHack
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'watcher'
+  description 'Elasticsearch Watcher'
+  classname 'org.elasticsearch.watcher.WatcherPlugin'
+  isolated false
+}
+
+ext.versions = [
+  okhttp: '2.3.0'
+]
+
+// TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
+ext.compactProfile = 'full'
+
+dependencies {
+  provided project(path: ':x-plugins:elasticsearch:license:plugin', configuration: 'runtime')
+  provided project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+
+  compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
+  compile 'com.google.guava:guava:16.0.1'
+  compile 'com.google.code.findbugs:jsr305:3.0.1'
+  compile 'com.sun.mail:javax.mail:1.5.3'
+  compile 'javax.activation:activation:1.1.1'
+
+  testCompile 'org.subethamail:subethasmtp:3.1.7'
+
+  // mock web server
+  testCompile "com.squareup.okhttp:mockwebserver:${versions.okhttp}"
+  testCompile "com.squareup.okhttp:okhttp:${versions.okhttp}"
+  testCompile "com.squareup.okhttp:okhttp-ws:${versions.okhttp}"
+  testCompile 'com.squareup.okio:okio:1.3.0'
+  testCompile 'org.bouncycastle:bcprov-jdk15on:1.50'
+
+  testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
+  testCompile 'org.slf4j:slf4j-api:1.6.2'
+  testCompile 'org.elasticsearch:securemock:1.1'
+}
+
+compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+
+integTest {
+  cluster {
+    plugin 'license', project(':x-plugins:elasticsearch:license:plugin')
+  }
+}
+
+// TODO: standardize packaging config for plugins
+bundlePlugin {
+  from(projectDir) {
+    include 'LICENSE.txt'
+    include 'NOTICE.txt'
+  }
+  from('bin/watcher') {
+    into 'bin'
+  }
+}
+
+dependencyLicenses.enabled = false
+
+// TODO: don't publish test artifacts just to run messy tests, fix the tests!
+// https://github.com/elastic/x-plugins/issues/724
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+task testJar(type: Jar) {
+    classifier "test"
+    from sourceSets.test.output
+}
+artifacts {
+    testArtifacts testJar
+}

@@ -1,0 +1,41 @@
+apply plugin: 'elasticsearch.esplugin'
+
+esplugin {
+  description 'a very basic implementation of a custom realm to validate it works'
+  classname 'org.elasticsearch.example.ExampleRealmPlugin'
+  isolated false
+}
+
+dependencies {
+  provided project(path: ':x-plugins:elasticsearch:license:plugin', configuration: 'runtime')
+  provided project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+}
+
+compileJava.options.compilerArgs << "-Xlint:-rawtypes"
+//compileTestJava.options.compilerArgs << "-Xlint:-rawtypes"
+
+integTest {
+  cluster {
+    plugin 'license', project(':x-plugins:elasticsearch:license:plugin')
+    plugin 'shield', project(':x-plugins:elasticsearch:shield')
+    // TODO: these should be settings?
+    systemProperty 'es.shield.authc.realms.custom.order', '0'
+    systemProperty 'es.shield.authc.realms.custom.type', 'custom'
+    systemProperty 'es.shield.authc.realms.esusers.order', '1'
+    systemProperty 'es.shield.authc.realms.esusers.type', 'esusers'
+
+    setupCommand 'setupDummyUser',
+                 'bin/shield/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    waitCondition = { node, ant ->
+      File tmpFile = new File(node.cwd, 'wait.success')
+      ant.get(src: "http://localhost:${node.httpPort()}",
+              dest: tmpFile.toString(),
+              username: 'test_user',
+              password: 'changeme',
+              ignoreerrors: true,
+              retries: 10)
+      return tmpFile.exists()
+    }
+  }
+}
+

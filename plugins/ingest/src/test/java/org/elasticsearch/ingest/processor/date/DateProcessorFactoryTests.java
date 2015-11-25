@@ -94,12 +94,20 @@ public class DateProcessorFactoryTests extends ESTestCase {
         String sourceField = randomAsciiOfLengthBetween(1, 10);
         config.put("match_field", sourceField);
         config.put("match_formats", Collections.singletonList("dd/MM/yyyyy"));
-        DateTimeZone timeZone = DateTimeZone.forTimeZone(randomTimeZone(random()));
-        config.put("timezone", timeZone.getID());
 
+        DateTimeZone timezone = randomTimezone();
+        config.put("timezone", timezone.getID());
         DateProcessor processor = factory.create(config);
-        assertThat(processor.getTimezone(), equalTo(timeZone));
+        assertThat(processor.getTimezone(), equalTo(timezone));
     }
+
+    //we generate a timezone out of the available ones in joda, some available in the jdk are not available in joda by default
+    private static DateTimeZone randomTimezone() {
+        List<String> ids = new ArrayList<>(DateTimeZone.getAvailableIDs());
+        Collections.sort(ids);
+        return DateTimeZone.forID(randomFrom(ids));
+    }
+
 
     public void testParseMatchFormats() throws Exception {
         DateProcessor.Factory factory = new DateProcessor.Factory();

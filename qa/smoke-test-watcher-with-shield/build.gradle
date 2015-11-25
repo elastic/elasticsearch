@@ -12,9 +12,8 @@ task copyWatcherRestTests(type: Copy) {
   include 'rest-api-spec/test/**'
 }
 
-integTest.dependsOn(copyWatcherRestTests)
-
 integTest {
+  dependsOn copyWatcherRestTests
   systemProperty 'tests.rest.blacklist',
     ['hijack/10_basic/*',
      'array_compare_watch/10_basic/Basic array_compare watch'].join(',')
@@ -23,7 +22,7 @@ integTest {
     plugin 'license', project(':x-plugins:license:plugin')
     plugin 'shield', project(':x-plugins:shield')
     plugin 'watcher', project(':x-plugins:watcher')
-    extraConfigFile 'shield', 'roles.yml'
+    extraConfigFile 'shield/roles.yml', 'roles.yml'
     setupCommand 'setupTestAdminUser',
                  'bin/shield/esusers', 'useradd', 'test_admin', '-p', 'changeme', '-r', 'admin'
     setupCommand 'setupWatcherManagerUser',

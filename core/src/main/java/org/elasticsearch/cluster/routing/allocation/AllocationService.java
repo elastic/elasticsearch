@@ -64,6 +64,22 @@ public class AllocationService extends AbstractComponent {
     }
 
     /**
+     * Applies the started shard. Note, shards can be called several
+     * times within this method. If the same instance of the routing
+     * table is returned, then no change has been made.
+     * @param clusterState the cluster state
+     * @param startedShard the shard to start
+     * @param withReroute whether or not to reroute the resulting allocation
+     * @return the resulting routing table
+     */
+    public RoutingAllocation.Result applyStartedShard(
+            ClusterState clusterState,
+            ShardRouting startedShard,
+            boolean withReroute) {
+        return applyStartedShards(clusterState, Collections.singletonList(startedShard), withReroute);
+    }
+
+    /**
      * Applies the started shards. Note, shards can be called several times within this method.
      * <p>
      * If the same instance of the routing table is returned, then no change has been made.</p>

@@ -102,7 +102,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(FIELD_TYPE, TYPE.shapename);
+        builder.field(FIELD_TYPE, TYPE.shapeName());
         builder.startArray(FIELD_GEOMETRIES);
         for (ShapeBuilder shape : shapes) {
             shape.toXContent(builder, params);

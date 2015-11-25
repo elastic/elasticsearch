@@ -38,17 +38,17 @@ import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class ParsedSimulateRequestParserTests extends ESTestCase {
+public class SimulatePipelineRequestParsingTests extends ESTestCase {
 
     private PipelineStore store;
 
     @Before
     public void init() throws IOException {
-        Pipeline pipeline = new Pipeline(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID, null, Collections.singletonList(mock(Processor.class)));
+        Pipeline pipeline = new Pipeline(SimulatePipelineRequest.SIMULATED_PIPELINE_ID, null, Collections.singletonList(mock(Processor.class)));
         Map<String, Processor.Factory> processorRegistry = new HashMap<>();
         processorRegistry.put("mock_processor", mock(Processor.Factory.class));
         store = mock(PipelineStore.class);
-        when(store.get(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
+        when(store.get(SimulatePipelineRequest.SIMULATED_PIPELINE_ID)).thenReturn(pipeline);
         when(store.getProcessorFactoryRegistry()).thenReturn(processorRegistry);
     }
 
@@ -79,7 +79,7 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
             expectedDocs.add(expectedDoc);
         }
 
-        ParsedSimulateRequest actualRequest = new ParsedSimulateRequest.Parser().parseWithPipelineId(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID, requestContent, false, store);
+        SimulatePipelineRequest.Parsed actualRequest = SimulatePipelineRequest.parseWithPipelineId(SimulatePipelineRequest.SIMULATED_PIPELINE_ID, requestContent, false, store);
         assertThat(actualRequest.isVerbose(), equalTo(false));
         assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
@@ -91,7 +91,7 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
             assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(Fields.ID)));
         }
 
-        assertThat(actualRequest.getPipeline().getId(), equalTo(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID));
+        assertThat(actualRequest.getPipeline().getId(), equalTo(SimulatePipelineRequest.SIMULATED_PIPELINE_ID));
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(1));
     }
@@ -132,7 +132,7 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
         pipelineConfig.put("processors", processors);
         requestContent.put(Fields.PIPELINE, pipelineConfig);
 
-        ParsedSimulateRequest actualRequest = new ParsedSimulateRequest.Parser().parse(requestContent, false, store);
+        SimulatePipelineRequest.Parsed actualRequest = SimulatePipelineRequest.parse(requestContent, false, store);
         assertThat(actualRequest.isVerbose(), equalTo(false));
         assertThat(actualRequest.getDocuments().size(), equalTo(numDocs));
         Iterator<Map<String, Object>> expectedDocsIterator = expectedDocs.iterator();
@@ -144,7 +144,7 @@ public class ParsedSimulateRequestParserTests extends ESTestCase {
             assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(Fields.ID)));
         }
 
-        assertThat(actualRequest.getPipeline().getId(), equalTo(ParsedSimulateRequest.Parser.SIMULATED_PIPELINE_ID));
+        assertThat(actualRequest.getPipeline().getId(), equalTo(SimulatePipelineRequest.SIMULATED_PIPELINE_ID));
         assertThat(actualRequest.getPipeline().getDescription(), nullValue());
         assertThat(actualRequest.getPipeline().getProcessors().size(), equalTo(numProcessors));
     }

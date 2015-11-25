@@ -24,8 +24,16 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.ingest.IngestDocument;
+import org.elasticsearch.ingest.Pipeline;
+import org.elasticsearch.ingest.processor.ConfigurationUtils;
+import org.elasticsearch.plugin.ingest.PipelineStore;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
@@ -91,5 +99,62 @@ public class SimulatePipelineRequest extends ActionRequest {
         static final String INDEX = "_index";
         static final String TYPE = "_type";
         static final String ID = "_id";
+    }
+
+    static class Parsed {
+        private final List<IngestDocument> documents;
+        private final Pipeline pipeline;
+        private final boolean verbose;
+
+        Parsed(Pipeline pipeline, List<IngestDocument> documents, boolean verbose) {
+            this.pipeline = pipeline;
+            this.documents = Collections.unmodifiableList(documents);
+            this.verbose = verbose;
+        }
+
+        public Pipeline getPipeline() {
+            return pipeline;
+        }
+
+        public List<IngestDocument> getDocuments() {
+            return documents;
+        }
+
+        public boolean isVerbose() {
+            return verbose;
+        }
+    }
+
+    private static final Pipeline.Factory PIPELINE_FACTORY = new Pipeline.Factory();
+    static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
+
+    static Parsed parseWithPipelineId(String pipelineId, Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) {
+        if (pipelineId == null) {
+            throw new IllegalArgumentException("param [pipeline] is null");
+        }
+        Pipeline pipeline = pipelineStore.get(pipelineId);
+        List<IngestDocument> ingestDocumentList = parseDocs(config);
+        return new Parsed(pipeline, ingestDocumentList, verbose);
+    }
+
+    static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws IOException {
+        Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(config, Fields.PIPELINE);
+        Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactoryRegistry());
+        List<IngestDocument> ingestDocumentList = parseDocs(config);
+        return new Parsed(pipeline, ingestDocumentList, verbose);
+    }
+
+    private static List<IngestDocument> parseDocs(Map<String, Object> config) {
+        List<Map<String, Object>> docs = ConfigurationUtils.readList(config, Fields.DOCS);
+        List<IngestDocument> ingestDocumentList = new ArrayList<>();
+        for (Map<String, Object> dataMap : docs) {
+            Map<String, Object> document = ConfigurationUtils.readMap(dataMap, Fields.SOURCE);
+            IngestDocument ingestDocument = new IngestDocument(ConfigurationUtils.readStringProperty(dataMap, Fields.INDEX),
+                    ConfigurationUtils.readStringProperty(dataMap, Fields.TYPE),
+                    ConfigurationUtils.readStringProperty(dataMap, Fields.ID),
+                    document);
+            ingestDocumentList.add(ingestDocument);
+        }
+        return ingestDocumentList;
     }
 }

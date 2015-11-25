@@ -20,6 +20,7 @@ package org.elasticsearch.gradle.test
 
 import org.apache.tools.ant.DefaultLogger
 import org.apache.tools.ant.taskdefs.condition.Os
+import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin
 import org.gradle.api.*
@@ -266,7 +267,7 @@ class ClusterFormationTasks {
 
     /** Adds a task to execute a command to help setup the cluster */
     static Task configureExecTask(String name, Project project, Task setup, NodeInfo node, Object[] execArgs) {
-        return project.tasks.create(name: name, type: Exec, dependsOn: setup) {
+        return project.tasks.create(name: name, type: LoggedExec, dependsOn: setup) {
             workingDir node.cwd
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 executable 'cmd'
@@ -275,18 +276,6 @@ class ClusterFormationTasks {
                 executable 'sh'
             }
             args execArgs
-            // only show output on failure, when not in info or debug mode
-            if (logger.isInfoEnabled() == false) {
-                standardOutput = new ByteArrayOutputStream()
-                errorOutput = standardOutput
-                ignoreExitValue = true
-                doLast {
-                    if (execResult.exitValue != 0) {
-                        logger.error(standardOutput.toString())
-                        throw new GradleException("Process '${execArgs.join(' ')}' finished with non-zero exit value ${execResult.exitValue}")
-                    }
-                }
-            }
         }
     }
 
@@ -464,7 +453,7 @@ class ClusterFormationTasks {
 
     /** Adds a task to kill an elasticsearch node with the given pidfile */
     static Task configureStopTask(String name, Project project, Object depends, NodeInfo node) {
-        return project.tasks.create(name: name, type: Exec, dependsOn: depends) {
+        return project.tasks.create(name: name, type: LoggedExec, dependsOn: depends) {
             onlyIf { node.pidFile.exists() }
             // the pid file won't actually be read until execution time, since the read is wrapped within an inner closure of the GString
             ext.pid = "${ -> node.pidFile.getText('UTF-8').trim()}"

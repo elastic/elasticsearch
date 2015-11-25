@@ -46,7 +46,7 @@ public class NestedParser implements Aggregator.Parser {
             if (token == XContentParser.Token.FIELD_NAME) {
                 currentFieldName = parser.currentName();
             } else if (token == XContentParser.Token.VALUE_STRING) {
-                if ("path".equals(currentFieldName)) {
+                if (context.parseFieldMatcher().match(currentFieldName, NestedAggregator.PATH_FIELD)) {
                     path = parser.text();
                 } else {
                     throw new SearchParseException(context, "Unknown key for a " + token + " in [" + aggregationName + "]: ["
@@ -67,9 +67,8 @@ public class NestedParser implements Aggregator.Parser {
         return new NestedAggregator.Factory(aggregationName, path);
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return null;
+        return new AggregatorFactory[] { new NestedAggregator.Factory(null, null) };
     }
 }

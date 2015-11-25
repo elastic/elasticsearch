@@ -31,47 +31,23 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.ChannelFactory;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
+import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.frame.DelimiterBasedFrameDecoder;
 import org.jboss.netty.handler.codec.frame.Delimiters;
 import org.jboss.netty.handler.codec.string.StringDecoder;
 import org.jboss.netty.util.CharsetUtil;
 
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Callable;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -309,7 +285,7 @@ public class ExternalNodeService {
             logger.info("Killing backwards nodes running at [{}]", pids);
         }
         for (String pid : pids) {
-            new ProcessInfo(null, pid).stop();
+            new ProcessInfo(null, pid, null).stop();
         }
     }
 
@@ -373,10 +349,14 @@ public class ExternalNodeService {
             Process process = null;
             String port = null;
             String pid = null;
-            BufferedReader stdout = null;
             try {
                 process = builder.start();
-                stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+                final PipedInputStream inputFromExternalNode = new PipedInputStream();
+                final PipedOutputStream outputFromExternalNode= new PipedOutputStream(inputFromExternalNode);
+                BufferedReader stdout = new BufferedReader(new InputStreamReader(inputFromExternalNode, StandardCharsets.UTF_8));
+                final AtomicBoolean writeToPipe = new AtomicBoolean(true);
+                LoggerThread t = new LoggerThread(writeToPipe, process.getInputStream(), outputFromExternalNode);
+                t.start();
                 message("process forked");
 
                 Matcher m = readUntilMatches(stdout, "pid", ".+\\[node.+ pid\\[(\\d+)\\].*", timeValueSeconds(10));
@@ -387,9 +367,12 @@ public class ExternalNodeService {
                 port = m.group(1);
                 message("bound to [localhost:" + port + "]");
                 readUntilMatches(stdout, "started", ".+\\] started$", timeValueSeconds(20));
-                runningElasticsearches.put(port, new ProcessInfo(process, pid));
+                runningElasticsearches.put(port, new ProcessInfo(process, pid, t));
                 message("started");
-                process.getInputStream().close();
+                writeToPipe.set(false);
+                inputFromExternalNode.close();
+                stdout.close();
+
             } finally {
                 if (process != null && (port == null || !runningElasticsearches.containsKey(port))) {
                     logger.error("It looks like we failed to launch elasticsearch. Kill -9ing it just to make sure it doesn't linger.");
@@ -398,22 +381,9 @@ public class ExternalNodeService {
                     process.destroy();
                     if (pid != null) {
                         try {
-                            new ProcessInfo(null, pid).stop();
+                            new ProcessInfo(null, pid, null).stop();
                         } catch (InterruptedException e) {
                             logger.warn("Failed to stop busted elasticsearch at [{}]", pid);
-                        }
-                    }
-                    if (stdout != null) {
-                        try {
-                            stdout.reset();
-                            CharBuffer lines = CharBuffer.allocate(1024 * 1024);
-                            stdout.read(lines);
-                            lines.flip();
-                            logger.error(
-                                    "We were able to capture some of elasticsearch's output. Hopefully this will be useful in figuring out the failure:\n{}",
-                                    lines.toString());
-                        } catch (IOException e) {
-                            logger.warn("Sadly we couldn't capture any of its output.", e);
                         }
                     }
                 }
@@ -477,16 +447,11 @@ public class ExternalNodeService {
             Future<Matcher> f = readLines.submit(new Callable<Matcher>() {
                 @Override
                 public Matcher call() throws IOException {
-                    ESLogger unformattedLogger = ESLoggerFactory.getLogger("test.external");
-                    reader.mark(1024 * 1024);
                     String line;
                     while ((line = reader.readLine()) != null) {
                         Matcher m = compiled.matcher(line);
                         if (m.matches()) {
-                            unformattedLogger.debug(line);
                             return m;
-                        } else {
-                            unformattedLogger.trace(line);
                         }
                     }
                     return null;
@@ -506,6 +471,41 @@ public class ExternalNodeService {
             } catch (InterruptedException e) {
                 Thread.interrupted();
                 throw new ReadFailedException(description, e);
+            }
+        }
+
+        public class LoggerThread extends Thread {
+            private AtomicBoolean writeToPipe;
+            private final BufferedReader logInput;
+            private final PipedOutputStream outputForCapturingPidAndPort;
+            private final ESLogger processLogger;
+
+            public LoggerThread(AtomicBoolean writeToPipe, InputStream inputStream, PipedOutputStream outputForCapturingPidAndPort) {
+                this.writeToPipe = writeToPipe;
+                this.logInput = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+                this.outputForCapturingPidAndPort = outputForCapturingPidAndPort;
+                this.processLogger = ESLoggerFactory.getLogger("test.external");
+            }
+
+            public void run() {
+                String line;
+                try {
+                    while ((line = logInput.readLine()) != null) {
+                        // we write to the pipe until we have captured the pid and the port. writeToPipe indicates when we are done with that.
+                        if (writeToPipe.get()) {
+                            outputForCapturingPidAndPort.write((line + "\n").getBytes(StandardCharsets.UTF_8));
+                        }
+                        processLogger.info(line);
+                    }
+                } catch (Exception e1) {
+                    processLogger.info("caught exception while trying to write logs", e1);
+                }
+                try {
+                    logInput.close();
+                    outputForCapturingPidAndPort.close();
+                } catch (IOException e1) {
+                    processLogger.info("caught exception while trying to close streams", e1);
+                }
             }
         }
     }
@@ -578,10 +578,12 @@ public class ExternalNodeService {
     private static class ProcessInfo {
         private final Process process;
         private final String pid;
+        private Handler.LoggerThread t;
 
-        public ProcessInfo(@Nullable Process process, String pid) {
+        public ProcessInfo(@Nullable Process process, String pid, Handler.LoggerThread t) {
             this.process = process;
             this.pid = pid;
+            this.t = t;
         }
 
         public void stop() throws IOException, InterruptedException {
@@ -607,11 +609,15 @@ public class ExternalNodeService {
                 logger.debug("Killing [{}]", pid);
                 killProcess = builder.start();
                 killProcess.waitFor();
+
                 if (killProcess.exitValue() != 0) {
                     throw new RuntimeException(
                             LoggerMessageFormat.format("Killing [{}] failed with exit code [{}]", pid, killProcess.exitValue()));
                 }
             } finally {
+                if (t != null) {
+                    t.join();
+                }
                 if (killProcess != null) {
                     killProcess.destroy();
                 }

@@ -26,10 +26,14 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.fielddata.plain.ParentChildIndexFieldData;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.internal.ParentFieldMapper;
@@ -43,10 +47,11 @@ import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 import org.elasticsearch.search.aggregations.support.FieldContext;
+import org.elasticsearch.search.aggregations.support.ValueType;
 import org.elasticsearch.search.aggregations.support.ValuesSource;
+import org.elasticsearch.search.aggregations.support.ValuesSource.Bytes.ParentChild;
 import org.elasticsearch.search.aggregations.support.ValuesSourceAggregatorFactory;
 import org.elasticsearch.search.aggregations.support.ValuesSourceConfig;
-import org.elasticsearch.search.aggregations.support.ValuesSourceParser;
 import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 
 import java.io.IOException;
@@ -54,11 +59,14 @@ import java.util.Arrays;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 
 // The RecordingPerReaderBucketCollector assumes per segment recording which isn't the case for this
 // aggregation, for this reason that collector can't be used
 public class ParentToChildrenAggregator extends SingleBucketAggregator {
+
+    static final ParseField TYPE_FIELD = new ParseField("type");
 
     private final String parentType;
     private final Weight childFilter;
@@ -200,8 +208,14 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
         private Query parentFilter;
         private Query childFilter;
 
+        /**
+         * @param name
+         *            the name of this aggregation
+         * @param childType
+         *            the type of children documents
+         */
         public Factory(String name, String childType) {
-            super(name, InternalChildren.TYPE, new ValuesSourceParser.Input<ValuesSource.Bytes.WithOrdinals.ParentChild>());
+            super(name, InternalChildren.TYPE, ValuesSourceType.BYTES, ValueType.STRING);
             this.childType = childType;
         }
 
@@ -257,6 +271,36 @@ public class ParentToChildrenAggregator extends SingleBucketAggregator {
             } else {
                 config.unmapped(true);
             }
+        }
+
+        @Override
+        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(TYPE_FIELD.getPreferredName(), childType);
+            return builder;
+        }
+
+        @Override
+        protected ValuesSourceAggregatorFactory<ParentChild> innerReadFrom(String name, ValuesSourceType valuesSourceType,
+                ValueType targetValueType, StreamInput in) throws IOException {
+            String childType = in.readString();
+            Factory factory = new Factory(name, childType);
+            return factory;
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            out.writeString(childType);
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return Objects.hash(childType);
+        }
+
+        @Override
+        protected boolean innerEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.equals(childType, other.childType);
         }
 
     }

@@ -25,7 +25,11 @@ import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.object.ObjectMapper;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
@@ -43,11 +47,14 @@ import org.elasticsearch.search.aggregations.support.AggregationContext;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  *
  */
 public class ReverseNestedAggregator extends SingleBucketAggregator {
+
+    static final ParseField PATH_FIELD = new ParseField("path");
 
     private final Query parentFilter;
     private final BitSetProducer parentBitsetProducer;
@@ -121,11 +128,26 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
 
     public static class Factory extends AggregatorFactory {
 
-        private final String path;
+        private String path;
 
-        public Factory(String name, String path) {
+        public Factory(String name) {
             super(name, InternalReverseNested.TYPE);
+        }
+
+        /**
+         * Set the path to use for this nested aggregation. The path must match
+         * the path to a nested object in the mappings. If it is not specified
+         * then this aggregation will go back to the root document.
+         */
+        public void path(String path) {
             this.path = path;
+        }
+
+        /**
+         * Get the path to use for this nested aggregation.
+         */
+        public String path() {
+            return path;
         }
 
         @Override
@@ -151,6 +173,39 @@ public class ReverseNestedAggregator extends SingleBucketAggregator {
                 objectMapper = null;
             }
             return new ReverseNestedAggregator(name, factories, objectMapper, context, parent, pipelineAggregators, metaData);
+        }
+
+        @Override
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            if (path != null) {
+                builder.field(PATH_FIELD.getPreferredName(), path);
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        @Override
+        protected AggregatorFactory doReadFrom(String name, StreamInput in) throws IOException {
+            Factory factory = new Factory(name);
+            factory.path = in.readOptionalString();
+            return factory;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(path);
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(path);
+        }
+
+        @Override
+        protected boolean doEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.equals(path, other.path);
         }
 
         private final static class Unmapped extends NonCollectingAggregator {

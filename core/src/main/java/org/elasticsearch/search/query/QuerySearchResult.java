@@ -125,7 +125,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     }
 
     /**
-     * Returns the profiled results for this search, or null if it was not profiled
+     * Returns the profiled results for this search, or potentially null if result was empty
      * @return The profiled results, or null
      */
     public @Nullable List<InternalProfileShardResult> profileResults() {

@@ -34,6 +34,8 @@ import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -94,13 +96,16 @@ public class InternalSearchResponse implements Streamable, ToXContent {
     }
 
     /**
-     * Returns the profile results for this search response (including all shards), or
-     * null if profiling was not enabled
+     * Returns the profile results for this search response (including all shards).
+     * An empty map is returned if profiling was not enabled
      *
-     * @return Profile results or null
+     * @return Profile results
      */
-    public @Nullable Map<String, List<ProfileShardResult>> profile() {
-        return profileResults != null ? profileResults.getShardResults() : null;
+    public Map<String, List<ProfileShardResult>> profile() {
+        if (profileResults == null) {
+            return Collections.unmodifiableMap(new HashMap<>());
+        }
+        return profileResults.getShardResults();
     }
 
     @Override

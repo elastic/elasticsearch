@@ -589,7 +589,7 @@ public class QueryProfilerIT extends ESIntegTestCase {
         logger.info(q.toString());
 
         SearchResponse resp = client().prepareSearch().setQuery(q).setProfile(false).execute().actionGet();
-        assertNull("Profile response element should be null", resp.getProfileResults());
+        assertThat("Profile response element should be an empty map", resp.getProfileResults().size(), equalTo(0));
     }
 
 }

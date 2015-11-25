@@ -368,11 +368,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         synchronized (updateTasksPerExecutor) {
             List<UpdateTask> pending = updateTasksPerExecutor.remove(executor);
             if (pending != null) {
-                for (Iterator<UpdateTask> iter = pending.iterator(); iter.hasNext(); ) {
-                    UpdateTask task = iter.next();
+                for (UpdateTask<T> task : pending) {
                     if (task.processed.getAndSet(true) == false) {
                         logger.trace("will process [{}]", task.source);
-                        toExecute.add((UpdateTask<T>) task);
+                        toExecute.add(task);
                         sources.add(task.source);
                     } else {
                         logger.trace("skipping [{}], already processed", task.source);

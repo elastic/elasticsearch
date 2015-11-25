@@ -25,6 +25,7 @@ List projects = [
   'plugins:mapper-attachments',
   'plugins:mapper-murmur3',
   'plugins:mapper-size',
+  'plugins:reindex',
   'plugins:repository-azure',
   'plugins:repository-s3',
   'plugins:jvm-example',
@@ -33,6 +34,7 @@ List projects = [
   'qa:evil-tests',
   'qa:smoke-test-client',
   'qa:smoke-test-multinode',
+  'qa:smoke-test-reindex-with-groovy',
   'qa:smoke-test-plugins',
   'qa:vagrant',
 ]
@@ -80,4 +82,3 @@ if (xplugins.exists()) {
     addSubProjects(':x-plugins', extraPluginDir)
   }
 }
-

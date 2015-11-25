@@ -72,7 +72,8 @@ public class RestPutWarmerAction extends BaseRestHandler {
         PutWarmerRequest putWarmerRequest = new PutWarmerRequest(request.param("name"));
 
         BytesReference sourceBytes = RestActions.getRestContent(request);
-        SearchSourceBuilder source = RestActions.getRestSearchSource(sourceBytes, queryRegistry, parseFieldMatcher);
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        RestActions.parseRestSearchSource(source, sourceBytes, queryRegistry, parseFieldMatcher);
         SearchRequest searchRequest = new SearchRequest(Strings.splitStringByCommaToArray(request.param("index")))
                 .types(Strings.splitStringByCommaToArray(request.param("type")))
                 .requestCache(request.paramAsBoolean("request_cache", null)).source(source);

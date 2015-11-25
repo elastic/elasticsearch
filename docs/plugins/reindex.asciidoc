@@ -1,0 +1,676 @@
+[[plugins-reindex]]
+=== Reindex Plugin
+
+The reindex plugin adds two APIs:
+
+* `_update_by_query` updates all documents matching a query in place.
+* `_reindex` copies documents from one index to another.
+
+These APIs are siblings so they live in the same plugin. Both use
+{ref}/search-request-scroll.html[Scroll] and {ref}/docs-bulk.html[Bulk] APIs
+to send an index request per document. There are potential shortcuts that could
+speed this process so this plugin may change how this is done in the future.
+
+[float]
+==== Installation
+
+This plugin can be installed using the plugin manager:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin install reindex
+----------------------------------------------------------------
+
+The plugin must be installed on every node in the cluster, and each node must
+be restarted after installation.
+
+[float]
+==== Removal
+
+The plugin can be removed with the following command:
+
+[source,sh]
+----------------------------------------------------------------
+sudo bin/plugin remove reindex
+----------------------------------------------------------------
+
+The node must be stopped before removing the plugin.
+
+[[update-by-query-usage]]
+==== Using `_update_by_query`
+
+The simplest usage of `_update_by_query` just performs an update on every
+document in the index without changing the source. This is useful to
+<<picking-up-a-new-property,pick up a new property>> or some other online
+mapping change. Here is the API:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_update_by_query?conflicts=proceed
+--------------------------------------------------
+// AUTOSENSE
+
+That will return something like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 639,
+  "updated": 1235,
+  "batches": 13,
+  "version_conflicts": 2,
+  "failures" : [ ]
+}
+--------------------------------------------------
+
+`_update_by_query` gets a snapshot of the index when it starts and indexes what
+it finds using `internal` versioning. That means that you'll get a version
+conflict if the document changes between the time when the snapshot was taken
+and when the index request is processed. When the versions match the document
+is updated and the version number is incremented.
+
+All update and query failures cause the `_update_by_query` to abort and are
+returned in the `failures` of the response. The updates that have been
+performed still stick. In other words, the process is not rolled back, only
+aborted. While the first failure causes the abort all failures that are
+returned by the failing bulk request are returned in the `failures` element so
+it's possible for there to be quite a few.
+
+If you want to simply count version conflicts not cause the `_update_by_query`
+to abort you can set `conflicts=proceed` on the url or `"conflicts": "proceed"`
+in the request body. The first example does this because it is just trying to
+pick up an online mapping change and a version conflict simply means that the
+conflicting document was updated between the start of the `_update_by_query`
+and the time when it attempted to update the document. This is fine because
+that update will have picked up the online mapping update.
+
+Back to the API format, you can limit `_update_by_query` to a single type. This
+will only update `tweet`s from the `twitter` index:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/tweet/_update_by_query?conflicts=proceed
+--------------------------------------------------
+// AUTOSENSE
+
+You can also limit `_update_by_query` using the
+{ref}/query-dsl.html[Query DSL]. This will update all documents from the
+`twitter` index for the user `kimchy`:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_update_by_query?conflicts=proceed
+{
+  "query": { <1>
+    "term": {
+      "user": "kimchy"
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+<1> The query must be passed as a value to the `query` key, in the same
+way as the {ref}/search-search.html[Search API]. You can also use the `q`
+parameter in the same way as the search api.
+
+So far we've only been updating documents without changing their source. That
+is genuinely useful for things like
+<<picking-up-a-new-property,picking up new properties>> but it's only half the
+fun. `_update_by_query` supports a `script` object to update the document. This
+will increment the `likes` field on all of kimchy's tweets:
+[source,js]
+--------------------------------------------------
+POST /twitter/_update_by_query
+{
+  "script": {
+    "inline": "ctx._source.likes++"
+  },
+  "query": {
+    "term": {
+      "user": "kimchy"
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Just as in {ref}/docs-update.html[Update API] you can set `ctx.op = "noop"` if
+your script decides that it doesn't have to make any changes. That will cause
+`_update_by_query` to omit that document from its updates. Setting `ctx.op` to
+anything else is an error. If you want to delete by a query you can use the
+<<plugins-delete-by-query,Delete by Query Plugin>> instead. Setting any other
+field in `ctx` is an error.
+
+Note that we stopped specifying `conflicts=proceed`. In this case we want a
+version conflict to abort the process so we can handle the failure.
+
+This API doesn't allow you to move the documents it touches, just modify their
+source. This is intentional! We've made no provisions for removing the document
+from its original location.
+
+It's also possible to do this whole thing on multiple indexes and multiple
+types at once, just like the search API:
+
+[source,js]
+--------------------------------------------------
+POST /twitter,blog/tweet,post/_update_by_query
+--------------------------------------------------
+// AUTOSENSE
+
+If you provide `routing` then the routing is copied to the scroll query,
+limiting the process to the shards that match that routing value:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_update_by_query?routing=1
+--------------------------------------------------
+// AUTOSENSE
+
+By default `_update_by_query` uses scroll batches of 100. You can change the
+batch size with the `scroll_size` URL parameter:
+
+[source,js]
+--------------------------------------------------
+POST /twitter/_update_by_query?scroll_size=1000
+--------------------------------------------------
+// AUTOSENSE
+
+[[reindex-usage]]
+==== Using `_reindex`
+
+`_reindex`'s most basic form just copies documents from one index to another.
+This will copy documents from `twitter` into `new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+That will return something like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 639,
+  "updated": 112,
+  "batches": 130,
+  "version_conflicts": 0,
+  "failures" : [ ],
+  "created": 12344
+}
+--------------------------------------------------
+
+Just like `_update_by_query`, `_reindex` gets a snapshot of the source index
+but its target must be a **different** index so version conflicts are unlikely.
+The `dest` element can be configured like the index API to control optimistic
+concurrency control. Just leaving out `version_type` (as above) or setting it
+to `internal` will cause Elasticsearch to blindly dump documents into the
+target, overwriting any that happen to have the same type and id:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "version_type": "internal"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Setting `version_type` to `external` will cause Elasticsearch to preserve the
+`version` from the source, create any documents that are missing, and update
+any documents that have an older version in the destination index than they do
+in the source index:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "version_type": "external"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Settings `op_type` to `create` will cause `_reindex` to only create missing
+documents in the target index. All existing documents will cause a version
+conflict:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "op_type": "create"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+By default version conflicts abort the `_reindex` process but you can just
+count them by settings `"conflicts": "proceed"` in the request body:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "conflicts": "proceed",
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter",
+    "op_type": "create"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+You can limit the documents by adding a type to the `source` or by adding a
+query. This will only copy `tweet`s made by `kimchy` into `new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "twitter",
+    "type": "tweet",
+    "query": {
+      "term": {
+        "user": "kimchy"
+      }
+    }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+`index` and `type` in `source` can both be lists, allowing you to copy from
+lots of sources in one request. This will copy documents from the `tweet` and
+`post` types in the `twitter` and `blog` index. It'd include the `post` type in
+the `twitter` index and the `tweet` type in the `blog` index. If you want to be
+more specific you'll need to use the `query`. It also makes no effort to handle
+id collisions. The target index will remain valid but it's not easy to predict
+which document will survive because the iteration order isn't well defined.
+Just avoid that situation, ok?
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": ["twitter", "blog"],
+    "type": ["tweet", "post"]
+  },
+  "index": {
+    "index": "all_together"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+It's also possible to limit the number of processed documents by setting
+`size`. This will only copy a single document from `twitter` to
+`new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "size": 1,
+  "source": {
+    "index": "twitter"
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+If you want a particular set of documents from the twitter index you'll
+need to sort. Sorting makes the scroll less efficient but in some contexts
+it's worth it. If possible, prefer a more selective query to `size` and `sort`.
+This will copy 10000 documents from `twitter` into `new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "size": 10000,
+  "source": {
+    "index": "twitter",
+    "sort": { "date": "desc" }
+  },
+  "dest": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Like `_update_by_query`, `_reindex` supports a script that modifies the
+document. Unlike `_update_by_query`, the script is allowed to modify the
+document's metadata. This example bumps the version of the source document:
+
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "twitter",
+  },
+  "dest": {
+    "index": "new_twitter",
+    "version_type": "external"
+  }
+  "script": {
+    "internal": "if (ctx._source.foo == 'bar') {ctx._version++; ctx._source.remove('foo')}"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Think of the possibilities! Just be careful! With great power.... You can
+change:
+ * "_id"
+ * "_type"
+ * "_index"
+ * "_version"
+ * "_routing"
+ * "_parent"
+ * "_timestamp"
+ * "_ttl"
+
+Setting `_version` to `null` or clearing it from the `ctx` map is just like not
+sending the version in an indexing request. It will cause that document to be
+overwritten in the target index regardless of the version on the target or the
+version type you use in the `_reindex` request.
+
+By default if `_reindex` sees a document with routing then the routing is
+preserved unless it's changed by the script. You can set `routing` on the
+`dest` request to change this:
+
+`keep`::
+
+Sets the routing on the bulk request sent for each match to the routing on
+the match. The default.
+
+`discard`::
+
+Sets the routing on the bulk request sent for each match to null.
+
+`=<some text>`::
+
+Sets the routing on the bulk request sent for each match to all text after
+the `=`.
+
+For example, you can use the following request to copy all documents from
+the `source` index with the company name `cat` into the `dest` index with
+routing set to `cat`.
+[source,js]
+--------------------------------------------------
+POST /_reindex
+{
+  "source": {
+    "index": "source"
+    "query": {
+      "match": {
+        "company": "cat"
+      }
+    }
+  }
+  "index": {
+    "index": "dest",
+    "routing": "=cat"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+
+[float]
+=== URL Parameters
+
+In addition to the standard parameters like `pretty`, all APIs in this plugin
+support `refresh`, `consistency`, and `timeout`.
+
+Sending the `refresh` url parameter will cause all indexes to which the request
+wrote to be refreshed. This is different than the Index API's `refresh`
+parameter which causes just the shard that received the new data to be indexed.
+
+`consistency` controls how many copies of a shard must respond to each write
+request. `timeout` controls how long each write request waits for unavailable
+shards to become available. Both work exactly how they work in the
+{ref}/docs-bulk.html[Bulk API].
+
+`timeout` controls how long each batch waits for the target shard to become
+available. It works exactly how it works in the {ref}/docs-bulk.html[Bulk API].
+
+[float]
+=== Response body
+
+The JSON response looks like this:
+
+[source,js]
+--------------------------------------------------
+{
+  "took" : 639,
+  "updated": 0,
+  "batches": 1,
+  "version_conflicts": 2,
+  "failures" : [ ]
+  "created": 123,
+}
+--------------------------------------------------
+
+`took`::
+
+The number of milliseconds from start to end of the whole operation.
+
+`updated`::
+
+The number of documents that were successfully updated.
+
+`batches`::
+
+The number of scroll responses pulled back by the the `_reindex` or
+`_update_by_query`.
+
+`version_conflicts`::
+
+The number of version conflicts that the `_reindex_` or `_update_by_query` hit.
+
+`failures`::
+
+Array of all indexing failures. If this is non-empty then the request aborted
+because of those failures. See `conflicts` for how to prevent version conflicts
+from aborting the operation.
+
+`created`::
+
+The number of documents that were successfully created. This is not returned by
+`_update_by_query` because it isn't allowed to create documents.
+
+[float]
+=== Examples
+
+Below are some examples of how you might use this plugin:
+
+[[picking-up-a-new-property]]
+==== Pick up a new property
+
+Say you created an index without dynamic mapping, filled it with data, and then
+added a mapping value to pick up more fields from the data:
+
+[source,js]
+--------------------------------------------------
+PUT test
+{
+  "mappings": {
+    "test": {
+      "dynamic": false,   <1>
+      "properties": {
+        "text": {"type": "string"}
+      }
+    }
+  }
+}
+
+POST test/test?refresh
+{
+  "text": "words words",
+  "flag": "bar"
+}'
+POST test/test?refresh
+{
+  "text": "words words",
+  "flag": "foo"
+}'
+PUT test/_mapping/test   <2>
+{
+  "properties": {
+    "text": {"type": "string"},
+    "flag": {"type": "string", "analyzer": "keyword"}
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+<1> This means that new fields won't be indexed, just stored in `_source`.
+
+<2> This updates the mapping to add the new `flag` field. To pick up the new
+field you have to reindex all documents with it.
+
+Searching for the data won't find anything:
+
+[source,js]
+--------------------------------------------------
+POST test/_search?filter_path=hits.total
+{
+  "query": {
+    "match": {
+      "flag": "foo"
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+[source,js]
+--------------------------------------------------
+{
+  "hits" : {
+    "total" : 0
+  }
+}
+--------------------------------------------------
+
+But you can issue an `_update_by_query` request to pick up the new mapping:
+
+[source,js]
+--------------------------------------------------
+POST test/_update_by_query?refresh&conflicts=proceed
+POST test/_search?filter_path=hits.total
+{
+  "query": {
+    "match": {
+      "flag": "foo"
+    }
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+[source,js]
+--------------------------------------------------
+{
+  "hits" : {
+    "total" : 1
+  }
+}
+--------------------------------------------------
+
+Hurray! You can do the exact same thing when adding a field to a multifield.
+
+==== Change the name of a field
+
+`_reindex` can be used to build a copy of an index with renamed fields. Say you
+create an index containing documents that look like this:
+
+[source,js]
+--------------------------------------------------
+POST test/test/1?refresh&pretty
+{
+  "text": "words words",
+  "flag": "foo"
+}
+--------------------------------------------------
+// AUTOSENSE
+
+But you don't like the name `flag` and want to replace it with `tag`.
+`_reindex` can create the other index for you:
+
+[source,js]
+--------------------------------------------------
+POST _reindex?pretty
+{
+  "source": {
+    "index": "test"
+  },
+  "dest": {
+    "index": "test2"
+  },
+  "script": {
+    "inline": "ctx._source.tag = ctx._source.remove(\"flag\")"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+Now you can get the new document:
+
+[source,js]
+--------------------------------------------------
+GET test2/test/1?pretty
+--------------------------------------------------
+// AUTOSENSE
+
+and it'll look like:
+
+[source,js]
+--------------------------------------------------
+{
+  "text": "words words",
+  "tag": "foo"
+}
+--------------------------------------------------
+
+Or you can search by `tag` or whatever you want.

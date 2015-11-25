@@ -57,6 +57,17 @@ public class BulkShardRequest extends ReplicationRequest<BulkShardRequest> {
     }
 
     @Override
+    public String toString() {
+        // This is included in error messages so we'll try to make it somewhat user friendly.
+        StringBuilder b = new StringBuilder("BulkShardRequest to [");
+        b.append(index).append("] containing [").append(items.length).append("] requests");
+        if (refresh) {
+            b.append(" and a refresh");
+        }
+        return b.toString();
+    }
+
+    @Override
     public String[] indices() {
         List<String> indices = new ArrayList<>();
         for (BulkItemRequest item : items) {

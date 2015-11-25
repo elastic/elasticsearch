@@ -1,0 +1,3 @@
+"NOCOMMIT dummy tests":
+  - do:
+      indices.refresh: {}

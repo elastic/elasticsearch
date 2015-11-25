@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
-
 import java.util.List;
 
 public interface ClusterStateTaskListener {
@@ -42,7 +40,4 @@ public interface ClusterStateTaskListener {
      */
     default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
     }
-
-    ;
-
 }

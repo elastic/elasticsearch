@@ -100,7 +100,7 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testTAI64N() {
         DateProcessor dateProcessor = new DateProcessor(DateTimeZone.forOffsetHours(2), randomLocale(random()),
-                "date_as_string", Collections.singletonList(DateParserFactory.TAI64N), "date_as_date");
+                "date_as_string", Collections.singletonList(DateFormat.Tai64n.toString()), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         String dateAsString = (randomBoolean() ? "@" : "") + "4000000050d506482dbdf024";
         document.put("date_as_string", dateAsString);
@@ -111,7 +111,7 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testUnixMs() {
         DateProcessor dateProcessor = new DateProcessor(DateTimeZone.UTC, randomLocale(random()),
-                "date_as_string", Collections.singletonList(DateParserFactory.UNIX_MS), "date_as_date");
+                "date_as_string", Collections.singletonList(DateFormat.UnixMs.toString()), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000500");
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
@@ -121,7 +121,7 @@ public class DateProcessorTests extends ESTestCase {
 
     public void testUnix() {
         DateProcessor dateProcessor = new DateProcessor(DateTimeZone.UTC, randomLocale(random()),
-                "date_as_string", Collections.singletonList(DateParserFactory.UNIX), "date_as_date");
+                "date_as_string", Collections.singletonList(DateFormat.Unix.toString()), "date_as_date");
         Map<String, Object> document = new HashMap<>();
         document.put("date_as_string", "1000.5");
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);

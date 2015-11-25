@@ -26,10 +26,8 @@ import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
 import org.joda.time.format.ISODateTimeFormat;
 
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
+import java.util.*;
+import java.util.function.Function;
 
 public final class DateProcessor implements Processor {
 
@@ -41,7 +39,7 @@ public final class DateProcessor implements Processor {
     private final String matchField;
     private final String targetField;
     private final List<String> matchFormats;
-    private final List<DateParser> dateParsers;
+    private final List<Function<String, DateTime>> dateParsers;
 
     DateProcessor(DateTimeZone timezone, Locale locale, String matchField, List<String> matchFormats, String targetField) {
         this.timezone = timezone;
@@ -51,7 +49,14 @@ public final class DateProcessor implements Processor {
         this.matchFormats = matchFormats;
         this.dateParsers = new ArrayList<>();
         for (String matchFormat : matchFormats) {
-             dateParsers.add(DateParserFactory.createDateParser(matchFormat, timezone, locale));
+            Optional<DateFormat> dateFormat = DateFormat.fromString(matchFormat);
+            Function<String, DateTime> stringToDateFunction;
+            if (dateFormat.isPresent()) {
+                stringToDateFunction = dateFormat.get().getFunction(timezone);
+            } else {
+                stringToDateFunction = DateFormat.getJodaFunction(matchFormat, timezone, locale);
+            }
+            dateParsers.add(stringToDateFunction);
         }
     }
 
@@ -62,9 +67,9 @@ public final class DateProcessor implements Processor {
 
         DateTime dateTime = null;
         Exception lastException = null;
-        for (DateParser dateParser : dateParsers) {
+        for (Function<String, DateTime> dateParser : dateParsers) {
             try {
-                dateTime = dateParser.parseDateTime(value);
+                dateTime = dateParser.apply(value);
             } catch(Exception e) {
                 //try the next parser and keep track of the last exception
                 lastException = e;

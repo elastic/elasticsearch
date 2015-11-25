@@ -67,9 +67,8 @@ public class ChildrenParser implements Aggregator.Parser {
         return new ParentToChildrenAggregator.Factory(aggregationName, childType);
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return null;
+        return new AggregatorFactory[] { new ParentToChildrenAggregator.Factory(null, null) };
     }
 }

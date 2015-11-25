@@ -290,19 +290,10 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             }
 
             if (config.timeout() != null) {
-                updateTasksExecutor.execute(updateTask, threadPool.scheduler(), config.timeout(), new Runnable() {
-                    @Override
-                    public void run() {
-                        threadPool.generic().execute(new Runnable() {
-                            @Override
-                            public void run() {
-                                if (updateTask.processed.getAndSet(true) == false) {
-                                    listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
-                                }
-                            }
-                        });
-                    }
-                });
+                updateTasksExecutor.execute(updateTask, threadPool.scheduler(), config.timeout(), () -> threadPool.generic().execute(() -> {
+                    if (updateTask.processed.getAndSet(true) == false) {
+                        listener.onFailure(source, new ProcessClusterEventTimeoutException(config.timeout(), source));
+                    }}));
             } else {
                 updateTasksExecutor.execute(updateTask);
             }

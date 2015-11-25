@@ -231,7 +231,7 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
             }
         } catch (Exception ex) {
             // Wrap the inner exception so we have the index name in the exception message
-            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetaData.getIndex() + "], reason: [" + ex.getMessage() + "]", ex);
+            throw new IllegalStateException("unable to upgrade the mappings for the index [" + indexMetaData.getIndex() + "]", ex);
         }
     }
 

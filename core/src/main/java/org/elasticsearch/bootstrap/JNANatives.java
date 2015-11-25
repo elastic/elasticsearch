@@ -191,7 +191,7 @@ class JNANatives {
             if (logger.isDebugEnabled()) {
                 logger.debug("unable to install syscall filter", t);
             }
-            logger.warn("unable to install syscall filter: " + t.getMessage());
+            logger.warn("unable to install syscall filter: ", t);
         }
     }
 }

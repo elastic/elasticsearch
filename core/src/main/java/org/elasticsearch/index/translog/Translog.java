@@ -407,6 +407,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             out.seek(end);
             final ReleasablePagedBytesReference bytes = out.bytes();
             try (ReleasableLock lock = readLock.acquire()) {
+                ensureOpen();
                 Location location = current.add(bytes);
                 if (config.isSyncOnEachOperation()) {
                     current.sync();
@@ -414,6 +415,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 assert current.assertBytesAtLocation(location, bytes);
                 return location;
             }
+        } catch (AlreadyClosedException ex) {
+            throw ex;
         } catch (Throwable e) {
             throw new TranslogException(shardId, "Failed to write operation [" + operation + "]", e);
         } finally {

@@ -46,6 +46,7 @@ public final class BufferingTranslogWriter extends TranslogWriter {
 
     @Override
     public Translog.Location add(BytesReference data) throws IOException {
+        ensureOpen();
         try (ReleasableLock lock = writeLock.acquire()) {
             operationCounter++;
             final long offset = totalOffset;

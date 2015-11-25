@@ -155,9 +155,52 @@ public abstract class AbstractValuesSourceParser<VS extends ValuesSource> implem
         return factory;
     }
 
+    /**
+     * Creates a {@link ValuesSourceAggregatorFactory} from the information
+     * gathered by the subclass. Options parsed in
+     * {@link AbstractValuesSourceParser} itself will be added to the factory
+     * after it has been returned by this method.
+     *
+     * @param aggregationName
+     *            the name of the aggregation
+     * @param valuesSourceType
+     *            the type of the {@link ValuesSource}
+     * @param targetValueType
+     *            the target type of the final value output by the aggregation
+     * @param otherOptions
+     *            a {@link Map} containing the extra options parsed by the
+     *            {@link #token(String, String, org.elasticsearch.common.xcontent.XContentParser.Token, XContentParser, ParseFieldMatcher, Map)}
+     *            method
+     * @return the created factory
+     */
     protected abstract ValuesSourceAggregatorFactory<VS> createFactory(String aggregationName, ValuesSourceType valuesSourceType,
             ValueType targetValueType, Map<ParseField, Object> otherOptions);
 
+    /**
+     * Allows subclasses of {@link AbstractValuesSourceParser} to parse extra
+     * parameters and store them in a {@link Map} which will later be passed to
+     * {@link #createFactory(String, ValuesSourceType, ValueType, Map)}.
+     *
+     * @param aggregationName
+     *            the name of the aggregation
+     * @param currentFieldName
+     *            the name of the current field being parsed
+     * @param token
+     *            the current token for the parser
+     * @param parser
+     *            the parser
+     * @param parseFieldMatcher
+     *            the {@link ParseFieldMatcher} to use to match field names
+     * @param otherOptions
+     *            a {@link Map} of options to be populated by successive calls
+     *            to this method which will then be passed to the
+     *            {@link #createFactory(String, ValuesSourceType, ValueType, Map)}
+     *            method
+     * @return <code>true</code> if the current token was correctly parsed,
+     *         <code>false</code> otherwise
+     * @throws IOException
+     *             if an error occurs whilst parsing
+     */
     protected abstract boolean token(String aggregationName, String currentFieldName, XContentParser.Token token, XContentParser parser,
             ParseFieldMatcher parseFieldMatcher, Map<ParseField, Object> otherOptions) throws IOException;
 }

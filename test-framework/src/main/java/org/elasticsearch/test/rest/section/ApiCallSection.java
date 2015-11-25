@@ -33,6 +33,7 @@ public class ApiCallSection {
 
     private final String api;
     private final Map<String, String> params = new HashMap<>();
+    private final Map<String, String> headers = new HashMap<>();
     private final List<Map<String, Object>> bodies = new ArrayList<>();
 
     public ApiCallSection(String api) {
@@ -54,6 +55,18 @@ public class ApiCallSection {
             value = existingValue + "," + value;
         }
         this.params.put(key, value);
+    }
+
+    public void addHeaders(Map<String, String> otherHeaders) {
+        this.headers.putAll(otherHeaders);
+    }
+
+    public void addHeader(String key, String value) {
+        this.headers.put(key, value);
+    }
+
+    public Map<String, String> getHeaders() {
+        return unmodifiableMap(headers);
     }
 
     public List<Map<String, Object>> getBodies() {

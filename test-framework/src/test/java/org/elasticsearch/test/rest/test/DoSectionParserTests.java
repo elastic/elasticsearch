@@ -341,6 +341,29 @@ public class DoSectionParserTests extends AbstractParserTestCase {
         assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
     }
 
+    public void testParseDoSectionWithHeaders() throws Exception {
+        parser = YamlXContent.yamlXContent.createParser(
+                "headers:\n" +
+                        "    Authorization: \"thing one\"\n" +
+                        "    Content-Type: \"application/json\"\n" +
+                        "indices.get_warmer:\n" +
+                        "    index: test_index\n" +
+                        "    name: test_warmer"
+        );
+
+        DoSectionParser doSectionParser = new DoSectionParser();
+        DoSection doSection = doSectionParser.parse(new RestTestSuiteParseContext("api", "suite", parser));
+
+        assertThat(doSection.getApiCallSection(), notNullValue());
+        assertThat(doSection.getApiCallSection().getApi(), equalTo("indices.get_warmer"));
+        assertThat(doSection.getApiCallSection().getParams().size(), equalTo(2));
+        assertThat(doSection.getApiCallSection().hasBody(), equalTo(false));
+        assertThat(doSection.getApiCallSection().getHeaders(), notNullValue());
+        assertThat(doSection.getApiCallSection().getHeaders().size(), equalTo(2));
+        assertThat(doSection.getApiCallSection().getHeaders().get("Authorization"), equalTo("thing one"));
+        assertThat(doSection.getApiCallSection().getHeaders().get("Content-Type"), equalTo("application/json"));
+    }
+
     public void testParseDoSectionWithoutClientCallSection() throws Exception {
         parser = YamlXContent.yamlXContent.createParser(
                 "catch: missing\n"

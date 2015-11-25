@@ -49,7 +49,7 @@ public class MasterFaultDetection extends FaultDetection {
     public static interface Listener {
 
         /** called when pinging the master failed, like a timeout, transport disconnects etc */
-        void onMasterFailure(DiscoveryNode masterNode, String reason);
+        void onMasterFailure(DiscoveryNode masterNode, Throwable cause, String reason);
 
     }
 
@@ -117,7 +117,7 @@ public class MasterFaultDetection extends FaultDetection {
             transportService.connectToNode(masterNode);
         } catch (final Exception e) {
             // notify master failure (which stops also) and bail..
-            notifyMasterFailure(masterNode, "failed to perform initial connect [" + e.getMessage() + "]");
+            notifyMasterFailure(masterNode, e, "failed to perform initial connect ");
             return;
         }
         if (masterPinger != null) {
@@ -176,22 +176,22 @@ public class MasterFaultDetection extends FaultDetection {
                     threadPool.schedule(TimeValue.timeValueMillis(0), ThreadPool.Names.SAME, masterPinger);
                 } catch (Exception e) {
                     logger.trace("[master] [{}] transport disconnected (with verified connect)", masterNode);
-                    notifyMasterFailure(masterNode, "transport disconnected (with verified connect)");
+                    notifyMasterFailure(masterNode, null, "transport disconnected (with verified connect)");
                 }
             } else {
                 logger.trace("[master] [{}] transport disconnected", node);
-                notifyMasterFailure(node, "transport disconnected");
+                notifyMasterFailure(node, null, "transport disconnected");
             }
         }
     }
 
-    private void notifyMasterFailure(final DiscoveryNode masterNode, final String reason) {
+    private void notifyMasterFailure(final DiscoveryNode masterNode, final Throwable cause, final String reason) {
         if (notifiedMasterFailure.compareAndSet(false, true)) {
             threadPool.generic().execute(new Runnable() {
                 @Override
                 public void run() {
                     for (Listener listener : listeners) {
-                        listener.onMasterFailure(masterNode, reason);
+                        listener.onMasterFailure(masterNode, cause, reason);
                     }
                 }
             });
@@ -255,15 +255,15 @@ public class MasterFaultDetection extends FaultDetection {
                                         return;
                                     } else if (exp.getCause() instanceof NotMasterException) {
                                         logger.debug("[master] pinging a master {} that is no longer a master", masterNode);
-                                        notifyMasterFailure(masterToPing, "no longer master");
+                                        notifyMasterFailure(masterToPing, exp, "no longer master");
                                         return;
                                     } else if (exp.getCause() instanceof ThisIsNotTheMasterYouAreLookingForException) {
                                         logger.debug("[master] pinging a master {} that is not the master", masterNode);
-                                        notifyMasterFailure(masterToPing, "not master");
+                                        notifyMasterFailure(masterToPing, exp,"not master");
                                         return;
                                     } else if (exp.getCause() instanceof NodeDoesNotExistOnMasterException) {
                                         logger.debug("[master] pinging a master {} but we do not exists on it, act as if its master failure", masterNode);
-                                        notifyMasterFailure(masterToPing, "do not exists on master, act as master failure");
+                                        notifyMasterFailure(masterToPing, exp,"do not exists on master, act as master failure");
                                         return;
                                     }
 
@@ -272,7 +272,7 @@ public class MasterFaultDetection extends FaultDetection {
                                     if (retryCount >= pingRetryCount) {
                                         logger.debug("[master] failed to ping [{}], tried [{}] times, each with maximum [{}] timeout", masterNode, pingRetryCount, pingRetryTimeout);
                                         // not good, failure
-                                        notifyMasterFailure(masterToPing, "failed to ping, tried [" + pingRetryCount + "] times, each with  maximum [" + pingRetryTimeout + "] timeout");
+                                        notifyMasterFailure(masterToPing, null, "failed to ping, tried [" + pingRetryCount + "] times, each with  maximum [" + pingRetryTimeout + "] timeout");
                                     } else {
                                         // resend the request, not reschedule, rely on send timeout
                                         transportService.sendRequest(masterToPing, MASTER_PING_ACTION_NAME, request, options, this);

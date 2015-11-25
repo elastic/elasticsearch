@@ -34,22 +34,17 @@ import org.elasticsearch.transport.TransportService;
 
 public class DeletePipelineTransportAction extends HandledTransportAction<DeletePipelineRequest, DeletePipelineResponse> {
 
-    private final TransportDeleteAction deleteAction;
+    private final PipelineStore pipelineStore;
 
     @Inject
-    public DeletePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, TransportDeleteAction deleteAction) {
+    public DeletePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStore pipelineStore) {
         super(settings, DeletePipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, DeletePipelineRequest::new);
-        this.deleteAction = deleteAction;
+        this.pipelineStore = pipelineStore;
     }
 
     @Override
     protected void doExecute(DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
-        DeleteRequest deleteRequest = new DeleteRequest(request);
-        deleteRequest.index(PipelineStore.INDEX);
-        deleteRequest.type(PipelineStore.TYPE);
-        deleteRequest.id(request.id());
-        deleteRequest.refresh(true);
-        deleteAction.execute(deleteRequest, new ActionListener<DeleteResponse>() {
+        pipelineStore.delete(request, new ActionListener<DeleteResponse>() {
             @Override
             public void onResponse(DeleteResponse deleteResponse) {
                 listener.onResponse(new DeletePipelineResponse(deleteResponse.getId(), deleteResponse.isFound()));

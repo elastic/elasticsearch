@@ -38,34 +38,17 @@ import java.util.Map;
 
 public class PutPipelineTransportAction extends HandledTransportAction<PutPipelineRequest, PutPipelineResponse> {
 
-    private final TransportIndexAction indexAction;
     private final PipelineStore pipelineStore;
 
     @Inject
-    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, TransportIndexAction indexAction, PipelineStore pipelineStore) {
+    public PutPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStore pipelineStore) {
         super(settings, PutPipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, PutPipelineRequest::new);
-        this.indexAction = indexAction;
         this.pipelineStore = pipelineStore;
     }
 
     @Override
     protected void doExecute(PutPipelineRequest request, ActionListener<PutPipelineResponse> listener) {
-        // validates the pipeline and processor configuration:
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.source(), false).v2();
-        try {
-            pipelineStore.constructPipeline(request.id(), pipelineConfig);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
-        }
-
-        IndexRequest indexRequest = new IndexRequest(request);
-        indexRequest.index(PipelineStore.INDEX);
-        indexRequest.type(PipelineStore.TYPE);
-        indexRequest.id(request.id());
-        indexRequest.source(request.source());
-        indexRequest.refresh(true);
-        indexAction.execute(indexRequest, new ActionListener<IndexResponse>() {
+        pipelineStore.put(request, new ActionListener<IndexResponse>() {
             @Override
             public void onResponse(IndexResponse indexResponse) {
                 PutPipelineResponse response = new PutPipelineResponse();

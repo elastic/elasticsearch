@@ -19,21 +19,39 @@
 
 package org.elasticsearch.plugin.ingest;
 
+import org.apache.lucene.util.IOUtils;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.delete.DeleteRequest;
+import org.elasticsearch.action.delete.DeleteResponse;
+import org.elasticsearch.action.get.GetRequest;
+import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.common.SearchScrollIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequest;
+import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequest;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -44,22 +62,25 @@ public class PipelineStore extends AbstractLifecycleComponent {
     public final static String INDEX = ".ingest";
     public final static String TYPE = "pipeline";
 
+    private final Injector injector;
     private final ThreadPool threadPool;
+    private final TimeValue scrollTimeout;
     private final ClusterService clusterService;
     private final TimeValue pipelineUpdateInterval;
-    private final PipelineStoreClient client;
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private final Map<String, Processor.Factory> processorFactoryRegistry;
 
-    private volatile Map<String, PipelineReference> pipelines = new HashMap<>();
+    private volatile Client client;
+    private volatile Map<String, PipelineDefinition> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, ThreadPool threadPool, Environment environment, ClusterService clusterService, PipelineStoreClient client, Map<String, Processor.Factory> processors) {
+    public PipelineStore(Settings settings, Injector injector, ThreadPool threadPool, Environment environment, ClusterService clusterService, Map<String, Processor.Factory> processors) {
         super(settings);
+        this.injector = injector;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.scrollTimeout = settings.getAsTime("ingest.pipeline.store.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
-        this.client = client;
         for (Processor.Factory factory : processors.values()) {
             factory.setConfigDirectory(environment.configFile());
         }
@@ -69,6 +90,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
     @Override
     protected void doStart() {
+        client = injector.getInstance(Client.class);
     }
 
     @Override
@@ -77,17 +99,43 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
     @Override
     protected void doClose() {
-        for (Processor.Factory factory : processorFactoryRegistry.values()) {
-            try {
-                factory.close();
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+        try {
+            IOUtils.close(processorFactoryRegistry.values());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
     }
 
+    public void delete(DeletePipelineRequest request, ActionListener<DeleteResponse> listener) {
+        DeleteRequest deleteRequest = new DeleteRequest(request);
+        deleteRequest.index(PipelineStore.INDEX);
+        deleteRequest.type(PipelineStore.TYPE);
+        deleteRequest.id(request.id());
+        deleteRequest.refresh(true);
+        client.delete(deleteRequest, listener);
+    }
+
+    public void put(PutPipelineRequest request, ActionListener<IndexResponse> listener) {
+        // validates the pipeline and processor configuration:
+        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.source(), false).v2();
+        try {
+            constructPipeline(request.id(), pipelineConfig);
+        } catch (IOException e) {
+            listener.onFailure(e);
+            return;
+        }
+
+        IndexRequest indexRequest = new IndexRequest(request);
+        indexRequest.index(PipelineStore.INDEX);
+        indexRequest.type(PipelineStore.TYPE);
+        indexRequest.id(request.id());
+        indexRequest.source(request.source());
+        indexRequest.refresh(true);
+        client.index(indexRequest, listener);
+    }
+
     public Pipeline get(String id) {
-        PipelineReference ref = pipelines.get(id);
+        PipelineDefinition ref = pipelines.get(id);
         if (ref != null) {
             return ref.getPipeline();
         } else {
@@ -99,17 +147,17 @@ public class PipelineStore extends AbstractLifecycleComponent {
         return processorFactoryRegistry;
     }
 
-    public List<PipelineReference> getReference(String... ids) {
-        List<PipelineReference> result = new ArrayList<>(ids.length);
+    public List<PipelineDefinition> getReference(String... ids) {
+        List<PipelineDefinition> result = new ArrayList<>(ids.length);
         for (String id : ids) {
             if (Regex.isSimpleMatchPattern(id)) {
-                for (Map.Entry<String, PipelineReference> entry : pipelines.entrySet()) {
+                for (Map.Entry<String, PipelineDefinition> entry : pipelines.entrySet()) {
                     if (Regex.simpleMatch(id, entry.getKey())) {
                         result.add(entry.getValue());
                     }
                 }
             } else {
-                PipelineReference reference = pipelines.get(id);
+                PipelineDefinition reference = pipelines.get(id);
                 if (reference != null) {
                     result.add(reference);
                 }
@@ -118,7 +166,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
         return result;
     }
 
-    public Pipeline constructPipeline(String id, Map<String, Object> config) throws IOException {
+    Pipeline constructPipeline(String id, Map<String, Object> config) throws IOException {
         return factory.create(id, config, processorFactoryRegistry);
     }
 
@@ -127,11 +175,11 @@ public class PipelineStore extends AbstractLifecycleComponent {
         // so for that reason the goal is to keep the update logic simple.
 
         int changed = 0;
-        Map<String, PipelineReference> newPipelines = new HashMap<>(pipelines);
-        for (SearchHit hit : client.readAllPipelines()) {
+        Map<String, PipelineDefinition> newPipelines = new HashMap<>(pipelines);
+        for (SearchHit hit : readAllPipelines()) {
             String pipelineId = hit.getId();
             BytesReference pipelineSource = hit.getSourceRef();
-            PipelineReference previous = newPipelines.get(pipelineId);
+            PipelineDefinition previous = newPipelines.get(pipelineId);
             if (previous != null) {
                 if (previous.getSource().equals(pipelineSource)) {
                     continue;
@@ -140,12 +188,12 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
             changed++;
             Pipeline pipeline = constructPipeline(hit.getId(), hit.sourceAsMap());
-            newPipelines.put(pipelineId, new PipelineReference(pipeline, hit.getVersion(), pipelineSource));
+            newPipelines.put(pipelineId, new PipelineDefinition(pipeline, hit.getVersion(), pipelineSource));
         }
 
         int removed = 0;
         for (String existingPipelineId : pipelines.keySet()) {
-            if (!client.existPipeline(existingPipelineId)) {
+            if (!existPipeline(existingPipelineId)) {
                 newPipelines.remove(existingPipelineId);
                 removed++;
             }
@@ -163,6 +211,23 @@ public class PipelineStore extends AbstractLifecycleComponent {
         if (lifecycleState() == Lifecycle.State.STARTED) {
             threadPool.schedule(pipelineUpdateInterval, ThreadPool.Names.GENERIC, new Updater());
         }
+    }
+
+    boolean existPipeline(String pipelineId) {
+        GetRequest request = new GetRequest(PipelineStore.INDEX, PipelineStore.TYPE, pipelineId);
+        GetResponse response = client.get(request).actionGet();
+        return response.isExists();
+    }
+
+    Iterable<SearchHit> readAllPipelines() {
+        // TODO: the search should be replaced with an ingest API when it is available
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        sourceBuilder.version(true);
+        sourceBuilder.sort("_doc", SortOrder.ASC);
+        SearchRequest searchRequest = new SearchRequest(PipelineStore.INDEX);
+        searchRequest.source(sourceBuilder);
+        searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
+        return SearchScrollIterator.createIterator(client, scrollTimeout, searchRequest);
     }
 
     class Updater implements Runnable {
@@ -188,45 +253,6 @@ public class PipelineStore extends AbstractLifecycleComponent {
                 startUpdateWorker();
                 clusterService.remove(this);
             }
-        }
-    }
-
-    public static class PipelineReference {
-
-        private final Pipeline pipeline;
-        private final long version;
-        private final BytesReference source;
-
-        PipelineReference(Pipeline pipeline, long version, BytesReference source) {
-            this.pipeline = pipeline;
-            this.version = version;
-            this.source = source;
-        }
-
-        public Pipeline getPipeline() {
-            return pipeline;
-        }
-
-        public long getVersion() {
-            return version;
-        }
-
-        public BytesReference getSource() {
-            return source;
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-
-            PipelineReference holder = (PipelineReference) o;
-            return source.equals(holder.source);
-        }
-
-        @Override
-        public int hashCode() {
-            return source.hashCode();
         }
     }
 

@@ -17,33 +17,39 @@
  * under the License.
  */
 
-package org.elasticsearch.plugin.ingest;
+package org.elasticsearch.common;
 
-import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class PipelineStoreClientTests extends ESSingleNodeTestCase {
+// Not a real unit tests with mocks, but with a single node, because we mock the scroll
+// search behaviour and it changes then this test will not catch this.
+public class SearchScrollIteratorTests extends ESSingleNodeTestCase {
 
-    public void testReadAll() {
-        PipelineStoreClient reader = new PipelineStoreClient(Settings.EMPTY, node().injector());
-        reader.start();
-
-        createIndex(PipelineStore.INDEX);
-        int numDocs = scaledRandomIntBetween(32, 128);
+    public void testSearchScrollIterator() {
+        createIndex("index");
+        int numDocs = scaledRandomIntBetween(0, 128);
         for (int i = 0; i < numDocs; i++) {
-            client().prepareIndex(PipelineStore.INDEX, PipelineStore.TYPE, Integer.toString(i))
+            client().prepareIndex("index", "type", Integer.toString(i))
                     .setSource("field", "value" + i)
                     .get();
         }
         client().admin().indices().prepareRefresh().get();
 
         int i = 0;
-        for (SearchHit hit : reader.readAllPipelines()) {
+        SearchRequest searchRequest = new SearchRequest("index");
+        SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
+        // randomize size, because that also controls how many actual searches will happen:
+        sourceBuilder.size(scaledRandomIntBetween(1, 10));
+        searchRequest.source(sourceBuilder);
+        Iterable<SearchHit> hits = SearchScrollIterator.createIterator(client(), TimeValue.timeValueSeconds(10), searchRequest);
+        for (SearchHit hit : hits) {
             assertThat(hit.getId(), equalTo(Integer.toString(i)));
-            assertThat(hit.getVersion(), equalTo(1l));
             assertThat(hit.getSource().get("field"), equalTo("value" + i));
             i++;
         }

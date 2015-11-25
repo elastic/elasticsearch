@@ -50,7 +50,6 @@ public class IngestModule extends AbstractModule {
         binder().bind(IngestRestFilter.class).asEagerSingleton();
         binder().bind(PipelineExecutionService.class).asEagerSingleton();
         binder().bind(PipelineStore.class).asEagerSingleton();
-        binder().bind(PipelineStoreClient.class).asEagerSingleton();
         binder().bind(SimulateExecutionService.class).asEagerSingleton();
 
         addProcessor(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory());

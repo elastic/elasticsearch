@@ -27,26 +27,27 @@ import org.elasticsearch.common.xcontent.StatusToXContent;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.plugin.ingest.PipelineDefinition;
 import org.elasticsearch.rest.RestStatus;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 public class GetPipelineResponse extends ActionResponse implements StatusToXContent {
 
-    private Map<String, BytesReference> pipelines;
-    private Map<String, Long> versions;
+    private List<PipelineDefinition> pipelines;
 
     public GetPipelineResponse() {
     }
 
-    public GetPipelineResponse(Map<String, BytesReference> pipelines, Map<String, Long> versions) {
+    public GetPipelineResponse(List<PipelineDefinition> pipelines) {
         this.pipelines = pipelines;
-        this.versions = versions;
     }
 
-    public Map<String, BytesReference> pipelines() {
+    public List<PipelineDefinition> pipelines() {
         return pipelines;
     }
 
@@ -54,14 +55,9 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         int size = in.readVInt();
-        pipelines = new HashMap<>(size);
+        pipelines = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
-            pipelines.put(in.readString(), in.readBytesReference());
-        }
-        size = in.readVInt();
-        versions = new HashMap<>(size);
-        for (int i = 0; i < size; i++) {
-            versions.put(in.readString(), in.readVLong());
+            pipelines.add(PipelineDefinition.readPipelineDefinitionFrom(in));
         }
     }
 
@@ -69,14 +65,8 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVInt(pipelines.size());
-        for (Map.Entry<String, BytesReference> entry : pipelines.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeBytesReference(entry.getValue());
-        }
-        out.writeVInt(versions.size());
-        for (Map.Entry<String, Long> entry : versions.entrySet()) {
-            out.writeString(entry.getKey());
-            out.writeVLong(entry.getValue());
+        for (PipelineDefinition pipeline : pipelines) {
+            pipeline.writeTo(out);
         }
     }
 
@@ -91,11 +81,8 @@ public class GetPipelineResponse extends ActionResponse implements StatusToXCont
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        for (Map.Entry<String, BytesReference> entry : pipelines.entrySet()) {
-            builder.startObject(entry.getKey());
-            XContentHelper.writeRawField("_source", entry.getValue(), builder, params);
-            builder.field("_version", versions.get(entry.getKey()));
-            builder.endObject();
+        for (PipelineDefinition definition : pipelines) {
+            definition.toXContent(builder, params);
         }
         return builder;
     }

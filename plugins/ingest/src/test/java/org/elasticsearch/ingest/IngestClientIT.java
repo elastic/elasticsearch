@@ -89,7 +89,8 @@ public class IngestClientIT extends ESIntegTestCase {
                         .setIds("_id")
                         .get();
                 assertThat(response.isFound(), is(true));
-                assertThat(response.pipelines().get("_id"), notNullValue());
+                assertThat(response.pipelines().size(), equalTo(1));
+                assertThat(response.pipelines().get(0).getId(), equalTo("_id"));
             }
         });
 
@@ -178,7 +179,8 @@ public class IngestClientIT extends ESIntegTestCase {
                         .setIds("_id")
                         .get();
                 assertThat(response.isFound(), is(true));
-                assertThat(response.pipelines().get("_id"), notNullValue());
+                assertThat(response.pipelines().size(), equalTo(1));
+                assertThat(response.pipelines().get(0).getId(), equalTo("_id"));
             }
         });
 
@@ -232,7 +234,7 @@ public class IngestClientIT extends ESIntegTestCase {
                         .setIds("_id")
                         .get();
                 assertThat(response.isFound(), is(false));
-                assertThat(response.pipelines().get("_id"), nullValue());
+                assertThat(response.pipelines().size(), equalTo(0));
             }
         });
     }

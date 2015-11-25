@@ -26,6 +26,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugin.ingest.PipelineDefinition;
 import org.elasticsearch.plugin.ingest.PipelineStore;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -46,13 +47,7 @@ public class GetPipelineTransportAction extends HandledTransportAction<GetPipeli
 
     @Override
     protected void doExecute(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
-        List<PipelineStore.PipelineReference> references = pipelineStore.getReference(request.ids());
-        Map<String, BytesReference> result = new HashMap<>();
-        Map<String, Long> versions = new HashMap<>();
-        for (PipelineStore.PipelineReference reference : references) {
-            result.put(reference.getPipeline().getId(), reference.getSource());
-            versions.put(reference.getPipeline().getId(), reference.getVersion());
-        }
-        listener.onResponse(new GetPipelineResponse(result, versions));
+        List<PipelineDefinition> references = pipelineStore.getReference(request.ids());
+        listener.onResponse(new GetPipelineResponse(references));
     }
 }

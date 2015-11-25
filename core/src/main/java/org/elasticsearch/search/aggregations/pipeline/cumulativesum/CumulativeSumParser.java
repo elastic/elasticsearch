@@ -24,8 +24,6 @@ import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -85,20 +83,16 @@ public class CumulativeSumParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + pipelineAggregatorName + "]", parser.getTokenLocation());
         }
 
-        ValueFormatter formatter = null;
+        CumulativeSumPipelineAggregator.Factory factory = new CumulativeSumPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths);
         if (format != null) {
-            formatter = ValueFormat.Patternable.Number.format(format).formatter();
-        } else {
-            formatter = ValueFormatter.RAW;
+            factory.format(format);
         }
-
-        return new CumulativeSumPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, formatter);
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public PipelineAggregatorFactory getFactoryPrototype() {
-        return null;
+        return new CumulativeSumPipelineAggregator.Factory(null, null);
     }
 
 }

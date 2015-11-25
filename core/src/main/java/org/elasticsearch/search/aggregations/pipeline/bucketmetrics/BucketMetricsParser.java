@@ -21,13 +21,10 @@ package org.elasticsearch.search.aggregations.pipeline.bucketmetrics;
 
 import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.common.xcontent.XContentParser.Token;
 import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -54,7 +51,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         String currentFieldName = null;
         String[] bucketsPaths = null;
         String format = null;
-        GapPolicy gapPolicy = GapPolicy.SKIP;
+        GapPolicy gapPolicy = null;
         Map<String, Object> leftover = new HashMap<>(5);
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -91,16 +88,15 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
                     + "] for aggregation [" + pipelineAggregatorName + "]", parser.getTokenLocation());
         }
 
-        ValueFormatter formatter = null;
-        if (format != null) {
-            formatter = ValueFormat.Patternable.Number.format(format).formatter();
-        } else {
-            formatter = ValueFormatter.RAW;
-        }
-
-        PipelineAggregatorFactory factory = null;
+        BucketMetricsFactory factory = null;
         try {
-            factory = buildFactory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter, leftover);
+            factory = buildFactory(pipelineAggregatorName, bucketsPaths, leftover);
+            if (format != null) {
+                factory.format(format);
+            }
+            if (gapPolicy != null) {
+                factory.gapPolicy(gapPolicy);
+            }
         } catch (ParseException exception) {
             throw new SearchParseException(context, "Could not parse settings for aggregation ["
                     + pipelineAggregatorName + "].", null, exception);
@@ -114,7 +110,7 @@ public abstract class BucketMetricsParser implements PipelineAggregator.Parser {
         return factory;
     }
 
-    protected abstract PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-            ValueFormatter formatter, Map<String, Object> unparsedParams) throws ParseException;
+    protected abstract BucketMetricsFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths,
+            Map<String, Object> unparsedParams) throws ParseException;
 
 }

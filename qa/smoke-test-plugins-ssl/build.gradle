@@ -1,0 +1,88 @@
+apply plugin: 'elasticsearch.rest-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:shield', configuration: 'runtime')
+}
+
+// ssl setup, it reuses the ssl-setup.xml from ant, for now.
+
+// location of target keystore
+File keystore = new File(project.buildDir, 'keystore/test-node.jks')
+
+// we touch keystore because otherwise it fails, extraConfigFile does not exist
+// this tricks some broken compile-time check into just moving along: we nuke this stuff before we actually generate
+keystore.parentFile.mkdirs()
+keystore.createNewFile()
+
+// add keystore to test classpath: it expects it there
+sourceSets.test.resources.srcDir(keystore.parentFile)
+
+configurations {
+  antcontrib {
+    description = 'ant-contrib'
+    transitive = false
+  }
+}
+
+dependencies {
+  antcontrib "ant-contrib:ant-contrib:1.0b3"
+}
+
+// this loop must be outside of a configuration closure, otherwise it may get executed multiple times
+for (Project subproj : project.rootProject.subprojects) {
+  if (subproj.path.startsWith(':plugins:')) {
+    // need to get a non-decorated project object, so must re-lookup the project by path
+    integTest.clusterConfig.plugin(subproj.name, project(subproj.path))
+  }
+}
+
+// we should be able to taskdef, but gradle has *the worst* classloader management
+// so just do a hack, jam ant-contrib directly into gradle's ant's classloader
+ClassLoader antClassLoader = org.apache.tools.ant.Project.class.classLoader
+configurations.antcontrib.each { File f ->
+  antClassLoader.addURL(f.toURI().toURL())
+}
+
+// suck in ssl-setup.xml, defining matching tasks in gradle
+ant.property(name: 'integ.scratch', location: project.buildDir)
+ant.property(name: 'keystore.path', keystore)
+ant.importBuild 'ssl-setup.xml'
+
+// clean all intermediate/keystore files before regenerating it
+task cleanKeystore(type: Delete) {
+  delete new File(project.buildDir, 'keystore'), 
+         new File(project.buildDir, 'cert'), 
+         new File(project.buildDir, 'ca')
+}
+
+// wipe and regenerate keystore so its available as a test dep
+processTestResources.dependsOn('cleanKeystore')
+processTestResources.dependsOn('generate-keystore')
+
+integTest {
+  cluster {
+    // TODO: use some variable here for port number
+    systemProperty 'es.marvel.agent.exporter.es.hosts', 'https://marvel_export:changeme@localhost:9400'
+    systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.path', 'test-node.jks'
+    systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.password', 'keypass'
+    systemProperty 'es.shield.transport.ssl', 'true'
+    systemProperty 'es.shield.http.ssl', 'true'
+    systemProperty 'es.shield.ssl.keystore.path', 'test-node.jks'
+    systemProperty 'es.shield.ssl.keystore.password', 'keypass'
+    plugin 'licence', project(':x-plugins:license:plugin')
+    plugin 'shield', project(':x-plugins:shield')
+    plugin 'watcher', project(':x-plugins:watcher')
+    plugin 'marvel-agent', project(':x-plugins:marvel')
+
+    // copy keystore into config/
+    extraConfigFile 'test-node.jks', keystore
+    setupCommand 'setupTestUser',
+                 'bin/shield/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+    setupCommand 'setupMarvelUser',
+                 'bin/shield/esusers', 'useradd', 'marvel_export', '-p', 'changeme', '-r', 'marvel_agent'
+    waitCondition = { node, ant ->
+      // we just return true, doing an https check is tricky here
+      return true
+    }
+  }
+} 

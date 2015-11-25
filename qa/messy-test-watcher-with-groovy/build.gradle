@@ -1,0 +1,20 @@
+
+/*
+ * Messy tests that depend on groovy directly. Fix these!
+ * https://github.com/elastic/x-plugins/issues/724
+ */
+
+apply plugin: 'elasticsearch.standalone-test'
+
+dependencies {
+  testCompile project(path: ':x-plugins:license:plugin', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:shield', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:watcher', configuration: 'testArtifacts')
+  testCompile project(path: ':plugins:lang-groovy', configuration: 'runtime')
+}
+
+// TODO: remove this, its because gradle does not bring in plugin-metadata for lang-groovy
+// into the test classpath: if it did, then things will work
+test {
+  systemProperty 'tests.security.manager', 'false'
+}

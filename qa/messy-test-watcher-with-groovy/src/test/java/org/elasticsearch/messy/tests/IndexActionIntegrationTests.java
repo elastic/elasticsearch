@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.actions.index;
+package org.elasticsearch.messy.tests;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.sort.SortOrder;
@@ -20,6 +21,8 @@ import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleTriggerEvent;
 import org.joda.time.DateTime;
 import org.joda.time.DateTimeZone;
+
+import java.util.List;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
@@ -39,8 +42,15 @@ import static org.hamcrest.Matchers.is;
 /**
  *
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class IndexActionIntegrationTests extends AbstractWatcherIntegrationTestCase {
+    
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(GroovyPlugin.class);
+        return types;
+    }
+    
     public void testSimple() throws Exception {
         PutWatchResponse putWatchResponse = watcherClient().preparePutWatch("_id").setSource(watchBuilder()
                 .trigger(schedule(cron("0/1 * * * * ? 2020")))

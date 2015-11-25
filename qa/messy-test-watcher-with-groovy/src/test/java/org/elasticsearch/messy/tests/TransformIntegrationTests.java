@@ -3,14 +3,15 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.transform;
+package org.elasticsearch.messy.tests;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.collect.MapBuilder;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.test.WatcherTestUtils;
@@ -21,6 +22,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.List;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
@@ -43,8 +45,15 @@ import static org.hamcrest.Matchers.is;
 
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class TransformIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(GroovyPlugin.class);
+        return types;
+    }
+
     @Override
     public Settings nodeSettings(int nodeOrdinal) {
         Path configDir = createTempDir();

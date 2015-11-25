@@ -3,19 +3,21 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.history;
+package org.elasticsearch.messy.tests;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsResponse;
 import org.elasticsearch.cluster.metadata.MappingMetaData;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.watcher.execution.ExecutionState;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
 import org.elasticsearch.watcher.transport.actions.put.PutWatchResponse;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.extractValue;
@@ -33,8 +35,15 @@ import static org.hamcrest.Matchers.notNullValue;
  * This test makes sure that the http host and path fields in the watch_record action result are
  * not analyzed so they can be used in aggregations
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class HistoryTemplateTransformMappingsTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(GroovyPlugin.class);
+        return types;
+    }
+
     @Override
     protected boolean timeWarped() {
         return true; // just to have better control over the triggers

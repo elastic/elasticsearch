@@ -1,34 +1,154 @@
+import org.elasticsearch.gradle.LoggedExec
+
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: ':x-plugins:shield', configuration: 'runtime')
 }
 
-// ssl setup, it reuses the ssl-setup.xml from ant, for now.
-
-// location of target keystore
+// location of keystore and files to generate it
+File ca = new File(project.buildDir, 'ca')
+File caConfig = new File(ca, 'conf/caconfig.cnf')
+File cert = new File(project.buildDir, 'cert/test-node.csr')
+File signedCert = new File(project.buildDir, 'cert/test-node-signed.csr')
 File keystore = new File(project.buildDir, 'keystore/test-node.jks')
 
-// we touch keystore because otherwise it fails, extraConfigFile does not exist
-// this tricks some broken compile-time check into just moving along: we nuke this stuff before we actually generate
-keystore.parentFile.mkdirs()
-keystore.createNewFile()
+String caConfigData = """
+[ ca ]
+default_ca = CA_default
+[ CA_default ]
+copy_extensions = copy
+serial = ${ca}/serial
+database = ${ca}/index.txt
+new_certs_dir = ${ca}/certs
+certificate = ${ca}/certs/cacert.pem
+private_key = ${ca}/private/cakey.pem
+default_days = 712
+default_md = sha256
+preserve = no
+email_in_dn = no
+x509_extensions = v3_ca
+name_opt = ca_default
+cert_opt = ca_default
+policy = policy_anything
+[ policy_anything ]
+countryName             = optional
+stateOrProvinceName     = optional
+localityName            = optional
+organizationName        = optional
+organizationalUnitName  = optional
+commonName              = supplied
+emailAddress            = optional
+[ req ]
+default_bits = 2048 # Size of keys
+default_keyfile = key.pem # name of generated keys
+default_md = sha256 # message digest algorithm
+string_mask = nombstr # permitted characters
+distinguished_name = req_distinguished_name
+req_extensions = v3_req
+[ req_distinguished_name ]
+# Variable name Prompt string
+#------------------------- ----------------------------------
+0.organizationName = Organization Name (company)
+organizationalUnitName = Organizational Unit Name (department, division)
+emailAddress = Email Address
+emailAddress_max = 40
+localityName = Locality Name (city, district)
+stateOrProvinceName = State or Province Name (full name)
+countryName = Country Name (2 letter code)
+countryName_min = 2
+countryName_max = 2
+commonName = Common Name (hostname, IP, or your name)
+commonName_max = 64
+# Default values for the above, for consistency and less typing.
+# Variable name Value
+#------------------------ ------------------------------
+0.organizationName_default = Elasticsearch Test Org
+localityName_default = Amsterdam
+stateOrProvinceName_default = Amsterdam
+countryName_default = NL
+emailAddress_default = cacerttest@YOUR.COMPANY.TLD
+[ v3_ca ]
+basicConstraints = CA:TRUE
+subjectKeyIdentifier = hash
+authorityKeyIdentifier = keyid:always,issuer:always
+[ v3_req ]
+basicConstraints = CA:FALSE
+subjectKeyIdentifier = hash
+"""
+
+// generate the keystore
+task createKey(type: LoggedExec) {
+  doFirst {
+    project.delete(keystore.parentFile)
+    keystore.parentFile.mkdirs()
+  }
+  executable = 'keytool'
+  standardInput = new ByteArrayInputStream('FirstName LastName\nUnit\nOrganization\nCity\nState\nNL\nyes\n\n'.getBytes('UTF-8'))
+  args '-genkey',
+       '-alias', 'test-node',
+       '-keystore', keystore,
+       '-keyalg', 'RSA',
+       '-keysize', '2048',
+       '-validity', '712',
+       '-ext', 'san=dns:localhost,ip:127.0.0.1',
+       '-storepass', 'keypass'
+}
+
+task createCertificate(type: LoggedExec, dependsOn: createKey) {
+  doFirst {
+    project.delete(cert.parentFile)
+    cert.parentFile.mkdirs()
+  }
+  executable = 'keytool'
+  standardInput = new ByteArrayInputStream('keypass\n'.getBytes('UTF-8'))
+  args '-certreq',
+       '-alias', 'test-node',
+       '-keystore', keystore,
+       '-file', cert,
+       '-keyalg', 'RSA',
+       '-ext', 'san=dns:localhost,ip:127.0.0.1'
+}
+
+task createCertificateAuthority(type: LoggedExec) {
+  doFirst {
+    project.delete(ca)
+    ca.mkdirs()
+    for (String dir : ['private', 'certs', 'conf']) {
+      new File(ca, dir).mkdirs()
+    }
+    caConfig.setText(caConfigData, 'UTF-8')
+    new File(ca, 'serial').setText('01', 'UTF-8')
+    new File(ca, 'index.txt').setText('', 'UTF-8')
+  }
+  executable = 'openssl'
+  args 'req', '-new', '-x509', '-extensions', 'v3_ca',
+      '-keyout', new File(ca, 'private/cakey.pem'),
+      '-out', new File(ca, 'certs/cacert.pem'),
+      '-days', '1460',
+      '-config', caConfig,
+      '-subj', '/OU=XPlugins QA',
+      '-passout', 'pass:capass'
+}
+
+task signCertificate(type: LoggedExec, dependsOn: [createCertificate, createCertificateAuthority]) {
+  executable = 'openssl'
+  standardInput = new ByteArrayInputStream('y\ny\n'.getBytes('UTF-8'))
+  args 'ca', '-in', cert, '-notext', '-out', signedCert, '-config', caConfig,
+       '-extensions', 'v3_req', '-passin', 'pass:capass'
+}
+
+task importCertificate(type: LoggedExec, dependsOn: signCertificate) {
+  executable = 'keytool'
+  standardInput = new ByteArrayInputStream('keypass\nyes\n'.getBytes('UTF-8'))
+  args '-importcert', '-keystore', keystore, '-file', signedCert, '-trustcacerts'
+}
 
 // add keystore to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystore.parentFile)
+processTestResources.dependsOn(importCertificate)
 
-configurations {
-  antcontrib {
-    description = 'ant-contrib'
-    transitive = false
-  }
-}
-
-dependencies {
-  antcontrib "ant-contrib:ant-contrib:1.0b3"
-}
-
-// this loop must be outside of a configuration closure, otherwise it may get executed multiple times
+// add ES plugins, this loop must be outside of a configuration closure, otherwise it may get executed multiple times
 for (Project subproj : project.rootProject.subprojects) {
   if (subproj.path.startsWith(':plugins:')) {
     // need to get a non-decorated project object, so must re-lookup the project by path
@@ -36,38 +156,15 @@ for (Project subproj : project.rootProject.subprojects) {
   }
 }
 
-// we should be able to taskdef, but gradle has *the worst* classloader management
-// so just do a hack, jam ant-contrib directly into gradle's ant's classloader
-ClassLoader antClassLoader = org.apache.tools.ant.Project.class.classLoader
-configurations.antcontrib.each { File f ->
-  antClassLoader.addURL(f.toURI().toURL())
-}
-
-// suck in ssl-setup.xml, defining matching tasks in gradle
-ant.property(name: 'integ.scratch', location: project.buildDir)
-ant.property(name: 'keystore.path', keystore)
-ant.importBuild 'ssl-setup.xml'
-
-// clean all intermediate/keystore files before regenerating it
-task cleanKeystore(type: Delete) {
-  delete new File(project.buildDir, 'keystore'), 
-         new File(project.buildDir, 'cert'), 
-         new File(project.buildDir, 'ca')
-}
-
-// wipe and regenerate keystore so its available as a test dep
-processTestResources.dependsOn('cleanKeystore')
-processTestResources.dependsOn('generate-keystore')
-
 integTest {
   cluster {
     // TODO: use some variable here for port number
     systemProperty 'es.marvel.agent.exporter.es.hosts', 'https://marvel_export:changeme@localhost:9400'
-    systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.path', 'test-node.jks'
+    systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.path', keystore.name
     systemProperty 'es.marvel.agent.exporter.es.ssl.truststore.password', 'keypass'
     systemProperty 'es.shield.transport.ssl', 'true'
     systemProperty 'es.shield.http.ssl', 'true'
-    systemProperty 'es.shield.ssl.keystore.path', 'test-node.jks'
+    systemProperty 'es.shield.ssl.keystore.path', keystore.name
     systemProperty 'es.shield.ssl.keystore.password', 'keypass'
     plugin 'licence', project(':x-plugins:license:plugin')
     plugin 'shield', project(':x-plugins:shield')
@@ -75,7 +172,7 @@ integTest {
     plugin 'marvel-agent', project(':x-plugins:marvel')
 
     // copy keystore into config/
-    extraConfigFile 'test-node.jks', keystore
+    extraConfigFile keystore.name, keystore
     setupCommand 'setupTestUser',
                  'bin/shield/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     setupCommand 'setupMarvelUser',

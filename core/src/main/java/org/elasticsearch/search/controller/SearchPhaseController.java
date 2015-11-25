@@ -414,15 +414,13 @@ public class SearchPhaseController extends AbstractComponent {
 
         //Collect profile results
         InternalProfileShardResults shardResults = null;
-        if (!queryResults.isEmpty()) {
-            if (firstResult.profileResults() != null) {
-                Map<String, List<InternalProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
-                for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
-                    String key = entry.value.queryResult().shardTarget().toString();
-                    profileResults.put(key, entry.value.queryResult().profileResults());
-                }
-                shardResults = new InternalProfileShardResults(profileResults);
+        if (!queryResults.isEmpty() && firstResult.profileResults() != null) {
+            Map<String, List<InternalProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
+            for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
+                String key = entry.value.queryResult().shardTarget().toString();
+                profileResults.put(key, entry.value.queryResult().profileResults());
             }
+            shardResults = new InternalProfileShardResults(profileResults);
         }
 
         if (aggregations != null) {

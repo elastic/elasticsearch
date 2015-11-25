@@ -19,25 +19,33 @@
 
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
-import java.util.*;
-
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
     public final static Type TYPE = new Type("percentiles_bucket");
+    public final ParseField PERCENTS_FIELD = new ParseField("percents");
 
     public final static PipelineAggregatorStreams.Stream STREAM = new PipelineAggregatorStreams.Stream() {
         @Override
@@ -116,22 +124,31 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
         out.writeDoubleArray(percents);
     }
 
-    public static class Factory extends PipelineAggregatorFactory {
+    public static class Factory extends BucketMetricsFactory {
 
-        private final ValueFormatter formatter;
-        private final GapPolicy gapPolicy;
-        private final double[] percents;
+        private double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
 
-        public Factory(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter, double[] percents) {
+        public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
-            this.gapPolicy = gapPolicy;
-            this.formatter = formatter;
+        }
+
+        /**
+         * Get the percentages to calculate percentiles for in this aggregation
+         */
+        public double[] percents() {
+            return percents;
+        }
+
+        /**
+         * Set the percentages to calculate percentiles for in this aggregation
+         */
+        public void percents(double[] percents) {
             this.percents = percents;
         }
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new PercentilesBucketPipelineAggregator(name, percents, bucketsPaths, gapPolicy, formatter, metaData);
+            return new PercentilesBucketPipelineAggregator(name, percents, bucketsPaths, gapPolicy(), formatter(), metaData);
         }
 
         @Override
@@ -148,6 +165,37 @@ public class PercentilesBucketPipelineAggregator extends BucketMetricsPipelineAg
                             + " must only contain non-null doubles from 0.0-100.0 inclusive");
                 }
             }
+        }
+
+        @Override
+        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            if (percents != null) {
+                builder.field(PercentilesBucketParser.PERCENTS.getPreferredName(), percents);
+            }
+            return builder;
+        }
+
+        @Override
+        protected BucketMetricsFactory innerReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            Factory factory = new Factory(name, bucketsPaths);
+            factory.percents = in.readDoubleArray();
+            return factory;
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            out.writeDoubleArray(percents);
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return Arrays.hashCode(percents);
+        }
+
+        @Override
+        protected boolean innerEquals(BucketMetricsFactory obj) {
+            Factory other = (Factory) obj;
+            return Objects.deepEquals(percents, other.percents);
         }
 
     }

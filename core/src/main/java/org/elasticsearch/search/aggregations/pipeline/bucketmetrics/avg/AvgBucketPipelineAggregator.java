@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.avg;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -28,6 +30,7 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
@@ -86,20 +89,15 @@ public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator
         return new InternalSimpleValue(name(), avgValue, formatter, pipelineAggregators, metadata);
     }
 
-    public static class Factory extends PipelineAggregatorFactory {
+    public static class Factory extends BucketMetricsFactory {
 
-        private final ValueFormatter formatter;
-        private final GapPolicy gapPolicy;
-
-        public Factory(String name, String[] bucketsPaths, GapPolicy gapPolicy, ValueFormatter formatter) {
+        public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
-            this.gapPolicy = gapPolicy;
-            this.formatter = formatter;
         }
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new AvgBucketPipelineAggregator(name, bucketsPaths, gapPolicy, formatter, metaData);
+            return new AvgBucketPipelineAggregator(name, bucketsPaths, gapPolicy(), formatter(), metaData);
         }
 
         @Override
@@ -108,6 +106,31 @@ public class AvgBucketPipelineAggregator extends BucketMetricsPipelineAggregator
                 throw new IllegalStateException(PipelineAggregator.Parser.BUCKETS_PATH.getPreferredName()
                         + " must contain a single entry for aggregation [" + name + "]");
             }
+        }
+
+        @Override
+        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            return builder;
+        }
+
+        @Override
+        protected BucketMetricsFactory innerReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            return new Factory(name, bucketsPaths);
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            // Do nothing, no extra state to write to stream
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected boolean innerEquals(BucketMetricsFactory other) {
+            return true;
         }
 
     }

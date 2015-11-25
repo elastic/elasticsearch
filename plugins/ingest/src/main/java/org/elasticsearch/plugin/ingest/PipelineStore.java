@@ -122,7 +122,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
         return factory.create(id, config, processorFactoryRegistry);
     }
 
-    void updatePipelines() throws IOException {
+    synchronized void updatePipelines() throws IOException {
         // note: this process isn't fast or smart, but the idea is that there will not be many pipelines,
         // so for that reason the goal is to keep the update logic simple.
 

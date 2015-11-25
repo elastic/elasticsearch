@@ -28,7 +28,7 @@ import java.util.List;
 /**
  * A task that can update the cluster state.
  */
-abstract public class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<Void>, ClusterStateTaskListener {
+abstract public class ClusterStateUpdateTask implements ClusterStateTaskConfig, ClusterStateTaskExecutor<ClusterStateUpdateTask>, ClusterStateTaskListener {
 
     final private Priority priority;
 
@@ -41,9 +41,9 @@ abstract public class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
     }
 
     @Override
-    final public Result execute(ClusterState currentState, List<Void> tasks) throws Exception {
+    final public Result<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
         ClusterState result = execute(currentState);
-        return new Result(result, tasks.size());
+        return new Result<>(result, tasks);
     }
 
     /**

@@ -269,7 +269,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     public void submitStateUpdateTask(final String source, final ClusterStateUpdateTask updateTask) {
-        submitStateUpdateTask(source, null, updateTask, updateTask, updateTask);
+        submitStateUpdateTask(source, updateTask, updateTask, updateTask, updateTask);
     }
 
 
@@ -395,7 +395,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             toExecute.stream().forEach(task -> task.listener.onNoLongerMaster(task.source));
             return;
         }
-        ClusterStateTaskExecutor.Result result;
+        ClusterStateTaskExecutor.Result<T> result;
         long startTimeNS = System.nanoTime();
         try {
             List<T> inputs = toExecute.stream().map(tUpdateTask -> tUpdateTask.task).collect(Collectors.toList());
@@ -410,21 +410,26 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 logger.trace(sb.toString(), e);
             }
             warnAboutSlowTaskIfNeeded(executionTime, source);
-            result = new ClusterStateTaskExecutor.Result(previousClusterState, Collections.nCopies(toExecute.size(), e));
+            Map<T, ClusterStateTaskExecutor.ClusterStateTaskExecutionResult> executionResults =
+                    toExecute
+                            .stream()
+                            .collect(Collectors.toMap(
+                                    updateTask -> updateTask.task,
+                                    updateTask -> ClusterStateTaskExecutor.ClusterStateTaskExecutionResult.failure(e)
+                            ));
+            result = new ClusterStateTaskExecutor.Result<>(previousClusterState, executionResults);
         }
-        assert result.failures.size() == toExecute.size();
+
+        assert result.executionResults != null;
 
         ClusterState newClusterState = result.resultingState;
         final ArrayList<UpdateTask<T>> proccessedListeners = new ArrayList<>();
         // fail all tasks that have failed and extract those that are waiting for results
-        for (int i = 0; i < toExecute.size(); i++) {
-            final UpdateTask<T> task = toExecute.get(i);
-            final Throwable failure = result.failures.get(i);
-            if (failure == null) {
-                proccessedListeners.add(task);
-            } else {
-                task.listener.onFailure(task.source, failure);
-            }
+        for (UpdateTask<T> updateTask : toExecute) {
+            assert result.executionResults.containsKey(updateTask.task) : "missing " + updateTask.task.toString();
+            final ClusterStateTaskExecutor.ClusterStateTaskExecutionResult executionResult =
+                    result.executionResults.get(updateTask.task);
+            executionResult.handle(() -> proccessedListeners.add(updateTask), ex -> updateTask.listener.onFailure(updateTask.source, ex));
         }
 
         if (previousClusterState == newClusterState) {

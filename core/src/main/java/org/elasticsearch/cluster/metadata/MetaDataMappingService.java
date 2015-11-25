@@ -81,9 +81,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class RefreshTaskExecutor implements ClusterStateTaskExecutor<RefreshTask> {
         @Override
-        public Result execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
+        public Result<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
             ClusterState newClusterState = executeRefresh(currentState, tasks);
-            return new Result(newClusterState, tasks.size());
+            return new Result<>(newClusterState, tasks);
         }
     }
 
@@ -221,9 +221,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public Result execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public Result<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             List<String> indicesToClose = new ArrayList<>();
-            ArrayList<Throwable> failures = new ArrayList<>(tasks.size());
+            Map<PutMappingClusterStateUpdateRequest, ClusterStateTaskExecutionResult> executionResults = new HashMap<>();
             try {
                 // precreate incoming indices;
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
@@ -250,13 +250,13 @@ public class MetaDataMappingService extends AbstractComponent {
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     try {
                         currentState = applyRequest(currentState, request);
-                        failures.add(null);
+                        executionResults.put(request, ClusterStateTaskExecutionResult.success());
                     } catch (Throwable t) {
-                        failures.add(t);
+                        executionResults.put(request, ClusterStateTaskExecutionResult.failure(t));
                     }
                 }
 
-                return new Result(currentState, failures);
+                return new Result<>(currentState, executionResults);
             } finally {
                 for (String index : indicesToClose) {
                     indicesService.removeIndex(index, "created for mapping processing");

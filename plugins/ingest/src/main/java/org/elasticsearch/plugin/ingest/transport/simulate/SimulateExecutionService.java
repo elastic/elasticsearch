@@ -40,48 +40,39 @@ public class SimulateExecutionService {
         this.threadPool = threadPool;
     }
 
-    SimulateDocumentResult executeItem(Pipeline pipeline, IngestDocument ingestDocument) {
-        try {
-            pipeline.execute(ingestDocument);
-            return new SimulateDocumentSimpleResult(ingestDocument);
-        } catch (Exception e) {
-            return new SimulateDocumentSimpleResult(e);
-        }
-    }
-
-    SimulateDocumentVerboseResult executeVerboseItem(Pipeline pipeline, IngestDocument ingestDocument) {
-        List<SimulateProcessorResult> processorResultList = new ArrayList<>();
-        IngestDocument currentIngestDocument = new IngestDocument(ingestDocument);
-        for (int i = 0; i < pipeline.getProcessors().size(); i++) {
-            Processor processor = pipeline.getProcessors().get(i);
-            String processorId = "processor[" + processor.getType() + "]-" + i;
-
-            try {
-                processor.execute(currentIngestDocument);
-                processorResultList.add(new SimulateProcessorResult(processorId, currentIngestDocument));
-            } catch (Exception e) {
-                processorResultList.add(new SimulateProcessorResult(processorId, e));
-            }
-
-            currentIngestDocument = new IngestDocument(currentIngestDocument);
-        }
-        return new SimulateDocumentVerboseResult(processorResultList);
-    }
-
-    public void execute(ParsedSimulateRequest request, ActionListener<SimulatePipelineResponse> listener) {
-        threadPool.executor(THREAD_POOL_NAME).execute(new Runnable() {
-            @Override
-            public void run() {
-                List<SimulateDocumentResult> responses = new ArrayList<>();
-                for (IngestDocument ingestDocument : request.getDocuments()) {
-                    if (request.isVerbose()) {
-                        responses.add(executeVerboseItem(request.getPipeline(), ingestDocument));
-                    } else {
-                        responses.add(executeItem(request.getPipeline(), ingestDocument));
-                    }
+    SimulateDocumentResult executeDocument(Pipeline pipeline, IngestDocument ingestDocument, boolean verbose) {
+        if (verbose) {
+            List<SimulateProcessorResult> processorResultList = new ArrayList<>();
+            IngestDocument currentIngestDocument = new IngestDocument(ingestDocument);
+            for (int i = 0; i < pipeline.getProcessors().size(); i++) {
+                Processor processor = pipeline.getProcessors().get(i);
+                String processorId = "processor[" + processor.getType() + "]-" + i;
+                try {
+                    processor.execute(currentIngestDocument);
+                    processorResultList.add(new SimulateProcessorResult(processorId, currentIngestDocument));
+                } catch (Exception e) {
+                    processorResultList.add(new SimulateProcessorResult(processorId, e));
                 }
-                listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
+                currentIngestDocument = new IngestDocument(currentIngestDocument);
             }
+            return new SimulateDocumentVerboseResult(processorResultList);
+        } else {
+            try {
+                pipeline.execute(ingestDocument);
+                return new SimulateDocumentSimpleResult(ingestDocument);
+            } catch (Exception e) {
+                return new SimulateDocumentSimpleResult(e);
+            }
+        }
+    }
+
+    public void execute(SimulatePipelineRequest.Parsed request, ActionListener<SimulatePipelineResponse> listener) {
+        threadPool.executor(THREAD_POOL_NAME).execute(() -> {
+            List<SimulateDocumentResult> responses = new ArrayList<>();
+            for (IngestDocument ingestDocument : request.getDocuments()) {
+                responses.add(executeDocument(request.getPipeline(), ingestDocument, request.isVerbose()));
+            }
+            listener.onResponse(new SimulatePipelineResponse(request.getPipeline().getId(), request.isVerbose(), responses));
         });
     }
 }

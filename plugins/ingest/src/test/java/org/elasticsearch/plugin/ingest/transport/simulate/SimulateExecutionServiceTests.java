@@ -62,7 +62,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteVerboseItem() throws Exception {
-        SimulateDocumentResult actualItemResponse = executionService.executeVerboseItem(pipeline, ingestDocument);
+        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
         verify(processor, times(2)).execute(ingestDocument);
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
@@ -78,7 +78,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteItem() throws Exception {
-        SimulateDocumentResult actualItemResponse = executionService.executeItem(pipeline, ingestDocument);
+        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
         verify(processor, times(2)).execute(ingestDocument);
         assertThat(actualItemResponse, instanceOf(SimulateDocumentSimpleResult.class));
         SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) actualItemResponse;
@@ -89,7 +89,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testExecuteVerboseItemWithFailure() throws Exception {
         Exception e = new RuntimeException("processor failed");
         doThrow(e).doNothing().when(processor).execute(ingestDocument);
-        SimulateDocumentResult actualItemResponse = executionService.executeVerboseItem(pipeline, ingestDocument);
+        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, true);
         verify(processor, times(2)).execute(ingestDocument);
         assertThat(actualItemResponse, instanceOf(SimulateDocumentVerboseResult.class));
         SimulateDocumentVerboseResult simulateDocumentVerboseResult = (SimulateDocumentVerboseResult) actualItemResponse;
@@ -110,7 +110,7 @@ public class SimulateExecutionServiceTests extends ESTestCase {
     public void testExecuteItemWithFailure() throws Exception {
         Exception e = new RuntimeException("processor failed");
         doThrow(e).when(processor).execute(ingestDocument);
-        SimulateDocumentResult actualItemResponse = executionService.executeItem(pipeline, ingestDocument);
+        SimulateDocumentResult actualItemResponse = executionService.executeDocument(pipeline, ingestDocument, false);
         verify(processor, times(1)).execute(ingestDocument);
         assertThat(actualItemResponse, instanceOf(SimulateDocumentSimpleResult.class));
         SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) actualItemResponse;

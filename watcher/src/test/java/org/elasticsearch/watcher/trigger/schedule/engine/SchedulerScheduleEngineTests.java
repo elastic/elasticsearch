@@ -12,6 +12,10 @@ import org.elasticsearch.watcher.trigger.schedule.ScheduleRegistry;
 
 import static org.mockito.Mockito.mock;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
+
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class SchedulerScheduleEngineTests extends BaseTriggerEngineTestCase {
 
     protected TriggerEngine createEngine() {

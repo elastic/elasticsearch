@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.marvel.agent.renderer.cluster;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.settings.Settings;
@@ -27,6 +28,8 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.core.Is.is;
 
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ClusterScope(scope = Scope.TEST)
 public class ClusterStateTests extends MarvelIntegTestCase {
     @Override

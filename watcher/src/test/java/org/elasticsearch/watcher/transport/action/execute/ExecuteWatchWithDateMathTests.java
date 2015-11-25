@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.watcher.transport.action.execute;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.execution.Wid;
 import org.elasticsearch.watcher.support.WatcherDateTimeUtils;
@@ -29,6 +30,8 @@ import static org.hamcrest.Matchers.notNullValue;
 /**
  *
  */
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class ExecuteWatchWithDateMathTests extends AbstractWatcherIntegrationTestCase {
     @Override
     protected boolean timeWarped() {

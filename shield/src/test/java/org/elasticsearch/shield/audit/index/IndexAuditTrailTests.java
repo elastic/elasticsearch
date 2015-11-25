@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.shield.audit.index;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
@@ -58,6 +59,8 @@ import static org.mockito.Mockito.*;
 /**
  *
  */
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ESIntegTestCase.ClusterScope(scope = SUITE, numDataNodes = 1)
 public class IndexAuditTrailTests extends ShieldIntegTestCase {
     public static final String SECOND_CLUSTER_NODE_PREFIX = "remote_" + SUITE_CLUSTER_NODE_PREFIX;

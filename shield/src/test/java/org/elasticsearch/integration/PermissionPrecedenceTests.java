@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.integration;
 
+import org.apache.lucene.util.LuceneTestCase.BadApple;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateResponse;
@@ -30,6 +31,8 @@ import static org.hamcrest.Matchers.hasSize;
  * actions that are normally categorized as index actions as cluster actions - for example,
  * index template actions.
  */
+//test is just too slow, please fix it to not be sleep-based
+@BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 public class PermissionPrecedenceTests extends ShieldIntegTestCase {
     protected static final String USERS_PASSWD_HASHED = new String(Hasher.BCRYPT.hash(new SecuredString("test123".toCharArray())));
 

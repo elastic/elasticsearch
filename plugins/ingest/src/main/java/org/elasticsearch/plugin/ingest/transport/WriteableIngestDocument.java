@@ -102,9 +102,9 @@ public class WriteableIngestDocument implements Writeable<WriteableIngestDocumen
     static final class Fields {
         static final XContentBuilderString DOCUMENT = new XContentBuilderString("doc");
         static final XContentBuilderString MODIFIED = new XContentBuilderString("modified");
-        static final XContentBuilderString INDEX = new XContentBuilderString("_index");
-        static final XContentBuilderString TYPE = new XContentBuilderString("_type");
-        static final XContentBuilderString ID = new XContentBuilderString("_id");
+        static final XContentBuilderString INDEX = new XContentBuilderString(IngestDocument.MetaData.INDEX.getFieldName());
+        static final XContentBuilderString TYPE = new XContentBuilderString(IngestDocument.MetaData.TYPE.getFieldName());
+        static final XContentBuilderString ID = new XContentBuilderString(IngestDocument.MetaData.ID.getFieldName());
         static final XContentBuilderString SOURCE = new XContentBuilderString("_source");
     }
 }

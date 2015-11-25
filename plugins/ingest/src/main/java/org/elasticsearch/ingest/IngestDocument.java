@@ -35,9 +35,9 @@ public final class IngestDocument {
 
     public IngestDocument(String index, String type, String id, Map<String, Object> source) {
         this.metaData = new HashMap<>();
-        this.metaData.put("_index", index);
-        this.metaData.put("_type", type);
-        this.metaData.put("_id", id);
+        this.metaData.put(MetaData.INDEX.getFieldName(), index);
+        this.metaData.put(MetaData.TYPE.getFieldName(), type);
+        this.metaData.put(MetaData.ID.getFieldName(), id);
         this.source = source;
     }
 
@@ -170,7 +170,7 @@ public final class IngestDocument {
     }
 
     public String getMetadata(MetaData metaData) {
-        return this.metaData.get(metaData.getName());
+        return this.metaData.get(metaData.getFieldName());
     }
 
     /**
@@ -213,14 +213,14 @@ public final class IngestDocument {
         TIMESTAMP("_timestamp"),
         TTL("_ttl");
 
-        private final String name;
+        private final String fieldName;
 
-        MetaData(String name) {
-            this.name = name;
+        MetaData(String fieldName) {
+            this.fieldName = fieldName;
         }
 
-        public String getName() {
-            return name;
+        public String getFieldName() {
+            return fieldName;
         }
     }
 

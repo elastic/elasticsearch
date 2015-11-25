@@ -77,12 +77,6 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
      */
     private Long time;
 
-    /**
-     * The total elapsed time for all Collectors across all shards.  This is
-     * only populated after the query has finished and timings are finalized
-     */
-    private long globalTime;
-
     private List<InternalProfileCollector> children;
 
     public InternalProfileCollector(Collector collector, String reason, List<InternalProfileCollector> children) {
@@ -191,7 +185,6 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
         collectorName = in.readString();
         reason = in.readString();
         time = in.readLong();
-        globalTime = in.readLong();
         int size = in.readVInt();
         children = new ArrayList<>(size);
         for (int i = 0; i < size; i++) {
@@ -216,7 +209,6 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
             assert time != null;
             out.writeLong(time);
         }
-        out.writeLong(globalTime);
         out.writeVInt(children.size());
         for (InternalProfileCollector child : children) {
             child.writeTo(out);

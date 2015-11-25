@@ -58,12 +58,15 @@ public class ReverseNestedParser implements Aggregator.Parser {
             }
         }
 
-        return new ReverseNestedAggregator.Factory(aggregationName, path);
+        ReverseNestedAggregator.Factory factory = new ReverseNestedAggregator.Factory(aggregationName);
+        if (path != null) {
+            factory.path(path);
+        }
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public AggregatorFactory[] getFactoryPrototypes() {
-        return null;
+        return new AggregatorFactory[] { new ReverseNestedAggregator.Factory(null) };
     }
 }

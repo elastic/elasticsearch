@@ -19,10 +19,9 @@
 
 package org.elasticsearch.search.aggregations.bucket.range.ipv4;
 
+import org.elasticsearch.common.network.Cidrs;
 import org.elasticsearch.search.aggregations.bucket.range.AbstractRangeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilderException;
-
-import static org.elasticsearch.index.mapper.ip.IpFieldMapper.cidrMaskToMinMax;
 
 /**
  * Builder for the {@code IPv4Range} aggregation.
@@ -59,11 +58,13 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
      * Add a range based on a CIDR mask.
      */
     public IPv4RangeBuilder addMaskRange(String key, String mask) {
-        long[] fromTo = cidrMaskToMinMax(mask);
-        if (fromTo == null) {
-            throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + getName() + "]");
+        long[] fromTo;
+        try {
+            fromTo = Cidrs.cidrMaskToMinMax(mask);
+        } catch (IllegalArgumentException e) {
+            throw new SearchSourceBuilderException("invalid CIDR mask [" + mask + "] in ip_range aggregation [" + getName() + "]", e);
         }
-        ranges.add(new Range(key, fromTo[0] < 0 ? null : fromTo[0], fromTo[1] < 0 ? null : fromTo[1]));
+        ranges.add(new Range(key, fromTo[0] == 0 ? null : fromTo[0], fromTo[1] == InternalIPv4Range.MAX_IP ? null : fromTo[1]));
         return this;
     }
 
@@ -106,5 +107,4 @@ public class IPv4RangeBuilder extends AbstractRangeBuilder<IPv4RangeBuilder> {
     public IPv4RangeBuilder addUnboundedFrom(String from) {
         return addUnboundedFrom(null, from);
     }
-
 }

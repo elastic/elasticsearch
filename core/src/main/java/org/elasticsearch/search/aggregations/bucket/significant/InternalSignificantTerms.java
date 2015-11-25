@@ -173,7 +173,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         for (InternalAggregation aggregation : aggregations) {
             InternalSignificantTerms<A, B> terms = (InternalSignificantTerms<A, B>) aggregation;
             for (Bucket bucket : terms.buckets) {
-                List<Bucket> existingBuckets = buckets.get(bucket.getKey());
+                List<Bucket> existingBuckets = buckets.get(bucket.getKeyAsString());
                 if (existingBuckets == null) {
                     existingBuckets = new ArrayList<>(aggregations.size());
                     buckets.put(bucket.getKeyAsString(), existingBuckets);

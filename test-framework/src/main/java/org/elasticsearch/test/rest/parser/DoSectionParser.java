@@ -25,6 +25,8 @@ import org.elasticsearch.test.rest.section.ApiCallSection;
 import org.elasticsearch.test.rest.section.DoSection;
 
 import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
 
 /**
  * Parser for do sections
@@ -40,6 +42,8 @@ public class DoSectionParser implements RestTestFragmentParser<DoSection> {
         XContentParser.Token token;
 
         DoSection doSection = new DoSection();
+        ApiCallSection apiCallSection = null;
+        Map<String, String> headers = new HashMap<>();
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -49,8 +53,17 @@ public class DoSectionParser implements RestTestFragmentParser<DoSection> {
                     doSection.setCatch(parser.text());
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
-                if (currentFieldName != null) {
-                    ApiCallSection apiCallSection = new ApiCallSection(currentFieldName);
+                if ("headers".equals(currentFieldName)) {
+                    String headerName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            headerName = parser.currentName();
+                        } else if (token.isValue()) {
+                            headers.put(headerName, parser.text());
+                        }
+                    }
+                } else if (currentFieldName != null) { // must be part of API call then
+                    apiCallSection = new ApiCallSection(currentFieldName);
                     String paramName = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -73,17 +86,20 @@ public class DoSectionParser implements RestTestFragmentParser<DoSection> {
                             }
                         }
                     }
-                    doSection.setApiCallSection(apiCallSection);
                 }
             }
         }
-
-        parser.nextToken();
-
-        if (doSection.getApiCallSection() == null) {
-            throw new RestTestParseException("client call section is mandatory within a do section");
+        try {
+            if (apiCallSection == null) {
+                throw new RestTestParseException("client call section is mandatory within a do section");
+            }
+            if (headers.isEmpty() == false) {
+                apiCallSection.addHeaders(headers);
+            }
+            doSection.setApiCallSection(apiCallSection);
+        } finally {
+            parser.nextToken();
         }
-
         return doSection;
     }
 }

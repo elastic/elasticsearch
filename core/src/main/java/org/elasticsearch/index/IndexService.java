@@ -54,6 +54,7 @@ import org.elasticsearch.index.store.IndexStore;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.AliasFilterParsingException;
 import org.elasticsearch.indices.InvalidAliasNameException;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.io.Closeable;
 import java.io.IOException;
@@ -102,12 +103,13 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
                         QueryCache queryCache,
                         IndexStore indexStore,
                         IndexEventListener eventListener,
-                        IndexModule.IndexSearcherWrapperFactory wrapperFactory) throws IOException {
+                        IndexModule.IndexSearcherWrapperFactory wrapperFactory,
+                        MapperRegistry mapperRegistry) throws IOException {
         super(indexSettings);
         this.indexSettings = indexSettings;
         this.analysisService = registry.build(indexSettings);
         this.similarityService = similarityService;
-        this.mapperService = new MapperService(indexSettings, analysisService, similarityService);
+        this.mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry);
         this.indexFieldData = new IndexFieldDataService(indexSettings, nodeServicesProvider.getIndicesFieldDataCache(), nodeServicesProvider.getCircuitBreakerService(), mapperService);
         this.shardStoreDeleter = shardStoreDeleter;
         this.eventListener = eventListener;

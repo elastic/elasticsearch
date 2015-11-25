@@ -98,9 +98,9 @@ public class IndexFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    public static class TypeParser implements Mapper.TypeParser {
+    public static class TypeParser implements MetadataFieldMapper.TypeParser {
         @Override
-        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             Builder builder = new Builder(parserContext.mapperService().fullName(NAME));
             if (parserContext.indexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
                 return builder;
@@ -118,6 +118,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
                 }
             }
             return builder;
+        }
+
+        @Override
+        public MetadataFieldMapper getDefault(Settings indexSettings, MappedFieldType fieldType, String typeName) {
+            return new IndexFieldMapper(indexSettings, fieldType);
         }
     }
 
@@ -206,11 +211,11 @@ public class IndexFieldMapper extends MetadataFieldMapper {
 
     private EnabledAttributeMapper enabledState;
 
-    public IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {
+    private IndexFieldMapper(Settings indexSettings, MappedFieldType existing) {
         this(existing == null ? Defaults.FIELD_TYPE.clone() : existing, Defaults.ENABLED_STATE, indexSettings);
     }
 
-    public IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState, Settings indexSettings) {
+    private IndexFieldMapper(MappedFieldType fieldType, EnabledAttributeMapper enabledState, Settings indexSettings) {
         super(NAME, fieldType, Defaults.FIELD_TYPE, indexSettings);
         this.enabledState = enabledState;
     }

@@ -75,6 +75,8 @@ import org.elasticsearch.index.store.DirectoryUtils;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.index.translog.TranslogConfig;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.test.DummyShardLock;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -1901,9 +1903,10 @@ public class InternalEngineTests extends ESTestCase {
             IndexSettings indexSettings = IndexSettingsModule.newIndexSettings(index, settings);
             AnalysisService analysisService = new AnalysisService(indexSettings, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP, Collections.EMPTY_MAP);
             SimilarityService similarityService = new SimilarityService(indexSettings, Collections.EMPTY_MAP);
-            MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService);
+            MapperRegistry mapperRegistry = new IndicesModule().getMapperRegistry();
+            MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry);
             DocumentMapper.Builder b = new DocumentMapper.Builder(settings, rootBuilder, mapperService);
-            DocumentMapperParser parser = new DocumentMapperParser(indexSettings, mapperService, analysisService, similarityService);
+            DocumentMapperParser parser = mapperService.documentMapperParser();
             this.docMapper = b.build(mapperService, parser);
         }
 

@@ -6,7 +6,7 @@ import org.gradle.api.internal.tasks.options.Option
 
 class RunTask extends DefaultTask {
 
-    ClusterConfiguration clusterConfig = new ClusterConfiguration(httpPort: 9200, transportPort: 9300, daemonize: false)
+    ClusterConfiguration clusterConfig = new ClusterConfiguration(baseHttpPort: 9200, baseTransportPort: 9300, daemonize: false)
 
     RunTask() {
         project.afterEvaluate {

@@ -56,6 +56,7 @@ import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.IndexStoreConfig;
+import org.elasticsearch.indices.mapper.MapperRegistry;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.PluginsService;
@@ -91,13 +92,17 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final IndexStoreConfig indexStoreConfig;
+    private final MapperRegistry mapperRegistry;
 
     @Override
     protected void doStart() {
     }
 
     @Inject
-    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv, NodeSettingsService nodeSettingsService, AnalysisRegistry analysisRegistry, IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver, ClusterService clusterService) {
+    public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
+            NodeSettingsService nodeSettingsService, AnalysisRegistry analysisRegistry,
+            IndicesQueriesRegistry indicesQueriesRegistry, IndexNameExpressionResolver indexNameExpressionResolver,
+            ClusterService clusterService, MapperRegistry mapperRegistry) {
         super(settings);
         this.pluginsService = pluginsService;
         this.nodeEnv = nodeEnv;
@@ -107,6 +112,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         this.indicesQueriesRegistry = indicesQueriesRegistry;
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
+        this.mapperRegistry = mapperRegistry;
         nodeSettingsService.addListener(indexStoreConfig);
     }
 
@@ -277,7 +283,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         indexModule.addIndexEventListener(oldShardsStats);
         final IndexEventListener listener = indexModule.freeze();
         listener.beforeIndexCreated(index, idxSettings.getSettings());
-        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider);
+        final IndexService indexService = indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, mapperRegistry);
         boolean success = false;
         try {
             assert indexService.getIndexEventListener() == listener;

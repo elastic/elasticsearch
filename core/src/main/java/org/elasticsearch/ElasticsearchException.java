@@ -51,9 +51,13 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
     private static final Map<Class<? extends ElasticsearchException>, ElasticsearchExceptionHandle> CLASS_TO_ELASTICSEARCH_EXCEPTION_HANDLE;
     private final Map<String, List<String>> headers = new HashMap<>();
 
+    /**
+     * Construct a <code>ElasticsearchException</code> with the specified cause exception.
+     */
     public ElasticsearchException(Throwable cause) {
         super(cause);
     }
+
     /**
      * Construct a <code>ElasticsearchException</code> with the specified detail message.
      *

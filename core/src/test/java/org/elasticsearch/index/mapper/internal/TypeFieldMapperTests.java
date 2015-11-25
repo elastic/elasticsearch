@@ -32,7 +32,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type").endObject().endObject().string();
 
         DocumentMapper docMapper = createIndex("test").mapperService().documentMapperParser().parse(mapping);
-        TypeFieldMapper typeMapper = docMapper.rootMapper(TypeFieldMapper.class);
+        TypeFieldMapper typeMapper = docMapper.metadataMapper(TypeFieldMapper.class);
         assertTrue(typeMapper.fieldType().hasDocValues());
     }
 
@@ -42,7 +42,7 @@ public class TypeFieldMapperTests extends ESSingleNodeTestCase {
         Settings bwcSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_2_0_0_beta1.id).build();
 
         DocumentMapper docMapper = createIndex("test", bwcSettings).mapperService().documentMapperParser().parse(mapping);
-        TypeFieldMapper typeMapper = docMapper.rootMapper(TypeFieldMapper.class);
+        TypeFieldMapper typeMapper = docMapper.metadataMapper(TypeFieldMapper.class);
         assertFalse(typeMapper.fieldType().hasDocValues());
     }
 }

@@ -25,10 +25,9 @@ ext.pluginCount = 0
 for (Project subproj : project.rootProject.subprojects) {
   if (subproj.path.startsWith(':plugins:')) {
     integTest {
-      def bundlePlugin = subproj.tasks.findByName('bundlePlugin')
-      dependsOn bundlePlugin
       cluster {
-        plugin subproj.name, bundlePlugin.outputs.files
+        // need to get a non-decorated project object, so must re-lookup the project by path
+        plugin subproj.name, project(subproj.path)
       }
     }
     pluginCount += 1

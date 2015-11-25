@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.integration;
+package org.elasticsearch.messy.tests;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.util.Callback;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.watcher.client.WatcherClient;
 import org.elasticsearch.watcher.support.xcontent.ObjectPath;
 import org.elasticsearch.watcher.support.xcontent.XContentSource;
@@ -32,8 +33,15 @@ import static org.hamcrest.Matchers.notNullValue;
 
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ExecutionVarsIntegrationTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(GroovyPlugin.class);
+        return types;
+    }
+
     @Override
     protected boolean timeWarped() {
         return true;

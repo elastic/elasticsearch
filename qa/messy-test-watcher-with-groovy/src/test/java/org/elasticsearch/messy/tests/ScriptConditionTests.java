@@ -3,10 +3,9 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.condition.script;
+package org.elasticsearch.messy.tests;
 
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -21,6 +20,9 @@ import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.condition.Condition;
+import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
+import org.elasticsearch.watcher.condition.script.ScriptCondition;
+import org.elasticsearch.watcher.condition.script.ScriptConditionFactory;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
@@ -35,18 +37,18 @@ import java.io.IOException;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.watcher.support.Exceptions.illegalArgument;
-import static org.elasticsearch.watcher.test.WatcherTestUtils.getScriptServiceProxy;
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+import static org.elasticsearch.messy.tests.MessyTestUtils.getScriptServiceProxy;
+
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ScriptConditionTests extends ESTestCase {
     ThreadPool tp = null;
-
+    
     @Before
     public void init() {
         tp = new ThreadPool(ThreadPool.Names.SAME);

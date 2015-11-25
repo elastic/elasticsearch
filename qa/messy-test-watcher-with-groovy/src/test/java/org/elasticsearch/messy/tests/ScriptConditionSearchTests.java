@@ -3,12 +3,13 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.condition.script;
+package org.elasticsearch.messy.tests;
 
-import org.apache.lucene.util.LuceneTestCase.AwaitsFix;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.text.StringText;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.script.groovy.GroovyPlugin;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
@@ -17,14 +18,17 @@ import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.condition.script.ExecutableScriptCondition;
+import org.elasticsearch.watcher.condition.script.ScriptCondition;
 import org.elasticsearch.watcher.execution.WatchExecutionContext;
 import org.elasticsearch.watcher.support.Script;
 import org.elasticsearch.watcher.support.init.proxy.ScriptServiceProxy;
 import org.elasticsearch.watcher.test.AbstractWatcherIntegrationTestCase;
-import org.elasticsearch.watcher.test.WatcherTestUtils;
 import org.elasticsearch.watcher.watch.Payload;
 import org.junit.After;
 import org.junit.Before;
+
+import java.util.List;
 
 import static org.elasticsearch.watcher.test.WatcherTestUtils.mockExecutionContext;
 import static org.hamcrest.Matchers.is;
@@ -32,15 +36,21 @@ import static org.mockito.Mockito.when;
 
 /**
  */
-@AwaitsFix(bugUrl = "https://github.com/elastic/x-plugins/issues/724")
 public class ScriptConditionSearchTests extends AbstractWatcherIntegrationTestCase {
     private ThreadPool tp = null;
     private ScriptServiceProxy scriptService;
+    
+    @Override
+    protected List<Class<? extends Plugin>> pluginTypes() {
+        List<Class<? extends Plugin>> types = super.pluginTypes();
+        types.add(GroovyPlugin.class);
+        return types;
+    }
 
     @Before
     public void init() throws Exception {
         tp = new ThreadPool(ThreadPool.Names.SAME);
-        scriptService = WatcherTestUtils.getScriptServiceProxy(tp);
+        scriptService = MessyTestUtils.getScriptServiceProxy(tp);
     }
 
     @After

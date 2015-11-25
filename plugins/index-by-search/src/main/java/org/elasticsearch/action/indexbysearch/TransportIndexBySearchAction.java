@@ -60,6 +60,12 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
         new AsyncIndexBySearchAction(request, listener).start();
     }
 
+    /**
+     * Simple implementation of index-by-search scrolling and bulk. There are
+     * tons of optimizations that can be done on certain types of index-by-query
+     * requests but this makes no attempt to do any of them so it can be as
+     * simple possible.
+     */
     class AsyncIndexBySearchAction extends AbstractAsyncScrollAction<IndexBySearchRequest, IndexBySearchResponse> {
         public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
             super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(), listener, request.size());

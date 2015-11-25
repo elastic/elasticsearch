@@ -49,6 +49,8 @@ public class SimulateExecutionService {
         }
     }
 
+    // uboness: do we really need two methods here? both executeItem method can be folded into one
+    // that accepts a "boolean verbose" arg. Also, can we rename to `executeDocument` (why item?)
     SimulateDocumentVerboseResult executeVerboseItem(Pipeline pipeline, IngestDocument ingestDocument) {
         List<SimulateProcessorResult> processorResultList = new ArrayList<>();
         IngestDocument currentIngestDocument = new IngestDocument(ingestDocument);

@@ -59,6 +59,10 @@ public class PutPipelineTransportAction extends HandledTransportAction<PutPipeli
             return;
         }
 
+        // uboness: this logic belongs to the store. the store needs to encapsulate how the pipelines are stored
+        // retrieved and deleted (right now this logic is spread across the actions and the store). for example,
+        // have a `put(String id, Map<String, Object> config, ActionListener<IndexResponse>)` method on
+        // the store.
         IndexRequest indexRequest = new IndexRequest(request);
         indexRequest.index(PipelineStore.INDEX);
         indexRequest.type(PipelineStore.TYPE);

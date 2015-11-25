@@ -52,6 +52,17 @@ public class ParsedSimulateRequest {
     }
 
     public static class Parser {
+
+        // uboness: why do we need this class? I would move `ParsedSimulateRequest` to a
+        // inner class of SimulatePipelineRequest.Parsed. And move all the parse methods here
+        // to be static on `ParsedSimulateRequest`, so:
+        //
+        // public static Parsed parseWithPipelineId(...) {
+        // }
+        //
+        // public static Parsed parse(...) {
+        // }
+
         private static final Pipeline.Factory PIPELINE_FACTORY = new Pipeline.Factory();
         public static final String SIMULATED_PIPELINE_ID = "_simulate_pipeline";
 

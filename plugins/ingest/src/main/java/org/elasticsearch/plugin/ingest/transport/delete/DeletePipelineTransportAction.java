@@ -44,6 +44,8 @@ public class DeletePipelineTransportAction extends HandledTransportAction<Delete
 
     @Override
     protected void doExecute(DeletePipelineRequest request, ActionListener<DeletePipelineResponse> listener) {
+        // uboness: this logic belongs to the store. for example, have a
+        // `delete(String id, ActionListener<DeleteResponse>)` method on the store.
         DeleteRequest deleteRequest = new DeleteRequest(request);
         deleteRequest.index(PipelineStore.INDEX);
         deleteRequest.type(PipelineStore.TYPE);

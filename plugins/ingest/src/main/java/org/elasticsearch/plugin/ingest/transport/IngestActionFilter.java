@@ -92,6 +92,7 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             public void executed(IngestDocument ingestDocument) {
                 if (ingestDocument.isModified()) {
                     indexRequest.source(ingestDocument.getSource());
+                    // uboness: don't we also need to update the metadata (index, id, etc...)?
                 }
                 indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
                 chain.proceed(action, indexRequest, listener);

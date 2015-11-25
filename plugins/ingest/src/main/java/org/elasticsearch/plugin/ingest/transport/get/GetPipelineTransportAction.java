@@ -46,6 +46,9 @@ public class GetPipelineTransportAction extends HandledTransportAction<GetPipeli
 
     @Override
     protected void doExecute(GetPipelineRequest request, ActionListener<GetPipelineResponse> listener) {
+        // uboness: can we move PipelineReference to a top level class and perhaps rename it to
+        // `PipelineDefinition` (reference to me is associated to a "handle to definition" rather than
+        // the definition itself. Then the response can just hold definitions (no need to separate versions and sources)
         List<PipelineStore.PipelineReference> references = pipelineStore.getReference(request.ids());
         Map<String, BytesReference> result = new HashMap<>();
         Map<String, Long> versions = new HashMap<>();

@@ -35,6 +35,7 @@ public final class IngestDocument {
 
     public IngestDocument(String index, String type, String id, Map<String, Object> source) {
         this.metaData = new HashMap<>();
+        // uboness: can we use the constants in the MetaData enum?
         this.metaData.put("_index", index);
         this.metaData.put("_type", type);
         this.metaData.put("_id", id);
@@ -52,6 +53,8 @@ public final class IngestDocument {
      * @param clazz The expected class of the field value
      * @return the value for the provided path if existing, null otherwise
      * @throws IllegalArgumentException if the field is present but is not of the type provided as argument.
+     *
+     * uboness: can we move back to "field" terminology vs. "property"... i.e rename to getFieldValue
      */
     public <T> T getPropertyValue(String path, Class<T> clazz) {
         if (path == null || path.length() == 0) {
@@ -80,6 +83,8 @@ public final class IngestDocument {
      * Checks whether the document contains a value for the provided path
      * @param path The path within the document in dot-notation
      * @return true if the document contains a value for the property, false otherwise
+     *
+     * uboness: hasFieldValue ?
      */
     public boolean hasPropertyValue(String path) {
         if (path == null || path.length() == 0) {
@@ -98,6 +103,8 @@ public final class IngestDocument {
     /**
      * Removes the property identified by the provided path
      * @param path the path of the property to be removed
+     *
+     * uboness: rename to removeField ?
      */
     public void removeProperty(String path) {
         if (path == null || path.length() == 0) {
@@ -135,6 +142,8 @@ public final class IngestDocument {
      * Any non existing path element will be created.
      * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
+     *
+     * uboness: rename to setFieldValue ?
      */
     public void setPropertyValue(String path, Object value) {
         if (path == null || path.length() == 0) {

@@ -21,6 +21,7 @@ package org.elasticsearch.search.aggregations.pipeline.cumulativesum;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
@@ -33,6 +34,8 @@ import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
+import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -40,6 +43,7 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
@@ -109,16 +113,37 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
 
     public static class Factory extends PipelineAggregatorFactory {
 
-        private final ValueFormatter formatter;
+        private String format;
 
-        public Factory(String name, String[] bucketsPaths, ValueFormatter formatter) {
+        public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
-            this.formatter = formatter;
+        }
+
+        /**
+         * Sets the format to use on the output of this aggregation.
+         */
+        public void format(String format) {
+            this.format = format;
+        }
+
+        /**
+         * Gets the format to use on the output of this aggregation.
+         */
+        public String format() {
+            return format;
+        }
+
+        protected ValueFormatter formatter() {
+            if (format != null) {
+                return ValueFormat.Patternable.Number.format(format).formatter();
+            } else {
+                return ValueFormatter.RAW;
+            }
         }
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter, metaData);
+            return new CumulativeSumPipelineAggregator(name, bucketsPaths, formatter(), metaData);
         }
 
         @Override
@@ -139,5 +164,35 @@ public class CumulativeSumPipelineAggregator extends PipelineAggregator {
             }
         }
 
+        @Override
+        protected final XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+            if (format != null) {
+                builder.field(BucketMetricsParser.FORMAT.getPreferredName(), format);
+            }
+            return builder;
+        }
+
+        @Override
+        protected final PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            Factory factory = new Factory(name, bucketsPaths);
+            factory.format = in.readOptionalString();
+            return factory;
+        }
+
+        @Override
+        protected final void doWriteTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(format);
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(format);
+        }
+
+        @Override
+        protected boolean doEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.equals(format, other.format);
+        }
     }
 }

@@ -27,12 +27,11 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -55,7 +54,7 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
         String currentFieldName = null;
         Map<String, String> bucketsPathsMap = null;
         String format = null;
-        GapPolicy gapPolicy = GapPolicy.SKIP;
+        GapPolicy gapPolicy = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -118,20 +117,19 @@ public class BucketScriptParser implements PipelineAggregator.Parser {
                     + "] for series_arithmetic aggregation [" + reducerName + "]", parser.getTokenLocation());
         }
 
-        ValueFormatter formatter = null;
+        BucketScriptPipelineAggregator.Factory factory = new BucketScriptPipelineAggregator.Factory(reducerName, bucketsPathsMap, script);
         if (format != null) {
-            formatter = ValueFormat.Patternable.Number.format(format).formatter();
-        } else {
-            formatter = ValueFormatter.RAW;
+            factory.format(format);
         }
-
-        return new BucketScriptPipelineAggregator.Factory(reducerName, bucketsPathsMap, script, formatter, gapPolicy);
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
+        }
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public PipelineAggregatorFactory getFactoryPrototype() {
-        return null;
+        return new BucketScriptPipelineAggregator.Factory(null, Collections.emptyMap(), null);
     }
 
 }

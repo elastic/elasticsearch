@@ -257,5 +257,20 @@ public class TermsQueryBuilderTests extends AbstractQueryTestCase<TermsQueryBuil
             assertThat(ex.getMessage(), equalTo("[" + TermsQueryBuilder.NAME + "] query does not support multiple fields"));
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"terms\" : {\n" + 
+                "    \"user\" : [ \"kimchy\", \"elasticsearch\" ],\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+
+        TermsQueryBuilder parsed = (TermsQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, 2, parsed.values().size());
+    }
 }
 

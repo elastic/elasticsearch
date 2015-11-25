@@ -144,4 +144,24 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         assertThat(fuzzyQuery.getMin().longValue(), equalTo(7l));
         assertThat(fuzzyQuery.getMax().longValue(), equalTo(17l));
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"fuzzy\" : {\n" + 
+                "    \"user\" : {\n" + 
+                "      \"value\" : \"ki\",\n" + 
+                "      \"fuzziness\" : \"2\",\n" + 
+                "      \"prefix_length\" : 0,\n" + 
+                "      \"max_expansions\" : 100,\n" + 
+                "      \"transpositions\" : false,\n" + 
+                "      \"boost\" : 42.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+        FuzzyQueryBuilder parsed = (FuzzyQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 42.0, parsed.boost(), 0.00001);
+        assertEquals(json, 2, parsed.fuzziness().asInt());
+    }
 }

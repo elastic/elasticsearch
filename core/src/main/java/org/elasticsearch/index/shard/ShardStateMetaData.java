@@ -20,6 +20,9 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.cluster.routing.AllocationId;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.common.xcontent.XContentType;
@@ -36,17 +39,21 @@ public final class ShardStateMetaData {
     private static final String SHARD_STATE_FILE_PREFIX = "state-";
     private static final String PRIMARY_KEY = "primary";
     private static final String VERSION_KEY = "version";
-    private static final String INDEX_UUID_KEY = "index_uuid" ;
+    private static final String INDEX_UUID_KEY = "index_uuid";
+    private static final String ALLOCATION_ID_KEY = "allocation_id";
 
     public final long version;
     public final String indexUUID;
     public final boolean primary;
+    @Nullable
+    public final AllocationId allocationId; // can be null if we read from legacy format (see fromXContent and MultiDataPathUpgrader)
 
-    public ShardStateMetaData(long version, boolean primary, String indexUUID) {
+    public ShardStateMetaData(long version, boolean primary, String indexUUID, AllocationId allocationId) {
         assert indexUUID != null;
         this.version = version;
         this.primary = primary;
         this.indexUUID = indexUUID;
+        this.allocationId = allocationId;
     }
 
     @Override
@@ -69,6 +76,9 @@ public final class ShardStateMetaData {
         if (indexUUID != null ? !indexUUID.equals(that.indexUUID) : that.indexUUID != null) {
           return false;
         }
+        if (allocationId != null ? !allocationId.equals(that.allocationId) : that.allocationId != null) {
+            return false;
+        }
 
         return true;
     }
@@ -77,13 +87,14 @@ public final class ShardStateMetaData {
     public int hashCode() {
         int result = Long.hashCode(version);
         result = 31 * result + (indexUUID != null ? indexUUID.hashCode() : 0);
+        result = 31 * result + (allocationId != null ? allocationId.hashCode() : 0);
         result = 31 * result + (primary ? 1 : 0);
         return result;
     }
 
     @Override
     public String toString() {
-        return "version [" + version + "], primary [" + primary + "]";
+        return "version [" + version + "], primary [" + primary + "], allocation [" + allocationId + "]";
     }
 
     public static final MetaDataStateFormat<ShardStateMetaData> FORMAT = new MetaDataStateFormat<ShardStateMetaData>(XContentType.JSON, SHARD_STATE_FILE_PREFIX) {
@@ -100,6 +111,9 @@ public final class ShardStateMetaData {
             builder.field(VERSION_KEY, shardStateMetaData.version);
             builder.field(PRIMARY_KEY, shardStateMetaData.primary);
             builder.field(INDEX_UUID_KEY, shardStateMetaData.indexUUID);
+            if (shardStateMetaData.allocationId != null) {
+                builder.field(ALLOCATION_ID_KEY, shardStateMetaData.allocationId);
+            }
         }
 
         @Override
@@ -112,6 +126,7 @@ public final class ShardStateMetaData {
             Boolean primary = null;
             String currentFieldName = null;
             String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
+            AllocationId allocationId = null;
             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
@@ -125,6 +140,12 @@ public final class ShardStateMetaData {
                     } else {
                         throw new CorruptStateException("unexpected field in shard state [" + currentFieldName + "]");
                     }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if (ALLOCATION_ID_KEY.equals(currentFieldName)) {
+                        allocationId = AllocationId.fromXContent(parser);
+                    } else {
+                        throw new CorruptStateException("unexpected object in shard state [" + currentFieldName + "]");
+                    }
                 } else {
                     throw new CorruptStateException("unexpected token in shard state [" + token.name() + "]");
                 }
@@ -135,7 +156,7 @@ public final class ShardStateMetaData {
             if (version == -1) {
                 throw new CorruptStateException("missing value for [version] in shard state");
             }
-            return new ShardStateMetaData(version, primary, indexUUID);
+            return new ShardStateMetaData(version, primary, indexUUID, allocationId);
         }
     };
 }

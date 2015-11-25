@@ -87,9 +87,9 @@ public class PrefixQueryBuilder extends AbstractQueryBuilder<PrefixQueryBuilder>
     public void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
         builder.startObject(fieldName);
-        builder.field("prefix", this.value);
+        builder.field(PrefixQueryParser.PREFIX_FIELD.getPreferredName(), this.value);
         if (rewrite != null) {
-            builder.field("rewrite", rewrite);
+            builder.field(PrefixQueryParser.REWRITE_FIELD.getPreferredName(), rewrite);
         }
         printBoostAndQueryName(builder);
         builder.endObject();

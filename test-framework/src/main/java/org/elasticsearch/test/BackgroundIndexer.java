@@ -195,6 +195,7 @@ public class BackgroundIndexer implements AutoCloseable {
         XContentBuilder builder = XContentFactory.smileBuilder();
         builder.startObject().field("test", "value" + id)
                 .field("text", text.toString())
+                .field("id", id)
                 .endObject();
         return builder;
 

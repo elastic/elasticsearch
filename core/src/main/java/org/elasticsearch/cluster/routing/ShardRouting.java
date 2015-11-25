@@ -716,6 +716,7 @@ public final class ShardRouting implements Streamable, ToXContent {
             restoreSource().toXContent(builder, params);
         }
         if (allocationId != null) {
+            builder.field("allocation_id");
             allocationId.toXContent(builder, params);
         }
         if (unassignedInfo != null) {

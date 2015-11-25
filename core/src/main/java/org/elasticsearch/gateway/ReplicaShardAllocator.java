@@ -24,7 +24,6 @@ import com.carrotsearch.hppc.ObjectLongMap;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
 import com.carrotsearch.hppc.cursors.ObjectLongCursor;
 import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
@@ -101,7 +100,8 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                         // we found a better match that has a full sync id match, the existing allocation is not fully synced
                         // so we found a better one, cancel this one
                         it.moveToUnassigned(new UnassignedInfo(UnassignedInfo.Reason.REALLOCATED_REPLICA,
-                                "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]"));
+                                "existing allocation of replica to [" + currentNode + "] cancelled, sync id match found on node [" + nodeWithHighestMatch + "]",
+                                null, allocation.getCurrentNanoTime(), System.currentTimeMillis()));
                         changed = true;
                     }
                 }
@@ -111,7 +111,6 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
     }
 
     public boolean allocateUnassigned(RoutingAllocation allocation) {
-        long nanoTimeNow = System.nanoTime();
         boolean changed = false;
         final RoutingNodes routingNodes = allocation.routingNodes();
         final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
@@ -171,7 +170,7 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
                 }
             } else if (matchingNodes.hasAnyData() == false) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation of the replica shard needs to be delayed
-                changed |= ignoreUnassignedIfDelayed(nanoTimeNow, allocation, unassignedIterator, shard);
+                changed |= ignoreUnassignedIfDelayed(unassignedIterator, shard);
             }
         }
         return changed;
@@ -185,16 +184,13 @@ public abstract class ReplicaShardAllocator extends AbstractComponent {
      *
      * PUBLIC FOR TESTS!
      *
-     * @param timeNowNanos Timestamp in nanoseconds representing "now"
-     * @param allocation the routing allocation
      * @param unassignedIterator iterator over unassigned shards
      * @param shard the shard which might be delayed
      * @return true iff allocation is delayed for this shard
      */
-    public boolean ignoreUnassignedIfDelayed(long timeNowNanos, RoutingAllocation allocation, RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
-        IndexMetaData indexMetaData = allocation.metaData().index(shard.getIndex());
+    public boolean ignoreUnassignedIfDelayed(RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator, ShardRouting shard) {
         // calculate delay and store it in UnassignedInfo to be used by RoutingService
-        long delay = shard.unassignedInfo().updateDelay(timeNowNanos, settings, indexMetaData.getSettings());
+        long delay = shard.unassignedInfo().getLastComputedLeftDelayNanos();
         if (delay > 0) {
             logger.debug("[{}][{}]: delaying allocation of [{}] for [{}]", shard.index(), shard.id(), shard, TimeValue.timeValueNanos(delay));
             /**

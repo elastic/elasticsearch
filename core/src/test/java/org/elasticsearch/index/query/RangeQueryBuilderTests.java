@@ -331,4 +331,26 @@ public class RangeQueryBuilderTests extends AbstractQueryTestCase<RangeQueryBuil
             // We expect it
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"range\" : {\n" + 
+                "    \"timestamp\" : {\n" + 
+                "      \"from\" : \"2015-01-01 00:00:00\",\n" + 
+                "      \"to\" : \"now\",\n" + 
+                "      \"include_lower\" : true,\n" + 
+                "      \"include_upper\" : true,\n" + 
+                "      \"time_zone\" : \"+01:00\",\n" + 
+                "      \"boost\" : 1.0\n" + 
+                "    }\n" + 
+                "  }\n" + 
+                "}";
+
+        RangeQueryBuilder parsed = (RangeQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+
+        assertEquals(json, "2015-01-01 00:00:00", parsed.from());
+        assertEquals(json, "now", parsed.to());
+    }
 }

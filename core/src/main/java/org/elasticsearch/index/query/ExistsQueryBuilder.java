@@ -61,7 +61,7 @@ public class ExistsQueryBuilder extends AbstractQueryBuilder<ExistsQueryBuilder>
     @Override
     protected void doXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field("field", fieldName);
+        builder.field(ExistsQueryParser.FIELD_FIELD.getPreferredName(), fieldName);
         printBoostAndQueryName(builder);
         builder.endObject();
     }

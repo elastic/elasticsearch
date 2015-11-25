@@ -326,4 +326,21 @@ public class GeoPolygonQueryBuilderTests extends AbstractQueryTestCase<GeoPolygo
             assertThat(lons[3], equalTo(lons[0]));
         }
     }
+
+    public void testFromJson() throws IOException {
+        String json =
+                "{\n" + 
+                "  \"geo_polygon\" : {\n" + 
+                "    \"person.location\" : {\n" + 
+                "      \"points\" : [ [ -70.0, 40.0 ], [ -80.0, 30.0 ], [ -90.0, 20.0 ], [ -70.0, 40.0 ] ]\n" + 
+                "    },\n" + 
+                "    \"coerce\" : false,\n" + 
+                "    \"ignore_malformed\" : false,\n" + 
+                "    \"boost\" : 1.0\n" + 
+                "  }\n" + 
+                "}";
+        GeoPolygonQueryBuilder parsed = (GeoPolygonQueryBuilder) parseQuery(json);
+        checkGeneratedJson(json, parsed);
+        assertEquals(json, 4, parsed.points().size());
+    }
 }

@@ -101,6 +101,7 @@ class ClusterFormationTasks {
         setup = configureStopTask(taskName(task, node, 'stopPrevious'), project, setup, node)
         setup = configureExtractTask(taskName(task, node, 'extract'), project, setup, node)
         setup = configureWriteConfigTask(taskName(task, node, 'configure'), project, setup, node)
+        setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
         // install plugins
@@ -166,7 +167,20 @@ class ClusterFormationTasks {
             'node.testattr'                   : 'test',
             'repositories.url.allowed_urls'   : 'http://snapshot.test*'
         ]
+        esConfig.putAll(node.config.settings)
 
+        Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
+        writeConfig.doFirst {
+            File configFile = new File(node.homeDir, 'config/elasticsearch.yml')
+            logger.info("Configuring ${configFile}")
+            configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
+        }
+    }
+
+    static Task configureExtraConfigFilesTask(String name, Project project, Task setup, NodeInfo node) {
+        if (node.config.extraConfigFiles.isEmpty()) {
+            return setup
+        }
         Copy copyConfig = project.tasks.create(name: name, type: Copy, dependsOn: setup)
         copyConfig.into(new File(node.homeDir, 'config')) // copy must always have a general dest dir, even though we don't use it
         for (Map.Entry<String,Object> extraConfigFile : node.config.extraConfigFiles.entrySet()) {
@@ -179,15 +193,10 @@ class ClusterFormationTasks {
             }
             File destConfigFile = new File(node.homeDir, 'config/' + extraConfigFile.getKey())
             copyConfig.from(srcConfigFile)
-                      .into(destConfigFile.canonicalFile.parentFile)
-                      .rename { destConfigFile.name }
+                    .into(destConfigFile.canonicalFile.parentFile)
+                    .rename { destConfigFile.name }
         }
-        copyConfig.doLast {
-            // write elasticsearch.yml last, it cannot be overriden
-            File configFile = new File(node.homeDir, 'config/elasticsearch.yml')
-            logger.info("Configuring ${configFile}")
-            configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
-        }
+        return copyConfig
     }
 
     /**

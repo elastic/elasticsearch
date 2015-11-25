@@ -22,6 +22,7 @@ package org.elasticsearch.index.mapper.murmur3;
 import org.apache.lucene.util.LuceneTestCase;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.search.SearchResponse;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.plugin.mapper.MapperMurmur3Plugin;
 import org.elasticsearch.plugins.Plugin;
@@ -56,10 +57,14 @@ public class Murmur3FieldMapperUpgradeTests extends ESIntegTestCase {
         }
         assertTrue(Files.exists(unzipDataDir));
 
-        final String node = internalCluster().startNode();
+        Path dataPath = createTempDir();
+        Settings settings = Settings.builder()
+                .put("path.data", dataPath)
+                .build();
+        final String node = internalCluster().startNode(settings);
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, node).nodeDataPaths();
         assertEquals(1, nodePaths.length);
-        Path dataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
+        dataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
         assertFalse(Files.exists(dataPath));
         Path src = unzipDataDir.resolve(indexName + "/nodes/0/indices");
         Files.move(src, dataPath);

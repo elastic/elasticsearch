@@ -20,10 +20,9 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.percentile;
 
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsParser;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.text.ParseException;
 import java.util.List;
@@ -40,10 +39,10 @@ public class PercentilesBucketParser extends BucketMetricsParser {
     }
 
     @Override
-    protected PipelineAggregatorFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, GapPolicy gapPolicy,
-                                                     ValueFormatter formatter, Map<String, Object> unparsedParams) throws ParseException {
+    protected BucketMetricsFactory buildFactory(String pipelineAggregatorName, String[] bucketsPaths, Map<String, Object> unparsedParams)
+            throws ParseException {
 
-        double[] percents = new double[] { 1.0, 5.0, 25.0, 50.0, 75.0, 95.0, 99.0 };
+        double[] percents = null;
         int counter = 0;
         Object percentParam = unparsedParams.get(PERCENTS.getPreferredName());
 
@@ -66,12 +65,16 @@ public class PercentilesBucketParser extends BucketMetricsParser {
             }
         }
 
-        return new PercentilesBucketPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, gapPolicy, formatter, percents);
+        PercentilesBucketPipelineAggregator.Factory factory = new PercentilesBucketPipelineAggregator.Factory(pipelineAggregatorName,
+                bucketsPaths);
+        if (percents != null) {
+            factory.percents(percents);
+        }
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public PipelineAggregatorFactory getFactoryPrototype() {
-        return null;
+        return new PercentilesBucketPipelineAggregator.Factory(null, null);
     }
 }

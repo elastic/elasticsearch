@@ -20,6 +20,8 @@
 package org.elasticsearch.search.aggregations.pipeline.bucketmetrics.stats.extended;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.AggregatorFactory;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
@@ -27,12 +29,14 @@ import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
+import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsFactory;
 import org.elasticsearch.search.aggregations.pipeline.bucketmetrics.BucketMetricsPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipelineAggregator {
 
@@ -97,22 +101,33 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
         return new InternalExtendedStatsBucket(name(), count, sum, min, max, sumOfSqrs, sigma, formatter, pipelineAggregators, metadata);
     }
 
-    public static class Factory extends PipelineAggregatorFactory {
+    public static class Factory extends BucketMetricsFactory {
 
-        private final ValueFormatter formatter;
-        private final GapPolicy gapPolicy;
-        private final double sigma;
+        private double sigma = 2.0;
 
-        public Factory(String name, String[] bucketsPaths, double sigma, GapPolicy gapPolicy, ValueFormatter formatter) {
+        public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
-            this.gapPolicy = gapPolicy;
-            this.formatter = formatter;
+        }
+
+        /**
+         * Set the value of sigma to use when calculating the standard deviation
+         * bounds
+         */
+        public void sigma(double sigma) {
             this.sigma = sigma;
+        }
+
+        /**
+         * Get the value of sigma to use when calculating the standard deviation
+         * bounds
+         */
+        public double sigma() {
+            return sigma;
         }
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new ExtendedStatsBucketPipelineAggregator(name, bucketsPaths, sigma, gapPolicy, formatter, metaData);
+            return new ExtendedStatsBucketPipelineAggregator(name, bucketsPaths, sigma, gapPolicy(), formatter(), metaData);
         }
 
         @Override
@@ -127,6 +142,35 @@ public class ExtendedStatsBucketPipelineAggregator extends BucketMetricsPipeline
                 throw new IllegalStateException(ExtendedStatsBucketParser.SIGMA.getPreferredName()
                         + " must be a non-negative double");
             }
+        }
+
+        @Override
+        protected XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
+            builder.field(ExtendedStatsBucketParser.SIGMA.getPreferredName(), sigma);
+            return builder;
+        }
+
+        @Override
+        protected BucketMetricsFactory innerReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            Factory factory = new Factory(name, bucketsPaths);
+            factory.sigma = in.readDouble();
+            return factory;
+        }
+
+        @Override
+        protected void innerWriteTo(StreamOutput out) throws IOException {
+            out.writeDouble(sigma);
+        }
+
+        @Override
+        protected int innerHashCode() {
+            return Objects.hash(sigma);
+        }
+
+        @Override
+        protected boolean innerEquals(BucketMetricsFactory obj) {
+            Factory other = (Factory) obj;
+            return Objects.equals(sigma, other.sigma);
         }
 
     }

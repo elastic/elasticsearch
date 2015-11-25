@@ -47,13 +47,13 @@ public class RenameProcessor implements Processor {
     @Override
     public void execute(IngestDocument document) {
         for(Map.Entry<String, String> entry : fields.entrySet()) {
-            if (document.hasPropertyValue(entry.getKey())) {
-                if (document.hasPropertyValue(entry.getKey()) == false) {
+            if (document.hasFieldValue(entry.getKey())) {
+                if (document.hasFieldValue(entry.getKey()) == false) {
                     throw new IllegalArgumentException("field [" + entry.getKey() + "] doesn't exist");
                 }
-                Object oldValue = document.getPropertyValue(entry.getKey(), Object.class);
-                document.removeProperty(entry.getKey());
-                document.setPropertyValue(entry.getValue(), oldValue);
+                Object oldValue = document.getFieldValue(entry.getKey(), Object.class);
+                document.removeField(entry.getKey());
+                document.setFieldValue(entry.getValue(), oldValue);
             }
         }
     }

@@ -46,14 +46,14 @@ public class GsubProcessorTests extends ESTestCase {
         Processor processor = new GsubProcessor(expressions);
         processor.execute(ingestDocument);
         for (GsubExpression expression : expressions) {
-            assertThat(ingestDocument.getPropertyValue(expression.getFieldName(), String.class), equalTo("127-0-0-1"));
+            assertThat(ingestDocument.getFieldValue(expression.getFieldName(), String.class), equalTo("127-0-0-1"));
         }
     }
 
     public void testGsubNotAStringValue() throws IOException {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        ingestDocument.setPropertyValue(fieldName, 123);
+        ingestDocument.setFieldValue(fieldName, 123);
         List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression(fieldName, Pattern.compile("\\."), "-"));
         Processor processor = new GsubProcessor(gsubExpressions);
         try {

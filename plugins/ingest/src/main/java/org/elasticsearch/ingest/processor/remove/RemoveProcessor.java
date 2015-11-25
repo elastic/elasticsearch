@@ -49,7 +49,7 @@ public class RemoveProcessor implements Processor {
     @Override
     public void execute(IngestDocument document) {
         for(String field : fields) {
-            document.removeProperty(field);
+            document.removeField(field);
         }
     }
 

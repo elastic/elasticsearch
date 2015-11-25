@@ -58,7 +58,7 @@ public class JoinProcessorTests extends ESTestCase {
         Processor processor = new JoinProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, String> entry : expectedResultMap.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), String.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), String.class), equalTo(entry.getValue()));
         }
     }
 
@@ -87,14 +87,14 @@ public class JoinProcessorTests extends ESTestCase {
         Processor processor = new JoinProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, String> entry : expectedResultMap.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), String.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), String.class), equalTo(entry.getValue()));
         }
     }
 
     public void testJoinNonListField() throws IOException {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        ingestDocument.setPropertyValue(fieldName, randomAsciiOfLengthBetween(1, 10));
+        ingestDocument.setFieldValue(fieldName, randomAsciiOfLengthBetween(1, 10));
         Map<String, String> join = Collections.singletonMap(fieldName, "-");
         Processor processor = new JoinProcessor(join);
         try {

@@ -44,91 +44,91 @@ public class IngestDocumentTests extends ESTestCase {
         ingestDocument = new IngestDocument("index", "type", "id", document);
     }
 
-    public void testSimpleGetPropertyValue() {
-        assertThat(ingestDocument.getPropertyValue("foo", String.class), equalTo("bar"));
-        assertThat(ingestDocument.getPropertyValue("int", Integer.class), equalTo(123));
+    public void testSimpleGetFieldValue() {
+        assertThat(ingestDocument.getFieldValue("foo", String.class), equalTo("bar"));
+        assertThat(ingestDocument.getFieldValue("int", Integer.class), equalTo(123));
     }
 
-    public void testGetPropertyValueNullValue() {
-        assertThat(ingestDocument.getPropertyValue("fizz.foo_null", Object.class), nullValue());
+    public void testGetFieldValueNullValue() {
+        assertThat(ingestDocument.getFieldValue("fizz.foo_null", Object.class), nullValue());
     }
 
-    public void testSimpleGetPropertyValueTypeMismatch() {
+    public void testSimpleGetFieldValueTypeMismatch() {
         try {
-            ingestDocument.getPropertyValue("int", String.class);
-            fail("getProperty should have failed");
+            ingestDocument.getFieldValue("int", String.class);
+            fail("getFieldValue should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [int] of type [java.lang.Integer] cannot be cast to [java.lang.String]"));
         }
 
         try {
-            ingestDocument.getPropertyValue("foo", Integer.class);
-            fail("getProperty should have failed");
+            ingestDocument.getFieldValue("foo", Integer.class);
+            fail("getFieldValue should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("field [foo] of type [java.lang.String] cannot be cast to [java.lang.Integer]"));
         }
     }
 
-    public void testNestedGetPropertyValue() {
-        assertThat(ingestDocument.getPropertyValue("fizz.buzz", String.class), equalTo("hello world"));
+    public void testNestedGetFieldValue() {
+        assertThat(ingestDocument.getFieldValue("fizz.buzz", String.class), equalTo("hello world"));
     }
 
-    public void testGetPropertyValueNotFound() {
-        assertThat(ingestDocument.getPropertyValue("not.here", String.class), nullValue());
+    public void testGetFieldValueNotFound() {
+        assertThat(ingestDocument.getFieldValue("not.here", String.class), nullValue());
     }
 
-    public void testGetPropertyValueNull() {
-        assertNull(ingestDocument.getPropertyValue(null, String.class));
+    public void testGetFieldValueNull() {
+        assertNull(ingestDocument.getFieldValue(null, String.class));
     }
 
-    public void testGetPropertyValueEmpty() {
-        assertNull(ingestDocument.getPropertyValue("", String.class));
+    public void testGetFieldValueEmpty() {
+        assertNull(ingestDocument.getFieldValue("", String.class));
     }
 
-    public void testHasProperty() {
-        assertTrue(ingestDocument.hasPropertyValue("fizz"));
+    public void testHasFieldValue() {
+        assertTrue(ingestDocument.hasFieldValue("fizz"));
     }
 
-    public void testHasPropertyValueNested() {
-        assertTrue(ingestDocument.hasPropertyValue("fizz.buzz"));
+    public void testHasFieldValueNested() {
+        assertTrue(ingestDocument.hasFieldValue("fizz.buzz"));
     }
 
-    public void testHasPropertyValueNotFound() {
-        assertFalse(ingestDocument.hasPropertyValue("doesnotexist"));
+    public void testHasFieldValueNotFound() {
+        assertFalse(ingestDocument.hasFieldValue("doesnotexist"));
     }
 
-    public void testHasPropertyValueNestedNotFound() {
-        assertFalse(ingestDocument.hasPropertyValue("fizz.doesnotexist"));
+    public void testHasFieldValueNestedNotFound() {
+        assertFalse(ingestDocument.hasFieldValue("fizz.doesnotexist"));
     }
 
-    public void testHasPropertyValueNull() {
-        assertFalse(ingestDocument.hasPropertyValue(null));
+    public void testHasFieldValueNull() {
+        assertFalse(ingestDocument.hasFieldValue(null));
     }
 
-    public void testHasPropertyValueNullValue() {
-        assertTrue(ingestDocument.hasPropertyValue("fizz.foo_null"));
+    public void testHasFieldValueNullValue() {
+        assertTrue(ingestDocument.hasFieldValue("fizz.foo_null"));
     }
 
-    public void testHasPropertyValueEmpty() {
-        assertFalse(ingestDocument.hasPropertyValue(""));
+    public void testHasFieldValueEmpty() {
+        assertFalse(ingestDocument.hasFieldValue(""));
     }
 
-    public void testSimpleSetPropertyValue() {
-        ingestDocument.setPropertyValue("new_field", "foo");
+    public void testSimpleSetFieldValue() {
+        ingestDocument.setFieldValue("new_field", "foo");
         assertThat(ingestDocument.getSource().get("new_field"), equalTo("foo"));
         assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
-    public void testSetPropertyValueNullValue() {
-        ingestDocument.setPropertyValue("new_field", null);
+    public void testSetFieldValueNullValue() {
+        ingestDocument.setFieldValue("new_field", null);
         assertThat(ingestDocument.getSource().containsKey("new_field"), equalTo(true));
         assertThat(ingestDocument.getSource().get("new_field"), nullValue());
         assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
     @SuppressWarnings("unchecked")
-    public void testNestedSetPropertyValue() {
-        ingestDocument.setPropertyValue("a.b.c.d", "foo");
+    public void testNestedSetFieldValue() {
+        ingestDocument.setFieldValue("a.b.c.d", "foo");
         assertThat(ingestDocument.getSource().get("a"), instanceOf(Map.class));
         Map<String, Object> a = (Map<String, Object>) ingestDocument.getSource().get("a");
         assertThat(a.get("b"), instanceOf(Map.class));
@@ -141,14 +141,14 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
-    public void testSetPropertyValueOnExistingField() {
-        ingestDocument.setPropertyValue("foo", "newbar");
+    public void testSetFieldValueOnExistingField() {
+        ingestDocument.setFieldValue("foo", "newbar");
         assertThat(ingestDocument.getSource().get("foo"), equalTo("newbar"));
     }
 
     @SuppressWarnings("unchecked")
-    public void testSetPropertyValueOnExistingParent() {
-        ingestDocument.setPropertyValue("fizz.new", "bar");
+    public void testSetFieldValueOnExistingParent() {
+        ingestDocument.setFieldValue("fizz.new", "bar");
         assertThat(ingestDocument.getSource().get("fizz"), instanceOf(Map.class));
         Map<String, Object> innerMap = (Map<String, Object>) ingestDocument.getSource().get("fizz");
         assertThat(innerMap.get("new"), instanceOf(String.class));
@@ -157,9 +157,9 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
-    public void testSetPropertyValueOnExistingParentTypeMismatch() {
+    public void testSetFieldValueOnExistingParentTypeMismatch() {
         try {
-            ingestDocument.setPropertyValue("fizz.buzz.new", "bar");
+            ingestDocument.setFieldValue("fizz.buzz.new", "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to parent [buzz] of type [java.lang.String], [java.util.Map] expected instead."));
@@ -167,9 +167,9 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testSetPropertyValueOnExistingNullParent() {
+    public void testSetFieldValueOnExistingNullParent() {
         try {
-            ingestDocument.setPropertyValue("fizz.foo_null.test", "bar");
+            ingestDocument.setFieldValue("fizz.foo_null.test", "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add field to null parent, [java.util.Map] expected instead."));
@@ -177,9 +177,9 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testSetPropertyValueNullName() {
+    public void testSetFieldValueNullName() {
         try {
-            ingestDocument.setPropertyValue(null, "bar");
+            ingestDocument.setFieldValue(null, "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
@@ -187,9 +187,9 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testSetPropertyValueEmptyName() {
+    public void testSetFieldValueEmptyName() {
         try {
-            ingestDocument.setPropertyValue("", "bar");
+            ingestDocument.setFieldValue("", "bar");
             fail("add field should have failed");
         } catch(IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("cannot add null or empty field"));
@@ -197,15 +197,15 @@ public class IngestDocumentTests extends ESTestCase {
         }
     }
 
-    public void testRemoveProperty() {
-        ingestDocument.removeProperty("foo");
+    public void testRemoveField() {
+        ingestDocument.removeField("foo");
         assertThat(ingestDocument.isModified(), equalTo(true));
         assertThat(ingestDocument.getSource().size(), equalTo(2));
         assertThat(ingestDocument.getSource().containsKey("foo"), equalTo(false));
     }
 
-    public void testRemoveInnerProperty() {
-        ingestDocument.removeProperty("fizz.buzz");
+    public void testRemoveInnerField() {
+        ingestDocument.removeField("fizz.buzz");
         assertThat(ingestDocument.getSource().size(), equalTo(3));
         assertThat(ingestDocument.getSource().get("fizz"), instanceOf(Map.class));
         @SuppressWarnings("unchecked")
@@ -213,33 +213,33 @@ public class IngestDocumentTests extends ESTestCase {
         assertThat(map.size(), equalTo(1));
         assertThat(map.containsKey("buzz"), equalTo(false));
 
-        ingestDocument.removeProperty("fizz.foo_null");
+        ingestDocument.removeField("fizz.foo_null");
         assertThat(map.size(), equalTo(0));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
         assertThat(ingestDocument.getSource().containsKey("fizz"), equalTo(true));
         assertThat(ingestDocument.isModified(), equalTo(true));
     }
 
-    public void testRemoveNonExistingProperty() {
-        ingestDocument.removeProperty("does_not_exist");
+    public void testRemoveNonExistingField() {
+        ingestDocument.removeField("does_not_exist");
         assertThat(ingestDocument.isModified(), equalTo(false));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
     public void testRemoveExistingParentTypeMismatch() {
-        ingestDocument.removeProperty("foo.test");
+        ingestDocument.removeField("foo.test");
         assertThat(ingestDocument.isModified(), equalTo(false));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
-    public void testRemoveNullProperty() {
-        ingestDocument.removeProperty(null);
+    public void testRemoveNullField() {
+        ingestDocument.removeField(null);
         assertThat(ingestDocument.isModified(), equalTo(false));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
     }
 
-    public void testRemoveEmptyProperty() {
-        ingestDocument.removeProperty("");
+    public void testRemoveEmptyField() {
+        ingestDocument.removeField("");
         assertThat(ingestDocument.isModified(), equalTo(false));
         assertThat(ingestDocument.getSource().size(), equalTo(3));
     }

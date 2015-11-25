@@ -102,7 +102,7 @@ public class ConvertProcessor implements Processor {
     public void execute(IngestDocument document) {
         for(Map.Entry<String, Type> entry : fields.entrySet()) {
             Type type = entry.getValue();
-            Object oldValue = document.getPropertyValue(entry.getKey(), Object.class);
+            Object oldValue = document.getFieldValue(entry.getKey(), Object.class);
             Object newValue;
             if (oldValue == null) {
                 throw new IllegalArgumentException("Field [" + entry.getKey() + "] is null, cannot be converted to type [" + type + "]");
@@ -118,7 +118,7 @@ public class ConvertProcessor implements Processor {
             } else {
                 newValue = type.convert(oldValue);
             }
-            document.setPropertyValue(entry.getKey(), newValue);
+            document.setFieldValue(entry.getKey(), newValue);
         }
     }
 

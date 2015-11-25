@@ -46,13 +46,13 @@ public class RenameProcessorTests extends ESTestCase {
             do {
                 newFieldName = RandomDocumentPicks.randomFieldName(random());
             } while (RandomDocumentPicks.canAddField(newFieldName, ingestDocument) == false || newFields.containsKey(newFieldName));
-            newFields.put(newFieldName, ingestDocument.getPropertyValue(fieldName, Object.class));
+            newFields.put(newFieldName, ingestDocument.getFieldValue(fieldName, Object.class));
             fields.put(fieldName, newFieldName);
         }
         Processor processor = new RenameProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, Object> entry : newFields.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), Object.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), Object.class), equalTo(entry.getValue()));
         }
     }
 
@@ -66,12 +66,12 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameExistingFieldNullValue() throws IOException {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        ingestDocument.setPropertyValue(fieldName, null);
+        ingestDocument.setFieldValue(fieldName, null);
         String newFieldName = RandomDocumentPicks.randomFieldName(random());
         Processor processor = new RenameProcessor(Collections.singletonMap(fieldName, newFieldName));
         processor.execute(ingestDocument);
-        assertThat(ingestDocument.hasPropertyValue(fieldName), equalTo(false));
-        assertThat(ingestDocument.hasPropertyValue(newFieldName), equalTo(true));
-        assertThat(ingestDocument.getPropertyValue(newFieldName, Object.class), nullValue());
+        assertThat(ingestDocument.hasFieldValue(fieldName), equalTo(false));
+        assertThat(ingestDocument.hasFieldValue(newFieldName), equalTo(true));
+        assertThat(ingestDocument.getFieldValue(newFieldName, Object.class), nullValue());
     }
 }

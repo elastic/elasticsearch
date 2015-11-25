@@ -74,7 +74,7 @@ public final class RandomDocumentPicks {
             randomEntry = RandomPicks.randomFrom(random, treeMap.entrySet());
             key += "." + randomEntry.getKey();
         }
-        assert ingestDocument.getPropertyValue(key, Object.class) != null;
+        assert ingestDocument.getFieldValue(key, Object.class) != null;
         return key;
     }
 
@@ -88,7 +88,7 @@ public final class RandomDocumentPicks {
         do {
             fieldName = randomFieldName(random);
         } while (canAddField(fieldName, ingestDocument) == false);
-        ingestDocument.setPropertyValue(fieldName, value);
+        ingestDocument.setFieldValue(fieldName, value);
         return fieldName;
     }
 

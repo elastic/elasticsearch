@@ -42,7 +42,7 @@ public class SplitProcessorTests extends ESTestCase {
         Processor processor = new SplitProcessor(fields);
         processor.execute(ingestDocument);
         for (String field : fields.keySet()) {
-            assertThat(ingestDocument.getPropertyValue(field, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
+            assertThat(ingestDocument.getFieldValue(field, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
         }
     }
 
@@ -62,7 +62,7 @@ public class SplitProcessorTests extends ESTestCase {
     public void testSplitNonStringValue() throws IOException {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        ingestDocument.setPropertyValue(fieldName, randomInt());
+        ingestDocument.setFieldValue(fieldName, randomInt());
         Processor processor = new SplitProcessor(Collections.singletonMap(fieldName, "\\."));
         try {
             processor.execute(ingestDocument);

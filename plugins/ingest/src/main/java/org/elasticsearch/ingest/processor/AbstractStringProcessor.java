@@ -46,11 +46,11 @@ public abstract class AbstractStringProcessor implements Processor {
     @Override
     public final void execute(IngestDocument document) {
         for(String field : fields) {
-            String val = document.getPropertyValue(field, String.class);
+            String val = document.getFieldValue(field, String.class);
             if (val == null) {
                 throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
             }
-            document.setPropertyValue(field, process(val));
+            document.setFieldValue(field, process(val));
         }
     }
 

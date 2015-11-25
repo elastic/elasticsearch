@@ -46,7 +46,7 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, Integer> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), Integer.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), Integer.class), equalTo(entry.getValue()));
         }
     }
 
@@ -71,7 +71,7 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, List<Integer>> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), List.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), List.class), equalTo(entry.getValue()));
         }
     }
 
@@ -79,7 +79,7 @@ public class ConvertProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         String value = "string-" + randomAsciiOfLengthBetween(1, 10);
-        ingestDocument.setPropertyValue(fieldName, value);
+        ingestDocument.setFieldValue(fieldName, value);
 
         Map<String, Type> convert = Collections.singletonMap(fieldName, Type.INTEGER);
         Processor processor = new ConvertProcessor(convert);
@@ -106,7 +106,7 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, Float> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), Float.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), Float.class), equalTo(entry.getValue()));
         }
     }
 
@@ -131,7 +131,7 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, List<Float>> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), List.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), List.class), equalTo(entry.getValue()));
         }
     }
 
@@ -139,7 +139,7 @@ public class ConvertProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         String value = "string-" + randomAsciiOfLengthBetween(1, 10);
-        ingestDocument.setPropertyValue(fieldName, value);
+        ingestDocument.setFieldValue(fieldName, value);
 
         Map<String, Type> convert = Collections.singletonMap(fieldName, Type.FLOAT);
         Processor processor = new ConvertProcessor(convert);
@@ -170,7 +170,7 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, Boolean> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), Boolean.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), Boolean.class), equalTo(entry.getValue()));
         }
     }
 
@@ -199,7 +199,7 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, List<Boolean>> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), List.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), List.class), equalTo(entry.getValue()));
         }
     }
 
@@ -213,7 +213,7 @@ public class ConvertProcessorTests extends ESTestCase {
             //verify that only proper boolean values are supported and we are strict about it
             fieldValue = randomFrom("on", "off", "yes", "no", "0", "1");
         }
-        ingestDocument.setPropertyValue(fieldName, fieldValue);
+        ingestDocument.setFieldValue(fieldName, fieldValue);
 
         Map<String, Type> convert = Collections.singletonMap(fieldName, Type.BOOLEAN);
         Processor processor = new ConvertProcessor(convert);
@@ -260,7 +260,7 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, String> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), String.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), String.class), equalTo(entry.getValue()));
         }
     }
 
@@ -305,7 +305,7 @@ public class ConvertProcessorTests extends ESTestCase {
         Processor processor = new ConvertProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, List<String>> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), List.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), List.class), equalTo(entry.getValue()));
         }
     }
 

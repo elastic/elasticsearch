@@ -62,7 +62,7 @@ public final class DateProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String value = ingestDocument.getPropertyValue(matchField, String.class);
+        String value = ingestDocument.getFieldValue(matchField, String.class);
         // TODO(talevy): handle custom timestamp fields
 
         DateTime dateTime = null;
@@ -80,7 +80,7 @@ public final class DateProcessor implements Processor {
             throw new IllegalArgumentException("unable to parse date [" + value + "]", lastException);
         }
 
-        ingestDocument.setPropertyValue(targetField, ISODateTimeFormat.dateTime().print(dateTime));
+        ingestDocument.setFieldValue(targetField, ISODateTimeFormat.dateTime().print(dateTime));
     }
 
     @Override

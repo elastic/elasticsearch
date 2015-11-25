@@ -61,7 +61,7 @@ public final class GeoIpProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        String ip = ingestDocument.getPropertyValue(sourceField, String.class);
+        String ip = ingestDocument.getFieldValue(sourceField, String.class);
         final InetAddress ipAddress;
         try {
             ipAddress = InetAddress.getByName(ip);
@@ -88,7 +88,7 @@ public final class GeoIpProcessor implements Processor {
             default:
                 throw new IllegalStateException("Unsupported database type [" + dbReader.getMetadata().getDatabaseType() + "]");
         }
-        ingestDocument.setPropertyValue(targetField, geoData);
+        ingestDocument.setFieldValue(targetField, geoData);
     }
 
     @Override

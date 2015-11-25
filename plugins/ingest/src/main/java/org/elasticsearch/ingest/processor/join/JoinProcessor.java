@@ -50,14 +50,14 @@ public class JoinProcessor implements Processor {
     @Override
     public void execute(IngestDocument document) {
         for(Map.Entry<String, String> entry : fields.entrySet()) {
-            List<?> list = document.getPropertyValue(entry.getKey(), List.class);
+            List<?> list = document.getFieldValue(entry.getKey(), List.class);
             if (list == null) {
                 throw new IllegalArgumentException("field [" + entry.getKey() + "] is null, cannot join.");
             }
             String joined = list.stream()
                     .map(Object::toString)
                     .collect(Collectors.joining(entry.getValue()));
-            document.setPropertyValue(entry.getKey(), joined);
+            document.setFieldValue(entry.getKey(), joined);
         }
     }
 

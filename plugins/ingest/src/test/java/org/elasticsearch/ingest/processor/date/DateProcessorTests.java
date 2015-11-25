@@ -38,7 +38,7 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", "2010 12 06 11:05:15");
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo("2010-06-12T11:05:15.000+02:00"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T11:05:15.000+02:00"));
     }
 
     public void testJodaPatternMultipleFormats() {
@@ -53,19 +53,19 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", "2010 12 06");
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
 
         document = new HashMap<>();
         document.put("date_as_string", "12/06/2010");
         ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
 
         document = new HashMap<>();
         document.put("date_as_string", "12-06-2010");
         ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
 
         document = new HashMap<>();
         document.put("date_as_string", "2010");
@@ -85,7 +85,7 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", "2010 12 giugno");
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2010-06-12T00:00:00.000+02:00"));
     }
 
     public void testJodaPatternDefaultYear() {
@@ -95,7 +95,7 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", "12/06");
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo(DateTime.now().getYear() + "-06-12T00:00:00.000+02:00"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo(DateTime.now().getYear() + "-06-12T00:00:00.000+02:00"));
     }
 
     public void testTAI64N() {
@@ -106,7 +106,7 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", dateAsString);
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo("2012-12-22T03:00:46.767+02:00"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("2012-12-22T03:00:46.767+02:00"));
     }
 
     public void testUnixMs() {
@@ -116,7 +116,7 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", "1000500");
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
     }
 
     public void testUnix() {
@@ -126,6 +126,6 @@ public class DateProcessorTests extends ESTestCase {
         document.put("date_as_string", "1000.5");
         IngestDocument ingestDocument = new IngestDocument("index", "type", "id", document);
         dateProcessor.execute(ingestDocument);
-        assertThat(ingestDocument.getPropertyValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
+        assertThat(ingestDocument.getFieldValue("date_as_date", String.class), equalTo("1970-01-01T00:16:40.500Z"));
     }
 }

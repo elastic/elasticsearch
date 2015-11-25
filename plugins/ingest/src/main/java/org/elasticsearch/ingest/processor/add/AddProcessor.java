@@ -48,7 +48,7 @@ public class AddProcessor implements Processor {
     @Override
     public void execute(IngestDocument document) {
         for(Map.Entry<String, Object> entry : fields.entrySet()) {
-            document.setPropertyValue(entry.getKey(), entry.getValue());
+            document.setFieldValue(entry.getKey(), entry.getValue());
         }
     }
 

@@ -50,11 +50,11 @@ public class SplitProcessor implements Processor {
     @Override
     public void execute(IngestDocument document) {
         for(Map.Entry<String, String> entry : fields.entrySet()) {
-            String oldVal = document.getPropertyValue(entry.getKey(), String.class);
+            String oldVal = document.getFieldValue(entry.getKey(), String.class);
             if (oldVal == null) {
                 throw new IllegalArgumentException("field [" + entry.getKey() + "] is null, cannot split.");
             }
-            document.setPropertyValue(entry.getKey(), Arrays.asList(oldVal.split(entry.getValue())));
+            document.setFieldValue(entry.getKey(), Arrays.asList(oldVal.split(entry.getValue())));
         }
     }
 

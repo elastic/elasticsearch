@@ -45,8 +45,8 @@ public class RemoveProcessorTests extends ESTestCase {
         Processor processor = new RemoveProcessor(fields);
         processor.execute(ingestDocument);
         for (String field : fields) {
-            assertThat(ingestDocument.getPropertyValue(field, Object.class), nullValue());
-            assertThat(ingestDocument.hasPropertyValue(field), equalTo(false));
+            assertThat(ingestDocument.getFieldValue(field, Object.class), nullValue());
+            assertThat(ingestDocument.hasFieldValue(field), equalTo(false));
         }
     }
 

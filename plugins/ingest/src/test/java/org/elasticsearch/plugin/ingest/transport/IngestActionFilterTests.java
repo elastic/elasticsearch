@@ -174,7 +174,7 @@ public class IngestActionFilterTests extends ESTestCase {
         Processor processor = new Processor() {
             @Override
             public void execute(IngestDocument ingestDocument) {
-                ingestDocument.setPropertyValue("field2", "value2");
+                ingestDocument.setFieldValue("field2", "value2");
             }
 
             @Override

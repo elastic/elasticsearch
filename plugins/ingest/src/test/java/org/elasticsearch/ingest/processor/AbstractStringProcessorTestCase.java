@@ -53,7 +53,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
         Processor processor = newProcessor(expected.keySet());
         processor.execute(ingestDocument);
         for (Map.Entry<String, String> entry : expected.entrySet()) {
-            assertThat(ingestDocument.getPropertyValue(entry.getKey(), String.class), equalTo(entry.getValue()));
+            assertThat(ingestDocument.getFieldValue(entry.getKey(), String.class), equalTo(entry.getValue()));
         }
     }
 
@@ -73,7 +73,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Processor processor = newProcessor(Collections.singletonList(fieldName));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        ingestDocument.setPropertyValue(fieldName, randomInt());
+        ingestDocument.setFieldValue(fieldName, randomInt());
         try {
             processor.execute(ingestDocument);
             fail("processor should have failed");

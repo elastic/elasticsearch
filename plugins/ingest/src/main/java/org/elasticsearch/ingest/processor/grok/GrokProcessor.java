@@ -46,12 +46,12 @@ public final class GrokProcessor implements Processor {
 
     @Override
     public void execute(IngestDocument ingestDocument) {
-        Object field = ingestDocument.getPropertyValue(matchField, Object.class);
+        Object field = ingestDocument.getFieldValue(matchField, Object.class);
         // TODO(talevy): handle invalid field types
         if (field instanceof String) {
             Map<String, Object> matches = grok.captures((String) field);
             if (matches != null) {
-                matches.forEach((k, v) -> ingestDocument.setPropertyValue(k, v));
+                matches.forEach((k, v) -> ingestDocument.setFieldValue(k, v));
             }
         }
     }

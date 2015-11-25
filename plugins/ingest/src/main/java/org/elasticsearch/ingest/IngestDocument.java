@@ -53,7 +53,7 @@ public final class IngestDocument {
      * @return the value for the provided path if existing, null otherwise
      * @throws IllegalArgumentException if the field is present but is not of the type provided as argument.
      */
-    public <T> T getPropertyValue(String path, Class<T> clazz) {
+    public <T> T getFieldValue(String path, Class<T> clazz) {
         if (path == null || path.length() == 0) {
             return null;
         }
@@ -66,22 +66,22 @@ public final class IngestDocument {
         }
 
         String leafKey = pathElements[pathElements.length - 1];
-        Object property = innerMap.get(leafKey);
-        if (property == null) {
+        Object fieldValue = innerMap.get(leafKey);
+        if (fieldValue == null) {
             return null;
         }
-        if (clazz.isInstance(property)) {
-            return clazz.cast(property);
+        if (clazz.isInstance(fieldValue)) {
+            return clazz.cast(fieldValue);
         }
-        throw new IllegalArgumentException("field [" + path + "] of type [" + property.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
+        throw new IllegalArgumentException("field [" + path + "] of type [" + fieldValue.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
     }
 
     /**
      * Checks whether the document contains a value for the provided path
      * @param path The path within the document in dot-notation
-     * @return true if the document contains a value for the property, false otherwise
+     * @return true if the document contains a value for the field, false otherwise
      */
-    public boolean hasPropertyValue(String path) {
+    public boolean hasFieldValue(String path) {
         if (path == null || path.length() == 0) {
             return false;
         }
@@ -96,10 +96,10 @@ public final class IngestDocument {
     }
 
     /**
-     * Removes the property identified by the provided path
-     * @param path the path of the property to be removed
+     * Removes the field identified by the provided path
+     * @param path the path of the field to be removed
      */
-    public void removeProperty(String path) {
+    public void removeField(String path) {
         if (path == null || path.length() == 0) {
             return;
         }
@@ -136,7 +136,7 @@ public final class IngestDocument {
      * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
      */
-    public void setPropertyValue(String path, Object value) {
+    public void setFieldValue(String path, Object value) {
         if (path == null || path.length() == 0) {
             throw new IllegalArgumentException("cannot add null or empty field");
         }
@@ -175,8 +175,8 @@ public final class IngestDocument {
 
     /**
      * Returns the document. Should be used only for reading. Any change made to the returned map will
-     * not be reflected to the modified flag. Modify the document instead using {@link #setPropertyValue(String, Object)}
-     * and {@link #removeProperty(String)}
+     * not be reflected to the modified flag. Modify the document instead using {@link #setFieldValue(String, Object)}
+     * and {@link #removeField(String)}
      */
     public Map<String, Object> getSource() {
         return source;

@@ -44,8 +44,8 @@ public class AddProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         for (Map.Entry<String, Object> field : fields.entrySet()) {
-            assertThat(ingestDocument.hasPropertyValue(field.getKey()), equalTo(true));
-            assertThat(ingestDocument.getPropertyValue(field.getKey(), Object.class), equalTo(field.getValue()));
+            assertThat(ingestDocument.hasFieldValue(field.getKey()), equalTo(true));
+            assertThat(ingestDocument.getFieldValue(field.getKey(), Object.class), equalTo(field.getValue()));
         }
     }
 
@@ -63,14 +63,14 @@ public class AddProcessorTests extends ESTestCase {
         Processor processor = new AddProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, Object> field : fields.entrySet()) {
-            assertThat(ingestDocument.hasPropertyValue(field.getKey()), equalTo(true));
-            assertThat(ingestDocument.getPropertyValue(field.getKey(), Object.class), equalTo(field.getValue()));
+            assertThat(ingestDocument.hasFieldValue(field.getKey()), equalTo(true));
+            assertThat(ingestDocument.getFieldValue(field.getKey(), Object.class), equalTo(field.getValue()));
         }
     }
 
     public void testAddFieldsTypeMismatch() throws IOException {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        ingestDocument.setPropertyValue("field", "value");
+        ingestDocument.setFieldValue("field", "value");
         Processor processor = new AddProcessor(Collections.singletonMap("field.inner", "value"));
         try {
             processor.execute(ingestDocument);

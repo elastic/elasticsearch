@@ -51,13 +51,13 @@ public class GsubProcessor implements Processor {
     @Override
     public void execute(IngestDocument document) {
         for (GsubExpression gsubExpression : gsubExpressions) {
-            String oldVal = document.getPropertyValue(gsubExpression.getFieldName(), String.class);
+            String oldVal = document.getFieldValue(gsubExpression.getFieldName(), String.class);
             if (oldVal == null) {
                 throw new IllegalArgumentException("field [" + gsubExpression.getFieldName() + "] is null, cannot match pattern.");
             }
             Matcher matcher = gsubExpression.getPattern().matcher(oldVal);
             String newVal = matcher.replaceAll(gsubExpression.getReplacement());
-            document.setPropertyValue(gsubExpression.getFieldName(), newVal);
+            document.setFieldValue(gsubExpression.getFieldName(), newVal);
         }
     }
 

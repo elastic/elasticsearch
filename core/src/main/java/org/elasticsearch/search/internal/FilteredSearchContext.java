@@ -518,7 +518,7 @@ public abstract class FilteredSearchContext extends SearchContext {
 
     @Override
     public Profilers getProfilers() {
-        throw new UnsupportedOperationException();
+        return in.getProfilers();
     }
 
     @Override

@@ -18,17 +18,17 @@
  */
 package org.elasticsearch.cluster;
 
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.stream.Collectors;
 
 public interface ClusterStateTaskExecutor<T> {
     /**
      * Update the cluster state based on the current state and the given tasks. Return the *same instance* if no state
      * should be changed.
      */
-    Result<T> execute(ClusterState currentState, List<T> tasks) throws Exception;
+    BatchResult<T> execute(ClusterState currentState, List<T> tasks) throws Exception;
 
     /**
      * indicates whether this task should only run if current node is master
@@ -41,44 +41,74 @@ public interface ClusterStateTaskExecutor<T> {
      * Represents the result of a batched execution of cluster state update tasks
      * @param <T> the type of the cluster state update task
      */
-    class Result<T> {
+    class BatchResult<T> {
         final public ClusterState resultingState;
-        final public Map<T, ClusterStateTaskExecutionResult> executionResults;
-
-        /**
-         * Construct an execution result instance for which every cluster state update task succeeded
-         * @param resultingState the resulting cluster state
-         * @param tasks the cluster state update tasks
-         */
-        public Result(ClusterState resultingState, List<T> tasks) {
-            this(resultingState, tasks.stream().collect(Collectors.toMap(task -> task, task -> ClusterStateTaskExecutionResult.success())));
-        }
+        final public Map<T, TaskResult> executionResults;
 
         /**
          * Construct an execution result instance with a correspondence between the tasks and their execution result
          * @param resultingState the resulting cluster state
          * @param executionResults the correspondence between tasks and their outcome
          */
-        public Result(ClusterState resultingState, Map<T, ClusterStateTaskExecutionResult> executionResults) {
+        BatchResult(ClusterState resultingState, Map<T, TaskResult> executionResults) {
             this.resultingState = resultingState;
             this.executionResults = executionResults;
         }
+
+        public static <T> Builder<T> builder() {
+            return new Builder<>();
+        }
+
+        public static class Builder<T> {
+            private final Map<T, TaskResult> executionResults = new IdentityHashMap<>();
+
+            public Builder<T> success(T task) {
+                return result(task, TaskResult.success());
+            }
+
+            public Builder<T> successes(Iterable<T> tasks) {
+                for (T task : tasks) {
+                    success(task);
+                }
+                return this;
+            }
+
+            public Builder<T> failure(T task, Throwable t) {
+                return result(task, TaskResult.failure(t));
+            }
+
+            public Builder<T> failures(Iterable<T> tasks, Throwable t) {
+                for (T task : tasks) {
+                    failure(task, t);
+                }
+                return this;
+            }
+
+            private Builder<T> result(T task, TaskResult executionResult) {
+                executionResults.put(task, executionResult);
+                return this;
+            }
+
+            public BatchResult<T> build(ClusterState resultingState) {
+                return new BatchResult<>(resultingState, executionResults);
+            }
+        }
     }
 
-    final class ClusterStateTaskExecutionResult {
+    final class TaskResult {
         private final Throwable failure;
 
-        private static final ClusterStateTaskExecutionResult SUCCESS = new ClusterStateTaskExecutionResult(null);
+        private static final TaskResult SUCCESS = new TaskResult(null);
 
-        public static ClusterStateTaskExecutionResult success() {
+        public static TaskResult success() {
             return SUCCESS;
         }
 
-        public static ClusterStateTaskExecutionResult failure(Throwable failure) {
-            return new ClusterStateTaskExecutionResult(failure);
+        public static TaskResult failure(Throwable failure) {
+            return new TaskResult(failure);
         }
 
-        private ClusterStateTaskExecutionResult(Throwable failure) {
+        private TaskResult(Throwable failure) {
             this.failure = failure;
         }
 

@@ -41,9 +41,9 @@ abstract public class ClusterStateUpdateTask implements ClusterStateTaskConfig, 
     }
 
     @Override
-    final public Result<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
+    final public BatchResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
         ClusterState result = execute(currentState);
-        return new Result<>(result, tasks);
+        return BatchResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
     }
 
     /**

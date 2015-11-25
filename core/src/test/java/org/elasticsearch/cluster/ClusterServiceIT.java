@@ -755,10 +755,10 @@ public class ClusterServiceIT extends ESIntegTestCase {
             private AtomicInteger counter = new AtomicInteger();
 
             @Override
-            public Result<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
+            public BatchResult<Task> execute(ClusterState currentState, List<Task> tasks) throws Exception {
                 tasks.forEach(task -> task.execute());
                 counter.addAndGet(tasks.size());
-                return new Result<>(currentState, tasks);
+                return BatchResult.<Task>builder().successes(tasks).build(currentState);
             }
 
             @Override

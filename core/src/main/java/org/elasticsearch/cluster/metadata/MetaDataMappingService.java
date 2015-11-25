@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
@@ -81,9 +80,9 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class RefreshTaskExecutor implements ClusterStateTaskExecutor<RefreshTask> {
         @Override
-        public Result<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
+        public BatchResult<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
             ClusterState newClusterState = executeRefresh(currentState, tasks);
-            return new Result<>(newClusterState, tasks);
+            return BatchResult.<RefreshTask>builder().successes(tasks).build(newClusterState);
         }
     }
 
@@ -221,9 +220,10 @@ public class MetaDataMappingService extends AbstractComponent {
 
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
-        public Result<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
+        public BatchResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             List<String> indicesToClose = new ArrayList<>();
-            Map<PutMappingClusterStateUpdateRequest, ClusterStateTaskExecutionResult> executionResults = new HashMap<>();
+            BatchResult.Builder<PutMappingClusterStateUpdateRequest> builder = BatchResult.builder();
+            Map<PutMappingClusterStateUpdateRequest, TaskResult> executionResults = new HashMap<>();
             try {
                 // precreate incoming indices;
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
@@ -250,13 +250,13 @@ public class MetaDataMappingService extends AbstractComponent {
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     try {
                         currentState = applyRequest(currentState, request);
-                        executionResults.put(request, ClusterStateTaskExecutionResult.success());
+                        builder.success(request);
                     } catch (Throwable t) {
-                        executionResults.put(request, ClusterStateTaskExecutionResult.failure(t));
+                        builder.failure(request, t);
                     }
                 }
 
-                return new Result<>(currentState, executionResults);
+                return builder.build(currentState);
             } finally {
                 for (String index : indicesToClose) {
                     indicesService.removeIndex(index, "created for mapping processing");

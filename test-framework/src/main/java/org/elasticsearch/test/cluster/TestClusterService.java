@@ -191,21 +191,21 @@ public class TestClusterService implements ClusterService {
             logger.debug("failed [{}], no longer master", source);
             return;
         }
-        ClusterStateTaskExecutor.Result<T> result;
+        ClusterStateTaskExecutor.BatchResult<T> batchResult;
         ClusterState previousClusterState = state;
         try {
-            result = executor.execute(previousClusterState, Arrays.asList(task));
+            batchResult = executor.execute(previousClusterState, Arrays.asList(task));
         } catch (Exception e) {
-            result = new ClusterStateTaskExecutor.Result<>(previousClusterState, Collections.singletonMap(task, ClusterStateTaskExecutor.ClusterStateTaskExecutionResult.failure(e)));
+            batchResult = ClusterStateTaskExecutor.BatchResult.<T>builder().failure(task, e).build(previousClusterState);
         }
 
-        result.executionResults.get(task).handle(
+        batchResult.executionResults.get(task).handle(
                 () -> {},
                 ex -> listener.onFailure(source, new ElasticsearchException("failed to process cluster state update task [" + source + "]", ex))
         );
 
-        setStateAndNotifyListeners(result.resultingState);
-        listener.clusterStateProcessed(source, previousClusterState, result.resultingState);
+        setStateAndNotifyListeners(batchResult.resultingState);
+        listener.clusterStateProcessed(source, previousClusterState, batchResult.resultingState);
         logger.debug("finished [{}]", source);
 
     }

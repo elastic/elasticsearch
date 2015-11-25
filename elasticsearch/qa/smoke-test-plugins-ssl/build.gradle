@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.LoggedExec
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
 // location of keystore and files to generate it
@@ -49,10 +49,7 @@ integTest {
     systemProperty 'es.shield.http.ssl', 'true'
     systemProperty 'es.shield.ssl.keystore.path', keystore.name
     systemProperty 'es.shield.ssl.keystore.password', 'keypass'
-    plugin 'licence', project(':x-plugins:elasticsearch:license:plugin')
-    plugin 'shield', project(':x-plugins:elasticsearch:shield')
-    plugin 'watcher', project(':x-plugins:elasticsearch:watcher')
-    plugin 'marvel-agent', project(':x-plugins:elasticsearch:marvel')
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
 
     // copy keystore into config/
     extraConfigFile keystore.name, keystore

@@ -7,8 +7,7 @@ esplugin {
 }
 
 dependencies {
-  provided project(path: ':x-plugins:elasticsearch:license:plugin', configuration: 'runtime')
-  provided project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+  provided project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
 compileJava.options.compilerArgs << "-Xlint:-rawtypes"
@@ -16,8 +15,7 @@ compileJava.options.compilerArgs << "-Xlint:-rawtypes"
 
 integTest {
   cluster {
-    plugin 'license', project(':x-plugins:elasticsearch:license:plugin')
-    plugin 'shield', project(':x-plugins:elasticsearch:shield')
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     // TODO: these should be settings?
     systemProperty 'es.shield.authc.realms.custom.order', '0'
     systemProperty 'es.shield.authc.realms.custom.type', 'custom'

@@ -13,7 +13,7 @@ import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -41,7 +41,7 @@ public class ShieldTransportClientIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(ShieldPlugin.class);
+        return Collections.singletonList(XPackPlugin.class);
     }
 
     public void testThatTransportClientWithoutAuthenticationDoesNotWork() throws Exception {
@@ -111,6 +111,6 @@ public class ShieldTransportClientIT extends ESIntegTestCase {
                 .put("cluster.name", clusterName)
                 .build();
 
-        return TransportClient.builder().settings(settings).addPlugin(ShieldPlugin.class).build().addTransportAddress(publishAddress);
+        return TransportClient.builder().settings(settings).addPlugin(XPackPlugin.class).build().addTransportAddress(publishAddress);
     }
 }

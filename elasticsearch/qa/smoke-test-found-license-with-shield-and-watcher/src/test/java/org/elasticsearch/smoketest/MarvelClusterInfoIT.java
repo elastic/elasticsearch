@@ -11,7 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.hamcrest.Matcher;
 
@@ -37,7 +37,7 @@ public class MarvelClusterInfoIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.singletonList(ShieldPlugin.class);
+        return Collections.singletonList(XPackPlugin.class);
     }
 
     public void testMarvelClusterInfoCollectorWorks() throws Exception {

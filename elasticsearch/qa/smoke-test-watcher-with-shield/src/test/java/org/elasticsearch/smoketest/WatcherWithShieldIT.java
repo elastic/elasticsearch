@@ -15,7 +15,7 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -90,7 +90,7 @@ public class WatcherWithShieldIT extends ESRestTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.<Class<? extends Plugin>>singleton(ShieldPlugin.class);
+        return Collections.<Class<? extends Plugin>>singleton(XPackPlugin.class);
     }
 
 }

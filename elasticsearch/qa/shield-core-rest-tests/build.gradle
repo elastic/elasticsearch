@@ -1,7 +1,7 @@
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
 integTest {
@@ -30,8 +30,7 @@ integTest {
      'bulk/40_fields/Fields'].join(',')
 
   cluster {
-    plugin 'license', project(':x-plugins:elasticsearch:license:plugin')
-    plugin 'shield', project(':x-plugins:elasticsearch:shield')
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     setupCommand 'setupDummyUser',
                  'bin/shield/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { node, ant ->

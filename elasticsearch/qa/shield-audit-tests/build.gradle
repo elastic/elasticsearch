@@ -1,14 +1,12 @@
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
 integTest {
   cluster {
-    plugin 'license', project(':x-plugins:elasticsearch:license:plugin')
-    plugin 'shield', project(':x-plugins:elasticsearch:shield')
-    // TODO: these should be settings?
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     systemProperty 'es.shield.audit.enabled', 'true'
     systemProperty 'es.shield.audit.outputs', 'index'
     setupCommand 'setupDummyUser',

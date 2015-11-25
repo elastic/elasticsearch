@@ -3,7 +3,7 @@ import org.elasticsearch.gradle.MavenFilteringHack
 apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
-  testCompile project(path: ':x-plugins:elasticsearch:shield', configuration: 'runtime')
+  testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
 ext.pluginCount = 0
@@ -16,13 +16,10 @@ for (Project subproj : project.rootProject.subprojects) {
   }
 }
 
-project.pluginCount += 4
+project.pluginCount += 1
 integTest {
   cluster {
-    plugin 'licence', project(':x-plugins:elasticsearch:license:plugin')
-    plugin 'shield', project(':x-plugins:elasticsearch:shield')
-    plugin 'watcher', project(':x-plugins:elasticsearch:watcher')
-    plugin 'marvel-agent', project(':x-plugins:elasticsearch:marvel')
+    plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
 
     setupCommand 'setupDummyUser',
                  'bin/shield/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'

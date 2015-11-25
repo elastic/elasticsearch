@@ -1,0 +1,111 @@
+import org.elasticsearch.gradle.MavenFilteringHack
+
+apply plugin: 'elasticsearch.esplugin'
+esplugin {
+  name 'x-pack'
+  description 'Elasticsearch Expanded Pack Plugin'
+  classname 'org.elasticsearch.xpack.XPackPlugin'
+}
+
+ext.versions = [
+  okhttp: '2.3.0'
+]
+
+dependencies {
+  // license deps
+  compile project(':x-plugins:elasticsearch:license:plugin-api')
+  testCompile project(':x-plugins:elasticsearch:license:licensor')
+
+  // shield deps
+  compile 'dk.brics.automaton:automaton:1.11-8'
+  compile 'com.unboundid:unboundid-ldapsdk:2.3.8'
+  testCompile 'com.google.jimfs:jimfs:1.0'
+
+  // watcher deps
+  compile 'com.googlecode.owasp-java-html-sanitizer:owasp-java-html-sanitizer:r239'
+  compile 'com.google.guava:guava:16.0.1' // needed by watcher and shield tests for jimfs
+  compile 'com.google.code.findbugs:jsr305:3.0.1' // TODO: remove this
+  compile 'com.sun.mail:javax.mail:1.5.3'
+  compile 'javax.activation:activation:1.1.1'
+  testCompile 'org.subethamail:subethasmtp:3.1.7'
+
+  // common test deps
+  testCompile 'org.elasticsearch:securemock:1.1'
+  testCompile 'org.slf4j:slf4j-log4j12:1.6.2'
+  testCompile 'org.slf4j:slf4j-api:1.6.2'
+
+  // mock web server
+  testCompile "com.squareup.okhttp:mockwebserver:${versions.okhttp}"
+  testCompile "com.squareup.okhttp:okhttp:${versions.okhttp}"
+  testCompile "com.squareup.okhttp:okhttp-ws:${versions.okhttp}"
+  testCompile 'com.squareup.okio:okio:1.3.0'
+  testCompile 'org.bouncycastle:bcprov-jdk15on:1.50'
+}
+
+// we keep the source directories in the original structure of split plugins,
+// in order to facilitate backports to 2.x.  TODO: remove after 5.0 release
+for (String module : ['', 'license/', 'shield/', 'watcher/', 'marvel/']) {
+  sourceSets {
+    main {
+      java.srcDir("${module}src/main/java")
+      resources.srcDir("${module}src/main/resources")
+    }
+    test {
+      java.srcDir("${module}src/test/java")
+      resources.srcDir("${module}src/test/resources")
+    }
+  }
+}
+
+compileJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-try,-unchecked"
+
+ext.expansions = [
+  'project.version': version,
+  'integ.http.port': integTest.cluster.baseHttpPort
+]
+
+processResources {
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
+  String licenseKeyName = System.getProperty('license.key', 'dev')
+  String licenseKeyPath = "license-plugin/keys/${licenseKeyName}/public.key"
+  if (file(licenseKeyPath).exists() == false) {
+    throw new GradleException("no public key found for '${licenseKeyName}'")
+  } 
+  from licenseKeyPath 
+}
+
+processTestResources {
+  inputs.properties(expansions)
+  MavenFilteringHack.filter(it, expansions)
+}
+
+forbiddenPatterns {
+  exclude '**/*.key'
+  exclude '**/*.p12'
+}
+
+bundlePlugin {
+  from(project(':x-plugins').projectDir) {
+    include 'LICENSE.txt'
+    include 'NOTICE.txt'
+  }
+}
+
+// TODO: standardize packaging config for plugins
+bundlePlugin {
+  from(projectDir) {
+    include 'LICENSE.txt'
+    include 'NOTICE.txt'
+  }
+  from('shield/bin/shield') {
+    into 'bin'
+  }
+  from('shield/config/shield') {
+    into 'config'
+  }
+  from('shield/bin/watcher') {
+    into 'bin'
+  }
+}

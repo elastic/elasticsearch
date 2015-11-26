@@ -23,6 +23,7 @@ import static org.hamcrest.Matchers.is;
 
 @ClusterScope(scope = TEST, numDataNodes = 1)
 public class IpFilteringUpdateTests extends ShieldIntegTestCase {
+
     private static int randomClientPort;
 
     private final boolean httpEnabled = randomBoolean();

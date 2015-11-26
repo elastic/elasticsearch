@@ -12,6 +12,7 @@ import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.Arrays;
 import java.util.Collection;

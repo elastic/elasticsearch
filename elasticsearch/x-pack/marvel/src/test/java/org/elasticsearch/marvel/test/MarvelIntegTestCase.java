@@ -18,20 +18,18 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.marvel.agent.AgentService;
 import org.elasticsearch.marvel.agent.exporter.MarvelTemplateUtils;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.shield.crypto.InternalCryptoService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.TestCluster;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
 
@@ -72,6 +70,10 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal) {
         Settings.Builder builder = Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+
+                //TODO: for now lets isolate marvel tests from watcher (randomize this later)
+                .put("watcher.enabled", false)
+
                 // we do this by default in core, but for marvel this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false);
 

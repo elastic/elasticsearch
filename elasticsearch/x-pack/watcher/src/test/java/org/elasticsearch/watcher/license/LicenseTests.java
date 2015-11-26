@@ -19,6 +19,7 @@ import java.util.List;
 import static org.hamcrest.Matchers.is;
 
 public class LicenseTests extends ESTestCase {
+
     private SimpleLicenseeRegistry licenseeRegistry = new SimpleLicenseeRegistry();
 
     public void testPlatinumGoldTrialLicenseCanDoEverything() throws Exception {

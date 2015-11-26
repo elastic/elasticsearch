@@ -16,6 +16,7 @@ import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginSe
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
 
 import java.util.Arrays;

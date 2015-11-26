@@ -7,14 +7,17 @@ package org.elasticsearch.marvel.agent.collector;
 
 import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SysGlobals;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
@@ -25,16 +28,13 @@ import org.elasticsearch.marvel.shield.SecuredClient;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.Before;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
+import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.concurrent.TimeUnit;
 
@@ -43,10 +43,7 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        if (shieldEnabled) {
-            return Arrays.asList(LicensePluginForCollectors.class, XPackPlugin.class, XPackPlugin.class);
-        }
-        return Arrays.asList(LicensePluginForCollectors.class, XPackPlugin.class);
+        return Arrays.asList(InternalXPackPlugin.class);
     }
 
     @Override
@@ -183,18 +180,10 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
         }, 30L, TimeUnit.SECONDS);
     }
 
-    public static class LicensePluginForCollectors extends Plugin {
+    public static class InternalLicensePlugin extends LicensePlugin {
 
-        public static final String NAME = "internal-test-licensing";
-
-        @Override
-        public String name() {
-            return NAME;
-        }
-
-        @Override
-        public String description() {
-            return name();
+        public InternalLicensePlugin() {
+            super(Settings.EMPTY);
         }
 
         @Override
@@ -209,6 +198,27 @@ public class AbstractCollectorTestCase extends MarvelIntegTestCase {
                     bind(LicensesManagerService.class).to(LicensesManagerServiceForCollectors.class);
                 }
             });
+        }
+
+        @Override
+        public void onModule(RestModule module) {
+        }
+
+        @Override
+        public void onModule(ActionModule module) {
+        }
+
+        @Override
+        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+            return Collections.emptyList();
+        }
+    }
+
+    public static class InternalXPackPlugin extends XPackPlugin {
+
+        public InternalXPackPlugin(Settings settings) {
+            super(settings);
+            licensePlugin = new InternalLicensePlugin();
         }
     }
 

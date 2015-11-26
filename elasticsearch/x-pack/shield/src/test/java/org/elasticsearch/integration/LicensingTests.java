@@ -6,6 +6,7 @@
 package org.elasticsearch.integration;
 
 import org.elasticsearch.ElasticsearchSecurityException;
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.stats.ClusterStatsIndices;
@@ -17,37 +18,35 @@ import org.elasticsearch.client.support.Headers;
 import org.elasticsearch.client.transport.NoNodeAvailableException;
 import org.elasticsearch.client.transport.TransportClient;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.core.License;
 import org.elasticsearch.license.core.License.OperationMode;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.node.Node;
-import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.authc.support.UsernamePasswordToken;
 import org.elasticsearch.test.ShieldIntegTestCase;
 import org.elasticsearch.test.ShieldSettingsSource;
 import org.elasticsearch.transport.Transport;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
 
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.Locale;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
-import static org.hamcrest.Matchers.hasItem;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -100,6 +99,11 @@ public class LicensingTests extends ShieldIntegTestCase {
         return Settings.builder().put(super.nodeSettings(nodeOrdinal))
                 .put(Node.HTTP_ENABLED, true)
                 .build();
+    }
+
+    @Override
+    protected Class<? extends XPackPlugin> xpackPluginClass() {
+        return InternalXPackPlugin.class;
     }
 
     @After
@@ -237,23 +241,36 @@ public class LicensingTests extends ShieldIntegTestCase {
         }
     }
 
-    public static class InternalLicensePlugin extends Plugin {
-
-        public static final String NAME = "internal-licensing";
-
-        @Override
-        public String name() {
-            return NAME;
-        }
-
-        @Override
-        public String description() {
-            return name();
-        }
+    public static class InternalLicensePlugin extends LicensePlugin {
 
         @Override
         public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new InternalLicenseModule());
+        }
+
+        public InternalLicensePlugin() {
+            super(Settings.EMPTY);
+        }
+
+        @Override
+        public void onModule(RestModule module) {
+        }
+
+        @Override
+        public void onModule(ActionModule module) {
+        }
+
+        @Override
+        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+            return Collections.emptyList();
+        }
+    }
+
+    public static class InternalXPackPlugin extends XPackPlugin {
+
+        public InternalXPackPlugin(Settings settings) {
+            super(settings);
+            licensePlugin = new InternalLicensePlugin();
         }
     }
 

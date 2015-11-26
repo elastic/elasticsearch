@@ -20,13 +20,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.xpack.TimeWarpedXPackPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.XPackPlugin;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.shield.authc.esusers.ESUsersRealm;
 import org.elasticsearch.shield.authc.support.Hasher;
 import org.elasticsearch.shield.authc.support.SecuredString;
@@ -36,7 +33,6 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.TestCluster;
 import org.elasticsearch.watcher.WatcherLifeCycleService;
 import org.elasticsearch.watcher.WatcherModule;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.watcher.WatcherService;
 import org.elasticsearch.watcher.WatcherState;
 import org.elasticsearch.watcher.actions.email.service.Authentication;
@@ -57,6 +53,8 @@ import org.elasticsearch.watcher.trigger.ScheduleTriggerEngineMock;
 import org.elasticsearch.watcher.trigger.TriggerService;
 import org.elasticsearch.watcher.trigger.schedule.ScheduleModule;
 import org.elasticsearch.watcher.watch.Watch;
+import org.elasticsearch.xpack.TimeWarpedXPackPlugin;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.jboss.netty.util.internal.SystemPropertyUtil;
 import org.junit.After;
@@ -69,25 +67,14 @@ import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Locale;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
 import static org.elasticsearch.index.query.QueryBuilders.matchQuery;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.elasticsearch.watcher.WatcherModule.HISTORY_TEMPLATE_NAME;
-import static org.elasticsearch.watcher.WatcherModule.TRIGGERED_TEMPLATE_NAME;
-import static org.elasticsearch.watcher.WatcherModule.WATCHES_TEMPLATE_NAME;
-import static org.hamcrest.Matchers.emptyArray;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.elasticsearch.watcher.WatcherModule.*;
+import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
 import static org.hamcrest.core.IsNot.not;
 
@@ -119,6 +106,10 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         logger.info("using schedule engine [" + scheduleImplName + "]");
         return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
+
+                //TODO: for now lets isolate watcher tests from marvel (randomize this later)
+                .put("marvel.enabled", false)
+
                 // we do this by default in core, but for watcher this isn't needed and only adds noise.
                 .put("index.store.mock.check_index_on_close", false)
                 .put("scroll.size", randomIntBetween(1, 100))
@@ -153,10 +144,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
         } else {
             types.add(XPackPlugin.class);
         }
-        if (shieldEnabled) {
-            types.add(XPackPlugin.class);
-        }
-        types.add(licensePluginClass());
         return types;
     }
 
@@ -189,10 +176,6 @@ public abstract class AbstractWatcherIntegrationTestCase extends ESIntegTestCase
      */
     protected boolean enableShield() {
         return randomBoolean();
-    }
-
-    protected Class<? extends Plugin> licensePluginClass() {
-        return XPackPlugin.class;
     }
 
     protected boolean checkWatcherRunningOnlyOnce() {

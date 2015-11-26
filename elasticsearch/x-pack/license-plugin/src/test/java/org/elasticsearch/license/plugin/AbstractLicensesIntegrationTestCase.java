@@ -23,6 +23,7 @@ import org.elasticsearch.license.plugin.core.*;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -39,7 +40,11 @@ public abstract class AbstractLicensesIntegrationTestCase extends ESIntegTestCas
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.EMPTY;
+        return Settings.builder()
+                .put("shield.enabled", false)
+                .put("marvel.enabled", false)
+                .put("watcher.enabled", false)
+                .build();
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.license.plugin.consumer.LazyLicenseRegistrationPluginSe
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.After;
 
 import java.util.Arrays;
@@ -26,6 +27,7 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 @BadApple(bugUrl = "https://github.com/elastic/x-plugins/issues/1007")
 @ClusterScope(scope = TEST, numDataNodes = 0, numClientNodes = 0)
 public class LicensesPluginsIntegrationTests extends AbstractLicensesIntegrationTestCase {
+
     private static final String ID_1 = EagerLicenseRegistrationPluginService.ID;
     private static final String ID_2 = LazyLicenseRegistrationPluginService.ID;
 

@@ -5,16 +5,22 @@
  */
 package org.elasticsearch.marvel.license;
 
+import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.license.core.License;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.license.plugin.core.LicenseState;
 import org.elasticsearch.license.plugin.core.Licensee;
 import org.elasticsearch.license.plugin.core.LicenseeRegistry;
 import org.elasticsearch.license.plugin.core.LicensesManagerService;
+import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.Plugin;
@@ -36,7 +42,7 @@ import static org.hamcrest.Matchers.isOneOf;
 public class LicenseIntegrationTests extends MarvelIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(MockLicensePlugin.class, XPackPlugin.class);
+        return Arrays.asList(InternalXPackPlugin.class);
     }
 
     @Override
@@ -77,13 +83,10 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         }
     }
 
-    public static class MockLicensePlugin extends Plugin {
+    public static class MockLicensePlugin extends LicensePlugin {
 
-        public static final String NAME = "internal-test-licensing";
-
-        @Override
-        public String name() {
-            return NAME;
+        public MockLicensePlugin() {
+            super(Settings.EMPTY);
         }
 
         @Override
@@ -95,6 +98,20 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         public Collection<Module> nodeModules() {
             return Collections.<Module>singletonList(new InternalLicenseModule());
         }
+
+        @Override
+        public void onModule(RestModule module) {
+        }
+
+        @Override
+        public void onModule(ActionModule module) {
+        }
+
+        @Override
+        public Collection<Class<? extends LifecycleComponent>> nodeServices() {
+            return Collections.emptyList();
+        }
+
     }
 
     public static class InternalLicenseModule extends AbstractModule {
@@ -146,6 +163,13 @@ public class LicenseIntegrationTests extends MarvelIntegTestCase {
         @Override
         public License getLicense() {
             return null;
+        }
+    }
+
+    public static class InternalXPackPlugin extends XPackPlugin {
+        public InternalXPackPlugin(Settings settings) {
+            super(settings);
+            licensePlugin = new MockLicensePlugin();
         }
     }
 }

@@ -14,6 +14,7 @@ import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.license.plugin.LicensePlugin;
 import org.elasticsearch.marvel.MarvelPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
@@ -27,17 +28,19 @@ import java.util.Collection;
 
 public class XPackPlugin extends Plugin {
 
-    public static final String NAME = "xpack";
+    public static final String NAME = "x-pack";
 
     private final static ESLogger logger = Loggers.getLogger(XPackPlugin.class);
 
     protected final Settings settings;
-    protected final ShieldPlugin shieldPlugin;
-    protected final MarvelPlugin marvelPlugin;
+    protected LicensePlugin licensePlugin;
+    protected ShieldPlugin shieldPlugin;
+    protected MarvelPlugin marvelPlugin;
     protected WatcherPlugin watcherPlugin;
 
     public XPackPlugin(Settings settings) {
         this.settings = settings;
+        this.licensePlugin = new LicensePlugin(settings);
         this.shieldPlugin = new ShieldPlugin(settings);
         this.marvelPlugin = new MarvelPlugin(settings);
         this.watcherPlugin = new WatcherPlugin(settings);
@@ -54,6 +57,7 @@ public class XPackPlugin extends Plugin {
     @Override
     public Collection<Module> nodeModules() {
         ArrayList<Module> modules = new ArrayList<>();
+        modules.addAll(licensePlugin.nodeModules());
         modules.addAll(shieldPlugin.nodeModules());
         modules.addAll(watcherPlugin.nodeModules());
         modules.addAll(marvelPlugin.nodeModules());
@@ -63,6 +67,7 @@ public class XPackPlugin extends Plugin {
     @Override
     public Collection<Class<? extends LifecycleComponent>> nodeServices() {
         ArrayList<Class<? extends LifecycleComponent>> services = new ArrayList<>();
+        services.addAll(licensePlugin.nodeServices());
         services.addAll(shieldPlugin.nodeServices());
         services.addAll(watcherPlugin.nodeServices());
         services.addAll(marvelPlugin.nodeServices());
@@ -72,6 +77,7 @@ public class XPackPlugin extends Plugin {
     @Override
     public Settings additionalSettings() {
         Settings.Builder builder = Settings.builder();
+        builder.put(licensePlugin.additionalSettings());
         builder.put(shieldPlugin.additionalSettings());
         builder.put(watcherPlugin.additionalSettings());
         builder.put(marvelPlugin.additionalSettings());
@@ -89,11 +95,13 @@ public class XPackPlugin extends Plugin {
     }
 
     public void onModule(RestModule module) {
+        licensePlugin.onModule(module);
         shieldPlugin.onModule(module);
         watcherPlugin.onModule(module);
     }
 
     public void onModule(ActionModule module) {
+        licensePlugin.onModule(module);
         shieldPlugin.onModule(module);
         watcherPlugin.onModule(module);
     }

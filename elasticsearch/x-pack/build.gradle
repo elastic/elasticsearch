@@ -44,7 +44,7 @@ dependencies {
 
 // we keep the source directories in the original structure of split plugins,
 // in order to facilitate backports to 2.x.  TODO: remove after 5.0 release
-for (String module : ['', 'license/', 'shield/', 'watcher/', 'marvel/']) {
+for (String module : ['', 'license-plugin/', 'shield/', 'watcher/', 'marvel/']) {
   sourceSets {
     main {
       java.srcDir("${module}src/main/java")
@@ -77,8 +77,13 @@ processResources {
 }
 
 processTestResources {
-  inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  from(sourceSets.test.resources.srcDirs) {
+    exclude '**/*.key'
+    exclude '**/*.jks'
+    exclude '**/*.p12'
+    inputs.properties(expansions)
+    MavenFilteringHack.filter(it, expansions)
+  }
 }
 
 forbiddenPatterns {

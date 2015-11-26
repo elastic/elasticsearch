@@ -116,6 +116,11 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
     public Settings nodeSettings(int nodeOrdinal) {
         Path folder = ShieldTestUtils.createFolder(parentFolder, subfolderPrefix + "-" + nodeOrdinal);
         Settings.Builder builder = settingsBuilder().put(super.nodeSettings(nodeOrdinal))
+
+                //TODO: for now isolate shield tests from watcher & marvel (randomize this later)
+                .put("watcher.enabled", false)
+                .put("marvel.enabled", false)
+
                 .put("shield.audit.enabled", randomBoolean())
                 .put(InternalCryptoService.FILE_SETTING, writeFile(folder, "system_key", systemKey))
                 .put("shield.authc.realms.esusers.type", ESUsersRealm.TYPE)
@@ -143,12 +148,12 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     @Override
     public Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class);
+        return Arrays.asList(xpackPluginClass());
     }
 
     @Override
     public Collection<Class<? extends Plugin>> transportClientPlugins() {
-        return Collections.<Class<? extends Plugin>>singletonList(XPackPlugin.class);
+        return Collections.<Class<? extends Plugin>>singletonList(xpackPluginClass());
     }
 
     protected String configUsers() {
@@ -181,6 +186,10 @@ public class ShieldSettingsSource extends ClusterDiscoveryConfiguration.UnicastZ
 
     protected byte[] systemKey() {
         return systemKey;
+    }
+
+    protected Class<? extends XPackPlugin> xpackPluginClass() {
+        return XPackPlugin.class;
     }
 
     private void setUser(Settings.Builder builder, String username, SecuredString password) {

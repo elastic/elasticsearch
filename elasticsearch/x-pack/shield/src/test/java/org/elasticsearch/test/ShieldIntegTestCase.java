@@ -6,16 +6,15 @@
 package org.elasticsearch.test;
 
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
-import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.authc.support.SecuredString;
 import org.elasticsearch.test.ESIntegTestCase.SuppressLocalMode;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.junit.AfterClass;
 import org.junit.Before;
 import org.junit.BeforeClass;
@@ -23,7 +22,7 @@ import org.junit.Rule;
 import org.junit.rules.ExternalResource;
 
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Collection;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoTimeout;
@@ -128,7 +127,7 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
             // TODO: disable this assertion for now, because the test framework randomly runs with mock plugins. Maybe we should run without mock plugins?
 //            assertThat(nodeInfo.getPlugins().getInfos(), hasSize(2));
             Collection<String> pluginNames = nodeInfo.getPlugins().getInfos().stream().map(p -> p.getName()).collect(Collectors.toList());
-            assertThat("plugin [" + ShieldPlugin.NAME + "] not found in [" + pluginNames + "]", pluginNames.contains(ShieldPlugin.NAME), is(true));
+            assertThat("plugin [" + XPackPlugin.NAME + "] not found in [" + pluginNames + "]", pluginNames.contains(XPackPlugin.NAME), is(true));
         }
     }
 
@@ -235,6 +234,10 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
         return randomBoolean();
     }
 
+    protected Class<? extends XPackPlugin> xpackPluginClass() {
+        return SHIELD_DEFAULT_SETTINGS.xpackPluginClass();
+    }
+
     private class CustomShieldSettingsSource extends ShieldSettingsSource {
         private CustomShieldSettingsSource(boolean sslTransportEnabled, Path configDir, Scope scope) {
             super(maxNumberOfNodes(), sslTransportEnabled, configDir, scope);
@@ -275,6 +278,10 @@ public abstract class ShieldIntegTestCase extends ESIntegTestCase {
             return ShieldIntegTestCase.this.transportClientPassword();
         }
 
+        @Override
+        protected Class<? extends XPackPlugin> xpackPluginClass() {
+            return ShieldIntegTestCase.this.xpackPluginClass();
+        }
     }
 
     protected void assertGreenClusterState(Client client) {

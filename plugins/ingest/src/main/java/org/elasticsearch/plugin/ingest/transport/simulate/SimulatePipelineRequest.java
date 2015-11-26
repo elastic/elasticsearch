@@ -135,7 +135,7 @@ public class SimulatePipelineRequest extends ActionRequest {
         return new Parsed(pipeline, ingestDocumentList, verbose);
     }
 
-    static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws IOException {
+    static Parsed parse(Map<String, Object> config, boolean verbose, PipelineStore pipelineStore) throws Exception {
         Map<String, Object> pipelineConfig = ConfigurationUtils.readMap(config, Fields.PIPELINE);
         Pipeline pipeline = PIPELINE_FACTORY.create(SIMULATED_PIPELINE_ID, pipelineConfig, pipelineStore.getProcessorFactoryRegistry());
         List<IngestDocument> ingestDocumentList = parseDocs(config);

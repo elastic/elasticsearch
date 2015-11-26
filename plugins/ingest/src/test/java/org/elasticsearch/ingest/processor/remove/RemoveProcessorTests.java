@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RemoveProcessorTests extends ESTestCase {
 
-    public void testRemoveFields() throws IOException {
+    public void testRemoveFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int numFields = randomIntBetween(1, 5);
         Set<String> fields = new HashSet<>();
@@ -50,7 +50,7 @@ public class RemoveProcessorTests extends ESTestCase {
         }
     }
 
-    public void testRemoveNonExistingField() throws IOException {
+    public void testRemoveNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Processor processor = new RemoveProcessor(Collections.singletonList(RandomDocumentPicks.randomFieldName(random())));
         processor.execute(ingestDocument);

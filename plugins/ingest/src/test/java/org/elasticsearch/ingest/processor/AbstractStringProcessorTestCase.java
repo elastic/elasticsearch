@@ -41,7 +41,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
 
     protected abstract String expectedResult(String input);
 
-    public void testProcessor() throws IOException {
+    public void testProcessor() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int numFields = randomIntBetween(1, 5);
         Map<String, String> expected = new HashMap<>();
@@ -57,7 +57,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
         }
     }
 
-    public void testNullValue() throws IOException {
+    public void testNullValue() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Processor processor = newProcessor(Collections.singletonList(fieldName));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
@@ -69,7 +69,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
         }
     }
 
-    public void testNonStringValue() throws IOException {
+    public void testNonStringValue() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Processor processor = newProcessor(Collections.singletonList(fieldName));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());

@@ -84,15 +84,15 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
             chain.proceed(action, indexRequest, listener);
             return;
         }
-        executionService.execute(indexRequest, pipelineId, new PipelineExecutionService.Listener() {
+        executionService.execute(indexRequest, pipelineId, new ActionListener<IngestDocument>() {
             @Override
-            public void executed(IngestDocument ingestDocument) {
+            public void onResponse(IngestDocument ingestDocument) {
                 indexRequest.putHeader(IngestPlugin.PIPELINE_ALREADY_PROCESSED, true);
                 chain.proceed(action, indexRequest, listener);
             }
 
             @Override
-            public void failed(Throwable e) {
+            public void onFailure(Throwable e) {
                 logger.error("failed to execute pipeline [{}]", e, pipelineId);
                 listener.onFailure(e);
             }
@@ -121,14 +121,14 @@ public final class IngestActionFilter extends AbstractComponent implements Actio
         }
 
         IndexRequest indexRequest = (IndexRequest) actionRequest;
-        executionService.execute(indexRequest, pipelineId, new PipelineExecutionService.Listener() {
+        executionService.execute(indexRequest, pipelineId, new ActionListener<IngestDocument>() {
             @Override
-            public void executed(IngestDocument ingestDocument) {
+            public void onResponse(IngestDocument ingestDocument) {
                 processBulkIndexRequest(bulkRequestModifier, pipelineId, action, chain, listener);
             }
 
             @Override
-            public void failed(Throwable e) {
+            public void onFailure(Throwable e) {
                 logger.debug("failed to execute pipeline [{}]", e, pipelineId);
                 bulkRequestModifier.markCurrentItemAsFailed(e);
                 processBulkIndexRequest(bulkRequestModifier, pipelineId, action, chain, listener);

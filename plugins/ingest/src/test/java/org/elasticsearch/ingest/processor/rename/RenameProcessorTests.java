@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class RenameProcessorTests extends ESTestCase {
 
-    public void testRename() throws IOException {
+    public void testRename() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int numFields = randomIntBetween(1, 5);
         Map<String, String> fields = new HashMap<>();
@@ -56,14 +56,14 @@ public class RenameProcessorTests extends ESTestCase {
         }
     }
 
-    public void testRenameNonExistingField() throws IOException {
+    public void testRenameNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         Processor processor = new RenameProcessor(Collections.singletonMap(RandomDocumentPicks.randomFieldName(random()), RandomDocumentPicks.randomFieldName(random())));
         processor.execute(ingestDocument);
         assertThat(ingestDocument.getSource().size(), equalTo(0));
     }
 
-    public void testRenameExistingFieldNullValue() throws IOException {
+    public void testRenameExistingFieldNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, null);

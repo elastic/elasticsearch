@@ -35,7 +35,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class GsubProcessorTests extends ESTestCase {
 
-    public void testGsub() throws IOException {
+    public void testGsub() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int numFields = randomIntBetween(1, 5);
         List<GsubExpression> expressions = new ArrayList<>();
@@ -50,7 +50,7 @@ public class GsubProcessorTests extends ESTestCase {
         }
     }
 
-    public void testGsubNotAStringValue() throws IOException {
+    public void testGsubNotAStringValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, 123);
@@ -64,7 +64,7 @@ public class GsubProcessorTests extends ESTestCase {
         }
     }
 
-    public void testGsubNullValue() throws IOException {
+    public void testGsubNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression(fieldName, Pattern.compile("\\."), "-"));

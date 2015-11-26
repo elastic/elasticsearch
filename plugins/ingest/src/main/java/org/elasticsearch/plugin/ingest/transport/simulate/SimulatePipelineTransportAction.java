@@ -55,7 +55,7 @@ public class SimulatePipelineTransportAction extends HandledTransportAction<Simu
             } else {
                 simulateRequest = SimulatePipelineRequest.parse(source, request.isVerbose(), pipelineStore);
             }
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
             return;
         }

@@ -35,10 +35,10 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.SearchScrollIterator;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -57,15 +57,15 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.io.IOException;
 import java.util.*;
 
-public class PipelineStore extends AbstractLifecycleComponent {
+public class PipelineStore extends AbstractComponent {
 
     public final static String INDEX = ".ingest";
     public final static String TYPE = "pipeline";
 
-    private final Injector injector;
     private final ThreadPool threadPool;
     private final TimeValue scrollTimeout;
     private final ClusterService clusterService;
+    private final Provider<Client> clientProvider;
     private final TimeValue pipelineUpdateInterval;
     private final Pipeline.Factory factory = new Pipeline.Factory();
     private final Map<String, Processor.Factory> processorFactoryRegistry;
@@ -74,11 +74,11 @@ public class PipelineStore extends AbstractLifecycleComponent {
     private volatile Map<String, PipelineDefinition> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, Injector injector, ThreadPool threadPool, Environment environment, ClusterService clusterService, Map<String, Processor.Factory> processors) {
+    public PipelineStore(Settings settings, Provider<Client> clientProvider, ThreadPool threadPool, Environment environment, ClusterService clusterService, Map<String, Processor.Factory> processors) {
         super(settings);
-        this.injector = injector;
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.clientProvider = clientProvider;
         this.scrollTimeout = settings.getAsTime("ingest.pipeline.store.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
         for (Processor.Factory factory : processors.values()) {
@@ -86,43 +86,43 @@ public class PipelineStore extends AbstractLifecycleComponent {
         }
         this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
         clusterService.add(new PipelineStoreListener());
+        clusterService.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void beforeClose() {
+                // Ideally we would implement Closeable, but when a node is stopped this doesn't get invoked:
+                try {
+                    IOUtils.close(processorFactoryRegistry.values());
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            }
+        });
     }
 
-    @Override
-    protected void doStart() {
-        client = injector.getInstance(Client.class);
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
-        try {
-            IOUtils.close(processorFactoryRegistry.values());
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
+    /**
+     * Deletes the pipeline specified by id in the request.
+     */
     public void delete(DeletePipelineRequest request, ActionListener<DeleteResponse> listener) {
         DeleteRequest deleteRequest = new DeleteRequest(request);
         deleteRequest.index(PipelineStore.INDEX);
         deleteRequest.type(PipelineStore.TYPE);
         deleteRequest.id(request.id());
         deleteRequest.refresh(true);
-        client.delete(deleteRequest, listener);
+        client().delete(deleteRequest, listener);
     }
 
-    public void put(PutPipelineRequest request, ActionListener<IndexResponse> listener) {
-        // validates the pipeline and processor configuration:
-        Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.source(), false).v2();
+    /**
+     * Stores the specified pipeline definition in the request.
+     *
+     * @throws IllegalArgumentException If the pipeline holds incorrect configuration
+     */
+    public void put(PutPipelineRequest request, ActionListener<IndexResponse> listener) throws IllegalArgumentException {
         try {
+            // validates the pipeline and processor configuration:
+            Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.source(), false).v2();
             constructPipeline(request.id(), pipelineConfig);
-        } catch (IOException e) {
-            listener.onFailure(e);
-            return;
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Invalid pipeline configuration", e);
         }
 
         IndexRequest indexRequest = new IndexRequest(request);
@@ -131,9 +131,12 @@ public class PipelineStore extends AbstractLifecycleComponent {
         indexRequest.id(request.id());
         indexRequest.source(request.source());
         indexRequest.refresh(true);
-        client.index(indexRequest, listener);
+        client().index(indexRequest, listener);
     }
 
+    /**
+     * Returns the pipeline by the specified id
+     */
     public Pipeline get(String id) {
         PipelineDefinition ref = pipelines.get(id);
         if (ref != null) {
@@ -166,11 +169,11 @@ public class PipelineStore extends AbstractLifecycleComponent {
         return result;
     }
 
-    Pipeline constructPipeline(String id, Map<String, Object> config) throws IOException {
+    Pipeline constructPipeline(String id, Map<String, Object> config) throws Exception {
         return factory.create(id, config, processorFactoryRegistry);
     }
 
-    synchronized void updatePipelines() throws IOException {
+    synchronized void updatePipelines() throws Exception {
         // note: this process isn't fast or smart, but the idea is that there will not be many pipelines,
         // so for that reason the goal is to keep the update logic simple.
 
@@ -208,14 +211,12 @@ public class PipelineStore extends AbstractLifecycleComponent {
     }
 
     void startUpdateWorker() {
-        if (lifecycleState() == Lifecycle.State.STARTED) {
-            threadPool.schedule(pipelineUpdateInterval, ThreadPool.Names.GENERIC, new Updater());
-        }
+        threadPool.schedule(pipelineUpdateInterval, ThreadPool.Names.GENERIC, new Updater());
     }
 
     boolean existPipeline(String pipelineId) {
         GetRequest request = new GetRequest(PipelineStore.INDEX, PipelineStore.TYPE, pipelineId);
-        GetResponse response = client.get(request).actionGet();
+        GetResponse response = client().get(request).actionGet();
         return response.isExists();
     }
 
@@ -227,7 +228,15 @@ public class PipelineStore extends AbstractLifecycleComponent {
         SearchRequest searchRequest = new SearchRequest(PipelineStore.INDEX);
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        return SearchScrollIterator.createIterator(client, scrollTimeout, searchRequest);
+        return SearchScrollIterator.createIterator(client(), scrollTimeout, searchRequest);
+    }
+
+
+    private Client client() {
+        if (client == null) {
+            client = clientProvider.get();
+        }
+        return client;
     }
 
     class Updater implements Runnable {

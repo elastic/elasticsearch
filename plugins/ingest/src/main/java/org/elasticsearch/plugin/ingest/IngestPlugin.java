@@ -83,15 +83,6 @@ public class IngestPlugin extends Plugin {
     }
 
     @Override
-    public Collection<Class<? extends LifecycleComponent>> nodeServices() {
-        if (transportClient) {
-            return Collections.emptyList();
-        } else {
-            return Collections.singletonList(PipelineStore.class);
-        }
-    }
-
-    @Override
     public Settings additionalSettings() {
         return settingsBuilder()
                 .put(PipelineExecutionService.additionalSettings(nodeSettings))

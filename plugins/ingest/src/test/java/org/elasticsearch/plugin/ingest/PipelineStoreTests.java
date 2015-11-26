@@ -28,6 +28,7 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.inject.Injector;
+import org.elasticsearch.common.inject.Provider;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.StringText;
 import org.elasticsearch.env.Environment;
@@ -65,19 +66,15 @@ public class PipelineStoreTests extends ESTestCase {
     public void init() {
         threadPool = new ThreadPool("test");
         client = mock(Client.class);
-        Injector injector = mock(Injector.class);
-        when(injector.getInstance(Client.class)).thenReturn(client);
 
         ClusterService clusterService = mock(ClusterService.class);
         when(client.searchScroll(any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
         Environment environment = mock(Environment.class);
-        store = new PipelineStore(Settings.EMPTY, injector, threadPool, environment, clusterService, Collections.emptyMap());
-        store.start();
+        store = new PipelineStore(Settings.EMPTY, () -> client, threadPool, environment, clusterService, Collections.emptyMap());
     }
 
     @After
     public void cleanup() {
-        store.stop();
         threadPool.shutdown();
     }
 

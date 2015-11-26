@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class SplitProcessorTests extends ESTestCase {
 
-    public void testSplit() throws IOException {
+    public void testSplit() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, String> fields = new HashMap<>();
         int numFields = randomIntBetween(1, 5);
@@ -46,7 +46,7 @@ public class SplitProcessorTests extends ESTestCase {
         }
     }
 
-    public void testSplitNullValue() throws IOException {
+    public void testSplitNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Map<String, String> split = Collections.singletonMap(fieldName, "\\.");
@@ -59,7 +59,7 @@ public class SplitProcessorTests extends ESTestCase {
         }
     }
 
-    public void testSplitNonStringValue() throws IOException {
+    public void testSplitNonStringValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, randomInt());

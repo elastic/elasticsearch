@@ -31,7 +31,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class AddProcessorTests extends ESTestCase {
 
-    public void testAddExistingFields() throws IOException {
+    public void testAddExistingFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         int numFields = randomIntBetween(1, 5);
         Map<String, Object> fields = new HashMap<>();
@@ -49,7 +49,7 @@ public class AddProcessorTests extends ESTestCase {
         }
     }
 
-    public void testAddNewFields() throws IOException {
+    public void testAddNewFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         //used to verify that there are no conflicts between subsequent fields going to be added
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
@@ -68,7 +68,7 @@ public class AddProcessorTests extends ESTestCase {
         }
     }
 
-    public void testAddFieldsTypeMismatch() throws IOException {
+    public void testAddFieldsTypeMismatch() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("field", "value");
         Processor processor = new AddProcessor(Collections.singletonMap("field.inner", "value"));

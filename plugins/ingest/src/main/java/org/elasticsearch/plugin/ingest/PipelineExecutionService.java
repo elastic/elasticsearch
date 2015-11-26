@@ -19,6 +19,7 @@
 
 package org.elasticsearch.plugin.ingest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -43,10 +44,10 @@ public class PipelineExecutionService {
         this.threadPool = threadPool;
     }
 
-    public void execute(IndexRequest indexRequest, String pipelineId, Listener listener) {
+    public void execute(IndexRequest indexRequest, String pipelineId, ActionListener<IngestDocument> listener) {
         Pipeline pipeline = store.get(pipelineId);
         if (pipeline == null) {
-            listener.failed(new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist"));
+            listener.onFailure(new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist"));
             return;
         }
 
@@ -81,19 +82,11 @@ public class PipelineExecutionService {
                     TimeValue timeValue = TimeValue.parseTimeValue(ttlStr, null, "ttl");
                     indexRequest.ttl(timeValue.millis());
                 }
-                listener.executed(ingestDocument);
+                listener.onResponse(ingestDocument);
             } catch (Throwable e) {
-                listener.failed(e);
+                listener.onFailure(e);
             }
         });
-    }
-
-    public interface Listener {
-
-        void executed(IngestDocument ingestDocument);
-
-        void failed(Throwable e);
-
     }
 
     public static Settings additionalSettings(Settings nodeSettings) {

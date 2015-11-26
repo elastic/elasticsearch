@@ -36,7 +36,7 @@ public interface Processor {
     /**
      * Introspect and potentially modify the incoming data.
      */
-    void execute(IngestDocument ingestDocument);
+    void execute(IngestDocument ingestDocument) throws Exception;
 
     /**
      * Gets the type of a processor
@@ -54,7 +54,7 @@ public interface Processor {
          * Implementations are responsible for removing the used keys, so that after creating a pipeline ingest can
          * verify if all configurations settings have been used.
          */
-        P create(Map<String, Object> config) throws IOException;
+        P create(Map<String, Object> config) throws Exception;
 
         /**
          * Sets the configuration directory when needed to read additional config files

@@ -33,7 +33,7 @@ public class JoinProcessorTests extends ESTestCase {
 
     private static final String[] SEPARATORS = new String[]{"-", "_", "."};
 
-    public void testJoinStrings() throws IOException {
+    public void testJoinStrings() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, String> fields = new HashMap<>();
         Map<String, String> expectedResultMap = new HashMap<>();
@@ -62,7 +62,7 @@ public class JoinProcessorTests extends ESTestCase {
         }
     }
 
-    public void testJoinIntegers() throws IOException {
+    public void testJoinIntegers() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, String> fields = new HashMap<>();
         Map<String, String> expectedResultMap = new HashMap<>();
@@ -91,7 +91,7 @@ public class JoinProcessorTests extends ESTestCase {
         }
     }
 
-    public void testJoinNonListField() throws IOException {
+    public void testJoinNonListField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, randomAsciiOfLengthBetween(1, 10));
@@ -104,7 +104,7 @@ public class JoinProcessorTests extends ESTestCase {
         }
     }
 
-    public void testJoinNonExistingField() throws IOException {
+    public void testJoinNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Processor processor = new JoinProcessor(Collections.singletonMap(fieldName, "-"));

@@ -20,6 +20,7 @@
 package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -59,10 +60,10 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     public void testExecute_pipelineDoesNotExist() {
         when(store.get("_id")).thenReturn(null);
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
-        PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
+        ActionListener listener = mock(ActionListener.class);
         executionService.execute(indexRequest, "_id", listener);
-        verify(listener).failed(any(IllegalArgumentException.class));
-        verify(listener, times(0)).executed(any());
+        verify(listener).onFailure(any(IllegalArgumentException.class));
+        verify(listener, times(0)).onResponse(any());
     }
 
     public void testExecuteSuccess() throws Exception {
@@ -70,11 +71,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(processor)));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
-        PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
+        ActionListener listener = mock(ActionListener.class);
         executionService.execute(indexRequest, "_id", listener);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        verify(listener).executed(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        verify(listener, times(0)).failed(any(Exception.class));
+        verify(listener).onResponse(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(listener, times(0)).onFailure(any(Exception.class));
     }
 
     public void testExecutePropagateAllMetaDataUpdates() throws Exception {
@@ -94,11 +95,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(processor)));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
-        PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
+        ActionListener listener = mock(ActionListener.class);
         executionService.execute(indexRequest, "_id", listener);
         verify(processor).execute(any());
-        verify(listener).executed(any());
-        verify(listener, times(0)).failed(any(Exception.class));
+        verify(listener).onResponse(any());
+        verify(listener, times(0)).onFailure(any(Exception.class));
 
         assertThat(indexRequest.index(), equalTo("update_index"));
         assertThat(indexRequest.type(), equalTo("update_type"));
@@ -114,11 +115,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Arrays.asList(processor)));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
+        ActionListener listener = mock(ActionListener.class);
         executionService.execute(indexRequest, "_id", listener);
         verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        verify(listener, times(0)).executed(eqID("_index", "_type", "_id", Collections.emptyMap()));
-        verify(listener).failed(any(RuntimeException.class));
+        verify(listener, times(0)).onResponse(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(listener).onFailure(any(RuntimeException.class));
     }
 
     public void testExecuteTTL() throws Exception {
@@ -130,12 +131,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
-        PipelineExecutionService.Listener listener = mock(PipelineExecutionService.Listener.class);
+        ActionListener listener = mock(ActionListener.class);
         executionService.execute(indexRequest, "_id", listener);
 
         assertThat(indexRequest.ttl(), equalTo(TimeValue.parseTimeValue("5d", null, "ttl").millis()));
-        verify(listener, times(1)).executed(any());
-        verify(listener, never()).failed(any());
+        verify(listener, times(1)).onResponse(any());
+        verify(listener, never()).onFailure(any());
 
         // test with invalid ttl
         metaProcessorFactory = new MetaDataProcessor.Factory();
@@ -145,11 +146,11 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
 
         indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
-        listener = mock(PipelineExecutionService.Listener.class);
+        listener = mock(ActionListener.class);
         executionService.execute(indexRequest, "_id", listener);
 
-        verify(listener, never()).executed(any());
-        verify(listener, times(1)).failed(any(ElasticsearchParseException.class));
+        verify(listener, never()).onResponse(any());
+        verify(listener, times(1)).onFailure(any(ElasticsearchParseException.class));
 
         // test with provided ttl
         when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.emptyList()));
@@ -157,12 +158,12 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         indexRequest = new IndexRequest("_index", "_type", "_id")
                 .source(Collections.emptyMap())
                 .ttl(1000l);
-        listener = mock(PipelineExecutionService.Listener.class);
+        listener = mock(ActionListener.class);
         executionService.execute(indexRequest, "_id", listener);
 
         assertThat(indexRequest.ttl(), equalTo(1000l));
-        verify(listener, times(1)).executed(any());
-        verify(listener, never()).failed(any(Throwable.class));
+        verify(listener, times(1)).onResponse(any());
+        verify(listener, never()).onFailure(any(Throwable.class));
     }
 
     private IngestDocument eqID(String index, String type, String id, Map<String, Object> source) {

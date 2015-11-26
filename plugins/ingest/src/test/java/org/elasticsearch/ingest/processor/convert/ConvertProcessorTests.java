@@ -32,7 +32,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class ConvertProcessorTests extends ESTestCase {
 
-    public void testConvertInt() throws IOException {
+    public void testConvertInt() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, ConvertProcessor.Type> fields = new HashMap<>();
         Map<String, Integer> expectedResult = new HashMap<>();
@@ -50,7 +50,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertIntList() throws IOException {
+    public void testConvertIntList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, ConvertProcessor.Type> fields = new HashMap<>();
         Map<String, List<Integer>> expectedResult = new HashMap<>();
@@ -75,7 +75,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertIntError() throws IOException {
+    public void testConvertIntError() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         String value = "string-" + randomAsciiOfLengthBetween(1, 10);
@@ -91,7 +91,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertFloat() throws IOException {
+    public void testConvertFloat() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, Type> fields = new HashMap<>();
         Map<String, Float> expectedResult = new HashMap<>();
@@ -110,7 +110,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertFloatList() throws IOException {
+    public void testConvertFloatList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, Type> fields = new HashMap<>();
         Map<String, List<Float>> expectedResult = new HashMap<>();
@@ -135,7 +135,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertFloatError() throws IOException {
+    public void testConvertFloatError() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         String value = "string-" + randomAsciiOfLengthBetween(1, 10);
@@ -151,7 +151,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertBoolean() throws IOException {
+    public void testConvertBoolean() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, Type> fields = new HashMap<>();
         Map<String, Boolean> expectedResult = new HashMap<>();
@@ -174,7 +174,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertBooleanList() throws IOException {
+    public void testConvertBooleanList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, Type> fields = new HashMap<>();
         Map<String, List<Boolean>> expectedResult = new HashMap<>();
@@ -203,7 +203,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertBooleanError() throws IOException {
+    public void testConvertBooleanError() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         String fieldValue;
@@ -225,7 +225,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertString() throws IOException {
+    public void testConvertString() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, Type> fields = new HashMap<>();
         Map<String, String> expectedResult = new HashMap<>();
@@ -264,7 +264,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertStringList() throws IOException {
+    public void testConvertStringList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, Type> fields = new HashMap<>();
         Map<String, List<String>> expectedResult = new HashMap<>();
@@ -309,7 +309,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertNullField() throws IOException {
+    public void testConvertNullField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Type type = randomFrom(Type.values());

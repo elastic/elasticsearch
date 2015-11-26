@@ -44,7 +44,7 @@ public final class Pipeline {
     /**
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
      */
-    public void execute(IngestDocument ingestDocument) {
+    public void execute(IngestDocument ingestDocument) throws Exception {
         for (Processor processor : processors) {
             processor.execute(ingestDocument);
         }
@@ -73,7 +73,7 @@ public final class Pipeline {
 
     public final static class Factory {
 
-        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws IOException {
+        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
             String description = ConfigurationUtils.readOptionalStringProperty(config, "description");
             List<Processor> processors = new ArrayList<>();
             @SuppressWarnings("unchecked")

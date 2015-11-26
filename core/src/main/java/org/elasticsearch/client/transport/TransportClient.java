@@ -38,7 +38,9 @@ import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.env.Environment;
@@ -46,6 +48,7 @@ import org.elasticsearch.env.EnvironmentModule;
 import org.elasticsearch.indices.breaker.CircuitBreakerModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
+import org.elasticsearch.node.settings.NodeSettingsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsModule;
 import org.elasticsearch.plugins.PluginsService;
@@ -128,7 +131,8 @@ public class TransportClient extends AbstractClient {
             Version version = Version.CURRENT;
 
             final ThreadPool threadPool = new ThreadPool(settings);
-
+            final NetworkService networkService = new NetworkService(settings);
+            final SettingsFilter settingsFilter = new SettingsFilter(settings);
             boolean success = false;
             try {
                 ModulesBuilder modules = new ModulesBuilder();
@@ -138,8 +142,8 @@ public class TransportClient extends AbstractClient {
                     modules.add(pluginModule);
                 }
                 modules.add(new PluginsModule(pluginsService));
-                modules.add(new SettingsModule(this.settings));
-                modules.add(new NetworkModule());
+                modules.add(new SettingsModule(this.settings, settingsFilter ));
+                modules.add(new NetworkModule(networkService));
                 modules.add(new ClusterNameModule(this.settings));
                 modules.add(new ThreadPoolModule(threadPool));
                 modules.add(new TransportModule(this.settings));

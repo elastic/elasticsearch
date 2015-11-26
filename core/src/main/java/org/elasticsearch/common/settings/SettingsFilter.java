@@ -35,7 +35,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 /**
  *
  */
-public class SettingsFilter extends AbstractComponent {
+public final class SettingsFilter extends AbstractComponent {
     /**
      * Can be used to specify settings filter that will be used to filter out matching settings in toXContent method
      */
@@ -43,7 +43,6 @@ public class SettingsFilter extends AbstractComponent {
 
     private final CopyOnWriteArrayList<String> patterns = new CopyOnWriteArrayList<>();
 
-    @Inject
     public SettingsFilter(Settings settings) {
         super(settings);
     }

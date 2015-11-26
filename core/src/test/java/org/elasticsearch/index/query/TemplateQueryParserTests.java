@@ -32,6 +32,7 @@ import org.elasticsearch.common.inject.ModulesBuilder;
 import org.elasticsearch.common.inject.multibindings.Multibinder;
 import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -95,7 +96,7 @@ public class TemplateQueryParserTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(index, settings);
         injector = new ModulesBuilder().add(
                 new EnvironmentModule(new Environment(settings)),
-                new SettingsModule(settings),
+                new SettingsModule(settings, new SettingsFilter(settings)),
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesModule() {
                     @Override

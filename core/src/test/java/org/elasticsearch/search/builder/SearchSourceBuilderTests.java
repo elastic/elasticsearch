@@ -31,6 +31,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
@@ -79,7 +80,7 @@ public class SearchSourceBuilderTests extends ESTestCase {
                 .put("path.home", createTempDir())
                 .build();
         injector = new ModulesBuilder().add(
-                new SettingsModule(settings),
+                new SettingsModule(settings, new SettingsFilter(settings)),
                 new ThreadPoolModule(new ThreadPool(settings)),
                 new IndicesModule() {
                     @Override

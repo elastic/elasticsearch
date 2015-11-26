@@ -29,14 +29,16 @@ import org.elasticsearch.common.inject.AbstractModule;
 public class SettingsModule extends AbstractModule {
 
     private final Settings settings;
+    private final SettingsFilter settingsFilter;
 
-    public SettingsModule(Settings settings) {
+    public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
         this.settings = settings;
+        this.settingsFilter = settingsFilter;
     }
 
     @Override
     protected void configure() {
         bind(Settings.class).toInstance(settings);
-        bind(SettingsFilter.class).asEagerSingleton();
+        bind(SettingsFilter.class).toInstance(settingsFilter);
     }
 }

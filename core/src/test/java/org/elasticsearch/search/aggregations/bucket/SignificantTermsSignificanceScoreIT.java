@@ -23,7 +23,6 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
@@ -39,10 +38,7 @@ import org.elasticsearch.search.aggregations.bucket.filter.FilterAggregationBuil
 import org.elasticsearch.search.aggregations.bucket.filter.InternalFilter;
 import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptNoParams;
 import org.elasticsearch.search.aggregations.bucket.script.NativeSignificanceScoreScriptWithParams;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantStringTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTerms;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsAggregatorFactory;
-import org.elasticsearch.search.aggregations.bucket.significant.SignificantTermsBuilder;
+import org.elasticsearch.search.aggregations.bucket.significant.*;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.ChiSquare;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.GND;
 import org.elasticsearch.search.aggregations.bucket.significant.heuristics.MutualInformation;
@@ -56,6 +52,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsBuilder;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.search.aggregations.bucket.SharedSignificantTermsTestMethods;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -69,7 +66,6 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
-import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -82,11 +78,11 @@ import static org.hamcrest.Matchers.is;
  */
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE)
 public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
+
     static final String INDEX_NAME = "testidx";
     static final String DOC_TYPE = "doc";
     static final String TEXT_FIELD = "text";
     static final String CLASS_FIELD = "class";
-
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -101,7 +97,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testPlugin() throws Exception {
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        index01Docs(type, settings);
+        SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                 .addAggregation(new TermsBuilder("class")
                         .field(CLASS_FIELD)
@@ -257,7 +253,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
 
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        index01Docs(type, settings);
+        SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         SearchResponse response = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE)
                 .addAggregation(new TermsBuilder("class").field(CLASS_FIELD).subAggregation(new SignificantTermsBuilder("sig_terms").field(TEXT_FIELD)))
                 .execute()
@@ -334,7 +330,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     public void testBackgroundVsSeparateSet() throws Exception {
         String type = randomBoolean() ? "string" : "long";
         String settings = "{\"index.number_of_shards\": 1, \"index.number_of_replicas\": 0}";
-        index01Docs(type, settings);
+        SharedSignificantTermsTestMethods.index01Docs(type, settings, this);
         testBackgroundVsSeparateSet(new MutualInformation.MutualInformationBuilder(true, true), new MutualInformation.MutualInformationBuilder(true, false));
         testBackgroundVsSeparateSet(new ChiSquare.ChiSquareBuilder(true, true), new ChiSquare.ChiSquareBuilder(true, false));
         testBackgroundVsSeparateSet(new GND.GNDBuilder(true), new GND.GNDBuilder(false));
@@ -393,28 +389,6 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         assertThat(score01Background, equalTo(score01SeparateSets));
         assertThat(score10Background, equalTo(score10SeparateSets));
         assertThat(score11Background, equalTo(score11SeparateSets));
-    }
-
-    private void index01Docs(String type, String settings) throws ExecutionException, InterruptedException {
-        String mappings = "{\"doc\": {\"properties\":{\"text\": {\"type\":\"" + type + "\"}}}}";
-        assertAcked(prepareCreate(INDEX_NAME).setSettings(settings).addMapping("doc", mappings));
-        String[] gb = {"0", "1"};
-        List<IndexRequestBuilder> indexRequestBuilderList = new ArrayList<>();
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "1")
-                .setSource(TEXT_FIELD, "1", CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "2")
-                .setSource(TEXT_FIELD, "1", CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "3")
-                .setSource(TEXT_FIELD, "0", CLASS_FIELD, "0"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "4")
-                .setSource(TEXT_FIELD, "0", CLASS_FIELD, "0"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "5")
-                .setSource(TEXT_FIELD, gb, CLASS_FIELD, "1"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "6")
-                .setSource(TEXT_FIELD, gb, CLASS_FIELD, "0"));
-        indexRequestBuilderList.add(client().prepareIndex(INDEX_NAME, DOC_TYPE, "7")
-                .setSource(TEXT_FIELD, "0", CLASS_FIELD, "0"));
-        indexRandom(true, false, indexRequestBuilderList);
     }
 
     @Test
@@ -537,4 +511,9 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
         }
         indexRandom(true, indexRequestBuilderList);
     }
+
+    public void testReduceFromSeveralShards() throws IOException, ExecutionException, InterruptedException {
+        SharedSignificantTermsTestMethods.aggregateAndCheckFromSeveralShards(this);
+    }
+
 }

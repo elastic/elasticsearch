@@ -377,7 +377,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
             builder.field("boundary_max_scan", boundaryMaxScan);
         }
         if (boundaryChars != null) {
-            builder.field("boundary_chars", boundaryChars);
+            builder.field("boundary_chars", new String(boundaryChars));
         }
         if (options != null && options.size() > 0) {
             builder.field("options", options);

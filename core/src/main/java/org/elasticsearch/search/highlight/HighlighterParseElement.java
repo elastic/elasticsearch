@@ -94,7 +94,7 @@ public class HighlighterParseElement implements SearchParseElement {
         }
     }
 
-    public SearchContextHighlight parse(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
+    public static SearchContextHighlight parse(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         XContentParser.Token token;
         String topLevelFieldName = null;
         final List<Tuple<String, SearchContextHighlight.FieldOptions.Builder>> fieldsOptions = new ArrayList<>();
@@ -211,7 +211,7 @@ public class HighlighterParseElement implements SearchParseElement {
         return new SearchContextHighlight(fields);
     }
 
-    protected SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
+    private static SearchContextHighlight.FieldOptions.Builder parseFields(XContentParser parser, QueryShardContext queryShardContext) throws IOException {
         XContentParser.Token token;
 
         final SearchContextHighlight.FieldOptions.Builder fieldOptionsBuilder = new SearchContextHighlight.FieldOptions.Builder();

@@ -26,6 +26,8 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
+import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.query.QueryParseContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -170,6 +172,114 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         return builder;
     }
 
+    /**
+     * Creates a new {@link HighlightBuilder} from the highlighter held by the {@link QueryParseContext}
+     * in {@link org.elasticsearch.common.xcontent.XContent} format
+     *
+     * @param parseContext
+     *            the input parse context. The state on the parser contained in
+     *            this context will be changed as a side effect of this method
+     *            call
+     * @return the new {@link HighlightBuilder}
+     */
+    public static HighlightBuilder fromXContent(QueryParseContext parseContext) throws IOException {
+        XContentParser parser = parseContext.parser();
+        XContentParser.Token token;
+        String topLevelFieldName = null;
+
+        HighlightBuilder highlightBuilder = new HighlightBuilder();
+        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+            if (token == XContentParser.Token.FIELD_NAME) {
+                topLevelFieldName = parser.currentName();
+            } else if (token == XContentParser.Token.START_ARRAY) {
+                if ("pre_tags".equals(topLevelFieldName) || "preTags".equals(topLevelFieldName)) {
+                    List<String> preTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        preTagsList.add(parser.text());
+                    }
+                    highlightBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                } else if ("post_tags".equals(topLevelFieldName) || "postTags".equals(topLevelFieldName)) {
+                    List<String> postTagsList = new ArrayList<>();
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        postTagsList.add(parser.text());
+                    }
+                    highlightBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                } else if ("fields".equals(topLevelFieldName)) {
+                    highlightBuilder.useExplicitFieldOrder(true);
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                        if (token == XContentParser.Token.START_OBJECT) {
+                            String highlightFieldName = null;
+                            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                                if (token == XContentParser.Token.FIELD_NAME) {
+                                    if (highlightFieldName != null) {
+                                        throw new IllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
+                                    }
+                                    highlightFieldName = parser.currentName();
+                                } else if (token == XContentParser.Token.START_OBJECT) {
+                                    highlightBuilder.field(Field.fromXContent(highlightFieldName, parseContext));
+                                }
+                            }
+                        } else {
+                            throw new IllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
+                        }
+                    }
+                }
+            } else if (token.isValue()) {
+                if ("order".equals(topLevelFieldName)) {
+                    highlightBuilder.order(parser.text());
+                } else if ("tags_schema".equals(topLevelFieldName) || "tagsSchema".equals(topLevelFieldName)) {
+                    highlightBuilder.tagsSchema(parser.text());
+                } else if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
+                    highlightBuilder.highlightFilter(parser.booleanValue());
+                } else if ("fragment_size".equals(topLevelFieldName) || "fragmentSize".equals(topLevelFieldName)) {
+                    highlightBuilder.fragmentSize(parser.intValue());
+                } else if ("number_of_fragments".equals(topLevelFieldName) || "numberOfFragments".equals(topLevelFieldName)) {
+                    highlightBuilder.numOfFragments(parser.intValue());
+                } else if ("encoder".equals(topLevelFieldName)) {
+                    highlightBuilder.encoder(parser.text());
+                } else if ("require_field_match".equals(topLevelFieldName) || "requireFieldMatch".equals(topLevelFieldName)) {
+                    highlightBuilder.requireFieldMatch(parser.booleanValue());
+                } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
+                    highlightBuilder.boundaryMaxScan(parser.intValue());
+                } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
+                    highlightBuilder.boundaryChars(parser.text().toCharArray());
+                } else if ("type".equals(topLevelFieldName)) {
+                    highlightBuilder.highlighterType(parser.text());
+                } else if ("fragmenter".equals(topLevelFieldName)) {
+                    highlightBuilder.fragmenter(parser.text());
+                } else if ("no_match_size".equals(topLevelFieldName) || "noMatchSize".equals(topLevelFieldName)) {
+                    highlightBuilder.noMatchSize(parser.intValue());
+                } else if ("force_source".equals(topLevelFieldName) || "forceSource".equals(topLevelFieldName)) {
+                    highlightBuilder.forceSource(parser.booleanValue());
+                } else if ("phrase_limit".equals(topLevelFieldName) || "phraseLimit".equals(topLevelFieldName)) {
+                    highlightBuilder.phraseLimit(parser.intValue());
+                }
+            } else if (token == XContentParser.Token.START_OBJECT && "options".equals(topLevelFieldName)) {
+                highlightBuilder.options(parser.map());
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                if ("fields".equals(topLevelFieldName)) {
+                    String highlightFieldName = null;
+                    while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                        if (token == XContentParser.Token.FIELD_NAME) {
+                            highlightFieldName = parser.currentName();
+                        } else if (token == XContentParser.Token.START_OBJECT) {
+                            highlightBuilder.field(Field.fromXContent(highlightFieldName, parseContext));
+                        }
+                    }
+                } else if ("highlight_query".equals(topLevelFieldName) || "highlightQuery".equals(topLevelFieldName)) {
+                    highlightBuilder.highlightQuery(parseContext.parseInnerQueryBuilder());
+                }
+            }
+        }
+
+        if (highlightBuilder.preTags() != null && highlightBuilder.postTags() == null) {
+            throw new IllegalArgumentException("Highlighter global preTags are set, but global postTags are not set");
+        }
+        return highlightBuilder;
+    }
+
+
+
     public void innerXContent(XContentBuilder builder) throws IOException {
         // first write common options
         commonOptionsToXContent(builder);
@@ -205,7 +315,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         try {
             XContentBuilder builder = XContentFactory.jsonBuilder();
             builder.prettyPrint();
-            toXContent(builder, ToXContent.EMPTY_PARAMS);
+            toXContent(builder, EMPTY_PARAMS);
             return builder.string();
         } catch (Exception e) {
             return "{ \"error\" : \"" + ExceptionsHelper.detailedMessage(e) + "\"}";
@@ -292,6 +402,74 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 builder.field("matched_fields", matchedFields);
             }
             builder.endObject();
+        }
+
+        private static HighlightBuilder.Field fromXContent(String fieldname, QueryParseContext parseContext) throws IOException {
+            XContentParser parser = parseContext.parser();
+            XContentParser.Token token;
+
+            final HighlightBuilder.Field field = new HighlightBuilder.Field(fieldname);
+            String currentFieldName = null;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
+                if (token == XContentParser.Token.FIELD_NAME) {
+                    currentFieldName = parser.currentName();
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    if ("pre_tags".equals(currentFieldName) || "preTags".equals(currentFieldName)) {
+                        List<String> preTagsList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            preTagsList.add(parser.text());
+                        }
+                        field.preTags(preTagsList.toArray(new String[preTagsList.size()]));
+                    } else if ("post_tags".equals(currentFieldName) || "postTags".equals(currentFieldName)) {
+                        List<String> postTagsList = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            postTagsList.add(parser.text());
+                        }
+                        field.postTags(postTagsList.toArray(new String[postTagsList.size()]));
+                    } else if ("matched_fields".equals(currentFieldName) || "matchedFields".equals(currentFieldName)) {
+                        List<String> matchedFields = new ArrayList<>();
+                        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                            matchedFields.add(parser.text());
+                        }
+                        field.matchedFields(matchedFields.toArray(new String[matchedFields.size()]));
+                    }
+                } else if (token.isValue()) {
+                    if ("fragment_size".equals(currentFieldName) || "fragmentSize".equals(currentFieldName)) {
+                        field.fragmentSize(parser.intValue());
+                    } else if ("number_of_fragments".equals(currentFieldName) || "numberOfFragments".equals(currentFieldName)) {
+                        field.numOfFragments(parser.intValue());
+                    } else if ("fragment_offset".equals(currentFieldName) || "fragmentOffset".equals(currentFieldName)) {
+                        field.fragmentOffset(parser.intValue());
+                    } else if ("highlight_filter".equals(currentFieldName) || "highlightFilter".equals(currentFieldName)) {
+                        field.highlightFilter(parser.booleanValue());
+                    } else if ("order".equals(currentFieldName)) {
+                        field.order(parser.text());
+                    } else if ("require_field_match".equals(currentFieldName) || "requireFieldMatch".equals(currentFieldName)) {
+                        field.requireFieldMatch(parser.booleanValue());
+                    } else if ("boundary_max_scan".equals(currentFieldName) || "boundaryMaxScan".equals(currentFieldName)) {
+                        field.boundaryMaxScan(parser.intValue());
+                    } else if ("boundary_chars".equals(currentFieldName) || "boundaryChars".equals(currentFieldName)) {
+                        field.boundaryChars(parser.text().toCharArray());
+                    } else if ("type".equals(currentFieldName)) {
+                        field.highlighterType(parser.text());
+                    } else if ("fragmenter".equals(currentFieldName)) {
+                        field.fragmenter(parser.text());
+                    } else if ("no_match_size".equals(currentFieldName) || "noMatchSize".equals(currentFieldName)) {
+                        field.noMatchSize(parser.intValue());
+                    } else if ("force_source".equals(currentFieldName) || "forceSource".equals(currentFieldName)) {
+                        field.forceSource(parser.booleanValue());
+                    } else if ("phrase_limit".equals(currentFieldName) || "phraseLimit".equals(currentFieldName)) {
+                        field.phraseLimit(parser.intValue());
+                    }
+                } else if (token == XContentParser.Token.START_OBJECT) {
+                    if ("highlight_query".equals(currentFieldName) || "highlightQuery".equals(currentFieldName)) {
+                        field.highlightQuery(parseContext.parseInnerQueryBuilder());
+                    } else if ("options".equals(currentFieldName)) {
+                        field.options(parser.map());
+                    }
+                }
+            }
+            return field;
         }
 
         @Override

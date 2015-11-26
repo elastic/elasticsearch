@@ -20,15 +20,17 @@
 package org.elasticsearch.cluster.routing;
 
 import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.ParseField;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ObjectParser;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
-import org.elasticsearch.gateway.CorruptStateException;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Uniquely identifies an allocation. An allocation is a shard moving from unassigned to initializing,
@@ -42,6 +44,30 @@ import java.io.IOException;
 public class AllocationId implements ToXContent {
     private static final String ID_KEY = "id";
     private static final String RELOCATION_ID_KEY = "relocation_id";
+
+    private static final ObjectParser<AllocationId.Builder, Void> ALLOCATION_ID_PARSER = new ObjectParser<>("allocationId");
+
+    static {
+        ALLOCATION_ID_PARSER.declareString(AllocationId.Builder::setId, new ParseField(ID_KEY));
+        ALLOCATION_ID_PARSER.declareString(AllocationId.Builder::setRelocationId, new ParseField(RELOCATION_ID_KEY));
+    }
+
+    private static class Builder {
+        private String id;
+        private String relocationId;
+
+        public void setId(String id) {
+            this.id = id;
+        }
+
+        public void setRelocationId(String relocationId) {
+            this.relocationId = relocationId;
+        }
+
+        public AllocationId build() {
+            return new AllocationId(id, relocationId);
+        }
+    }
 
     private final String id;
     @Nullable
@@ -58,6 +84,7 @@ public class AllocationId implements ToXContent {
     }
 
     private AllocationId(String id, String relocationId) {
+        Objects.requireNonNull(id, "Argument [id] must be non-null");
         this.id = id;
         this.relocationId = relocationId;
     }
@@ -164,35 +191,6 @@ public class AllocationId implements ToXContent {
     }
 
     public static AllocationId fromXContent(XContentParser parser) throws IOException {
-        XContentParser.Token token = parser.currentToken();
-        if (token == null) { // fresh parser? move to the first real token under object
-            token = parser.nextToken();
-        }
-        assert token == XContentParser.Token.START_OBJECT;
-
-        String id = null;
-        String relocationId = null;
-
-        String currentFieldName = null;
-
-        while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
-            if (token == XContentParser.Token.FIELD_NAME) {
-                currentFieldName = parser.currentName();
-            } else if (token.isValue()) {
-                if (ID_KEY.equals(currentFieldName)) {
-                    id = parser.text();
-                } else if (RELOCATION_ID_KEY.equals(currentFieldName)) {
-                    relocationId = parser.text();
-                } else {
-                    throw new CorruptStateException("unexpected field in allocation id [" + currentFieldName + "]");
-                }
-            } else {
-                throw new CorruptStateException("unexpected token in allocation id [" + token.name() + "]");
-            }
-        }
-        if (id == null) {
-            throw new CorruptStateException("missing value for [id] in allocation id");
-        }
-        return new AllocationId(id, relocationId);
+        return ALLOCATION_ID_PARSER.parse(parser, new AllocationId.Builder()).build();
     }
 }

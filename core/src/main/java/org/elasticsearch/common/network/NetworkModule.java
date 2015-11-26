@@ -26,8 +26,14 @@ import org.elasticsearch.common.inject.AbstractModule;
  */
 public class NetworkModule extends AbstractModule {
 
+    private final NetworkService networkService;
+
+    public NetworkModule(NetworkService networkService) {
+        this.networkService = networkService;
+    }
+
     @Override
     protected void configure() {
-        bind(NetworkService.class).asEagerSingleton();
+        bind(NetworkService.class).toInstance(networkService);
     }
 }

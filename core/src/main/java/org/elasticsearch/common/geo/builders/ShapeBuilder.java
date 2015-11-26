@@ -26,8 +26,12 @@ import com.spatial4j.core.shape.jts.JtsGeometry;
 import com.vividsolutions.jts.geom.Coordinate;
 import com.vividsolutions.jts.geom.Geometry;
 import com.vividsolutions.jts.geom.GeometryFactory;
+
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.ToXContentToBytes;
+import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.unit.DistanceUnit.Distance;
@@ -43,7 +47,7 @@ import java.util.*;
 /**
  * Basic class for building GeoJSON shapes like Polygons, Linestrings, etc
  */
-public abstract class ShapeBuilder extends ToXContentToBytes {
+public abstract class ShapeBuilder extends ToXContentToBytes implements NamedWriteable<ShapeBuilder> {
 
     protected static final ESLogger LOGGER = ESLoggerFactory.getLogger(ShapeBuilder.class.getName());
 
@@ -171,6 +175,15 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
 
     protected static XContentBuilder toXContent(XContentBuilder builder, Coordinate coordinate) throws IOException {
         return builder.startArray().value(coordinate.x).value(coordinate.y).endArray();
+    }
+
+    protected static void writeCoordinateTo(Coordinate coordinate, StreamOutput out) throws IOException {
+        out.writeDouble(coordinate.x);
+        out.writeDouble(coordinate.y);
+    }
+
+    protected Coordinate readCoordinateFrom(StreamInput in) throws IOException {
+        return new Coordinate(in.readDouble(), in.readDouble());
     }
 
     public static Orientation orientationFromString(String orientation) {
@@ -565,10 +578,14 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
         ENVELOPE("envelope"),
         CIRCLE("circle");
 
-        protected final String shapename;
+        private final String shapename;
 
         private GeoShapeType(String shapename) {
             this.shapename = shapename;
+        }
+
+        protected String shapeName() {
+            return shapename;
         }
 
         public static GeoShapeType forName(String geoshapename) {
@@ -822,5 +839,21 @@ public abstract class ShapeBuilder extends ToXContentToBytes {
 
             return geometryCollection;
         }
+    }
+
+    @Override
+    public String getWriteableName() {
+        return type().shapeName();
+    }
+
+    // NORELEASE this should be deleted as soon as all shape builders implement writable
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+    }
+
+    // NORELEASE this should be deleted as soon as all shape builders implement writable
+    @Override
+    public ShapeBuilder readFrom(StreamInput in) throws IOException {
+        return null;
     }
 }

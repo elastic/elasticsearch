@@ -20,10 +20,10 @@
 package org.elasticsearch.monitor.fs;
 
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.SingleObjectCache;
+import org.elasticsearch.env.NodeEnvironment;
 
 import java.io.IOException;
 
@@ -35,10 +35,9 @@ public class FsService extends AbstractComponent {
 
     private final SingleObjectCache<FsInfo> fsStatsCache;
 
-    @Inject
-    public FsService(Settings settings, FsProbe probe) throws IOException {
+    public FsService(Settings settings, NodeEnvironment nodeEnvironment) throws IOException {
         super(settings);
-        this.probe = probe;
+        this.probe = new FsProbe(settings, nodeEnvironment);
         TimeValue refreshInterval = settings.getAsTime("monitor.fs.refresh_interval", TimeValue.timeValueSeconds(1));
         fsStatsCache = new FsInfoCache(refreshInterval, probe.stats());
         logger.debug("Using probe [{}] with refresh_interval [{}]", probe, refreshInterval);

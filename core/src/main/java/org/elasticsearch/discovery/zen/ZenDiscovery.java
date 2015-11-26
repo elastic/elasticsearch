@@ -525,7 +525,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 }
             });
         } else if (node.equals(nodes().masterNode())) {
-            handleMasterGone(node, "shut_down");
+            handleMasterGone(node, null, "shut_down");
         }
     }
 
@@ -615,7 +615,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         });
     }
 
-    private void handleMasterGone(final DiscoveryNode masterNode, final String reason) {
+    private void handleMasterGone(final DiscoveryNode masterNode, final Throwable cause, final String reason) {
         if (lifecycleState() != Lifecycle.State.STARTED) {
             // not started, ignore a master failure
             return;
@@ -625,7 +625,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             return;
         }
 
-        logger.info("master_left [{}], reason [{}]", masterNode, reason);
+        logger.info("master_left [{}], reason [{}]", cause, masterNode, reason);
 
         clusterService.submitStateUpdateTask("zen-disco-master_failed (" + masterNode + ")", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
 
@@ -1078,8 +1078,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     private class MasterNodeFailureListener implements MasterFaultDetection.Listener {
 
         @Override
-        public void onMasterFailure(DiscoveryNode masterNode, String reason) {
-            handleMasterGone(masterNode, reason);
+        public void onMasterFailure(DiscoveryNode masterNode, Throwable cause, String reason) {
+            handleMasterGone(masterNode, cause, reason);
         }
     }
 

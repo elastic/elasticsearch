@@ -643,7 +643,8 @@ public class Base64 {
         try {
             encoded = encodeBytes(source, 0, source.length, NO_OPTIONS);
         } catch (java.io.IOException ex) {
-            assert false : ex.getMessage();
+            // not sure why this was an assertion before, running with assertions disabled would mean swallowing this exception
+            throw new IllegalStateException(ex);
         }   // end catch
         assert encoded != null;
         return encoded;
@@ -705,7 +706,7 @@ public class Base64 {
         try {
             encoded = encodeBytes(source, off, len, NO_OPTIONS);
         } catch (java.io.IOException ex) {
-            assert false : ex.getMessage();
+            throw new IllegalStateException(ex);
         }   // end catch
         assert encoded != null;
         return encoded;
@@ -766,7 +767,7 @@ public class Base64 {
         try {
             encoded = encodeBytesToBytes(source, 0, source.length, Base64.NO_OPTIONS);
         } catch (java.io.IOException ex) {
-            assert false : "IOExceptions only come from GZipping, which is turned off: " + ex.getMessage();
+            throw new IllegalStateException("IOExceptions only come from GZipping, which is turned off: ", ex);
         }
         return encoded;
     }

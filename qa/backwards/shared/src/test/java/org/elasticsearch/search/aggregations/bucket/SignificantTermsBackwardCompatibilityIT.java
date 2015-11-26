@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.test.ESBackcompatTestCase;
 import org.elasticsearch.test.search.aggregations.bucket.SharedSignificantTermsTestMethods;
 
@@ -29,6 +30,6 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
      * Test for streaming significant terms buckets to old es versions.
      */
     public void testAggregateAndCheckFromSeveralShards() throws IOException, ExecutionException, InterruptedException {
-        SharedSignificantTermsTestMethods.aggregateAndCheckFromSeveralShards(this);
+        SharedSignificantTermsTestMethods.aggregateAndCheckFromSeveralShards(this, compatibilityVersion());
     }
 }

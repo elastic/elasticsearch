@@ -27,9 +27,7 @@ import org.gradle.api.*
 import org.gradle.api.artifacts.Configuration
 import org.gradle.api.file.FileCollection
 import org.gradle.api.logging.Logger
-import org.gradle.api.tasks.Copy
-import org.gradle.api.tasks.Delete
-import org.gradle.api.tasks.Exec
+import org.gradle.api.tasks.*
 
 import java.nio.file.Paths
 
@@ -62,12 +60,11 @@ class ClusterFormationTasks {
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro) {
         String elasticsearchVersion = VersionProperties.elasticsearch
-        String packaging = distro == 'tar' ? 'tar.gz' : distro
         project.configurations {
             elasticsearchDistro
         }
         project.dependencies {
-            elasticsearchDistro "org.elasticsearch.distribution.${distro}:elasticsearch:${elasticsearchVersion}@${packaging}"
+            elasticsearchDistro "org.elasticsearch.distribution.${distro}:elasticsearch:${elasticsearchVersion}"
         }
     }
 
@@ -132,6 +129,12 @@ class ClusterFormationTasks {
     /** Adds a task to extract the elasticsearch distribution */
     static Task configureExtractTask(String name, Project project, Task setup, NodeInfo node) {
         List extractDependsOn = [project.configurations.elasticsearchDistro, setup]
+        /* project.configurations.elasticsearchDistro.singleFile will be an
+          external artifact if this is being run by a plugin not living in the
+          elasticsearch source tree. If this is a plugin built in the
+          elasticsearch source tree or this is a distro in the elasticsearch
+          source tree then this should be the version of elasticsearch built
+          by the source tree. If it isn't then Bad Things(TM) will happen. */
         Task extract
         switch (node.config.distribution) {
             case 'zip':
@@ -146,6 +149,38 @@ class ClusterFormationTasks {
                         project.tarTree(project.resources.gzip(project.configurations.elasticsearchDistro.singleFile))
                     }
                     into node.baseDir
+                }
+                break;
+            case 'rpm':
+                File rpmDatabase = new File(node.baseDir, 'rpm-database')
+                File rpmExtracted = new File(node.baseDir, 'rpm-extracted')
+                /* Delay reading the location of the rpm file until task execution */
+                Object rpm = "${ -> project.configurations.elasticsearchDistro.singleFile}"
+                extract = project.tasks.create(name: name, type: Exec, dependsOn: extractDependsOn) {
+                    commandLine 'rpm', '--badreloc', '--nodeps', '--noscripts', '--notriggers',
+                        '--dbpath', rpmDatabase,
+                        '--relocate', "/=${rpmExtracted}",
+                        '-i', rpm
+                    standardOutput = new ByteArrayOutputStream()
+                    errorOutput = standardOutput
+                    /* rpm complains about the database being corrupted and exits. But it gets far
+                      enough for us to use it as an extractor. This is kind of funky but it works
+                      and its how Elasticsearch's maven build used to do it. */
+                    ignoreExitValue true
+                    doLast {
+                        String out = standardOutput.toString()
+                        if (out.indexOf('DB_RUNRECOVERY') < 0) {
+                            throw new GradleException("Didn't detect the usual error message when exracting the rpm. Something went wrong? Output:\n${out}")
+                        }
+                    }
+                }
+                break;
+            case 'deb':
+                /* Delay reading the location of the deb file until task execution */
+                File debExtracted = new File(node.baseDir, 'deb-extracted')
+                Object deb = "${ -> project.configurations.elasticsearchDistro.singleFile}"
+                extract = project.tasks.create(name: name, type: Exec, dependsOn: extractDependsOn) {
+                    commandLine 'dpkg-deb', '-x', deb, debExtracted
                 }
                 break;
             default:
@@ -172,7 +207,7 @@ class ClusterFormationTasks {
 
         Task writeConfig = project.tasks.create(name: name, type: DefaultTask, dependsOn: setup)
         writeConfig.doFirst {
-            File configFile = new File(node.homeDir, 'config/elasticsearch.yml')
+            File configFile = new File(node.confDir, 'elasticsearch.yml')
             logger.info("Configuring ${configFile}")
             configFile.setText(esConfig.collect { key, value -> "${key}: ${value}" }.join('\n'), 'UTF-8')
         }

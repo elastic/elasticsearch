@@ -288,10 +288,12 @@ class BuildPlugin implements Plugin<Project> {
             project.tasks.withType(JavaCompile) {
                 options.fork = true
                 options.forkOptions.executable = new File(project.javaHome, 'bin/javac')
+                options.forkOptions.memoryMaximumSize = "1g"
                 /*
                  * -path because gradle will send in paths that don't always exist.
                  * -missing because we have tons of missing @returns and @param.
                  */
+                // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
                 options.encoding = 'UTF-8'
             }

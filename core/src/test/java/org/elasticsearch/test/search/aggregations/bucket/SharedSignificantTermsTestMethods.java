@@ -19,6 +19,7 @@
 
 package org.elasticsearch.test.search.aggregations.bucket;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.search.aggregations.Aggregation;
@@ -46,8 +47,14 @@ public class SharedSignificantTermsTestMethods {
     public static final String TEXT_FIELD = "text";
     public static final String CLASS_FIELD = "class";
 
-    public static void aggregateAndCheckFromSeveralShards(ESIntegTestCase testCase) throws ExecutionException, InterruptedException {
+    public static void aggregateAndCheckFromSeveralShards(ESIntegTestCase testCase, Version esVersion) throws ExecutionException, InterruptedException {
         String type = ESTestCase.randomBoolean() ? "string" : "long";
+        if (esVersion.before(Version.V_2_0_2) || esVersion.equals(Version.V_2_1_0)) {
+            // reduce for long terms was broken for versions 2.0.0, 2.0.1 and 2.1.0. For those versions the test must be run with sting type.
+            // see https://github.com/elastic/elasticsearch/pull/14948
+            type = "string";
+        }
+
         String settings = "{\"index.number_of_shards\": 5, \"index.number_of_replicas\": 0}";
         index01Docs(type, settings, testCase);
         testCase.ensureGreen();

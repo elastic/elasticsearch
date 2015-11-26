@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.Version;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.ParseFieldMatcher;
@@ -513,7 +514,7 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     }
 
     public void testReduceFromSeveralShards() throws IOException, ExecutionException, InterruptedException {
-        SharedSignificantTermsTestMethods.aggregateAndCheckFromSeveralShards(this);
+        SharedSignificantTermsTestMethods.aggregateAndCheckFromSeveralShards(this, Version.CURRENT);
     }
 
 }

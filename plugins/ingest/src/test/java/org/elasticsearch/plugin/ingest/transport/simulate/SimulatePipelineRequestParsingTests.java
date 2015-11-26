@@ -29,9 +29,7 @@ import org.junit.Before;
 import java.io.IOException;
 import java.util.*;
 
-import static org.elasticsearch.ingest.IngestDocument.MetaData.ID;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.INDEX;
-import static org.elasticsearch.ingest.IngestDocument.MetaData.TYPE;
+import static org.elasticsearch.ingest.IngestDocument.MetaData.*;
 import static org.elasticsearch.plugin.ingest.transport.simulate.SimulatePipelineRequest.Fields;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
@@ -64,17 +62,17 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             String index = randomAsciiOfLengthBetween(1, 10);
             String type = randomAsciiOfLengthBetween(1, 10);
             String id = randomAsciiOfLengthBetween(1, 10);
-            doc.put(Fields.INDEX, index);
-            doc.put(Fields.TYPE, type);
-            doc.put(Fields.ID, id);
+            doc.put(INDEX.getFieldName(), index);
+            doc.put(TYPE.getFieldName(), type);
+            doc.put(ID.getFieldName(), id);
             String fieldName = randomAsciiOfLengthBetween(1, 10);
             String fieldValue = randomAsciiOfLengthBetween(1, 10);
             doc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             docs.add(doc);
             Map<String, Object> expectedDoc = new HashMap<>();
-            expectedDoc.put(Fields.INDEX, index);
-            expectedDoc.put(Fields.TYPE, type);
-            expectedDoc.put(Fields.ID, id);
+            expectedDoc.put(INDEX.getFieldName(), index);
+            expectedDoc.put(TYPE.getFieldName(), type);
+            expectedDoc.put(ID.getFieldName(), id);
             expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             expectedDocs.add(expectedDoc);
         }
@@ -86,9 +84,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
-            assertThat(ingestDocument.getMetadata(INDEX), equalTo(expectedDocument.get(Fields.INDEX)));
-            assertThat(ingestDocument.getMetadata(TYPE), equalTo(expectedDocument.get(Fields.TYPE)));
-            assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(Fields.ID)));
+            assertThat(ingestDocument.getMetadata(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
+            assertThat(ingestDocument.getMetadata(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
+            assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(ID.getFieldName())));
         }
 
         assertThat(actualRequest.getPipeline().getId(), equalTo(SimulatePipelineRequest.SIMULATED_PIPELINE_ID));
@@ -108,17 +106,17 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
             String index = randomAsciiOfLengthBetween(1, 10);
             String type = randomAsciiOfLengthBetween(1, 10);
             String id = randomAsciiOfLengthBetween(1, 10);
-            doc.put(Fields.INDEX, index);
-            doc.put(Fields.TYPE, type);
-            doc.put(Fields.ID, id);
+            doc.put(INDEX.getFieldName(), index);
+            doc.put(TYPE.getFieldName(), type);
+            doc.put(ID.getFieldName(), id);
             String fieldName = randomAsciiOfLengthBetween(1, 10);
             String fieldValue = randomAsciiOfLengthBetween(1, 10);
             doc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             docs.add(doc);
             Map<String, Object> expectedDoc = new HashMap<>();
-            expectedDoc.put(Fields.INDEX, index);
-            expectedDoc.put(Fields.TYPE, type);
-            expectedDoc.put(Fields.ID, id);
+            expectedDoc.put(INDEX.getFieldName(), index);
+            expectedDoc.put(TYPE.getFieldName(), type);
+            expectedDoc.put(ID.getFieldName(), id);
             expectedDoc.put(Fields.SOURCE, Collections.singletonMap(fieldName, fieldValue));
             expectedDocs.add(expectedDoc);
         }
@@ -139,9 +137,9 @@ public class SimulatePipelineRequestParsingTests extends ESTestCase {
         for (IngestDocument ingestDocument : actualRequest.getDocuments()) {
             Map<String, Object> expectedDocument = expectedDocsIterator.next();
             assertThat(ingestDocument.getSource(), equalTo(expectedDocument.get(Fields.SOURCE)));
-            assertThat(ingestDocument.getMetadata(INDEX), equalTo(expectedDocument.get(Fields.INDEX)));
-            assertThat(ingestDocument.getMetadata(TYPE), equalTo(expectedDocument.get(Fields.TYPE)));
-            assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(Fields.ID)));
+            assertThat(ingestDocument.getMetadata(INDEX), equalTo(expectedDocument.get(INDEX.getFieldName())));
+            assertThat(ingestDocument.getMetadata(TYPE), equalTo(expectedDocument.get(TYPE.getFieldName())));
+            assertThat(ingestDocument.getMetadata(ID), equalTo(expectedDocument.get(ID.getFieldName())));
         }
 
         assertThat(actualRequest.getPipeline().getId(), equalTo(SimulatePipelineRequest.SIMULATED_PIPELINE_ID));

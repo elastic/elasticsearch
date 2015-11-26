@@ -47,7 +47,7 @@ import java.util.Map;
  * Installs a limited form of secure computing mode,
  * to filters system calls to block process execution.
  * <p>
- * This is only supported on the Linux, Solaris, and Mac OS X operating systems.
+ * This is only supported on the Linux, Solaris, FreeBSD, OpenBSD, and Mac OS X operating systems.
  * <p>
  * On Linux it currently supports amd64 and i386 architectures, requires Linux kernel 3.5 or above, and requires
  * {@code CONFIG_SECCOMP} and {@code CONFIG_SECCOMP_FILTER} compiled into the kernel.
@@ -70,6 +70,8 @@ import java.util.Map;
  *   <li>{@code PRIV_PROC_FORK}</li>
  *   <li>{@code PRIV_PROC_EXEC}</li>
  * </ul>
+ * <p>
+ * On BSD systems, process creation is restricted with {@code setrlimit(RLIMIT_NPROC)}.
  * <p>
  * On Mac OS X Leopard or above, a custom {@code sandbox(7)} ("Seatbelt") profile is installed that
  * denies the following rules:
@@ -534,6 +536,31 @@ final class Seccomp {
         logger.debug("Solaris priv_set initialization successful");
     }
 
+    // BSD implementation via setrlimit(2)
+
+    // TODO: add OpenBSD to Lucene Constants
+    // TODO: JNA doesn't have netbsd support, but this mechanism should work there too.
+    static final boolean OPENBSD = Constants.OS_NAME.startsWith("OpenBSD");
+
+    // not a standard limit, means something different on linux, etc!
+    static final int RLIMIT_NPROC = 7;
+
+    static void bsdImpl() {
+        boolean supported = Constants.FREE_BSD || OPENBSD || Constants.MAC_OS_X;
+        if (supported == false) {
+            throw new IllegalStateException("bug: should not be trying to initialize RLIMIT_NPROC for an unsupported OS");
+        }
+
+        JNACLibrary.Rlimit limit = new JNACLibrary.Rlimit();
+        limit.rlim_cur.setValue(0);
+        limit.rlim_max.setValue(0);
+        if (JNACLibrary.setrlimit(RLIMIT_NPROC, limit) != 0) {
+            throw new UnsupportedOperationException("RLIMIT_NPROC unavailable: " + JNACLibrary.strerror(Native.getLastError()));
+        }
+
+        logger.debug("BSD RLIMIT_NPROC initialization successful");
+    }
+
     /**
      * Attempt to drop the capability to execute for the process.
      * <p>
@@ -544,10 +571,15 @@ final class Seccomp {
         if (Constants.LINUX) {
             return linuxImpl();
         } else if (Constants.MAC_OS_X) {
+            // try to enable both mechanisms if possible
+            bsdImpl();
             macImpl(tmpFile);
             return 1;
         } else if (Constants.SUN_OS) {
             solarisImpl();
+            return 1;
+        } else if (Constants.FREE_BSD || OPENBSD) {
+            bsdImpl();
             return 1;
         } else {
             throw new UnsupportedOperationException("syscall filtering not supported for OS: '" + Constants.OS_NAME + "'");

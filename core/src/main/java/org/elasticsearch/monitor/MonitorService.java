@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.monitor.fs.FsService;
@@ -47,7 +46,6 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
 
     private final FsService fsService;
 
-    @Inject
     public MonitorService(Settings settings, NodeEnvironment nodeEnvironment, ThreadPool threadPool) throws IOException {
         super(settings);
         this.jvmMonitorService = new JvmMonitorService(settings, threadPool);

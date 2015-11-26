@@ -20,7 +20,6 @@ package org.elasticsearch.common.settings;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.xcontent.ToXContent.Params;
 import org.elasticsearch.rest.RestRequest;

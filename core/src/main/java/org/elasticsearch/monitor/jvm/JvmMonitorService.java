@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.jvm;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
@@ -71,7 +70,6 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         }
     }
 
-    @Inject
     public JvmMonitorService(Settings settings, ThreadPool threadPool) {
         super(settings);
         this.threadPool = threadPool;

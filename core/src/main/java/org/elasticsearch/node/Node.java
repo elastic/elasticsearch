@@ -20,8 +20,10 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionModule;
+import org.elasticsearch.bootstrap.Elasticsearch;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.client.node.NodeClientModule;
@@ -41,7 +43,9 @@ import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
+import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.discovery.Discovery;
 import org.elasticsearch.discovery.DiscoveryModule;
@@ -66,7 +70,6 @@ import org.elasticsearch.indices.memory.IndexingMemoryController;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.store.IndicesStore;
 import org.elasticsearch.indices.ttl.IndicesTTLService;
-import org.elasticsearch.monitor.MonitorModule;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.node.internal.InternalSettingsPreparer;
@@ -155,11 +158,13 @@ public class Node implements Releasable {
         } catch (IOException ex) {
             throw new IllegalStateException("Failed to created node environment", ex);
         }
-
+        final NetworkService networkService = new NetworkService(settings);
+        final NodeSettingsService nodeSettingsService = new NodeSettingsService(settings);
+        final SettingsFilter settingsFilter = new SettingsFilter(settings);
         final ThreadPool threadPool = new ThreadPool(settings);
-
         boolean success = false;
         try {
+            final MonitorService monitorService = new MonitorService(settings, nodeEnvironment, threadPool);
             ModulesBuilder modules = new ModulesBuilder();
             modules.add(new Version.Module(version));
             modules.add(new CircuitBreakerModule(settings));
@@ -168,9 +173,9 @@ public class Node implements Releasable {
                 modules.add(pluginModule);
             }
             modules.add(new PluginsModule(pluginsService));
-            modules.add(new SettingsModule(this.settings));
-            modules.add(new NodeModule(this));
-            modules.add(new NetworkModule());
+            modules.add(new SettingsModule(this.settings, settingsFilter));
+            modules.add(new NodeModule(this, nodeSettingsService, monitorService));
+            modules.add(new NetworkModule(networkService));
             modules.add(new ScriptModule(this.settings));
             modules.add(new EnvironmentModule(environment));
             modules.add(new NodeEnvironmentModule(nodeEnvironment));
@@ -186,7 +191,6 @@ public class Node implements Releasable {
             modules.add(new IndicesModule());
             modules.add(new SearchModule());
             modules.add(new ActionModule(false));
-            modules.add(new MonitorModule(settings));
             modules.add(new GatewayModule(settings));
             modules.add(new NodeClientModule());
             modules.add(new PercolatorModule());
@@ -195,7 +199,6 @@ public class Node implements Releasable {
             modules.add(new TribeModule());
             modules.add(new AnalysisModule(environment));
 
-
             pluginsService.processModules(modules);
 
             injector = modules.createInjector();
@@ -203,6 +206,8 @@ public class Node implements Releasable {
             client = injector.getInstance(Client.class);
             threadPool.setNodeSettingsService(injector.getInstance(NodeSettingsService.class));
             success = true;
+        } catch (IOException ex) {
+            throw new ElasticsearchException("failed to bind service", ex);
         } finally {
             if (!success) {
                 nodeEnvironment.close();

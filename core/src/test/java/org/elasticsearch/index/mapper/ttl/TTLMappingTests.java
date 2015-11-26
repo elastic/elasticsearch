@@ -295,7 +295,7 @@ public class TTLMappingTests extends ESSingleNodeTestCase {
         request.process(MetaData.builder().build(), mappingMetaData, true, "test");
 
         // _ttl in a document never worked, so backcompat is ignoring the field
-        assertEquals(-1, request.ttl());
+        assertNull(request.ttl());
         assertNull(docMapper.parse("test", "type", "1", doc.bytes()).rootDoc().get("_ttl"));
     }
 

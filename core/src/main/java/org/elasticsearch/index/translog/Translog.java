@@ -1288,8 +1288,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void prepareCommit() throws IOException {
-        ensureOpen();
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             if (currentCommittingTranslog != null) {
                 throw new IllegalStateException("already committing a translog with generation: " + currentCommittingTranslog.getGeneration());
             }
@@ -1321,9 +1321,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     @Override
     public void commit() throws IOException {
-        ensureOpen();
         ImmutableTranslogReader toClose = null;
         try (ReleasableLock lock = writeLock.acquire()) {
+            ensureOpen();
             if (currentCommittingTranslog == null) {
                 prepareCommit();
             }

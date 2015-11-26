@@ -105,7 +105,7 @@ Defaults to no terminate_after.
 `dfs_query_then_fetch`, `query_then_fetch`, `scan`
 deprecated[2.1.0,Replaced by a regular `scroll` sorted by `_doc`]
 or `count`
-Defaults to `query_then_fetch`. See
+deprecated[2.0.0-beta1,Replaced by `size: 0`]. Defaults to `query_then_fetch`. See
 <<search-request-search-type,_Search Type_>> for
 more details on the different types of search that can be performed.
 |=======================================================================

@@ -69,6 +69,7 @@ import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_REPLICAS;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_NUMBER_OF_SHARDS;
+import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.closeTo;
@@ -86,6 +87,13 @@ public class SignificantTermsSignificanceScoreIT extends ESIntegTestCase {
     static final String DOC_TYPE = "doc";
     static final String TEXT_FIELD = "text";
     static final String CLASS_FIELD = "class";
+
+    public Settings nodeSettings(int nodeOrdinal) {
+        return settingsBuilder()
+                .put(super.nodeSettings(nodeOrdinal))
+                .put("path.conf", this.getDataPath("config"))
+                .build();
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

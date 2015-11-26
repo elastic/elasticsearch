@@ -32,6 +32,6 @@ public class SignificantTermsBackwardCompatibilityIT extends ESBackcompatTestCas
      */
     @Test
     public void testAggregateAndCheckFromSeveralShards() throws IOException, ExecutionException, InterruptedException {
-        SharedSignificantTermsTestMethods.aggregateAndCheckFromSeveralShards(this);
+        SharedSignificantTermsTestMethods.aggregateAndCheckFromSeveralShards(this, compatibilityVersion());
     }
 }

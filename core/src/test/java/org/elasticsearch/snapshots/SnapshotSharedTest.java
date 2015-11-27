@@ -175,7 +175,7 @@ public class SnapshotSharedTest {
      *
      * @param actionBetweenSnapshots action run after the first snapshot is created
      */
-    public static void testSnapshotMoreThanOnce(ESLogger logger, ESIntegTestCase testCase, AfterSnapshotAction actionBetweenSnapshots) throws Exception {
+    public static void testSnapshotMoreThanOnce(ESLogger logger, ESIntegTestCase testCase, AfterSnapshotAction actionBetweenSnapshots, int numberOfReplicas) throws Exception {
         logger.info("-->  creating repository");
         assertAcked(client().admin().cluster().preparePutRepository("test-repo")
                 .setType("fs").setSettings(Settings.settingsBuilder()
@@ -184,7 +184,7 @@ public class SnapshotSharedTest {
                         .put("chunk_size", randomIntBetween(100, 1000), ByteSizeUnit.BYTES)));
 
         // only one shard
-        assertAcked(client().admin().indices().prepareCreate("test").setSettings(testCase.indexSettings()).setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1)));
+        assertAcked(client().admin().indices().prepareCreate("test").setSettings(testCase.indexSettings()).setSettings(Settings.builder().put(IndexMetaData.SETTING_NUMBER_OF_SHARDS, 1).put(IndexMetaData.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas)));
         testCase.ensureGreen();
         logger.info("-->  indexing");
 

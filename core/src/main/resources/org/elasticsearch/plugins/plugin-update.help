@@ -1,0 +1,12 @@
+NAME
+
+    update - Update a plugin
+
+SYNOPSIS
+
+    plugin update <name>
+
+DESCRIPTION
+
+    This command removes an elasticsearch plugin and installs it again.
+

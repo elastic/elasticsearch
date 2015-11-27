@@ -141,6 +141,18 @@ sudo bin/plugin remove [pluginname]
 
 After a Java plugin has been removed, you will need to restart the node to complete the removal process.
 
+[float]
+=== Updating plugins
+
+Plugins can be updated using `update` option:
+
+[source,shell]
+-----------------------------------
+sudo bin/plugin update [pluginname]
+-----------------------------------
+
+After a Java plugin has been updated, you will need to restart the node to complete the update process.
+
 === Other command line parameters
 
 The `plugin` scripts supports a number of other command line parameters:

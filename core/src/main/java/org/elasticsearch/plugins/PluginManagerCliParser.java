@@ -46,7 +46,7 @@ public class PluginManagerCliParser extends CliTool {
     public static final TimeValue DEFAULT_TIMEOUT = TimeValue.timeValueMillis(0);
 
     private static final CliToolConfig CONFIG = CliToolConfig.config("plugin", PluginManagerCliParser.class)
-            .cmds(ListPlugins.CMD, Install.CMD, Remove.CMD)
+            .cmds(ListPlugins.CMD, Install.CMD, Remove.CMD, Update.CMD)
             .build();
 
     public static void main(String[] args) {
@@ -91,6 +91,8 @@ public class PluginManagerCliParser extends CliTool {
                 return ListPlugins.parse(terminal, cli);
             case Remove.NAME:
                 return Remove.parse(terminal, cli);
+            case Update.NAME:
+                return Update.parse(terminal, cli);
             default:
                 assert false : "can't get here as cmd name is validated before this method is called";
                 return exitCmd(ExitStatus.USAGE);
@@ -174,6 +176,39 @@ public class PluginManagerCliParser extends CliTool {
             terminal.println("-> Removing " + Strings.coalesceToEmpty(pluginName) + "...");
             pluginManager.removePlugin(pluginName, terminal);
             return ExitStatus.OK;
+        }
+    }
+
+    /**
+     * Update a plugin
+     */
+    static class Update extends CliTool.Command {
+
+        private static final String NAME = "update";
+
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, Update.class).build();
+        private final Command remove;
+        private final Command install;
+
+        public static Command parse(Terminal terminal, CommandLine cli) {
+            Command remove = Remove.parse(terminal, cli);
+            Command install = Install.parse(terminal, cli);
+            return new Update(terminal, remove, install);
+        }
+
+        Update(Terminal terminal, Command remove, Command install) {
+            super(terminal);
+            this.remove = remove;
+            this.install = install;
+        }
+
+        @Override
+        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+            ExitStatus status = remove.execute(settings, env);
+            if (status != ExitStatus.OK) {
+                return status;
+            }
+            return install.execute(settings, env);
         }
     }
 

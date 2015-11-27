@@ -52,6 +52,11 @@ public class PluginManagerCliTests extends CliToolTestCase {
         terminal.getTerminalOutput().clear();
         assertThat(new PluginManagerCliParser(terminal).execute(args("list -h")), is(OK_AND_EXIT));
         assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-list.help");
+
+        terminal.getTerminalOutput().clear();
+        assertThat(new PluginManagerCliParser(terminal).execute(args("update --help")), is(OK_AND_EXIT));
+        assertTerminalOutputContainsHelpFile(terminal, "/org/elasticsearch/plugins/plugin-update.help");
+
     }
 
     public void testUrlSpacesInPath() throws MalformedURLException {

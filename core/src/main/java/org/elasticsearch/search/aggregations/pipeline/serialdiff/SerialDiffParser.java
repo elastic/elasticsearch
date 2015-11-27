@@ -25,8 +25,6 @@ import org.elasticsearch.search.SearchParseException;
 import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -50,8 +48,8 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
         String currentFieldName = null;
         String[] bucketsPaths = null;
         String format = null;
-        GapPolicy gapPolicy = GapPolicy.SKIP;
-        int lag = 1;
+        GapPolicy gapPolicy = null;
+        Integer lag = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -102,20 +100,22 @@ public class SerialDiffParser implements PipelineAggregator.Parser {
                     + "] for derivative aggregation [" + reducerName + "]", parser.getTokenLocation());
         }
 
-        ValueFormatter formatter;
-        if (format != null) {
-            formatter = ValueFormat.Patternable.Number.format(format).formatter();
-        }  else {
-            formatter = ValueFormatter.RAW;
+        SerialDiffPipelineAggregator.Factory factory = new SerialDiffPipelineAggregator.Factory(reducerName, bucketsPaths);
+        if (lag != null) {
+            factory.lag(lag);
         }
-
-        return new SerialDiffPipelineAggregator.Factory(reducerName, bucketsPaths, formatter, gapPolicy, lag);
+        if (format != null) {
+            factory.format(format);
+        }
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
+        }
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public PipelineAggregatorFactory getFactoryPrototype() {
-        return null;
+        return new SerialDiffPipelineAggregator.Factory(null, null);
     }
 
 }

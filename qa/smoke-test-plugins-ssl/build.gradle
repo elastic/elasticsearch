@@ -156,6 +156,7 @@ for (Project subproj : project.rootProject.subprojects) {
   }
 }
 
+/*
 integTest {
   cluster {
     // TODO: use some variable here for port number
@@ -183,3 +184,4 @@ integTest {
     }
   }
 } 
+*/

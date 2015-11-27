@@ -12,7 +12,7 @@ combined unigram+bigram approach.
 
 Bigrams are generated for characters in `han`, `hiragana`, `katakana` and
 `hangul`, but bigrams can be disabled for particular scripts with the
-`ignore_scripts` parameter.  All non-CJK input is passed through unmodified.
+`ignored_scripts` parameter.  All non-CJK input is passed through unmodified.
 
 [source,js]
 --------------------------------------------------
@@ -28,7 +28,7 @@ Bigrams are generated for characters in `han`, `hiragana`, `katakana` and
             "filter" : {
                 "han_bigrams_filter" : {
                     "type" : "cjk_bigram",
-                    "ignore_scripts": [
+                    "ignored_scripts": [
                         "hiragana",
                         "katakana",
                         "hangul"

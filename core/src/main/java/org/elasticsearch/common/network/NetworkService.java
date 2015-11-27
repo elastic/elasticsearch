@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public final class NetworkService extends AbstractComponent {
+public class NetworkService extends AbstractComponent {
 
     /** By default, we bind to loopback interfaces */
     public static final String DEFAULT_NETWORK_HOST = "_local_";

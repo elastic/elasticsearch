@@ -641,7 +641,6 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 secondQuery.boost(firstQuery.boost() + 1f + randomFloat());
             }
             assertThat("different queries should not be equal", secondQuery, not(equalTo(firstQuery)));
-            assertThat("different queries should have different hashcode", secondQuery.hashCode(), not(equalTo(firstQuery.hashCode())));
         }
     }
 
@@ -897,7 +896,7 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                 msg(expected, builder.string()),
                 expected.replaceAll("\\s+",""),
                 builder.string().replaceAll("\\s+",""));
-    }    
+    }
 
     private static String msg(String left, String right) {
         int size = Math.min(left.length(), right.length());

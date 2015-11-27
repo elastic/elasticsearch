@@ -23,15 +23,18 @@ import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.collect.EvictingQueue;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregation.Type;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.InternalHistogram;
+import org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import org.elasticsearch.search.aggregations.pipeline.InternalSimpleValue;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
+import org.elasticsearch.search.aggregations.support.format.ValueFormat;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.aggregations.support.format.ValueFormatterStreams;
 
@@ -39,10 +42,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
-import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.GapPolicy;
 import static org.elasticsearch.search.aggregations.pipeline.BucketHelpers.resolveBucketValue;
 
 public class SerialDiffPipelineAggregator extends PipelineAggregator {
@@ -144,20 +147,105 @@ public class SerialDiffPipelineAggregator extends PipelineAggregator {
 
     public static class Factory extends PipelineAggregatorFactory {
 
-        private final ValueFormatter formatter;
-        private GapPolicy gapPolicy;
-        private int lag;
+        private String format;
+        private GapPolicy gapPolicy = GapPolicy.SKIP;
+        private int lag = 1;
 
-        public Factory(String name, String[] bucketsPaths, @Nullable ValueFormatter formatter, GapPolicy gapPolicy, int lag) {
+        public Factory(String name, String[] bucketsPaths) {
             super(name, TYPE.name(), bucketsPaths);
-            this.formatter = formatter;
-            this.gapPolicy = gapPolicy;
+        }
+
+        /**
+         * Sets the lag to use when calculating the serial difference.
+         */
+        public void lag(int lag) {
             this.lag = lag;
+        }
+
+        /**
+         * Gets the lag to use when calculating the serial difference.
+         */
+        public int lag() {
+            return lag;
+        }
+
+        /**
+         * Sets the format to use on the output of this aggregation.
+         */
+        public void format(String format) {
+            this.format = format;
+        }
+
+        /**
+         * Gets the format to use on the output of this aggregation.
+         */
+        public String format() {
+            return format;
+        }
+
+        /**
+         * Sets the GapPolicy to use on the output of this aggregation.
+         */
+        public void gapPolicy(GapPolicy gapPolicy) {
+            this.gapPolicy = gapPolicy;
+        }
+
+        /**
+         * Gets the GapPolicy to use on the output of this aggregation.
+         */
+        public GapPolicy gapPolicy() {
+            return gapPolicy;
+        }
+
+        protected ValueFormatter formatter() {
+            if (format != null) {
+                return ValueFormat.Patternable.Number.format(format).formatter();
+            } else {
+                return ValueFormatter.RAW;
+            }
         }
 
         @Override
         protected PipelineAggregator createInternal(Map<String, Object> metaData) throws IOException {
-            return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter, gapPolicy, lag, metaData);
+            return new SerialDiffPipelineAggregator(name, bucketsPaths, formatter(), gapPolicy, lag, metaData);
+        }
+
+        @Override
+        protected XContentBuilder internalXContent(XContentBuilder builder, Params params) throws IOException {
+            if (format != null) {
+                builder.field(SerialDiffParser.FORMAT.getPreferredName(), format);
+            }
+            builder.field(SerialDiffParser.GAP_POLICY.getPreferredName(), gapPolicy.getName());
+            builder.field(SerialDiffParser.LAG.getPreferredName(), lag);
+            return builder;
+        }
+
+        @Override
+        protected PipelineAggregatorFactory doReadFrom(String name, String[] bucketsPaths, StreamInput in) throws IOException {
+            Factory factory = new Factory(name, bucketsPaths);
+            factory.format = in.readOptionalString();
+            factory.gapPolicy = GapPolicy.readFrom(in);
+            factory.lag = in.readVInt();
+            return factory;
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) throws IOException {
+            out.writeOptionalString(format);
+            gapPolicy.writeTo(out);
+            out.writeVInt(lag);
+        }
+
+        @Override
+        protected int doHashCode() {
+            return Objects.hash(format, gapPolicy, lag);
+        }
+        @Override
+        protected boolean doEquals(Object obj) {
+            Factory other = (Factory) obj;
+            return Objects.equals(format, other.format)
+                    && Objects.equals(gapPolicy, other.gapPolicy)
+                    && Objects.equals(lag, other.lag);
         }
 
     }

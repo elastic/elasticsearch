@@ -41,7 +41,7 @@ public class SnapshotBackwardsCompatibilityIT extends ESBackcompatTestCase {
     }
 
     public void testSnapshotMoreThanOnce() throws Exception {
-        SnapshotSharedTest.testSnapshotMoreThanOnce(logger, this, frequentlyUpgradeCluster);
+        SnapshotSharedTest.testSnapshotMoreThanOnce(logger, this, frequentlyUpgradeCluster, 0);
     }
 
     AfterSnapshotAction frequentlyUpgradeCluster = new AfterSnapshotAction() {

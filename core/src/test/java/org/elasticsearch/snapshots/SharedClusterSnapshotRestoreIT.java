@@ -1487,7 +1487,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
     }
 
     public void testSnapshotMoreThanOnce() throws Exception {
-        SnapshotSharedTest.testSnapshotMoreThanOnce(logger, this, AfterSnapshotAction.NOOP);
+        SnapshotSharedTest.testSnapshotMoreThanOnce(logger, this, AfterSnapshotAction.NOOP, numberOfReplicas());
     }
 
     @Test

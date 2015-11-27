@@ -211,13 +211,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
      * {@inheritDoc}
      */
     @Override
-    protected void doStop() {
-    }
-
-    /**
-     * {@inheritDoc}
-     */
-    @Override
     protected void doClose() {
         try {
             blobStore().close();

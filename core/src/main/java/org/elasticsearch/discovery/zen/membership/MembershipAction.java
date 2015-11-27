@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.zen.DiscoveryNodesProvider;
@@ -36,7 +37,7 @@ import java.util.concurrent.TimeUnit;
 /**
  *
  */
-public class MembershipAction extends AbstractComponent {
+public class MembershipAction extends AbstractComponent implements Releasable {
 
     public static final String DISCOVERY_JOIN_ACTION_NAME = "internal:discovery/zen/join";
     public static final String DISCOVERY_JOIN_VALIDATE_ACTION_NAME = "internal:discovery/zen/join/validate";
@@ -75,9 +76,6 @@ public class MembershipAction extends AbstractComponent {
     }
 
     public void close() {
-        transportService.removeHandler(DISCOVERY_JOIN_ACTION_NAME);
-        transportService.removeHandler(DISCOVERY_JOIN_VALIDATE_ACTION_NAME);
-        transportService.removeHandler(DISCOVERY_LEAVE_ACTION_NAME);
     }
 
     public void sendLeaveRequest(DiscoveryNode masterNode, DiscoveryNode node) {

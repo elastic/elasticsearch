@@ -56,9 +56,8 @@ package org.elasticsearch.common.component;
  */
 public class Lifecycle {
 
-    public static enum State {
+    public enum State {
         INITIALIZED,
-        STOPPED,
         STARTED,
         CLOSED
     }
@@ -83,12 +82,6 @@ public class Lifecycle {
         return state == State.STARTED;
     }
 
-    /**
-     * Returns <tt>true</tt> if the state is stopped.
-     */
-    public boolean stopped() {
-        return state == State.STOPPED;
-    }
 
     /**
      * Returns <tt>true</tt> if the state is closed.
@@ -96,15 +89,9 @@ public class Lifecycle {
     public boolean closed() {
         return state == State.CLOSED;
     }
-
-    public boolean stoppedOrClosed() {
-        Lifecycle.State state = this.state;
-        return state == State.STOPPED || state == State.CLOSED;
-    }
-
     public boolean canMoveToStarted() throws IllegalStateException {
         State localState = this.state;
-        if (localState == State.INITIALIZED || localState == State.STOPPED) {
+        if (localState == State.INITIALIZED) {
             return true;
         }
         if (localState == State.STARTED) {
@@ -117,9 +104,10 @@ public class Lifecycle {
     }
 
 
+
     public boolean moveToStarted() throws IllegalStateException {
         State localState = this.state;
-        if (localState == State.INITIALIZED || localState == State.STOPPED) {
+        if (localState == State.INITIALIZED) {
             state = State.STARTED;
             return true;
         }
@@ -132,44 +120,8 @@ public class Lifecycle {
         throw new IllegalStateException("Can't move to started with unknown state");
     }
 
-    public boolean canMoveToStopped() throws IllegalStateException {
-        State localState = state;
-        if (localState == State.STARTED) {
-            return true;
-        }
-        if (localState == State.INITIALIZED || localState == State.STOPPED) {
-            return false;
-        }
-        if (localState == State.CLOSED) {
-            throw new IllegalStateException("Can't move to started state when closed");
-        }
-        throw new IllegalStateException("Can't move to started with unknown state");
-    }
-
-    public boolean moveToStopped() throws IllegalStateException {
-        State localState = state;
-        if (localState == State.STARTED) {
-            state = State.STOPPED;
-            return true;
-        }
-        if (localState == State.INITIALIZED || localState == State.STOPPED) {
-            return false;
-        }
-        if (localState == State.CLOSED) {
-            throw new IllegalStateException("Can't move to started state when closed");
-        }
-        throw new IllegalStateException("Can't move to started with unknown state");
-    }
-
     public boolean canMoveToClosed() throws IllegalStateException {
-        State localState = state;
-        if (localState == State.CLOSED) {
-            return false;
-        }
-        if (localState == State.STARTED) {
-            throw new IllegalStateException("Can't move to closed before moving to stopped mode");
-        }
-        return true;
+        return state != State.CLOSED;
     }
 
 
@@ -177,9 +129,6 @@ public class Lifecycle {
         State localState = state;
         if (localState == State.CLOSED) {
             return false;
-        }
-        if (localState == State.STARTED) {
-            throw new IllegalStateException("Can't move to closed before moving to stopped mode");
         }
         state = State.CLOSED;
         return true;

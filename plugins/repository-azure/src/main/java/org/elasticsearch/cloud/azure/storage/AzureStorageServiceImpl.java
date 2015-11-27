@@ -283,13 +283,9 @@ public class AzureStorageServiceImpl extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
-        logger.debug("stopping azure storage client instance");
+    protected void doClose() throws ElasticsearchException {
+        logger.debug("closing azure storage client instance");
         // We should stop all clients but it does sound like CloudBlobClient has
         // any shutdown method...
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 }

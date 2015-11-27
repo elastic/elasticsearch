@@ -317,7 +317,7 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         synchronized (serverChannels) {
             if (serverChannels != null) {
                 for (Channel channel : serverChannels) {
@@ -336,10 +336,6 @@ public class NettyHttpServerTransport extends AbstractLifecycleComponent<HttpSer
             serverBootstrap.releaseExternalResources();
             serverBootstrap = null;
         }
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     @Override

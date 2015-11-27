@@ -31,6 +31,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.AckClusterStatePublishResponseHandler;
@@ -51,7 +52,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 /**
  *
  */
-public class PublishClusterStateAction extends AbstractComponent {
+public class PublishClusterStateAction extends AbstractComponent implements Releasable {
 
     public static final String SEND_ACTION_NAME = "internal:discovery/zen/publish/send";
     public static final String COMMIT_ACTION_NAME = "internal:discovery/zen/publish/commit";
@@ -85,8 +86,6 @@ public class PublishClusterStateAction extends AbstractComponent {
     }
 
     public void close() {
-        transportService.removeHandler(SEND_ACTION_NAME);
-        transportService.removeHandler(COMMIT_ACTION_NAME);
     }
 
     public PendingClusterStatesQueue pendingStatesQueue() {

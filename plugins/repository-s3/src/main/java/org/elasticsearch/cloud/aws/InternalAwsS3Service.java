@@ -205,10 +205,6 @@ public class InternalAwsS3Service extends AbstractLifecycleComponent<AwsS3Servic
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
     protected void doClose() throws ElasticsearchException {
         for (AmazonS3Client client : clients.values()) {
             client.shutdown();

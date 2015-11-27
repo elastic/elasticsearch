@@ -98,15 +98,10 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         if (initialStateListener != null) {
             discovery.removeListener(initialStateListener);
         }
-        discovery.stop();
-    }
-
-    @Override
-    protected void doClose() {
         discovery.close();
     }
 

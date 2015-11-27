@@ -38,6 +38,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lease.Releasables;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
@@ -228,46 +229,40 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         joinThreadControl.stop();
-        pingService.stop();
-        masterFD.stop("zen disco stop");
-        nodesFD.stop();
         initialStateSent.set(false);
-        DiscoveryNodes nodes = nodes();
-        if (sendLeaveRequest) {
-            if (nodes.masterNode() == null) {
-                // if we don't know who the master is, nothing to do here
-            } else if (!nodes.localNodeMaster()) {
-                try {
-                    membership.sendLeaveRequestBlocking(nodes.masterNode(), nodes.localNode(), TimeValue.timeValueSeconds(1));
-                } catch (Exception e) {
-                    logger.debug("failed to send leave request to master [{}]", e, nodes.masterNode());
-                }
-            } else {
-                // we're master -> let other potential master we left and start a master election now rather then wait for masterFD
-                DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(nodes.nodes().values(), 5);
-                for (DiscoveryNode possibleMaster : possibleMasters) {
-                    if (nodes.localNode().equals(possibleMaster)) {
-                        continue;
-                    }
+        try {
+            DiscoveryNodes nodes = nodes();
+            if (sendLeaveRequest) {
+                if (nodes.masterNode() == null) {
+                    // if we don't know who the master is, nothing to do here
+                } else if (!nodes.localNodeMaster()) {
                     try {
-                        membership.sendLeaveRequest(nodes.localNode(), possibleMaster);
+                        membership.sendLeaveRequestBlocking(nodes.masterNode(), nodes.localNode(), TimeValue.timeValueSeconds(1));
                     } catch (Exception e) {
-                        logger.debug("failed to send leave request from master [{}] to possible master [{}]", e, nodes.masterNode(), possibleMaster);
+                        logger.debug("failed to send leave request to master [{}]", e, nodes.masterNode());
+                    }
+                } else {
+                    // we're master -> let other potential master we left and start a master election now rather then wait for masterFD
+                    DiscoveryNode[] possibleMasters = electMaster.nextPossibleMasters(nodes.nodes().values(), 5);
+                    for (DiscoveryNode possibleMaster : possibleMasters) {
+                        if (nodes.localNode().equals(possibleMaster)) {
+                            continue;
+                        }
+                        try {
+                            membership.sendLeaveRequest(nodes.localNode(), possibleMaster);
+                        } catch (Exception e) {
+                            logger.debug("failed to send leave request from master [{}] to possible master [{}]", e, nodes.masterNode(), possibleMaster);
+                        }
                     }
                 }
             }
+        } finally {
+            Releasables.close(membership, publishClusterState, pingService, masterFD, nodesFD);
         }
-    }
 
-    @Override
-    protected void doClose() {
-        masterFD.close();
-        nodesFD.close();
-        publishClusterState.close();
-        membership.close();
-        pingService.close();
+
     }
 
     @Override
@@ -660,14 +655,14 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
                 final DiscoveryNode electedMaster = electMaster.electMaster(discoveryNodes); // elect master
                 final DiscoveryNode localNode = currentState.nodes().localNode();
                 if (localNode.equals(electedMaster)) {
-                    masterFD.stop("got elected as new master since master left (reason = " + reason + ")");
+                    masterFD.close("got elected as new master since master left (reason = " + reason + ")");
                     discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(localNode.id()).build();
                     ClusterState newState = ClusterState.builder(currentState).nodes(discoveryNodes).build();
                     nodesFD.updateNodesAndPing(newState);
                     return newState;
 
                 } else {
-                    nodesFD.stop();
+                    nodesFD.close();
                     if (electedMaster != null) {
                         discoveryNodes = DiscoveryNodes.builder(discoveryNodes).masterNodeId(electedMaster.id()).build();
                         masterFD.restart(electedMaster, "possible elected master since master left (reason = " + reason + ")");
@@ -956,8 +951,8 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         assert Thread.currentThread().getName().contains(InternalClusterService.UPDATE_THREAD_NAME);
 
         logger.warn(reason + ", current nodes: {}", clusterState.nodes());
-        nodesFD.stop();
-        masterFD.stop(reason);
+        nodesFD.close();
+        masterFD.close(reason);
 
 
         ClusterBlocks clusterBlocks = ClusterBlocks.builder().blocks(clusterState.blocks())

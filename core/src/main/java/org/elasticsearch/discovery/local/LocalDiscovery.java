@@ -212,7 +212,7 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         synchronized (clusterGroups) {
             ClusterGroup clusterGroup = clusterGroups.get(clusterName);
             if (clusterGroup == null) {
@@ -273,10 +273,6 @@ public class LocalDiscovery extends AbstractLifecycleComponent<Discovery> implem
                 });
             }
         }
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     @Override

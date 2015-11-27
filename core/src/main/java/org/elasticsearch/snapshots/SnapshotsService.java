@@ -1080,15 +1080,6 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         this.snapshotCompletionListeners.remove(listener);
     }
 
-    @Override
-    protected void doStart() {
-
-    }
-
-    @Override
-    protected void doStop() {
-
-    }
 
     @Override
     protected void doClose() {

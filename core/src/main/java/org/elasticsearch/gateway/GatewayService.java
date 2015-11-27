@@ -126,17 +126,13 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         clusterService.remove(this);
     }
 
     @Override
-    protected void doClose() {
-    }
-
-    @Override
     public void clusterChanged(final ClusterChangedEvent event) {
-        if (lifecycle.stoppedOrClosed()) {
+        if (lifecycle.closed()) {
             return;
         }
         checkStateMeetsSettingsAndMaybeRecover(event.state());

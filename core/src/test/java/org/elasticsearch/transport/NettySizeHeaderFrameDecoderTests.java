@@ -80,7 +80,7 @@ public class NettySizeHeaderFrameDecoderTests extends ESTestCase {
 
     @After
     public void terminateThreadPool() throws InterruptedException {
-        nettyTransport.stop();
+        nettyTransport.close();
         terminate(threadPool);
     }
 

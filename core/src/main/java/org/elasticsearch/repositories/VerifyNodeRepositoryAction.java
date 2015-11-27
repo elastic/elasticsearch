@@ -65,7 +65,6 @@ public class VerifyNodeRepositoryAction  extends AbstractComponent {
     }
 
     public void close() {
-        transportService.removeHandler(ACTION_NAME);
     }
 
     public void verify(String repository, String verificationToken, final ActionListener<VerifyResponse> listener) {

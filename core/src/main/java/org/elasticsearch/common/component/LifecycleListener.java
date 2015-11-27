@@ -32,14 +32,6 @@ public abstract class LifecycleListener {
 
     }
 
-    public void beforeStop() {
-
-    }
-
-    public void afterStop() {
-
-    }
-
     public void beforeClose() {
 
     }

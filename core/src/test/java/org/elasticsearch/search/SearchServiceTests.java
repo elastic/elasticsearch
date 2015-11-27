@@ -55,7 +55,7 @@ public class SearchServiceTests extends ESSingleNodeTestCase {
         SearchService service = getInstanceFromNode(SearchService.class);
 
         assertEquals(1, service.getActiveContexts());
-        service.doStop();
+        service.doClose();
         assertEquals(0, service.getActiveContexts());
     }
 

@@ -200,7 +200,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             assertThat(e.getMessage(), false, equalTo(true));
         }
 
-        serviceA.removeHandler("sayHello");
     }
 
     public void testLocalNodeConnection() throws InterruptedException {
@@ -292,8 +291,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testHelloWorldCompressed() {
@@ -340,8 +337,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getMessage(), false, equalTo(true));
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testErrorMessage() {
@@ -382,8 +377,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e.getCause().getMessage(), equalTo("bad message !!!"));
         }
-
-        serviceA.removeHandler("sayHelloException");
     }
 
     public void testDisconnectListener() throws Exception {
@@ -412,8 +405,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             public void messageReceived(StringMessageRequest request, TransportChannel channel) {
                 try {
                     latch2.await();
-                    logger.info("Stop ServiceB now");
-                    serviceB.stop();
+                    logger.info("Close ServiceB now");
+                    serviceB.close();
                 } catch (Exception e) {
                     fail(e.getMessage());
                 }
@@ -428,7 +421,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (TransportException ex) {
 
         }
-        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
     public void testTimeoutSendExceptionWithNeverSendingBackResponse() throws Exception {
@@ -475,8 +467,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (Exception e) {
             assertThat(e, instanceOf(ReceiveTimeoutTransportException.class));
         }
-
-        serviceA.removeHandler("sayHelloTimeoutNoResponse");
     }
 
     public void testTimeoutSendExceptionWithDelayedResponse() throws Exception {
@@ -561,8 +551,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
             StringMessageResponse message = res.txGet();
             assertThat(message.message, equalTo("hello " + counter + "ms"));
         }
-
-        serviceA.removeHandler("sayHelloTimeoutDelayedResponse");
     }
 
     @TestLogging(value = "test. transport.tracer:TRACE")
@@ -1090,8 +1078,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (ConnectTransportException e) {
             // all is well
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
     public void testMockUnresponsiveRule() {
@@ -1148,8 +1134,6 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         } catch (ConnectTransportException e) {
             // all is well
         }
-
-        serviceA.removeHandler("sayHello");
     }
 
 

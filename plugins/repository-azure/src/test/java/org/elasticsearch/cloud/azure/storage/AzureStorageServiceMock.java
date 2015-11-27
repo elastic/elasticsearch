@@ -117,10 +117,6 @@ public class AzureStorageServiceMock extends AbstractLifecycleComponent<AzureSto
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
     protected void doClose() throws ElasticsearchException {
     }
 

@@ -95,16 +95,12 @@ public class IndicesTTLService extends AbstractLifecycleComponent<IndicesTTLServ
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         try {
             this.purgerThread.shutdown();
         } catch (InterruptedException e) {
             // we intentionally do not want to restore the interruption flag, we're about to shutdown anyway
         }
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     private class PurgerThread extends Thread {

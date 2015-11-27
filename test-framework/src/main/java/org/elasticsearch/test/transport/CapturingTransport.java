@@ -167,11 +167,6 @@ public class CapturingTransport implements Transport {
     }
 
     @Override
-    public Transport stop() {
-        return null;
-    }
-
-    @Override
     public void close() {
 
     }

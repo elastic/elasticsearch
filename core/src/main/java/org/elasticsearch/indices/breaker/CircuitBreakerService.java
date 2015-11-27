@@ -52,16 +52,4 @@ public abstract class CircuitBreakerService extends AbstractLifecycleComponent<C
      * @return stats about a specific breaker
      */
     public abstract CircuitBreakerStats stats(String name);
-
-    @Override
-    protected void doStart() {
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
-    }
 }

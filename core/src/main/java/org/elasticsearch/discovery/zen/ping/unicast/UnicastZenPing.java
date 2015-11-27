@@ -174,16 +174,7 @@ public class UnicastZenPing extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    protected void doStart() {
-    }
-
-    @Override
-    protected void doStop() {
-    }
-
-    @Override
     protected void doClose() {
-        transportService.removeHandler(ACTION_NAME);
         ThreadPool.terminate(unicastConnectExecutor, 0, TimeUnit.SECONDS);
         try {
             IOUtils.close(receivedResponses.values());

@@ -139,12 +139,8 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent<Indic
     }
 
     @Override
-    protected void doStop() {
-        clusterService.remove(this);
-    }
-
-    @Override
     protected void doClose() {
+        clusterService.remove(this);
     }
 
     @Override

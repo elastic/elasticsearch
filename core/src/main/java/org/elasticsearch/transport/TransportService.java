@@ -179,11 +179,11 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         final boolean setStopped = started.compareAndSet(true, false);
         assert setStopped : "service has already been stopped";
         try {
-            transport.stop();
+            transport.close();
         } finally {
             // in case the transport is not connected to our local node (thus cleaned on node disconnect)
             // make sure to clean any leftover on going handles
@@ -201,10 +201,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
                 }
             }
         }
-    }
-
-    @Override
-    protected void doClose() {
         transport.close();
     }
 
@@ -430,12 +426,6 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
             if (replaced != null) {
                 logger.warn("registered two transport handlers for action {}, handlers: {}, {}", reg.getAction(), reg.getHandler(), replaced.getHandler());
             }
-        }
-    }
-
-    public void removeHandler(String action) {
-        synchronized (requestHandlerMutex) {
-            requestHandlers = MapBuilder.newMapBuilder(requestHandlers).remove(action).immutableMap();
         }
     }
 

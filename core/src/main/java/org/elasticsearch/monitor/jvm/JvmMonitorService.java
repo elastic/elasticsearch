@@ -106,16 +106,13 @@ public class JvmMonitorService extends AbstractLifecycleComponent<JvmMonitorServ
         scheduledFuture = threadPool.scheduleWithFixedDelay(new JvmMonitor(), interval);
     }
 
+
     @Override
-    protected void doStop() {
+    protected void doClose() {
         if (!enabled) {
             return;
         }
         FutureUtils.cancel(scheduledFuture);
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     private class JvmMonitor implements Runnable {

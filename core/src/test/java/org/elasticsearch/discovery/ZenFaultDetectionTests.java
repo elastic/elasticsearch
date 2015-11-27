@@ -163,7 +163,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
             }
         });
         // will raise a disconnect on A
-        serviceB.stop();
+        serviceB.close();
         notified.await(30, TimeUnit.SECONDS);
 
         assertEquals(nodeB, failureNode[0]);
@@ -200,7 +200,7 @@ public class ZenFaultDetectionTests extends ESTestCase {
             }
         });
         // will raise a disconnect on A
-        serviceB.stop();
+        serviceB.close();
         notified.await(30, TimeUnit.SECONDS);
 
         assertEquals(nodeB, failureNode[0]);

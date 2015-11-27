@@ -94,10 +94,6 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final IndexStoreConfig indexStoreConfig;
     private final MapperRegistry mapperRegistry;
 
-    @Override
-    protected void doStart() {
-    }
-
     @Inject
     public IndicesService(Settings settings, PluginsService pluginsService, NodeEnvironment nodeEnv,
             NodeSettingsService nodeSettingsService, AnalysisRegistry analysisRegistry,
@@ -117,9 +113,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         ExecutorService indicesStopExecutor = Executors.newFixedThreadPool(5, EsExecutors.daemonThreadFactory("indices_shutdown"));
-
         // Copy indices because we modify it asynchronously in the body of the loop
         Set<String> indices = new HashSet<>(this.indices.keySet());
         final CountDownLatch latch = new CountDownLatch(indices.size());
@@ -136,18 +131,14 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         }
         try {
             if (latch.await(shardsClosedTimeout.seconds(), TimeUnit.SECONDS) == false) {
-              logger.warn("Not all shards are closed yet, waited {}sec - stopping service", shardsClosedTimeout.seconds());
+                logger.warn("Not all shards are closed yet, waited {}sec - stopping service", shardsClosedTimeout.seconds());
             }
         } catch (InterruptedException e) {
             // ignore
         } finally {
             indicesStopExecutor.shutdown();
+            IOUtils.closeWhileHandlingException(analysisRegistry);
         }
-    }
-
-    @Override
-    protected void doClose() {
-        IOUtils.closeWhileHandlingException(analysisRegistry);
     }
 
     /**

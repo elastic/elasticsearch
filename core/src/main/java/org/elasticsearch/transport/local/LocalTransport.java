@@ -125,7 +125,7 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         transports.remove(localAddress);
         // now, go over all the transports connected to me, and raise disconnected event
         for (final LocalTransport targetTransport : transports.values()) {
@@ -135,10 +135,6 @@ public class LocalTransport extends AbstractLifecycleComponent<Transport> implem
                 }
             }
         }
-    }
-
-    @Override
-    protected void doClose() {
         ThreadPool.terminate(workers, 10, TimeUnit.SECONDS);
     }
 

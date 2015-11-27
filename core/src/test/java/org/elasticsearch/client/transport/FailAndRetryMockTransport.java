@@ -20,7 +20,6 @@
 package org.elasticsearch.client.transport;
 
 import com.carrotsearch.randomizedtesting.generators.RandomInts;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.liveness.LivenessResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -174,11 +173,6 @@ abstract class FailAndRetryMockTransport<Response extends TransportResponse> imp
 
     @Override
     public Transport start() {
-        return null;
-    }
-
-    @Override
-    public Transport stop() {
         return null;
     }
 

@@ -107,13 +107,8 @@ public class HttpServer extends AbstractLifecycleComponent<HttpServer> {
     }
 
     @Override
-    protected void doStop() {
-        nodeService.removeAttribute("http_address");
-        transport.stop();
-    }
-
-    @Override
     protected void doClose() {
+        nodeService.removeAttribute("http_address");
         transport.close();
     }
 

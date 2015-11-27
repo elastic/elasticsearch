@@ -21,6 +21,7 @@ package org.elasticsearch.discovery.zen.fd;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.lease.Releasable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -33,7 +34,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  * A base class for {@link org.elasticsearch.discovery.zen.fd.MasterFaultDetection} &amp; {@link org.elasticsearch.discovery.zen.fd.NodesFaultDetection},
  * making sure both use the same setting.
  */
-public abstract class FaultDetection extends AbstractComponent {
+public abstract class FaultDetection extends AbstractComponent implements Releasable{
 
     public static final String SETTING_CONNECT_ON_NETWORK_DISCONNECT = "discovery.zen.fd.connect_on_network_disconnect";
     public static final String SETTING_PING_INTERVAL = "discovery.zen.fd.ping_interval";

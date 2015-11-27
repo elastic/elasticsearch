@@ -107,7 +107,7 @@ public class GceDiscoveryTests extends ESTestCase {
     @After
     public void stopGceComputeService() {
         if (mock != null) {
-            mock.stop();
+            mock.close();
         }
     }
 

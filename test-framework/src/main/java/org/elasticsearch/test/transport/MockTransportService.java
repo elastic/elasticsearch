@@ -513,12 +513,6 @@ public class MockTransportService extends TransportService {
         }
 
         @Override
-        public Transport stop() {
-            transport.stop();
-            return this;
-        }
-
-        @Override
         public void close() {
             transport.close();
         }

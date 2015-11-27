@@ -193,11 +193,6 @@ public class TribeService extends AbstractLifecycleComponent<TribeService> {
     }
 
     @Override
-    protected void doStop() {
-        doClose();
-    }
-
-    @Override
     protected void doClose() {
         for (Node node : nodes) {
             try {

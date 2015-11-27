@@ -40,11 +40,7 @@ public abstract class AzureComputeServiceAbstractMock extends AbstractLifecycleC
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
-        logger.debug("stopping Azure Api Mock");
-    }
-
-    @Override
     protected void doClose() throws ElasticsearchException {
+        logger.debug("closing Azure Api Mock");
     }
 }

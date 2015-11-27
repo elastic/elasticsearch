@@ -282,55 +282,11 @@ public class Node implements Releasable {
         return this;
     }
 
-    private Node stop() {
-        if (!lifecycle.moveToStopped()) {
-            return this;
-        }
-        ESLogger logger = Loggers.getLogger(Node.class, settings.get("name"));
-        logger.info("stopping ...");
-
-        injector.getInstance(TribeService.class).stop();
-        injector.getInstance(ResourceWatcherService.class).stop();
-        if (settings.getAsBoolean("http.enabled", true)) {
-            injector.getInstance(HttpServer.class).stop();
-        }
-
-        injector.getInstance(SnapshotsService.class).stop();
-        injector.getInstance(SnapshotShardsService.class).stop();
-        // stop any changes happening as a result of cluster state changes
-        injector.getInstance(IndicesClusterStateService.class).stop();
-        // we close indices first, so operations won't be allowed on it
-        injector.getInstance(IndexingMemoryController.class).stop();
-        injector.getInstance(IndicesTTLService.class).stop();
-        injector.getInstance(RoutingService.class).stop();
-        injector.getInstance(ClusterService.class).stop();
-        injector.getInstance(DiscoveryService.class).stop();
-        injector.getInstance(MonitorService.class).stop();
-        injector.getInstance(GatewayService.class).stop();
-        injector.getInstance(SearchService.class).stop();
-        injector.getInstance(RestController.class).stop();
-        injector.getInstance(TransportService.class).stop();
-
-        for (Class<? extends LifecycleComponent> plugin : pluginsService.nodeServices()) {
-            injector.getInstance(plugin).stop();
-        }
-        injector.getInstance(RecoverySettings.class).close();
-        // we should stop this last since it waits for resources to get released
-        // if we had scroll searchers etc or recovery going on we wait for to finish.
-        injector.getInstance(IndicesService.class).stop();
-        logger.info("stopped");
-
-        return this;
-    }
-
     // During concurrent close() calls we want to make sure that all of them return after the node has completed it's shutdown cycle.
     // If not, the hook that is added in Bootstrap#setup() will be useless: close() might not be executed, in case another (for example api) call
     // to close() has already set some lifecycles to stopped. In this case the process will be terminated even if the first call to close() has not finished yet.
     @Override
     public synchronized void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
         if (!lifecycle.moveToClosed()) {
             return;
         }
@@ -355,7 +311,6 @@ public class Node implements Releasable {
         stopWatch.stop().start("indices");
         injector.getInstance(IndexingMemoryController.class).close();
         injector.getInstance(IndicesTTLService.class).close();
-        injector.getInstance(IndicesService.class).close();
         // close filter/fielddata caches after indices
         injector.getInstance(IndicesQueryCache.class).close();
         injector.getInstance(IndicesFieldDataCache.class).close();
@@ -413,6 +368,10 @@ public class Node implements Releasable {
 
         injector.getInstance(NodeEnvironment.class).close();
         injector.getInstance(PageCacheRecycler.class).close();
+        injector.getInstance(RecoverySettings.class).close();
+        // we should stop this last since it waits for resources to get released
+        // if we had scroll searchers etc or recovery going on we wait for to finish.
+        injector.getInstance(IndicesService.class).close();
 
         logger.info("closed");
     }

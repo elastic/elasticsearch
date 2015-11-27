@@ -142,11 +142,6 @@ public class DiscoveryModuleTests extends ModuleTestCase {
         }
 
         @Override
-        public Discovery stop() {
-            return null;
-        }
-
-        @Override
         public void close() {
 
         }

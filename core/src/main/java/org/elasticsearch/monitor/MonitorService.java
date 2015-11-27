@@ -77,11 +77,6 @@ public class MonitorService extends AbstractLifecycleComponent<MonitorService> {
     }
 
     @Override
-    protected void doStop() {
-        jvmMonitorService.stop();
-    }
-
-    @Override
     protected void doClose() {
         jvmMonitorService.close();
     }

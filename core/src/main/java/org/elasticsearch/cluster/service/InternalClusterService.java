@@ -169,7 +169,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         FutureUtils.cancel(this.reconnectToNodes);
         for (NotifyTimeout onGoingTimeout : onGoingTimeouts) {
             onGoingTimeout.cancel();
@@ -177,10 +177,6 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         }
         ThreadPool.terminate(updateTasksExecutor, 10, TimeUnit.SECONDS);
         remove(localNodeMasterListeners);
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     @Override
@@ -240,7 +236,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
 
     @Override
     public void add(@Nullable final TimeValue timeout, final TimeoutClusterStateListener listener) {
-        if (lifecycle.stoppedOrClosed()) {
+        if (lifecycle.closed()) {
             listener.onClose();
             return;
         }
@@ -259,7 +255,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                 }
             });
         } catch (EsRejectedExecutionException e) {
-            if (lifecycle.stoppedOrClosed()) {
+            if (lifecycle.closed()) {
                 listener.onClose();
             } else {
                 throw e;
@@ -300,7 +296,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
         } catch (EsRejectedExecutionException e) {
             // ignore cases where we are shutting down..., there is really nothing interesting
             // to be done here...
-            if (!lifecycle.stoppedOrClosed()) {
+            if (!lifecycle.closed()) {
                 throw e;
             }
         }
@@ -622,7 +618,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             if (future != null && future.isCancelled()) {
                 return;
             }
-            if (lifecycle.stoppedOrClosed()) {
+            if (lifecycle.closed()) {
                 listener.onClose();
             } else {
                 listener.onTimeout(this.timeout);
@@ -640,7 +636,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
             // master node will check against all nodes if its alive with certain discoveries implementations,
             // but we can't rely on that, so we check on it as well
             for (DiscoveryNode node : clusterState.nodes()) {
-                if (lifecycle.stoppedOrClosed()) {
+                if (lifecycle.closed()) {
                     return;
                 }
                 if (!nodeRequiresConnection(node)) {
@@ -651,7 +647,7 @@ public class InternalClusterService extends AbstractLifecycleComponent<ClusterSe
                         try {
                             transportService.connectToNode(node);
                         } catch (Exception e) {
-                            if (lifecycle.stoppedOrClosed()) {
+                            if (lifecycle.closed()) {
                                 return;
                             }
                             if (clusterState.nodes().nodeExists(node.id())) { // double check here as well, maybe its gone?

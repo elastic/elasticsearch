@@ -173,13 +173,9 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         FutureUtils.cancel(scheduler);
         scheduler = null;
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     /**

@@ -168,9 +168,9 @@ public class MockRepository extends FsRepository {
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         unblock();
-        super.doStop();
+        super.doClose();
     }
 
     @Override

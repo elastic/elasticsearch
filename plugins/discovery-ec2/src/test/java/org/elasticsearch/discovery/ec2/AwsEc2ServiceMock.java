@@ -54,11 +54,6 @@ public class AwsEc2ServiceMock extends AbstractLifecycleComponent<AwsEc2Service>
     }
 
     @Override
-    protected void doStop() {
-
-    }
-
-    @Override
     protected void doClose() {
 
     }

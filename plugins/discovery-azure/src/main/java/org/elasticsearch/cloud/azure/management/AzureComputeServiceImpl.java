@@ -102,10 +102,6 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent<AzureCom
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
-    }
-
-    @Override
     protected void doClose() throws ElasticsearchException {
         if (computeManagementClient != null) {
             try {

@@ -226,7 +226,7 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
     }
 
     @Override
-    protected void doStop() throws ElasticsearchException {
+    protected void doClose() throws ElasticsearchException {
         if (gceHttpTransport != null) {
             try {
                 gceHttpTransport.shutdown();
@@ -235,9 +235,5 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
             }
             gceHttpTransport = null;
         }
-    }
-
-    @Override
-    protected void doClose() throws ElasticsearchException {
     }
 }

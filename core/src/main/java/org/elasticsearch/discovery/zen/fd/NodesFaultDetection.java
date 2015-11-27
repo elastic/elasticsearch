@@ -107,17 +107,10 @@ public class NodesFaultDetection extends FaultDetection {
         }
     }
 
-    /** stops all pinging **/
-    public NodesFaultDetection stop() {
-        nodesFD.clear();
-        return this;
-    }
-
     @Override
     public void close() {
         super.close();
-        stop();
-        transportService.removeHandler(PING_ACTION_NAME);
+        nodesFD.clear();
     }
 
     @Override

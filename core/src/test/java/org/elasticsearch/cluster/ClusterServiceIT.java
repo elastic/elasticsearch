@@ -1156,10 +1156,6 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
 
         @Override
-        protected void doStop() {
-        }
-
-        @Override
         protected void doClose() {
         }
 

@@ -106,17 +106,13 @@ public class ResourceWatcherService extends AbstractLifecycleComponent<ResourceW
     }
 
     @Override
-    protected void doStop() {
+    protected void doClose() {
         if (!enabled) {
             return;
         }
         FutureUtils.cancel(lowFuture);
         FutureUtils.cancel(mediumFuture);
         FutureUtils.cancel(highFuture);
-    }
-
-    @Override
-    protected void doClose() {
     }
 
     /**

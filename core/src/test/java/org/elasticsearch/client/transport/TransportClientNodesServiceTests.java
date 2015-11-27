@@ -85,7 +85,7 @@ public class TransportClientNodesServiceTests extends ESTestCase {
         @Override
         public void close() {
 
-            transportService.stop();
+            transportService.close();
             transportClientNodesService.close();
             try {
                 terminate(threadPool);

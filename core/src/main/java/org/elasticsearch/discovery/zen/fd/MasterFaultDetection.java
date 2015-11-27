@@ -129,7 +129,7 @@ public class MasterFaultDetection extends FaultDetection {
         threadPool.schedule(pingInterval, ThreadPool.Names.SAME, masterPinger);
     }
 
-    public void stop(String reason) {
+    private void stop(String reason) {
         synchronized (masterNodeMutex) {
             if (masterNode != null) {
                 if (logger.isDebugEnabled()) {
@@ -152,10 +152,13 @@ public class MasterFaultDetection extends FaultDetection {
 
     @Override
     public void close() {
+        close("closing");
+    }
+
+    public void close(String reason) {
         super.close();
-        stop("closing");
+        stop(reason);
         this.listeners.clear();
-        transportService.removeHandler(MASTER_PING_ACTION_NAME);
     }
 
     @Override

@@ -159,11 +159,6 @@ public class NoopClusterService implements ClusterService {
     }
 
     @Override
-    public ClusterService stop() {
-        return null;
-    }
-
-    @Override
     public void close() {
 
     }

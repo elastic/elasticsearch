@@ -65,13 +65,6 @@ public class ZenPingService extends AbstractLifecycleComponent<ZenPing> implemen
     }
 
     @Override
-    protected void doStop() {
-        for (ZenPing zenPing : zenPings) {
-            zenPing.stop();
-        }
-    }
-
-    @Override
     protected void doClose() {
         for (ZenPing zenPing : zenPings) {
             zenPing.close();

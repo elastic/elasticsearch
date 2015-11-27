@@ -58,7 +58,7 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
 
     @SuppressWarnings({"unchecked"})
     @Override
-    public T start() {
+    public final T start() {
         if (!lifecycle.canMoveToStarted()) {
             return (T) this;
         }
@@ -73,32 +73,10 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         return (T) this;
     }
 
-    protected abstract void doStart();
-
-    @SuppressWarnings({"unchecked"})
-    @Override
-    public T stop() {
-        if (!lifecycle.canMoveToStopped()) {
-            return (T) this;
-        }
-        for (LifecycleListener listener : listeners) {
-            listener.beforeStop();
-        }
-        lifecycle.moveToStopped();
-        doStop();
-        for (LifecycleListener listener : listeners) {
-            listener.afterStop();
-        }
-        return (T) this;
-    }
-
-    protected abstract void doStop();
+    protected void doStart() {}
 
     @Override
-    public void close() {
-        if (lifecycle.started()) {
-            stop();
-        }
+    public final void close() {
         if (!lifecycle.canMoveToClosed()) {
             return;
         }
@@ -112,5 +90,5 @@ public abstract class AbstractLifecycleComponent<T> extends AbstractComponent im
         }
     }
 
-    protected abstract void doClose();
+    protected void doClose() {}
 }

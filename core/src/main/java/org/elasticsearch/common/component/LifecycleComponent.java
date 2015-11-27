@@ -36,6 +36,4 @@ public interface LifecycleComponent<T> extends Releasable {
     void removeLifecycleListener(LifecycleListener listener);
 
     T start();
-
-    T stop();
 }

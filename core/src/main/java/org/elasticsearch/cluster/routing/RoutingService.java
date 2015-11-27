@@ -74,10 +74,6 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     }
 
     @Override
-    protected void doStop() {
-    }
-
-    @Override
     protected void doClose() {
         FutureUtils.cancel(registeredNextDelayFuture);
         clusterService.remove(this);
@@ -139,7 +135,7 @@ public class RoutingService extends AbstractLifecycleComponent<RoutingService> i
     // visible for testing
     protected void performReroute(String reason) {
         try {
-            if (lifecycle.stopped()) {
+            if (lifecycle.closed()) {
                 return;
             }
             if (rerouting.compareAndSet(false, true) == false) {

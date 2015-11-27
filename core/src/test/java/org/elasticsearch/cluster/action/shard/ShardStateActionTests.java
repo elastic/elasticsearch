@@ -74,7 +74,7 @@ public class ShardStateActionTests extends ESTestCase {
     @Override
     @After
     public void tearDown() throws Exception {
-        transportService.stop();
+        transportService.close();
         super.tearDown();
     }
 

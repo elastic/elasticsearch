@@ -352,7 +352,7 @@ public class UnassignedInfo implements ToXContent, Writeable<UnassignedInfo> {
     @Override
     public int hashCode() {
         int result = reason != null ? reason.hashCode() : 0;
-        result = 31 * result + Long.hashCode(unassignedTimeMillis);
+        result = 31 * result + (int) (unassignedTimeMillis ^ (unassignedTimeMillis >>> 32));
         result = 31 * result + (message != null ? message.hashCode() : 0);
         result = 31 * result + (failure != null ? failure.hashCode() : 0);
         return result;

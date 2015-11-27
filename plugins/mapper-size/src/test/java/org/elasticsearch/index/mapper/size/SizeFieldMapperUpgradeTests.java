@@ -19,6 +19,7 @@
 
 package org.elasticsearch.index.mapper.size;
 
+import com.google.common.util.concurrent.ListenableFuture;
 import org.apache.lucene.util.TestUtil;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import java.nio.file.Path;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.ExecutionException;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
@@ -46,7 +48,8 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         return Collections.<Class<? extends Plugin>>singleton(MapperSizePlugin.class);
     }
 
-    public void doTestUpgradeOldMapping(String version) throws IOException {
+    public void doTestUpgradeOldMapping(String version) throws IOException, ExecutionException, InterruptedException {
+        ListenableFuture<String> master = internalCluster().startNodeAsync();
         final String indexName = "index-mapper-size-" + version;
         Path unzipDir = createTempDir();
         Path unzipDataDir = unzipDir.resolve("data");
@@ -60,15 +63,17 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         Settings settings = Settings.builder()
                 .put("path.data", dataPath)
                 .build();
-        final String node = internalCluster().startNode(settings);
+        final String node = internalCluster().startDataOnlyNode(settings); // workaround for dangling index loading issue when node is master
         Path[] nodePaths = internalCluster().getInstance(NodeEnvironment.class, node).nodeDataPaths();
         assertEquals(1, nodePaths.length);
         dataPath = nodePaths[0].resolve(NodeEnvironment.INDICES_FOLDER);
         assertFalse(Files.exists(dataPath));
         Path src = unzipDataDir.resolve(indexName + "/nodes/0/indices");
         Files.move(src, dataPath);
-
-        ensureYellow();
+        master.get();
+        // force reloading dangling indices with a cluster state republish
+        client().admin().cluster().prepareReroute().get();
+        ensureGreen(indexName);
         final SearchResponse countResponse = client().prepareSearch(indexName).setSize(0).get();
         ElasticsearchAssertions.assertHitCount(countResponse, 3L);
 
@@ -88,11 +93,11 @@ public class SizeFieldMapperUpgradeTests extends ESIntegTestCase {
         }
     }
 
-    public void testUpgradeOldMapping200() throws IOException {
+    public void testUpgradeOldMapping200() throws IOException, ExecutionException, InterruptedException {
         doTestUpgradeOldMapping("2.0.0");
     }
 
-    public void testUpgradeOldMapping173() throws IOException {
+    public void testUpgradeOldMapping173() throws IOException, ExecutionException, InterruptedException {
         doTestUpgradeOldMapping("1.7.3");
     }
 }

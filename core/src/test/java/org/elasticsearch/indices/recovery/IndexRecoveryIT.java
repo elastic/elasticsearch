@@ -142,8 +142,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
-                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, chunkSize, ByteSizeUnit.BYTES)
-                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, chunkSize, ByteSizeUnit.BYTES)
+                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
+                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING.getKey(), chunkSize, ByteSizeUnit.BYTES)
                 )
                 .get().isAcknowledged());
     }
@@ -151,8 +151,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     private void restoreRecoverySpeed() {
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
-                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
-                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "512kb")
+                                .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING.getKey(), "20mb")
+                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE_SETTING.getKey(), "512kb")
                 )
                 .get().isAcknowledged());
     }
@@ -525,8 +525,8 @@ public class IndexRecoveryIT extends ESIntegTestCase {
     public void testDisconnectsWhileRecovering() throws Exception {
         final String indexName = "test";
         final Settings nodeSettings = Settings.builder()
-                .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK, "100ms")
-                .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT, "1s")
+                .put(RecoverySettings.INDICES_RECOVERY_RETRY_DELAY_NETWORK_SETTING.getKey(), "100ms")
+                .put(RecoverySettings.INDICES_RECOVERY_INTERNAL_ACTION_TIMEOUT_SETTING.getKey(), "1s")
                 .put(MockFSDirectoryService.RANDOM_PREVENT_DOUBLE_WRITE, false) // restarted recoveries will delete temp files and write them again
                 .build();
         // start a master node

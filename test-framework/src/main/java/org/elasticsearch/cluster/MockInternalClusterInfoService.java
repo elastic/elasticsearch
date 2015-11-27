@@ -31,8 +31,9 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.monitor.fs.FsInfo;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -77,11 +78,11 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
     }
 
     @Inject
-    public MockInternalClusterInfoService(Settings settings, NodeSettingsService nodeSettingsService,
+    public MockInternalClusterInfoService(Settings settings, ClusterSettingsService clusterSettingsService,
                                           TransportNodesStatsAction transportNodesStatsAction,
                                           TransportIndicesStatsAction transportIndicesStatsAction,
                                           ClusterService clusterService, ThreadPool threadPool) {
-        super(settings, nodeSettingsService, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
+        super(settings, clusterSettingsService, transportNodesStatsAction, transportIndicesStatsAction, clusterService, threadPool);
         this.clusterName = ClusterName.clusterNameFromSettings(settings);
         stats[0] = makeStats("node_t1", new DiskUsage("node_t1", "n1", "/dev/null", 100, 100));
         stats[1] = makeStats("node_t2", new DiskUsage("node_t2", "n2", "/dev/null", 100, 100));
@@ -132,5 +133,10 @@ public class MockInternalClusterInfoService extends InternalClusterInfoService {
         public String getDataPath(ShardRouting shardRouting) {
             return "/dev/null";
         }
+    }
+
+    @Override
+    public void setUpdateFrequency(TimeValue updateFrequency) {
+        super.setUpdateFrequency(updateFrequency);
     }
 }

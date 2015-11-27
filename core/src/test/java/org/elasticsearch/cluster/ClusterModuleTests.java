@@ -31,10 +31,12 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.cluster.settings.DynamicSettings;
 import org.elasticsearch.cluster.settings.Validator;
 import org.elasticsearch.common.inject.ModuleTestCase;
+import org.elasticsearch.common.settings.ClusterSettingsService;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.settings.IndexDynamicSettings;
 
@@ -75,16 +77,16 @@ public class ClusterModuleTests extends ModuleTestCase {
     public void testRegisterClusterDynamicSettingDuplicate() {
         ClusterModule module = new ClusterModule(Settings.EMPTY);
         try {
-            module.registerClusterDynamicSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, Validator.EMPTY);
+            module.registerSetting(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING);
         } catch (IllegalArgumentException e) {
-            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE + "] twice");
+            assertEquals(e.getMessage(), "Cannot register setting [" + EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey() + "] twice");
         }
     }
 
     public void testRegisterClusterDynamicSetting() {
         ClusterModule module = new ClusterModule(Settings.EMPTY);
-        module.registerClusterDynamicSetting("foo.bar", Validator.EMPTY);
-        assertInstanceBindingWithAnnotation(module, DynamicSettings.class, dynamicSettings -> dynamicSettings.hasDynamicSetting("foo.bar"), ClusterDynamicSettings.class);
+        module.registerSetting(Setting.boolSetting("foo.bar", false, true, Setting.Scope.Cluster));
+        assertInstanceBinding(module, ClusterSettingsService.class, service -> service.getClusterSettings().hasDynamicSetting("foo.bar"));
     }
 
     public void testRegisterIndexDynamicSettingDuplicate() {

@@ -21,25 +21,30 @@ package org.elasticsearch.action.support;
 
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  * Helper for dealing with destructive operations and wildcard usage.
  */
-public final class DestructiveOperations extends AbstractComponent implements NodeSettingsService.Listener {
+public final class DestructiveOperations extends AbstractComponent {
 
     /**
      * Setting which controls whether wildcard usage (*, prefix*, _all) is allowed.
      */
-    public static final String REQUIRES_NAME = "action.destructive_requires_name";
+    public static final Setting<Boolean> REQUIRES_NAME_SETTING = Setting.boolSetting("action.destructive_requires_name", false, true, Setting.Scope.Cluster);
     private volatile boolean destructiveRequiresName;
 
     @Inject
-    public DestructiveOperations(Settings settings, NodeSettingsService nodeSettingsService) {
+    public DestructiveOperations(Settings settings, ClusterSettingsService clusterSettingsService) {
         super(settings);
-        destructiveRequiresName = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, false);
-        nodeSettingsService.addListener(this);
+        destructiveRequiresName = REQUIRES_NAME_SETTING.get(settings);
+        clusterSettingsService.addSettingsUpdateConsumer(REQUIRES_NAME_SETTING, this::setDestructiveRequiresName);
+    }
+
+    private void setDestructiveRequiresName(boolean destructiveRequiresName) {
+        this.destructiveRequiresName = destructiveRequiresName;
     }
 
     /**
@@ -62,15 +67,6 @@ public final class DestructiveOperations extends AbstractComponent implements No
                     throw new IllegalArgumentException("Wildcard expressions or all indices are not allowed");
                 }
             }
-        }
-    }
-
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        boolean newValue = settings.getAsBoolean(DestructiveOperations.REQUIRES_NAME, destructiveRequiresName);
-        if (destructiveRequiresName != newValue) {
-            logger.info("updating [action.operate_all_indices] from [{}] to [{}]", destructiveRequiresName, newValue);
-            this.destructiveRequiresName = newValue;
         }
     }
 

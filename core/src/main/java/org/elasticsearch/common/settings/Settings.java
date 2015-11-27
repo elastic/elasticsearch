@@ -614,6 +614,9 @@ public final class Settings implements ToXContent {
         if (settingPrefix.charAt(settingPrefix.length() - 1) != '.') {
             settingPrefix = settingPrefix + ".";
         }
+        return getGroupsInternal(settingPrefix, ignoreNonGrouped);
+    }
+    private Map<String, Settings> getGroupsInternal(String settingPrefix, boolean ignoreNonGrouped) throws SettingsException {
         // we don't really care that it might happen twice
         Map<String, Map<String, String>> map = new LinkedHashMap<>();
         for (Object o : settings.keySet()) {
@@ -642,6 +645,12 @@ public final class Settings implements ToXContent {
             retVal.put(entry.getKey(), new Settings(Collections.unmodifiableMap(entry.getValue())));
         }
         return Collections.unmodifiableMap(retVal);
+    }
+    /**
+     * Returns group settings for the given setting prefix.
+     */
+    public Map<String, Settings> getAsGroups() throws SettingsException {
+        return getGroupsInternal("", false);
     }
 
     /**

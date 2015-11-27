@@ -41,7 +41,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
     private final ESLogger logger = Loggers.getLogger(FailedNodeRoutingTests.class);
 
     public void testSimpleFailedNodeTest() {
-        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE,
+        AllocationService strategy = createAllocationService(settingsBuilder().put(ClusterRebalanceAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ALLOW_REBALANCE_SETTING.getKey(),
                 ClusterRebalanceAllocationDecider.ClusterRebalanceType.ALWAYS.toString()).build());
 
         MetaData metaData = MetaData.builder()

@@ -303,7 +303,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         // disable allocation to control the situation more easily
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.debug("--> shutting down two random nodes");
         internalCluster().stopRandomNode(InternalTestCluster.nameFilter(node1, node2, node3));
@@ -322,7 +322,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
                         .put(FilterAllocationDecider.INDEX_ROUTING_EXCLUDE_GROUP + "_name", "NONE")));
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")));
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));
 
         logger.debug("--> waiting for shards to recover on [{}]", node4);
         // we have to do this in two steps as we now do async shard fetching before assigning, so the change to the
@@ -340,7 +340,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         // disable allocation again to control concurrency a bit and allow shard active to kick in before allocation
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")));
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")));
 
         logger.debug("--> starting the two old nodes back");
 
@@ -351,7 +351,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
 
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "all")));
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "all")));
 
         logger.debug("--> waiting for the lost shard to be recovered");
 
@@ -396,7 +396,7 @@ public class IndicesStoreIntegrationIT extends ESIntegTestCase {
 
         // disable relocations when we do this, to make sure the shards are not relocated from node2
         // due to rebalancing, and delete its content
-        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, EnableAllocationDecider.Rebalance.NONE)).get();
+        client().admin().cluster().prepareUpdateSettings().setTransientSettings(settingsBuilder().put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)).get();
         internalCluster().getInstance(ClusterService.class, nonMasterNode).submitStateUpdateTask("test", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

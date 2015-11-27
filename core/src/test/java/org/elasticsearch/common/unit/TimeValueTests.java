@@ -162,4 +162,14 @@ public class TimeValueTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("Failed to parse"));
         }
     }
+
+    public void testToStringRep() {
+        assertThat("-1", equalTo(new TimeValue(-1).getStringRep()));
+        assertThat("10ms", equalTo(new TimeValue(10, TimeUnit.MILLISECONDS).getStringRep()));
+        assertThat("1533ms", equalTo(new TimeValue(1533, TimeUnit.MILLISECONDS).getStringRep()));
+        assertThat("90s", equalTo(new TimeValue(90, TimeUnit.SECONDS).getStringRep()));
+        assertThat("90m", equalTo(new TimeValue(90, TimeUnit.MINUTES).getStringRep()));
+        assertThat("36h", equalTo(new TimeValue(36, TimeUnit.HOURS).getStringRep()));
+        assertThat("1000d", equalTo(new TimeValue(1000, TimeUnit.DAYS).getStringRep()));
+    }
 }

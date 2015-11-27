@@ -39,6 +39,7 @@ import org.elasticsearch.common.inject.internal.Nullable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.ESLogger;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.discovery.Discovery;
@@ -55,7 +56,7 @@ import org.elasticsearch.discovery.zen.ping.ZenPingService;
 import org.elasticsearch.discovery.zen.publish.PendingClusterStateStats;
 import org.elasticsearch.discovery.zen.publish.PublishClusterStateAction;
 import org.elasticsearch.node.service.NodeService;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -74,7 +75,7 @@ import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
  */
 public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implements Discovery, PingContextProvider {
 
-    public final static String SETTING_REJOIN_ON_MASTER_GONE = "discovery.zen.rejoin_on_master_gone";
+    public final static Setting<Boolean> REJOIN_ON_MASTER_GONE_SETTING = Setting.boolSetting("discovery.zen.rejoin_on_master_gone", true, true, Setting.Scope.Cluster);
     public final static String SETTING_PING_TIMEOUT = "discovery.zen.ping_timeout";
     public final static String SETTING_JOIN_TIMEOUT = "discovery.zen.join_timeout";
     public final static String SETTING_JOIN_RETRY_ATTEMPTS = "discovery.zen.join_retry_attempts";
@@ -139,7 +140,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
     @Inject
     public ZenDiscovery(Settings settings, ClusterName clusterName, ThreadPool threadPool,
-                        TransportService transportService, final ClusterService clusterService, NodeSettingsService nodeSettingsService,
+                        TransportService transportService, final ClusterService clusterService, ClusterSettingsService clusterSettingsService,
                         ZenPingService pingService, ElectMasterService electMasterService,
                         DiscoverySettings discoverySettings) {
         super(settings);
@@ -160,7 +161,7 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
         this.masterElectionFilterClientNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_CLIENT, true);
         this.masterElectionFilterDataNodes = settings.getAsBoolean(SETTING_MASTER_ELECTION_FILTER_DATA, false);
         this.masterElectionWaitForJoinsTimeout = settings.getAsTime(SETTING_MASTER_ELECTION_WAIT_FOR_JOINS_TIMEOUT, TimeValue.timeValueMillis(joinTimeout.millis() / 2));
-        this.rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, true);
+        this.rejoinOnMasterGone = REJOIN_ON_MASTER_GONE_SETTING.get(settings);
 
         if (this.joinRetryAttempts < 1) {
             throw new IllegalArgumentException("'" + SETTING_JOIN_RETRY_ATTEMPTS + "' must be a positive number. got [" + SETTING_JOIN_RETRY_ATTEMPTS + "]");
@@ -171,7 +172,15 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
 
         logger.debug("using ping_timeout [{}], join.timeout [{}], master_election.filter_client [{}], master_election.filter_data [{}]", this.pingTimeout, joinTimeout, masterElectionFilterClientNodes, masterElectionFilterDataNodes);
 
-        nodeSettingsService.addListener(new ApplySettings());
+        clusterSettingsService.addSettingsUpdateConsumer(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING, this::handleMinimumMasterNodesChanged, (value) -> {
+            final ClusterState clusterState = clusterService.state();
+            int masterNodes = clusterState.nodes().masterNodes().size();
+            if (value > masterNodes) {
+                throw new IllegalArgumentException("cannot set " + ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey() + " to more than the current master nodes count [" + masterNodes + "]");
+            }
+            return true;
+        });
+        clusterSettingsService.addSettingsUpdateConsumer(REJOIN_ON_MASTER_GONE_SETTING, this::setRejoingOnMasterGone);
 
         this.masterFD = new MasterFaultDetection(settings, threadPool, transportService, clusterName, clusterService);
         this.masterFD.addListener(new MasterNodeFailureListener());
@@ -304,6 +313,10 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
     @Override
     public boolean nodeHasJoinedClusterOnce() {
         return clusterJoinsCounter.get() > 0;
+    }
+
+    private void setRejoingOnMasterGone(boolean rejoin) {
+        this.rejoinOnMasterGone = rejoin;
     }
 
     /** end of {@link org.elasticsearch.discovery.zen.ping.PingContextProvider } implementation */
@@ -1138,26 +1151,6 @@ public class ZenDiscovery extends AbstractLifecycleComponent<Discovery> implemen
             });
         }
     }
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            int minimumMasterNodes = settings.getAsInt(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
-                    ZenDiscovery.this.electMaster.minimumMasterNodes());
-            if (minimumMasterNodes != ZenDiscovery.this.electMaster.minimumMasterNodes()) {
-                logger.info("updating {} from [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES,
-                        ZenDiscovery.this.electMaster.minimumMasterNodes(), minimumMasterNodes);
-                handleMinimumMasterNodesChanged(minimumMasterNodes);
-            }
-
-            boolean rejoinOnMasterGone = settings.getAsBoolean(SETTING_REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone);
-            if (rejoinOnMasterGone != ZenDiscovery.this.rejoinOnMasterGone) {
-                logger.info("updating {} from [{}] to [{}]", SETTING_REJOIN_ON_MASTER_GONE, ZenDiscovery.this.rejoinOnMasterGone, rejoinOnMasterGone);
-                ZenDiscovery.this.rejoinOnMasterGone = rejoinOnMasterGone;
-            }
-        }
-    }
-
 
     /**
      * All control of the join thread should happen under the cluster state update task thread.

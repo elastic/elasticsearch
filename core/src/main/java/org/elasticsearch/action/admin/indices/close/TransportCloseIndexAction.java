@@ -31,31 +31,36 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaDataIndexStateService;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 /**
  * Close index action
  */
-public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> implements NodeSettingsService.Listener {
+public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIndexRequest, CloseIndexResponse> {
 
     private final MetaDataIndexStateService indexStateService;
     private final DestructiveOperations destructiveOperations;
     private volatile boolean closeIndexEnabled;
-    public static final String SETTING_CLUSTER_INDICES_CLOSE_ENABLE = "cluster.indices.close.enable";
+    public static final Setting<Boolean> CLUSTER_INDICES_CLOSE_ENABLE_SETTING = Setting.boolSetting("cluster.indices.close.enable", true, true, Setting.Scope.Cluster);
 
     @Inject
     public TransportCloseIndexAction(Settings settings, TransportService transportService, ClusterService clusterService,
                                      ThreadPool threadPool, MetaDataIndexStateService indexStateService,
-                                     NodeSettingsService nodeSettingsService, ActionFilters actionFilters,
+                                     ClusterSettingsService clusterSettingsService, ActionFilters actionFilters,
                                      IndexNameExpressionResolver indexNameExpressionResolver, DestructiveOperations destructiveOperations) {
         super(settings, CloseIndexAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, CloseIndexRequest::new);
         this.indexStateService = indexStateService;
         this.destructiveOperations = destructiveOperations;
-        this.closeIndexEnabled = settings.getAsBoolean(SETTING_CLUSTER_INDICES_CLOSE_ENABLE, true);
-        nodeSettingsService.addListener(this);
+        this.closeIndexEnabled = CLUSTER_INDICES_CLOSE_ENABLE_SETTING.get(settings);
+        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_INDICES_CLOSE_ENABLE_SETTING, this::setCloseIndexEnabled);
+    }
+
+    private void setCloseIndexEnabled(boolean closeIndexEnabled) {
+        this.closeIndexEnabled = closeIndexEnabled;
     }
 
     @Override
@@ -73,7 +78,7 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
     protected void doExecute(CloseIndexRequest request, ActionListener<CloseIndexResponse> listener) {
         destructiveOperations.failDestructive(request.indices());
         if (closeIndexEnabled == false) {
-            throw new IllegalStateException("closing indices is disabled - set [" + SETTING_CLUSTER_INDICES_CLOSE_ENABLE + ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
+            throw new IllegalStateException("closing indices is disabled - set [" + CLUSTER_INDICES_CLOSE_ENABLE_SETTING.getKey() + ": true] to enable it. NOTE: closed indices still consume a significant amount of diskspace");
         }
         super.doExecute(request, listener);
     }
@@ -103,14 +108,5 @@ public class TransportCloseIndexAction extends TransportMasterNodeAction<CloseIn
                 listener.onFailure(t);
             }
         });
-    }
-
-    @Override
-    public void onRefreshSettings(Settings settings) {
-        final boolean enable = settings.getAsBoolean(SETTING_CLUSTER_INDICES_CLOSE_ENABLE, this.closeIndexEnabled);
-        if (enable != this.closeIndexEnabled) {
-            logger.info("updating [{}] from [{}] to [{}]", SETTING_CLUSTER_INDICES_CLOSE_ENABLE, this.closeIndexEnabled, enable);
-            this.closeIndexEnabled = enable;
-        }
     }
 }

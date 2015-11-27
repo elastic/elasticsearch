@@ -26,11 +26,12 @@ import org.elasticsearch.client.Client;
 import org.elasticsearch.client.IndicesAdminClient;
 import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 
 import java.util.concurrent.TimeoutException;
 
@@ -40,29 +41,22 @@ import java.util.concurrent.TimeoutException;
  */
 public class MappingUpdatedAction extends AbstractComponent {
 
-    public static final String INDICES_MAPPING_DYNAMIC_TIMEOUT = "indices.mapping.dynamic_timeout";
+    public static final Setting<TimeValue> INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING = Setting.positiveTimeSetting("indices.mapping.dynamic_timeout", TimeValue.timeValueSeconds(30), true, Setting.Scope.Cluster);
 
     private IndicesAdminClient client;
     private volatile TimeValue dynamicMappingUpdateTimeout;
 
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            TimeValue current = MappingUpdatedAction.this.dynamicMappingUpdateTimeout;
-            TimeValue newValue = settings.getAsTime(INDICES_MAPPING_DYNAMIC_TIMEOUT, current);
-            if (!current.equals(newValue)) {
-                logger.info("updating " + INDICES_MAPPING_DYNAMIC_TIMEOUT + " from [{}] to [{}]", current, newValue);
-                MappingUpdatedAction.this.dynamicMappingUpdateTimeout = newValue;
-            }
-        }
+    @Inject
+    public MappingUpdatedAction(Settings settings, ClusterSettingsService clusterSettingsService) {
+        super(settings);
+        this.dynamicMappingUpdateTimeout = INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING.get(settings);
+        clusterSettingsService.addSettingsUpdateConsumer(INDICES_MAPPING_DYNAMIC_TIMEOUT_SETTING, this::setDynamicMappingUpdateTimeout);
     }
 
-    @Inject
-    public MappingUpdatedAction(Settings settings, NodeSettingsService nodeSettingsService) {
-        super(settings);
-        this.dynamicMappingUpdateTimeout = settings.getAsTime(INDICES_MAPPING_DYNAMIC_TIMEOUT, TimeValue.timeValueSeconds(30));
-        nodeSettingsService.addListener(new ApplySettings());
+    private void setDynamicMappingUpdateTimeout(TimeValue dynamicMappingUpdateTimeout) {
+        this.dynamicMappingUpdateTimeout = dynamicMappingUpdateTimeout;
     }
+
 
     public void setClient(Client client) {
         this.client = client.admin().indices();

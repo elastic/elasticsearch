@@ -1039,7 +1039,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
      */
     public void setMinimumMasterNodes(int n) {
         assertTrue(client().admin().cluster().prepareUpdateSettings().setTransientSettings(
-                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, n))
+                settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), n))
                 .get().isAcknowledged());
     }
 
@@ -1474,7 +1474,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
     /** Sets or unsets the cluster read_only mode **/
     public static void setClusterReadOnly(boolean value) {
-        Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY, value).build();
+        Settings settings = settingsBuilder().put(MetaData.SETTING_READ_ONLY_SETTING.getKey(), value).build();
         assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(settings).get());
     }
 
@@ -1687,8 +1687,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
         Settings.Builder builder = settingsBuilder()
                 // Default the watermarks to absurdly low to prevent the tests
                 // from failing on nodes without enough disk space
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK, "1b")
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK, "1b")
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_LOW_DISK_WATERMARK_SETTING.getKey(), "1b")
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_HIGH_DISK_WATERMARK_SETTING.getKey(), "1b")
                 .put("script.indexed", "on")
                 .put("script.inline", "on")
                         // wait short time for other active shards before actually deleting, default 30s not needed in tests

@@ -38,6 +38,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -70,7 +71,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesWarmer;
 import org.elasticsearch.indices.IndicesWarmer.TerminationHandle;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.script.ExecutableScript;
 import org.elasticsearch.script.ScriptContext;
 import org.elasticsearch.script.ScriptService;
@@ -109,9 +110,10 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     public static final String NORMS_LOADING_KEY = "index.norms.loading";
     public static final String DEFAULT_KEEPALIVE_KEY = "search.default_keep_alive";
     public static final String KEEPALIVE_INTERVAL_KEY = "search.keep_alive_interval";
-    public static final String DEFAULT_SEARCH_TIMEOUT = "search.default_search_timeout";
 
     public static final TimeValue NO_TIMEOUT = timeValueMillis(-1);
+    public static final Setting<TimeValue> DEFAULT_SEARCH_TIMEOUT_SETTING = Setting.timeSetting("search.default_search_timeout", NO_TIMEOUT, true, Setting.Scope.Cluster);
+
 
     private final ThreadPool threadPool;
 
@@ -150,7 +152,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
     private final ParseFieldMatcher parseFieldMatcher;
 
     @Inject
-    public SearchService(Settings settings, NodeSettingsService nodeSettingsService, ClusterService clusterService, IndicesService indicesService,IndicesWarmer indicesWarmer, ThreadPool threadPool,
+    public SearchService(Settings settings, ClusterSettingsService clusterSettingsService, ClusterService clusterService, IndicesService indicesService, IndicesWarmer indicesWarmer, ThreadPool threadPool,
                          ScriptService scriptService, PageCacheRecycler pageCacheRecycler, BigArrays bigArrays, DfsPhase dfsPhase, QueryPhase queryPhase, FetchPhase fetchPhase,
                          IndicesRequestCache indicesQueryCache) {
         super(settings);
@@ -184,19 +186,12 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         this.indicesWarmer.addListener(new FieldDataWarmer(indicesWarmer));
         this.indicesWarmer.addListener(new SearchWarmer());
 
-        defaultSearchTimeout = settings.getAsTime(DEFAULT_SEARCH_TIMEOUT, NO_TIMEOUT);
-        nodeSettingsService.addListener(new SearchSettingsListener());
+        defaultSearchTimeout = DEFAULT_SEARCH_TIMEOUT_SETTING.get(settings);
+        clusterSettingsService.addSettingsUpdateConsumer(DEFAULT_SEARCH_TIMEOUT_SETTING, this::setDefaultSearchTimeout);
     }
 
-    class SearchSettingsListener implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            final TimeValue maybeNewDefaultSearchTimeout = settings.getAsTime(SearchService.DEFAULT_SEARCH_TIMEOUT, SearchService.this.defaultSearchTimeout);
-            if (!maybeNewDefaultSearchTimeout.equals(SearchService.this.defaultSearchTimeout)) {
-                logger.info("updating [{}] from [{}] to [{}]", SearchService.DEFAULT_SEARCH_TIMEOUT, SearchService.this.defaultSearchTimeout, maybeNewDefaultSearchTimeout);
-                SearchService.this.defaultSearchTimeout = maybeNewDefaultSearchTimeout;
-            }
-        }
+    private void setDefaultSearchTimeout(TimeValue defaultSearchTimeout) {
+        this.defaultSearchTimeout = defaultSearchTimeout;
     }
 
     @Override

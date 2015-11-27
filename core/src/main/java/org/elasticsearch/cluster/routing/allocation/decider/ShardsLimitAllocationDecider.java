@@ -24,16 +24,16 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  * This {@link AllocationDecider} limits the number of shards per node on a per
  * index or node-wide basis. The allocator prevents a single node to hold more
  * than {@value #INDEX_TOTAL_SHARDS_PER_NODE} per index and
- * {@value #CLUSTER_TOTAL_SHARDS_PER_NODE} globally during the allocation
+ * <tt>cluster.routing.allocation.total_shards_per_node</tt> globally during the allocation
  * process. The limits of this decider can be changed in real-time via a the
  * index settings API.
  * <p>
@@ -64,26 +64,18 @@ public class ShardsLimitAllocationDecider extends AllocationDecider {
      * Controls the maximum number of shards per node on a global level.
      * Negative values are interpreted as unlimited.
      */
-    public static final String CLUSTER_TOTAL_SHARDS_PER_NODE = "cluster.routing.allocation.total_shards_per_node";
+    public static final Setting<Integer> CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING = Setting.intSetting("cluster.routing.allocation.total_shards_per_node", -1, true, Setting.Scope.Cluster);
 
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            Integer newClusterLimit = settings.getAsInt(CLUSTER_TOTAL_SHARDS_PER_NODE, null);
-
-            if (newClusterLimit != null) {
-                logger.info("updating [{}] from [{}] to [{}]", CLUSTER_TOTAL_SHARDS_PER_NODE,
-                        ShardsLimitAllocationDecider.this.clusterShardLimit, newClusterLimit);
-                ShardsLimitAllocationDecider.this.clusterShardLimit = newClusterLimit;
-            }
-        }
-    }
 
     @Inject
-    public ShardsLimitAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    public ShardsLimitAllocationDecider(Settings settings, ClusterSettingsService clusterSettingsService) {
         super(settings);
-        this.clusterShardLimit = settings.getAsInt(CLUSTER_TOTAL_SHARDS_PER_NODE, -1);
-        nodeSettingsService.addListener(new ApplySettings());
+        this.clusterShardLimit = CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING.get(settings);
+        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_TOTAL_SHARDS_PER_NODE_SETTING, this::setClusterShardLimit);
+    }
+
+    private void setClusterShardLimit(int clusterShardLimit) {
+        this.clusterShardLimit = clusterShardLimit;
     }
 
     @Override

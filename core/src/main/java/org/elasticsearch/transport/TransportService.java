@@ -29,6 +29,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -37,16 +38,14 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ConcurrentMapLong;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.Callable;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -88,14 +87,13 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // tracer log
 
-    public static final String SETTING_TRACE_LOG_INCLUDE = "transport.tracer.include";
-    public static final String SETTING_TRACE_LOG_EXCLUDE = "transport.tracer.exclude";
+    public static final Setting<String[]> TRACE_LOG_INCLUDE_SETTING = new Setting<>("transport.tracer.include", "_na_", "", Strings::splitStringByCommaToArray , true, Setting.Scope.Cluster);
+    public static final Setting<String[]> TRACE_LOG_EXCLUDE_SETTING = new Setting<>("transport.tracer.exclude", "_na_", "internal:discovery/zen/fd*," + TransportLivenessAction.NAME, Strings::splitStringByCommaToArray , true, Setting.Scope.Cluster);;
 
     private final ESLogger tracerLog;
 
     volatile String[] tracerLogInclude;
     volatile String[] tracelLogExclude;
-    private final ApplySettings settingsListener = new ApplySettings();
 
     /** if set will call requests sent to this id to shortcut and executed locally */
     volatile DiscoveryNode localNode = null;
@@ -109,8 +107,8 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
         super(settings);
         this.transport = transport;
         this.threadPool = threadPool;
-        this.tracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, Strings.EMPTY_ARRAY, true);
-        this.tracelLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, new String[]{"internal:discovery/zen/fd*", TransportLivenessAction.NAME}, true);
+        this.tracerLogInclude = TRACE_LOG_INCLUDE_SETTING.get(settings);
+        this.tracelLogExclude = TRACE_LOG_EXCLUDE_SETTING.get(settings);
         tracerLog = Loggers.getLogger(logger, ".tracer");
         adapter = createAdapter();
     }
@@ -134,34 +132,18 @@ public class TransportService extends AbstractLifecycleComponent<TransportServic
 
     // These need to be optional as they don't exist in the context of a transport client
     @Inject(optional = true)
-    public void setDynamicSettings(NodeSettingsService nodeSettingsService) {
-        nodeSettingsService.addListener(settingsListener);
+    public void setDynamicSettings(ClusterSettingsService clusterSettingsService) {
+        clusterSettingsService.addSettingsUpdateConsumer(TRACE_LOG_INCLUDE_SETTING, this::setTracerLogInclude);
+        clusterSettingsService.addSettingsUpdateConsumer(TRACE_LOG_EXCLUDE_SETTING, this::setTracelLogExclude);
     }
 
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            String[] newTracerLogInclude = settings.getAsArray(SETTING_TRACE_LOG_INCLUDE, TransportService.this.tracerLogInclude, true);
-            String[] newTracerLogExclude = settings.getAsArray(SETTING_TRACE_LOG_EXCLUDE, TransportService.this.tracelLogExclude, true);
-            if (newTracerLogInclude == TransportService.this.tracerLogInclude && newTracerLogExclude == TransportService.this.tracelLogExclude) {
-                return;
-            }
-            if (Arrays.equals(newTracerLogInclude, TransportService.this.tracerLogInclude) &&
-                    Arrays.equals(newTracerLogExclude, TransportService.this.tracelLogExclude)) {
-                return;
-            }
-            TransportService.this.tracerLogInclude = newTracerLogInclude;
-            TransportService.this.tracelLogExclude = newTracerLogExclude;
-            logger.info("tracer log updated to use include: {}, exclude: {}", newTracerLogInclude, newTracerLogExclude);
-        }
+    void setTracerLogInclude(String[] tracerLogInclude) {
+        this.tracerLogInclude = tracerLogInclude;
     }
 
-    // used for testing
-    public void applySettings(Settings settings) {
-        settingsListener.onRefreshSettings(settings);
+    void setTracelLogExclude(String[] tracelLogExclude) {
+        this.tracelLogExclude = tracelLogExclude;
     }
-
     @Override
     protected void doStart() {
         adapter.rxMetric.clear();

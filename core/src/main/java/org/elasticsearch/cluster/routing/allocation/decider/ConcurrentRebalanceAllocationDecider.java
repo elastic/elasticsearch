@@ -22,8 +22,9 @@ package org.elasticsearch.cluster.routing.allocation.decider;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 
 /**
  * Similar to the {@link ClusterRebalanceAllocationDecider} this
@@ -41,27 +42,19 @@ public class ConcurrentRebalanceAllocationDecider extends AllocationDecider {
 
     public static final String NAME = "concurrent_rebalance";
 
-    public static final String CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE = "cluster.routing.allocation.cluster_concurrent_rebalance";
-
-    class ApplySettings implements NodeSettingsService.Listener {
-        @Override
-        public void onRefreshSettings(Settings settings) {
-            int clusterConcurrentRebalance = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance);
-            if (clusterConcurrentRebalance != ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance) {
-                logger.info("updating [cluster.routing.allocation.cluster_concurrent_rebalance] from [{}], to [{}]", ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance, clusterConcurrentRebalance);
-                ConcurrentRebalanceAllocationDecider.this.clusterConcurrentRebalance = clusterConcurrentRebalance;
-            }
-        }
-    }
-
+    public static final Setting<Integer> CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING = Setting.intSetting("cluster.routing.allocation.cluster_concurrent_rebalance", 2, true, Setting.Scope.Cluster);
     private volatile int clusterConcurrentRebalance;
 
     @Inject
-    public ConcurrentRebalanceAllocationDecider(Settings settings, NodeSettingsService nodeSettingsService) {
+    public ConcurrentRebalanceAllocationDecider(Settings settings, ClusterSettingsService clusterSettingsService) {
         super(settings);
-        this.clusterConcurrentRebalance = settings.getAsInt(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE, 2);
+        this.clusterConcurrentRebalance = CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING.get(settings);
         logger.debug("using [cluster_concurrent_rebalance] with [{}]", clusterConcurrentRebalance);
-        nodeSettingsService.addListener(new ApplySettings());
+        clusterSettingsService.addSettingsUpdateConsumer(CLUSTER_ROUTING_ALLOCATION_CLUSTER_CONCURRENT_REBALANCE_SETTING, this::setClusterConcurrentRebalance);
+    }
+
+    public void setClusterConcurrentRebalance(int concurrentRebalance) {
+        clusterConcurrentRebalance = concurrentRebalance;
     }
 
     @Override

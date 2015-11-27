@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.ShardsAllocators;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.DummyTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -43,7 +44,7 @@ import org.elasticsearch.gateway.AsyncShardFetch;
 import org.elasticsearch.gateway.GatewayAllocator;
 import org.elasticsearch.gateway.ReplicaShardAllocator;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetaData;
-import org.elasticsearch.node.settings.NodeSettingsService;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.test.gateway.NoopGatewayAllocator;
 
 import java.lang.reflect.Constructor;
@@ -67,37 +68,37 @@ public abstract class ESAllocationTestCase extends ESTestCase {
     }
 
     public static MockAllocationService createAllocationService(Settings settings, Random random) {
-        return createAllocationService(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), random);
+        return createAllocationService(settings, new ClusterSettingsService(Settings.Builder.EMPTY_SETTINGS, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), random);
     }
 
-    public static MockAllocationService createAllocationService(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
+    public static MockAllocationService createAllocationService(Settings settings, ClusterSettingsService clusterSettingsService, Random random) {
         return new MockAllocationService(settings,
-                randomAllocationDeciders(settings, nodeSettingsService, random),
+                randomAllocationDeciders(settings, clusterSettingsService, random),
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), EmptyClusterInfoService.INSTANCE);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, ClusterInfoService clusterInfoService) {
         return new MockAllocationService(settings,
-                randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
+                randomAllocationDeciders(settings, new ClusterSettingsService(Settings.Builder.EMPTY_SETTINGS, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), getRandom()),
                 new ShardsAllocators(settings, NoopGatewayAllocator.INSTANCE), clusterInfoService);
     }
 
     public static MockAllocationService createAllocationService(Settings settings, GatewayAllocator allocator) {
         return new MockAllocationService(settings,
-                randomAllocationDeciders(settings, new NodeSettingsService(Settings.Builder.EMPTY_SETTINGS), getRandom()),
+                randomAllocationDeciders(settings, new ClusterSettingsService(Settings.Builder.EMPTY_SETTINGS, new ClusterSettings(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)), getRandom()),
                 new ShardsAllocators(settings, allocator), EmptyClusterInfoService.INSTANCE);
     }
 
 
 
-    public static AllocationDeciders randomAllocationDeciders(Settings settings, NodeSettingsService nodeSettingsService, Random random) {
+    public static AllocationDeciders randomAllocationDeciders(Settings settings, ClusterSettingsService clusterSettingsService, Random random) {
         final List<Class<? extends AllocationDecider>> defaultAllocationDeciders = ClusterModule.DEFAULT_ALLOCATION_DECIDERS;
         final List<AllocationDecider> list = new ArrayList<>();
         for (Class<? extends AllocationDecider> deciderClass : ClusterModule.DEFAULT_ALLOCATION_DECIDERS) {
             try {
                 try {
-                    Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class, NodeSettingsService.class);
-                    list.add(constructor.newInstance(settings, nodeSettingsService));
+                    Constructor<? extends AllocationDecider> constructor = deciderClass.getConstructor(Settings.class, ClusterSettingsService.class);
+                    list.add(constructor.newInstance(settings, clusterSettingsService));
                 } catch (NoSuchMethodException e) {
                     Constructor<? extends AllocationDecider> constructor = null;
                     constructor = deciderClass.getConstructor(Settings.class);

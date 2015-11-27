@@ -33,8 +33,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.*;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
@@ -50,6 +49,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRepository;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -118,18 +118,19 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
 
     private final MetaDataCreateIndexService createIndexService;
 
-    private final DynamicSettings dynamicSettings;
+    private final ClusterSettings dynamicSettings;
 
     private final MetaDataIndexUpgradeService metaDataIndexUpgradeService;
 
     private final CopyOnWriteArrayList<ActionListener<RestoreCompletionResponse>> listeners = new CopyOnWriteArrayList<>();
 
     private final BlockingQueue<UpdateIndexShardRestoreStatusRequest> updatedSnapshotStateQueue = ConcurrentCollections.newBlockingQueue();
+    private final ClusterSettingsService clusterSettingsService;
 
     @Inject
     public RestoreService(Settings settings, ClusterService clusterService, RepositoriesService repositoriesService, TransportService transportService,
-                          AllocationService allocationService, MetaDataCreateIndexService createIndexService, @ClusterDynamicSettings DynamicSettings dynamicSettings,
-                          MetaDataIndexUpgradeService metaDataIndexUpgradeService) {
+                          AllocationService allocationService, MetaDataCreateIndexService createIndexService, ClusterSettings dynamicSettings,
+                          MetaDataIndexUpgradeService metaDataIndexUpgradeService, ClusterSettingsService clusterSettingsService) {
         super(settings);
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
@@ -140,6 +141,7 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
         this.metaDataIndexUpgradeService = metaDataIndexUpgradeService;
         transportService.registerRequestHandler(UPDATE_RESTORE_ACTION_NAME, UpdateIndexShardRestoreStatusRequest::new, ThreadPool.Names.SAME, new UpdateRestoreStateRequestHandler());
         clusterService.add(this);
+        this.clusterSettingsService = clusterSettingsService;
     }
 
     /**
@@ -389,24 +391,9 @@ public class RestoreService extends AbstractComponent implements ClusterStateLis
                 private void restoreGlobalStateIfRequested(MetaData.Builder mdBuilder) {
                     if (request.includeGlobalState()) {
                         if (metaData.persistentSettings() != null) {
-                            boolean changed = false;
-                            Settings.Builder persistentSettings = Settings.settingsBuilder().put();
-                            for (Map.Entry<String, String> entry : metaData.persistentSettings().getAsMap().entrySet()) {
-                                if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
-                                    String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue(), clusterService.state());
-                                    if (error == null) {
-                                        persistentSettings.put(entry.getKey(), entry.getValue());
-                                        changed = true;
-                                    } else {
-                                        logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
-                                    }
-                                } else {
-                                    logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
-                                }
-                            }
-                            if (changed) {
-                                mdBuilder.persistentSettings(persistentSettings.build());
-                            }
+                            Settings settings = metaData.persistentSettings();
+                            clusterSettingsService.dryRun(settings);
+                            mdBuilder.persistentSettings(settings);
                         }
                         if (metaData.templates() != null) {
                             // TODO: Should all existing templates be deleted first?

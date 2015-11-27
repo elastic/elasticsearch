@@ -280,7 +280,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
         assertNoMasterBlockOnAllNodes();
 
         logger.info("--> bringing another node up");
-        internalCluster().startNode(settingsBuilder().put(settings).put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2).build());
+        internalCluster().startNode(settingsBuilder().put(settings).put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2).build());
         clusterHealthResponse = client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForNodes("2").get();
         assertThat(clusterHealthResponse.isTimedOut(), equalTo(false));
     }
@@ -317,7 +317,7 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         // set an initial value which is at least quorum to avoid split brains during initial startup
         int initialMinMasterNodes = randomIntBetween(nodeCount / 2 + 1, nodeCount);
-        settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, initialMinMasterNodes);
+        settings.put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), initialMinMasterNodes);
 
 
         logger.info("--> starting [{}] nodes. min_master_nodes set to [{}]", nodeCount, initialMinMasterNodes);
@@ -328,19 +328,21 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
 
         int updateCount = randomIntBetween(1, nodeCount);
 
-        logger.info("--> updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
+        logger.info("--> updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), updateCount);
         assertAcked(client().admin().cluster().prepareUpdateSettings()
-                .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount)));
+                .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), updateCount)));
 
         logger.info("--> verifying no node left and master is up");
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
 
         updateCount = nodeCount + randomIntBetween(1, 2000);
-        logger.info("--> trying to updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount);
-        assertThat(client().admin().cluster().prepareUpdateSettings()
-                        .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, updateCount))
-                        .get().getPersistentSettings().getAsMap().keySet(),
-                empty());
+        logger.info("--> trying to updating [{}] to [{}]", ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), updateCount);
+        try {
+            client().admin().cluster().prepareUpdateSettings()
+                    .setPersistentSettings(settingsBuilder().put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), updateCount));
+        } catch (IllegalArgumentException ex) {
+            assertEquals(ex.getMessage(), "cannot set discovery.zen.minimum_master_nodes to more than the current master nodes count [" +updateCount+ "]");
+        }
 
         logger.info("--> verifying no node left and master is up");
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes(Integer.toString(nodeCount)).get().isTimedOut());
@@ -351,8 +353,8 @@ public class MinimumMasterNodesIT extends ESIntegTestCase {
                 .put("discovery.type", "zen")
                 .put(FaultDetection.SETTING_PING_TIMEOUT, "1h") // disable it
                 .put(ZenDiscovery.SETTING_PING_TIMEOUT, "200ms")
-                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES, 2)
-                .put(DiscoverySettings.COMMIT_TIMEOUT, "100ms") // speed things up
+                .put(ElectMasterService.DISCOVERY_ZEN_MINIMUM_MASTER_NODES_SETTING.getKey(), 2)
+                .put(DiscoverySettings.COMMIT_TIMEOUT_SETTING.getKey(), "100ms") // speed things up
                 .build();
         internalCluster().startNodesAsync(3, settings).get();
         ensureGreen(); // ensure cluster state is recovered before we disrupt things

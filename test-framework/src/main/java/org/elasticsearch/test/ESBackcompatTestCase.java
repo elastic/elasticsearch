@@ -136,7 +136,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
         if (globalCompatibilityVersion().before(Version.V_1_3_2)) {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210
-            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+            builder.put(RecoverySettings.INDICES_RECOVERY_COMPRESS_SETTING.getKey(), false);
         }
         return builder;
     }
@@ -255,7 +255,7 @@ public abstract class ESBackcompatTestCase extends ESIntegTestCase {
             // if we test against nodes before 1.3.2 we disable all the compression due to a known bug
             // see #7210
             builder.put(Transport.TransportSettings.TRANSPORT_TCP_COMPRESS, false)
-                    .put(RecoverySettings.INDICES_RECOVERY_COMPRESS, false);
+                    .put(RecoverySettings.INDICES_RECOVERY_COMPRESS_SETTING.getKey(), false);
         }
         return builder.build();
     }

@@ -23,6 +23,8 @@ import org.elasticsearch.action.support.master.AcknowledgedRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
 import org.elasticsearch.common.settings.Settings;
 
+import java.util.Arrays;
+import java.util.Collection;
 import java.util.Map;
 
 /**
@@ -95,6 +97,26 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
      */
     public ClusterUpdateSettingsRequestBuilder setPersistentSettings(Map settings) {
         request.persistentSettings(settings);
+        return this;
+    }
+
+    public ClusterUpdateSettingsRequestBuilder addTransientResetKeys(Collection<String> keys) {
+        request.addTransientResetKeys(keys);
+        return this;
+    }
+
+    public ClusterUpdateSettingsRequestBuilder addPersistentResetKeys(Collection<String> keys) {
+        request.addPersistentResetKeys(keys);
+        return this;
+    }
+
+    public ClusterUpdateSettingsRequestBuilder addTransientResetKeys(String... keys) {
+        request.addTransientResetKeys(Arrays.asList(keys));
+        return this;
+    }
+
+    public ClusterUpdateSettingsRequestBuilder addPersistentResetKeys(String... keys) {
+        request.addPersistentResetKeys(Arrays.asList(keys));
         return this;
     }
 }

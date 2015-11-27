@@ -62,7 +62,7 @@ public class ReplicaRecoveryBenchmark {
         BootstrapForTesting.ensureInitialized();
 
         Settings settings = settingsBuilder()
-                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED, "false")
+                .put(DiskThresholdDecider.CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), "false")
                 .put(SETTING_NUMBER_OF_SHARDS, 1)
                 .put(SETTING_NUMBER_OF_REPLICAS, 0)
                 .put(TransportModule.TRANSPORT_TYPE_KEY, "local")

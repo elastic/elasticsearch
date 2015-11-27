@@ -88,6 +88,6 @@ public class RestUpdateSettingsAction extends BaseRestHandler {
         }
         updateSettingsRequest.settings(updateSettings);
 
-        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<UpdateSettingsResponse>(channel));
+        client.admin().indices().updateSettings(updateSettingsRequest, new AcknowledgedRestListener<>(channel));
     }
 }

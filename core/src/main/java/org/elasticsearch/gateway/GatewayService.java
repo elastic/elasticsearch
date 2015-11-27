@@ -227,7 +227,7 @@ public class GatewayService extends AbstractLifecycleComponent<GatewayService> i
                     // automatically generate a UID for the metadata if we need to
                     metaDataBuilder.generateClusterUuidIfNeeded();
 
-                    if (recoveredState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || currentState.metaData().settings().getAsBoolean(MetaData.SETTING_READ_ONLY, false)) {
+                    if (MetaData.SETTING_READ_ONLY_SETTING.get(recoveredState.metaData().settings()) || MetaData.SETTING_READ_ONLY_SETTING.get(currentState.metaData().settings())) {
                         blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
                     }
 

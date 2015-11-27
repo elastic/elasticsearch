@@ -56,7 +56,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_ME
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_READ;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_BLOCKS_WRITE;
 import static org.elasticsearch.cluster.metadata.IndexMetaData.SETTING_READ_ONLY;
-import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE;
+import static org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertBlocked;
@@ -71,15 +71,15 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
     public void testRerouteWithCommands_disableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .build();
         rerouteWithCommands(commonSettings);
     }
 
     public void testRerouteWithCommands_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
                 .build();
         rerouteWithCommands(commonSettings);
     }
@@ -147,15 +147,15 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
     public void testRerouteWithAllocateLocalGateway_disableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE, "none")
-                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE, "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), "none")
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), "none")
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
     }
 
     public void testRerouteWithAllocateLocalGateway_enableAllocationSettings() throws Exception {
         Settings commonSettings = settingsBuilder()
-                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
                 .build();
         rerouteWithAllocateLocalGateway(commonSettings);
     }
@@ -279,7 +279,7 @@ public class ClusterRerouteIT extends ESIntegTestCase {
 
         logger.info("--> disable allocation");
         Settings newSettings = settingsBuilder()
-                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE, Allocation.NONE.name())
+                .put(CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), Allocation.NONE.name())
                 .build();
         client().admin().cluster().prepareUpdateSettings().setTransientSettings(newSettings).execute().actionGet();
 

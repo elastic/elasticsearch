@@ -171,7 +171,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         ensureGreen("test");
 
         // now that the cluster is stable, remove publishing timeout
-        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0")));
+        assertAcked(client().admin().cluster().prepareUpdateSettings().setTransientSettings(Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0")));
 
         Set<String> nodes = new HashSet<>(Arrays.asList(internalCluster().getNodeNames()));
         nodes.remove(internalCluster().getMasterName());
@@ -200,7 +200,7 @@ public class RareClusterStateIT extends ESIntegTestCase {
         // but the change might not be on the node that performed the indexing
         // operation yet
 
-        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT, "0ms").build();
+        Settings settings = Settings.builder().put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "0ms").build();
         final List<String> nodeNames = internalCluster().startNodesAsync(2, settings).get();
         assertFalse(client().admin().cluster().prepareHealth().setWaitForNodes("2").get().isTimedOut());
 

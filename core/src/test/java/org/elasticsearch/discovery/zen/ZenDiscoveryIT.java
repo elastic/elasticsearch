@@ -84,7 +84,7 @@ public class ZenDiscoveryIT extends ESIntegTestCase {
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(true));
 
         client().admin().cluster().prepareUpdateSettings()
-                .setTransientSettings(Settings.builder().put(ZenDiscovery.SETTING_REJOIN_ON_MASTER_GONE, false))
+                .setTransientSettings(Settings.builder().put(ZenDiscovery.REJOIN_ON_MASTER_GONE_SETTING.getKey(), false))
                 .get();
 
         assertThat(zenDiscovery.isRejoinOnMasterGone(), is(false));

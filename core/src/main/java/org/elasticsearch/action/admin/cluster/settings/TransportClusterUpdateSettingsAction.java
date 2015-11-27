@@ -34,16 +34,19 @@ import org.elasticsearch.cluster.metadata.MetaData;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
-import org.elasticsearch.cluster.settings.ClusterDynamicSettings;
-import org.elasticsearch.cluster.settings.DynamicSettings;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.ClusterSettingsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.ClusterState.builder;
 
@@ -54,15 +57,17 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
 
     private final AllocationService allocationService;
 
-    private final DynamicSettings dynamicSettings;
+    private final ClusterSettings dynamicSettings;
+    private final ClusterSettingsService clusterSettingsService;
 
     @Inject
     public TransportClusterUpdateSettingsAction(Settings settings, TransportService transportService, ClusterService clusterService, ThreadPool threadPool,
-                                                AllocationService allocationService, @ClusterDynamicSettings DynamicSettings dynamicSettings,
-                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver) {
+                                                AllocationService allocationService, ClusterSettings dynamicSettings,
+                                                ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, ClusterSettingsService clusterSettingsService) {
         super(settings, ClusterUpdateSettingsAction.NAME, transportService, clusterService, threadPool, actionFilters, indexNameExpressionResolver, ClusterUpdateSettingsRequest::new);
         this.allocationService = allocationService;
         this.dynamicSettings = dynamicSettings;
+        this.clusterSettingsService = clusterSettingsService;
     }
 
     @Override
@@ -73,8 +78,8 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
     @Override
     protected ClusterBlockException checkBlock(ClusterUpdateSettingsRequest request, ClusterState state) {
         // allow for dedicated changes to the metadata blocks, so we don't block those to allow to "re-enable" it
-        if ((request.transientSettings().getAsMap().isEmpty() && request.persistentSettings().getAsMap().size() == 1 && request.persistentSettings().get(MetaData.SETTING_READ_ONLY) != null) ||
-                request.persistentSettings().getAsMap().isEmpty() && request.transientSettings().getAsMap().size() == 1 && request.transientSettings().get(MetaData.SETTING_READ_ONLY) != null) {
+        if ((request.transientSettings().getAsMap().isEmpty() && request.persistentSettings().getAsMap().size() == 1 && MetaData.SETTING_READ_ONLY_SETTING.exists(request.persistentSettings())) ||
+                request.persistentSettings().getAsMap().isEmpty() && request.transientSettings().getAsMap().size() == 1 && MetaData.SETTING_READ_ONLY_SETTING.exists(request.transientSettings())) {
             return null;
         }
         return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
@@ -184,36 +189,57 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                 Settings.Builder transientSettings = Settings.settingsBuilder();
                 transientSettings.put(currentState.metaData().transientSettings());
                 for (Map.Entry<String, String> entry : request.transientSettings().getAsMap().entrySet()) {
-                    if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
-                        String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue(), clusterService.state());
-                        if (error == null) {
-                            transientSettings.put(entry.getKey(), entry.getValue());
-                            transientUpdates.put(entry.getKey(), entry.getValue());
-                            changed = true;
-                        } else {
-                            logger.warn("ignoring transient setting [{}], [{}]", entry.getKey(), error);
-                        }
+                    if (dynamicSettings.isLoggerSetting(entry.getKey()) || dynamicSettings.hasDynamicSetting(entry.getKey())) {
+                        transientSettings.put(entry.getKey(), entry.getValue());
+                        transientUpdates.put(entry.getKey(), entry.getValue());
+                        changed = true;
                     } else {
-                        logger.warn("ignoring transient setting [{}], not dynamically updateable", entry.getKey());
+                        throw new IllegalArgumentException("transient setting [" + entry.getKey() + "], not dynamically updateable");
                     }
                 }
 
                 Settings.Builder persistentSettings = Settings.settingsBuilder();
                 persistentSettings.put(currentState.metaData().persistentSettings());
                 for (Map.Entry<String, String> entry : request.persistentSettings().getAsMap().entrySet()) {
-                    if (dynamicSettings.isDynamicOrLoggingSetting(entry.getKey())) {
-                        String error = dynamicSettings.validateDynamicSetting(entry.getKey(), entry.getValue(), clusterService.state());
-                        if (error == null) {
-                            persistentSettings.put(entry.getKey(), entry.getValue());
-                            persistentUpdates.put(entry.getKey(), entry.getValue());
-                            changed = true;
-                        } else {
-                            logger.warn("ignoring persistent setting [{}], [{}]", entry.getKey(), error);
-                        }
+                    if (dynamicSettings.isLoggerSetting(entry.getKey()) || dynamicSettings.hasDynamicSetting(entry.getKey())) {
+                        persistentSettings.put(entry.getKey(), entry.getValue());
+                        persistentUpdates.put(entry.getKey(), entry.getValue());
+                        changed = true;
                     } else {
-                        logger.warn("ignoring persistent setting [{}], not dynamically updateable", entry.getKey());
+                        throw new IllegalArgumentException("persistent setting [" + entry.getKey() + "], not dynamically updateable");
                     }
                 }
+
+                for (String entry : request.getPersistentReset()) {
+                    Set<String> strings = persistentSettings.internalMap().keySet();
+                    Set<String> keysToRemove = new HashSet<String>();
+                    for (String key : strings) {
+                        if (Regex.simpleMatch(entry, key)) {
+                            keysToRemove.add(key);
+                        }
+                    }
+                    for (String keyToRemove : keysToRemove) {
+                        persistentSettings.remove(keyToRemove);
+                        persistentUpdates.remove(keyToRemove);
+                    }
+                    changed |= keysToRemove.isEmpty() == false;
+                }
+
+                for (String entry : request.getTransientReset()) {
+                    Set<String> strings = transientSettings.internalMap().keySet();
+                    Set<String> keysToRemove = new HashSet<>();
+                    for (String key : strings) {
+                        if (Regex.simpleMatch(entry, key)) {
+                            keysToRemove.add(key);
+                        }
+                    }
+                    for (String keyToRemove : keysToRemove) {
+                        transientSettings.remove(keyToRemove);
+                        transientUpdates.remove(keyToRemove);
+                    }
+                    changed |= keysToRemove.isEmpty() == false;
+                }
+
 
                 if (!changed) {
                     return currentState;
@@ -224,14 +250,18 @@ public class TransportClusterUpdateSettingsAction extends TransportMasterNodeAct
                         .transientSettings(transientSettings.build());
 
                 ClusterBlocks.Builder blocks = ClusterBlocks.builder().blocks(currentState.blocks());
-                boolean updatedReadOnly = metaData.persistentSettings().getAsBoolean(MetaData.SETTING_READ_ONLY, false) || metaData.transientSettings().getAsBoolean(MetaData.SETTING_READ_ONLY, false);
+                boolean updatedReadOnly = MetaData.SETTING_READ_ONLY_SETTING.get(metaData.persistentSettings()) || MetaData.SETTING_READ_ONLY_SETTING.get(metaData.transientSettings());
                 if (updatedReadOnly) {
                     blocks.addGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
                 } else {
                     blocks.removeGlobalBlock(MetaData.CLUSTER_READ_ONLY_BLOCK);
                 }
-
-                return builder(currentState).metaData(metaData).blocks(blocks).build();
+                ClusterState build = builder(currentState).metaData(metaData).blocks(blocks).build();
+                Settings settings = build.metaData().settings();
+                // now we try to apply things and if they are invalid we fail
+                // this dryRun will validate & parse settings but won't actually apply them.
+                clusterSettingsService.dryRun(settings);
+                return build;
             }
         });
     }

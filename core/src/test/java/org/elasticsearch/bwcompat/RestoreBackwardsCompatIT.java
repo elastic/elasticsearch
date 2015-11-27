@@ -181,7 +181,7 @@ public class RestoreBackwardsCompatIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> check settings");
         ClusterState clusterState = client().admin().cluster().prepareState().get().getState();
-        assertThat(clusterState.metaData().persistentSettings().get(FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP + "version_attr"), equalTo(version));
+        assertThat(clusterState.metaData().persistentSettings().get(FilterAllocationDecider.CLUSTER_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "version_attr"), equalTo(version));
 
         logger.info("--> check templates");
         IndexTemplateMetaData template = clusterState.getMetaData().templates().get("template_" + version.toLowerCase(Locale.ROOT));

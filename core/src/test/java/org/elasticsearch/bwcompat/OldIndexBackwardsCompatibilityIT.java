@@ -120,7 +120,7 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
     public Settings nodeSettings(int ord) {
         return Settings.builder()
                 .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false) // disable merging so no segments will be upgraded
-                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS, 30) // increase recovery speed for small files
+                .put(RecoverySettings.INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS_SETTING.getKey(), 30) // increase recovery speed for small files
                 .build();
     }
 

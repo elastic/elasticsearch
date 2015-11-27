@@ -37,6 +37,7 @@ import org.elasticsearch.index.mapper.ContentPath;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.Mapper.BuilderContext;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeResult;
@@ -492,8 +493,7 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         String updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", false).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        MergeResult mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), false, false);
-        assertFalse(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts());
+        defaultMapper.merge(parser.parse(updatedMapping).mapping(), false);
 
         doc = defaultMapper.parse("test", "type", "1", XContentFactory.jsonBuilder()
                 .startObject()
@@ -507,10 +507,12 @@ public class SimpleStringMappingTests extends ESSingleNodeTestCase {
         updatedMapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("properties").startObject("field").field("type", "string").startObject("norms").field("enabled", true).endObject()
                 .endObject().endObject().endObject().endObject().string();
-        mergeResult = defaultMapper.merge(parser.parse(updatedMapping).mapping(), true, false);
-        assertTrue(mergeResult.hasConflicts());
-        assertEquals(1, mergeResult.buildConflicts().length);
-        assertTrue(mergeResult.buildConflicts()[0].contains("different [omit_norms]"));
+        try {
+            defaultMapper.merge(parser.parse(updatedMapping).mapping(), false);
+            fail();
+        } catch (MergeMappingException e) {
+            assertTrue(e.getMessage().contains("different [omit_norms]"));
+        }
     }
 
     /**

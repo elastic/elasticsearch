@@ -396,7 +396,8 @@ public abstract class BaseGeoPointFieldMapper extends FieldMapper implements Arr
         }
 
         BaseGeoPointFieldMapper gpfmMergeWith = (BaseGeoPointFieldMapper) mergeWith;
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
+        if (mergeResult.simulate() == false) {
+            assert mergeResult.hasConflicts() == false;
             if (gpfmMergeWith.ignoreMalformed.explicit()) {
                 this.ignoreMalformed = gpfmMergeWith.ignoreMalformed;
             }

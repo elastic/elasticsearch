@@ -32,6 +32,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 
 import static org.elasticsearch.index.query.QueryBuilders.multiMatchQuery;
 
@@ -59,7 +60,7 @@ public class MultiMatchQueryTests extends ESSingleNodeTestCase {
                 "        }\n" +
                 "    }\n" +
                 "}";
-        mapperService.merge("person", new CompressedXContent(mapping), true, false);
+        mapperService.merge(Collections.singletonMap("person", new CompressedXContent(mapping)), true, false);
         this.indexService = indexService;
     }
 

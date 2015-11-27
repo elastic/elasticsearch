@@ -260,9 +260,11 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
         queryShardContext = new QueryShardContext(idxSettings, proxy, bitsetFilterCache, indexFieldDataService, mapperService, similarityService, scriptService, indicesQueriesRegistry);
         //create some random type with some default field, those types will stick around for all of the subclasses
         currentTypes = new String[randomIntBetween(0, 5)];
+        Map<String, CompressedXContent> mappingSources1 = new HashMap<>();
+        Map<String, CompressedXContent> mappingSources2 = new HashMap<>();
         for (int i = 0; i < currentTypes.length; i++) {
             String type = randomAsciiOfLengthBetween(1, 10);
-            mapperService.merge(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
+            mappingSources1.put(type, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(type,
                     STRING_FIELD_NAME, "type=string",
                     STRING_FIELD_NAME_2, "type=string",
                     INT_FIELD_NAME, "type=integer",
@@ -272,12 +274,14 @@ public abstract class AbstractQueryTestCase<QB extends AbstractQueryBuilder<QB>>
                     OBJECT_FIELD_NAME, "type=object",
                     GEO_POINT_FIELD_NAME, "type=geo_point,lat_lon=true,geohash=true,geohash_prefix=true",
                     GEO_SHAPE_FIELD_NAME, "type=geo_shape"
-            ).string()), false, false);
+            ).string()));
             // also add mappings for two inner field in the object field
-            mapperService.merge(type, new CompressedXContent("{\"properties\":{\""+OBJECT_FIELD_NAME+"\":{\"type\":\"object\","
-                    + "\"properties\":{\""+DATE_FIELD_NAME+"\":{\"type\":\"date\"},\""+INT_FIELD_NAME+"\":{\"type\":\"integer\"}}}}}"), false, false);
+            mappingSources2.put(type, new CompressedXContent("{\"properties\":{\""+OBJECT_FIELD_NAME+"\":{\"type\":\"object\","
+                    + "\"properties\":{\""+DATE_FIELD_NAME+"\":{\"type\":\"date\"},\""+INT_FIELD_NAME+"\":{\"type\":\"integer\"}}}}}"));
             currentTypes[i] = type;
         }
+        mapperService.merge(mappingSources1, false, false);
+        mapperService.merge(mappingSources2, false, false);
         namedWriteableRegistry = injector.getInstance(NamedWriteableRegistry.class);
     }
 

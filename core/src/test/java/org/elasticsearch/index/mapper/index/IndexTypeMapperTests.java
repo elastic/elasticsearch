@@ -100,7 +100,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper mapperDisabled = parser.parse(mappingWithIndexDisabled);
 
-        mapperEnabled.merge(mapperDisabled.mapping(), false, false);
+        mapperEnabled.merge(mapperDisabled.mapping(), false);
         assertThat(mapperEnabled.IndexFieldMapper().enabled(), is(false));
     }
     
@@ -116,7 +116,7 @@ public class IndexTypeMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
-        enabledMapper.merge(disabledMapper.mapping(), false, false);
+        enabledMapper.merge(disabledMapper.mapping(), false);
         assertThat(enabledMapper.indexMapper().enabled(), is(false));
     }
 

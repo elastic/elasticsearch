@@ -48,6 +48,7 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -114,7 +115,7 @@ public class NestedAggregatorTests extends ESSingleNodeTestCase {
         IndexSearcher searcher = new IndexSearcher(directoryReader);
 
         IndexService indexService = createIndex("test");
-        indexService.mapperService().merge("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string()), true, false);
+        indexService.mapperService().merge(Collections.singletonMap("test", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("test", "nested_field", "type=nested").string())), true, false);
         SearchContext searchContext = createSearchContext(indexService);
         AggregationContext context = new AggregationContext(searchContext);
 

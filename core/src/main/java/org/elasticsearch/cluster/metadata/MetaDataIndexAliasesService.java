@@ -19,7 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesClusterStateUpdateRequest;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
@@ -29,12 +30,12 @@ import org.elasticsearch.cluster.ack.ClusterStateUpdateResponse;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.indices.IndicesService;
 
 import java.util.*;
@@ -100,13 +101,13 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                         // temporarily create the index and add mappings so we can parse the filter
                                         try {
                                             indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.EMPTY_LIST);
-                                            if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                                                indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, false);
+                                            final Map<String, CompressedXContent> mappingSources = new HashMap<>();
+                                            for (ObjectObjectCursor<String, MappingMetaData> entry : indexMetaData.getMappings()) {
+                                                final String type = entry.key;
+                                                final MappingMetaData mapping = entry.value;
+                                                mappingSources.put(type, mapping.source());
                                             }
-                                            for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
-                                                MappingMetaData mappingMetaData = cursor.value;
-                                                indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
-                                            }
+                                            indexService.mapperService().merge(mappingSources, false, false);
                                         } catch (Exception e) {
                                             logger.warn("[{}] failed to temporary create in order to apply alias action", e, indexMetaData.getIndex());
                                             continue;

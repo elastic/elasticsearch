@@ -311,7 +311,8 @@ public class GeoPointFieldMapperLegacy extends BaseGeoPointFieldMapper implement
             }
         }
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
+        if (mergeResult.simulate() == false) {
+            assert mergeResult.hasConflicts() == false;
             if (gpfmMergeWith.coerce.explicit()) {
                 this.coerce = gpfmMergeWith.coerce;
             }

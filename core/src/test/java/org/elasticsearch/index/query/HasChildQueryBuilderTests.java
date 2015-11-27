@@ -49,9 +49,10 @@ import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
-
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -63,15 +64,16 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
     public void setUp() throws Exception {
         super.setUp();
         MapperService mapperService = queryShardContext().getMapperService();
-        mapperService.merge(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
+        Map<String, CompressedXContent> mappingSources = new HashMap<>();
+        mappingSources.put(PARENT_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(PARENT_TYPE,
                 STRING_FIELD_NAME, "type=string",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), false, false);
-        mapperService.merge(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
+        ).string()));
+        mappingSources.put(CHILD_TYPE, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(CHILD_TYPE,
                 "_parent", "type=" + PARENT_TYPE,
                 STRING_FIELD_NAME, "type=string",
                 INT_FIELD_NAME, "type=integer",
@@ -79,7 +81,8 @@ public class HasChildQueryBuilderTests extends AbstractQueryTestCase<HasChildQue
                 BOOLEAN_FIELD_NAME, "type=boolean",
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object"
-        ).string()), false, false);
+        ).string()));
+        mapperService.merge(mappingSources, false, false);
     }
 
     @Override

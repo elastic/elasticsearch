@@ -22,14 +22,12 @@ package org.elasticsearch.mapper.attachments;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
@@ -130,11 +128,11 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
                 .endObject()
                 .endObject();
 
-        byte[] mapping = mappingBuilder.bytes().toBytes();
+        String mapping = mappingBuilder.string();
         MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
-        DocumentMapper docMapper = mapperService.parse("mail", new CompressedXContent(mapping), true);
+        DocumentMapper docMapper = mapperService.documentMapperParser().parse("mail", mapping);
         // this should not throw an exception
-        mapperService.parse("mail", new CompressedXContent(docMapper.mapping().toString()), true);
+        mapperService.documentMapperParser().parse("mail", docMapper.mapping().toString());
         // the mapping may not contain a field name with a dot
         assertFalse(docMapper.mapping().toString().contains("."));
     }

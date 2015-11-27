@@ -390,7 +390,8 @@ public class ParentFieldMapper extends MetadataFieldMapper {
             mergeResult.addConflict(conflict);
         }
 
-        if (active() && mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
+        if (active() && mergeResult.simulate() == false) {
+            assert mergeResult.hasConflicts() == false;
             childJoinFieldType = fieldMergeWith.childJoinFieldType.clone();
         }
     }

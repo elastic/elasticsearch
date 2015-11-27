@@ -175,7 +175,7 @@ public class DateBackwardsCompatibilityTests extends ESSingleNodeTestCase {
             createIndex(Version.CURRENT, mapping);
             fail("Expected a MapperParsingException, but did not happen");
         } catch (MapperParsingException e) {
-            assertThat(e.getMessage(), containsString("Failed to parse mapping [" + type + "]"));
+            assertThat(e.getMessage(), containsString("Failed to parse mappings [{testtype"));
             assertThat(e.getMessage(), containsString("Epoch [epoch_seconds] is not supported as dynamic date format"));
         }
     }

@@ -257,7 +257,8 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
             }
         }
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
+        if (mergeResult.simulate() == false) {
+            assert mergeResult.hasConflicts() == false;
             this.includeInAll = nfmMergeWith.includeInAll;
             if (nfmMergeWith.ignoreMalformed.explicit()) {
                 this.ignoreMalformed = nfmMergeWith.ignoreMalformed;

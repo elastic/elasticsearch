@@ -28,6 +28,7 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -384,7 +385,10 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        MergeResult mergeResult = stage1.merge(stage2.mapping(), false, false);
+        Mapper mapper1 = stage1.root().getMapper("shape");
+        Mapper mapper2 = stage2.root().getMapper("shape");
+        MergeResult mergeResult = new MergeResult(true, false);
+        mapper1.merge(mapper2, mergeResult);
         // check correct conflicts
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.buildConflicts().length, equalTo(4));
@@ -412,7 +416,9 @@ public class GeoShapeFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("shape").field("type", "geo_shape").field("precision", "1m")
                 .field("tree_levels", 8).field("distance_error_pct", 0.001).field("orientation", "cw").endObject().endObject().endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
-        mergeResult = stage1.merge(stage2.mapping(), false, false);
+        mapper2 = stage2.root().getMapper("shape");
+        mergeResult = new MergeResult(false, false);
+        mapper1.merge(mapper2, mergeResult);
 
         // verify mapping changes, and ensure no failures
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));

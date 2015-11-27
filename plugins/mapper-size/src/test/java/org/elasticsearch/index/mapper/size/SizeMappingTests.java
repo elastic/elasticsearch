@@ -140,7 +140,7 @@ public class SizeMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper disabledMapper = parser.parse(disabledMapping);
 
-        enabledMapper.merge(disabledMapper.mapping(), false, false);
+        enabledMapper.merge(disabledMapper.mapping(), false);
         assertThat(enabledMapper.metadataMapper(SizeFieldMapper.class).enabled(), is(false));
     }
 }

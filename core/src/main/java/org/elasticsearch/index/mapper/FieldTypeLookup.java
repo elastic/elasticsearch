@@ -95,8 +95,8 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * If any are not compatible, an IllegalArgumentException is thrown.
      * If updateAllTypes is true, only basic compatibility is checked.
      */
-    public void checkCompatibility(Collection<FieldMapper> newFieldMappers, boolean updateAllTypes) {
-        for (FieldMapper fieldMapper : newFieldMappers) {
+    void checkCompatibility(Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
+        for (FieldMapper fieldMapper : fieldMappers) {
             MappedFieldTypeReference ref = fullNameToFieldType.get(fieldMapper.fieldType().names().fullName());
             if (ref != null) {
                 List<String> conflicts = new ArrayList<>();

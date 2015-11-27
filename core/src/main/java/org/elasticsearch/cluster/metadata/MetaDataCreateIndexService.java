@@ -304,26 +304,18 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());
                     MapperService mapperService = indexService.mapperService();
-                    // first, add the default mapping
-                    if (mappings.containsKey(MapperService.DEFAULT_MAPPING)) {
-                        try {
-                            mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(XContentFactory.jsonBuilder().map(mappings.get(MapperService.DEFAULT_MAPPING)).string()), false, request.updateAllTypes());
-                        } catch (Exception e) {
-                            removalReason = "failed on parsing default mapping on index creation";
-                            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, MapperService.DEFAULT_MAPPING, e.getMessage());
-                        }
-                    }
+                    final Map<String, CompressedXContent> mappingSources = new HashMap<>();
                     for (Map.Entry<String, Map<String, Object>> entry : mappings.entrySet()) {
-                        if (entry.getKey().equals(MapperService.DEFAULT_MAPPING)) {
-                            continue;
-                        }
-                        try {
-                            // apply the default here, its the first time we parse it
-                            mapperService.merge(entry.getKey(), new CompressedXContent(XContentFactory.jsonBuilder().map(entry.getValue()).string()), true, request.updateAllTypes());
-                        } catch (Exception e) {
-                            removalReason = "failed on parsing mappings on index creation";
-                            throw new MapperParsingException("Failed to parse mapping [{}]: {}", e, entry.getKey(), e.getMessage());
-                        }
+                        final String type = entry.getKey();
+                        final Map<String, Object> mapping = entry.getValue();
+                        final String mappingSource = XContentFactory.jsonBuilder().map(mapping).string();
+                        mappingSources.put(type, new CompressedXContent(mappingSource));
+                    }
+                    try {
+                        mapperService.merge(mappingSources, true, request.updateAllTypes());
+                    } catch (Exception e) {
+                        removalReason = "failed on parsing mappings on index creation";
+                        throw new MapperParsingException("Failed to parse mappings [{}]: {}", e, mappingSources, e.getMessage());
                     }
 
                     QueryShardContext queryShardContext = indexService.getQueryShardContext();

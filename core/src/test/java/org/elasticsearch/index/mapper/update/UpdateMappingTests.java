@@ -29,10 +29,12 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeResult;
+import org.elasticsearch.index.mapper.MergeMappingException;
+import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
@@ -75,9 +77,7 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     private void testNoConflictWhileMergingAndMappingChanged(XContentBuilder mapping, XContentBuilder mappingUpdate, XContentBuilder expectedMapping) throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         // simulate like in MetaDataMappingService#putMapping
-        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), false, false);
-        // assure we have no conflicts
-        assertThat(mergeResult.buildConflicts().length, equalTo(0));
+        indexService.mapperService().documentMapper("type").merge(indexService.mapperService().documentMapperParser().parse("type", mappingUpdate.string()).mapping(), false);
         // make sure mappings applied
         CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate.toString(), equalTo(expectedMapping.string()));
@@ -99,12 +99,129 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping);
         CompressedXContent mappingBeforeUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         // simulate like in MetaDataMappingService#putMapping
-        MergeResult mergeResult = indexService.mapperService().documentMapper("type").merge(indexService.mapperService().parse("type", new CompressedXContent(mappingUpdate.bytes()), true).mapping(), true, false);
-        // assure we have conflicts
-        assertThat(mergeResult.buildConflicts().length, equalTo(1));
+        try {
+            indexService.mapperService().documentMapper("type").merge(indexService.mapperService().documentMapperParser().parse("type", mappingUpdate.string()).mapping(), false);
+            fail();
+        } catch (MergeMappingException e) {
+            // expected
+        }
         // make sure simulate flag actually worked - no mappings applied
         CompressedXContent mappingAfterUpdate = indexService.mapperService().documentMapper("type").mappingSource();
         assertThat(mappingAfterUpdate, equalTo(mappingBeforeUpdate));
+    }
+
+    public void testConflictSameType() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("foo").field("type", "long").endObject()
+                .endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build(), "type", mapping).mapperService();
+
+        XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("foo").field("type", "double").endObject()
+                .endObject().endObject().endObject();
+
+        try {
+            mapperService.merge(Collections.singletonMap("type", new CompressedXContent(update.string())), false, false);
+            fail();
+        } catch (MergeMappingException e) {
+            // expected
+        }
+
+        try {
+            mapperService.merge(Collections.singletonMap("type", new CompressedXContent(update.string())), false, false);
+            fail();
+        } catch (MergeMappingException e) {
+            // expected
+        }
+
+        assertTrue(mapperService.documentMapper("type").mapping().root().getMapper("foo") instanceof LongFieldMapper);
+    }
+
+    public void testConflictNewType() throws Exception {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("foo").field("type", "long").endObject()
+                .endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build(), "type1", mapping).mapperService();
+
+        XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type2")
+                .startObject("properties").startObject("foo").field("type", "double").endObject()
+                .endObject().endObject().endObject();
+
+        try {
+            mapperService.merge(Collections.singletonMap("type2", new CompressedXContent(update.string())), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+        }
+
+        try {
+            mapperService.merge(Collections.singletonMap("type2", new CompressedXContent(update.string())), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+        }
+
+        assertTrue(mapperService.documentMapper("type1").mapping().root().getMapper("foo") instanceof LongFieldMapper);
+        assertNull(mapperService.documentMapper("type2"));
+    }
+
+    // same as the testConflictNewType except that the mapping update is on an existing type
+    public void testConflictNewTypeUpdate() throws Exception {
+        XContentBuilder mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
+                .startObject("properties").startObject("foo").field("type", "long").endObject()
+                .endObject().endObject().endObject();
+        XContentBuilder mapping2 = XContentFactory.jsonBuilder().startObject().startObject("type2").endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
+
+        mapperService.merge(Collections.singletonMap("type1", new CompressedXContent(mapping1.string())), false, false);
+        mapperService.merge(Collections.singletonMap("type2", new CompressedXContent(mapping2.string())), false, false);
+
+        XContentBuilder update = XContentFactory.jsonBuilder().startObject().startObject("type2")
+                .startObject("properties").startObject("foo").field("type", "double").endObject()
+                .endObject().endObject().endObject();
+
+        try {
+            mapperService.merge(Collections.singletonMap("type2", new CompressedXContent(update.string())), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+        }
+
+        try {
+            mapperService.merge(Collections.singletonMap("type2", new CompressedXContent(update.string())), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            // expected
+            assertTrue(e.getMessage().contains("conflicts with existing mapping in other types"));
+        }
+
+        assertTrue(mapperService.documentMapper("type1").mapping().root().getMapper("foo") instanceof LongFieldMapper);
+        assertNotNull(mapperService.documentMapper("type2"));
+        assertNull(mapperService.documentMapper("type2").mapping().root().getMapper("foo"));
+    }
+
+    public void testReuseMetaField() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("properties").startObject("_id").field("type", "string").endObject()
+                .endObject().endObject().endObject();
+        MapperService mapperService = createIndex("test", Settings.settingsBuilder().build()).mapperService();
+
+        try {
+            mapperService.merge(Collections.singletonMap("type", new CompressedXContent(mapping.string())), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Two fields are defined for path [_id]"));
+        }
+
+        try {
+            mapperService.merge(Collections.singletonMap("type", new CompressedXContent(mapping.string())), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertTrue(e.getMessage().contains("Two fields are defined for path [_id]"));
+        }
     }
 
     public void testIndexFieldParsingBackcompat() throws IOException {
@@ -118,9 +235,9 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
+        DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", indexMapping.string());
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
-        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
+        documentMapper = indexService.mapperService().documentMapperParser().parse("type", documentMapper.mappingSource().string());
         assertThat(documentMapper.indexMapper().enabled(), equalTo(enabled));
     }
 
@@ -139,11 +256,11 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject()
                 .endObject();
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(indexMapping.string()), true);
+        DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", indexMapping.string());
         assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
         assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
         assertTrue(documentMapper.timestampFieldMapper().fieldType().hasDocValues());
-        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
+        documentMapper = indexService.mapperService().documentMapperParser().parse("type", documentMapper.mappingSource().string());
         assertThat(documentMapper.timestampFieldMapper().enabled(), equalTo(enabled));
         assertTrue(documentMapper.timestampFieldMapper().fieldType().hasDocValues());
         assertTrue(documentMapper.timestampFieldMapper().fieldType().stored());
@@ -152,9 +269,9 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     public void testSizeTimestampIndexParsing() throws IOException {
         IndexService indexService = createIndex("test", Settings.settingsBuilder().build());
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/update/default_mapping_with_disabled_root_types.json");
-        DocumentMapper documentMapper = indexService.mapperService().parse("type", new CompressedXContent(mapping), true);
+        DocumentMapper documentMapper = indexService.mapperService().documentMapperParser().parse("type", mapping);
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
-        documentMapper = indexService.mapperService().parse("type", new CompressedXContent(documentMapper.mappingSource().string()), true);
+        documentMapper = indexService.mapperService().documentMapperParser().parse("type", documentMapper.mappingSource().string());
         assertThat(documentMapper.mappingSource().string(), equalTo(mapping));
     }
 

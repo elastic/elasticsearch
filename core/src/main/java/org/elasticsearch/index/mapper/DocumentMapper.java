@@ -336,8 +336,6 @@ public class DocumentMapper implements ToXContent {
 
     private void addMappers(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        // first ensure we don't have any incompatible new fields
-        mapperService.checkNewMappersCompatibility(objectMappers, fieldMappers, updateAllTypes);
 
         // update mappers for this document type
         Map<String, ObjectMapper> builder = new HashMap<>(this.objectMappers);
@@ -354,15 +352,25 @@ public class DocumentMapper implements ToXContent {
         mapperService.addMappers(objectMappers, fieldMappers);
     }
 
-    public MergeResult merge(Mapping mapping, boolean simulate, boolean updateAllTypes) {
+    public void merge(Mapping mapping, boolean updateAllTypes) {
         try (ReleasableLock lock = mappingWriteLock.acquire()) {
-            final MergeResult mergeResult = new MergeResult(simulate, updateAllTypes);
+            // first simulate to only check for conflicts
+            MergeResult mergeResult = new MergeResult(true, updateAllTypes);
             this.mapping.merge(mapping, mergeResult);
-            if (simulate == false) {
-                addMappers(mergeResult.getNewObjectMappers(), mergeResult.getNewFieldMappers(), updateAllTypes);
-                refreshSource();
+            if (mergeResult.hasConflicts()) {
+                throw new MergeMappingException(mergeResult.buildConflicts());
             }
-            return mergeResult;
+
+            // then check conflicts with other types
+            // if there is a single type then we are implicitly updating all types
+            mapperService.checkMappersCompatibility(mapping, updateAllTypes || mapperService.types().size() == 1);
+
+            // finally apply the mapping update for real
+            mergeResult = new MergeResult(false, updateAllTypes);
+            assert mergeResult.hasConflicts() == false; // we already simulated
+            this.mapping.merge(mapping, mergeResult);
+            addMappers(mergeResult.getNewObjectMappers(), mergeResult.getNewFieldMappers(), updateAllTypes);
+            refreshSource();
         }
     }
 

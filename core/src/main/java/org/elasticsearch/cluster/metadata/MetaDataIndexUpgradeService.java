@@ -19,11 +19,13 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
 
 import org.apache.lucene.analysis.Analyzer;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
@@ -34,6 +36,8 @@ import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.mapper.MapperRegistry;
 
 import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static java.util.Collections.unmodifiableSet;
@@ -223,10 +227,11 @@ public class MetaDataIndexUpgradeService extends AbstractComponent {
 
             try (AnalysisService analysisService = new FakeAnalysisService(indexSettings)) {
                 try (MapperService mapperService = new MapperService(indexSettings, analysisService, similarityService, mapperRegistry)) {
-                    for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
-                        MappingMetaData mappingMetaData = cursor.value;
-                        mapperService.merge(mappingMetaData.type(), mappingMetaData.source(), false, false);
+                    final Map<String, CompressedXContent> mappingSources = new HashMap<>();
+                    for (ObjectObjectCursor<String, MappingMetaData> entry : indexMetaData.getMappings()) {
+                        mappingSources.put(entry.key, entry.value.source());
                     }
+                    mapperService.merge(mappingSources, false, false);
                 }
             }
         } catch (Exception ex) {

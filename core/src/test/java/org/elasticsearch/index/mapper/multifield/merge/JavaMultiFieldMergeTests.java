@@ -25,6 +25,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParseContext.Document;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -59,10 +60,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping2.json");
         DocumentMapper docMapper2 = parser.parse(mapping);
 
-        MergeResult mergeResult = docMapper.merge(docMapper2.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
-
-        docMapper.merge(docMapper2.mapping(), false, false);
+        docMapper.merge(docMapper2.mapping(), false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -81,10 +79,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping3.json");
         DocumentMapper docMapper3 = parser.parse(mapping);
 
-        mergeResult = docMapper.merge(docMapper3.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
-
-        docMapper.merge(docMapper3.mapping(), false, false);
+        docMapper.merge(docMapper3.mapping(), false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -97,10 +92,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/test-mapping4.json");
         DocumentMapper docMapper4 = parser.parse(mapping);
 
-        mergeResult = docMapper.merge(docMapper4.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
-
-        docMapper.merge(docMapper4.mapping(), false, false);
+        docMapper.merge(docMapper4.mapping(), false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -131,10 +123,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade1.json");
         DocumentMapper docMapper2 = parser.parse(mapping);
 
-        MergeResult mergeResult = docMapper.merge(docMapper2.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
-
-        docMapper.merge(docMapper2.mapping(), false, false);
+        docMapper.merge(docMapper2.mapping(), false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -153,10 +142,7 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade2.json");
         DocumentMapper docMapper3 = parser.parse(mapping);
 
-        mergeResult = docMapper.merge(docMapper3.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
-
-        docMapper.merge(docMapper3.mapping(), false, false);
+        docMapper.merge(docMapper3.mapping(), false);
 
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
 
@@ -169,23 +155,18 @@ public class JavaMultiFieldMergeTests extends ESSingleNodeTestCase {
 
         mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/multifield/merge/upgrade3.json");
         DocumentMapper docMapper4 = parser.parse(mapping);
-        mergeResult = docMapper.merge(docMapper4.mapping(), true, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(true));
-        assertThat(mergeResult.buildConflicts()[0], equalTo("mapper [name] has different [index] values"));
-        assertThat(mergeResult.buildConflicts()[1], equalTo("mapper [name] has different [store] values"));
+        try {
+            docMapper.merge(docMapper4.mapping(), false);
+            fail();
+        } catch (MergeMappingException e) {
+            assertEquals("Merge failed with failures {[mapper [name] has different [index] values, mapper [name] has different [store] values]}", e.getMessage());
+        }
 
-        mergeResult = docMapper.merge(docMapper4.mapping(), false, false);
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(true));
-
-        assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
-        assertThat(mergeResult.buildConflicts()[0], equalTo("mapper [name] has different [index] values"));
-        assertThat(mergeResult.buildConflicts()[1], equalTo("mapper [name] has different [store] values"));
-
-        // There are conflicts, but the `name.not_indexed3` has been added, b/c that field has no conflicts
+        // There are conflicts, so the `name.not_indexed3` has not been added,even though that field has no conflicts
         assertNotSame(IndexOptions.NONE, docMapper.mappers().getMapper("name").fieldType().indexOptions());
         assertThat(docMapper.mappers().getMapper("name.indexed"), notNullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed"), notNullValue());
         assertThat(docMapper.mappers().getMapper("name.not_indexed2"), notNullValue());
-        assertThat(docMapper.mappers().getMapper("name.not_indexed3"), notNullValue());
+        assertThat(docMapper.mappers().getMapper("name.not_indexed3"), nullValue());
     }
 }

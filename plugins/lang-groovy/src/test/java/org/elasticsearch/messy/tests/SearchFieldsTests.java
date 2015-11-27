@@ -392,8 +392,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("_source").field("enabled", false).endObject()
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().startObject("properties")
                 .startObject("byte_field").field("type", "byte").field("store", "yes").endObject()
                 .startObject("short_field").field("type", "short").field("store", "yes").endObject()
                 .startObject("integer_field").field("type", "integer").field("store", "yes").endObject()
@@ -556,8 +555,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
         createIndex("test");
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForYellowStatus().execute().actionGet();
 
-        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("properties")
-                .startObject("_source").field("enabled", false).endObject()
+        String mapping = XContentFactory.jsonBuilder().startObject().startObject("type1").startObject("_source").field("enabled", false).endObject().startObject("properties")
                 .startObject("string_field").field("type", "string").endObject()
                 .startObject("byte_field").field("type", "byte").endObject()
                 .startObject("short_field").field("type", "short").endObject()

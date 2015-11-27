@@ -19,7 +19,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import com.carrotsearch.hppc.cursors.ObjectCursor;
+import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
 import org.elasticsearch.cluster.*;
@@ -36,15 +37,11 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeMappingException;
-import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndicesService;
-import org.elasticsearch.indices.InvalidTypeNameException;
-import org.elasticsearch.percolator.PercolatorService;
 
 import java.io.IOException;
 import java.util.*;
+
 /**
  * Service responsible for submitting mapping changes
  */
@@ -69,12 +66,10 @@ public class MetaDataMappingService extends AbstractComponent {
     static class RefreshTask {
         final String index;
         final String indexUUID;
-        final String[] types;
 
-        RefreshTask(String index, final String indexUUID, String[] types) {
+        RefreshTask(String index, final String indexUUID) {
             this.index = index;
             this.indexUUID = indexUUID;
-            this.types = types;
         }
     }
 
@@ -120,13 +115,16 @@ public class MetaDataMappingService extends AbstractComponent {
             // the tasks lists to iterate over, filled with the list of mapping tasks, trying to keep
             // the latest (based on order) update mapping one per node
             List<RefreshTask> allIndexTasks = entry.getValue();
-            List<RefreshTask> tasks = new ArrayList<>();
+            boolean hasTaskWithRightUUID = false;
             for (RefreshTask task : allIndexTasks) {
-                if (!indexMetaData.isSameUUID(task.indexUUID)) {
+                if (indexMetaData.isSameUUID(task.indexUUID)) {
+                    hasTaskWithRightUUID = true;
+                } else {
                     logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);
-                    continue;
                 }
-                tasks.add(task);
+            }
+            if (hasTaskWithRightUUID == false) {
+                continue;
             }
 
             // construct the actual index if needed, and make sure the relevant mappings are there
@@ -134,24 +132,19 @@ public class MetaDataMappingService extends AbstractComponent {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.EMPTY_LIST);
+                indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
                 removeIndex = true;
-                Set<String> typesToIntroduce = new HashSet<>();
-                for (RefreshTask task : tasks) {
-                    Collections.addAll(typesToIntroduce, task.types);
+                final Map<String, CompressedXContent> mappingSources = new HashMap<>();
+                for (ObjectObjectCursor<String, MappingMetaData> e : indexMetaData.getMappings()) {
+                    mappingSources.put(e.key, e.value.source());
                 }
-                for (String type : typesToIntroduce) {
-                    // only add the current relevant mapping (if exists)
-                    if (indexMetaData.getMappings().containsKey(type)) {
-                        // don't apply the default mapping, it has been applied when the mapping was created
-                        indexService.mapperService().merge(type, indexMetaData.getMappings().get(type).source(), false, true);
-                    }
-                }
+                // don't apply the default mapping, it has been applied when the mapping was created
+                indexService.mapperService().merge(mappingSources, false, true);
             }
 
             IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
             try {
-                boolean indexDirty = processIndexMappingTasks(tasks, indexService, builder);
+                boolean indexDirty = processIndexMapping(indexService, builder);
                 if (indexDirty) {
                     mdBuilder.put(builder);
                     dirty = true;
@@ -169,38 +162,26 @@ public class MetaDataMappingService extends AbstractComponent {
         return ClusterState.builder(currentState).metaData(mdBuilder).build();
     }
 
-    private boolean processIndexMappingTasks(List<RefreshTask> tasks, IndexService indexService, IndexMetaData.Builder builder) {
+    private boolean processIndexMapping(IndexService indexService, IndexMetaData.Builder builder) {
         boolean dirty = false;
         String index = indexService.index().name();
-        // keep track of what we already refreshed, no need to refresh it again...
-        Set<String> processedRefreshes = new HashSet<>();
-        for (RefreshTask refreshTask : tasks) {
-            try {
-                List<String> updatedTypes = new ArrayList<>();
-                for (String type : refreshTask.types) {
-                    if (processedRefreshes.contains(type)) {
-                        continue;
-                    }
-                    DocumentMapper mapper = indexService.mapperService().documentMapper(type);
-                    if (mapper == null) {
-                        continue;
-                    }
-                    if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
-                        updatedTypes.add(type);
-                        builder.putMapping(new MappingMetaData(mapper));
-                    }
-                    processedRefreshes.add(type);
+        try {
+            List<String> updatedTypes = new ArrayList<>();
+            for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {
+                final String type = mapper.type();
+                if (builder.mapping(type) == null
+                        || !mapper.mappingSource().equals(builder.mapping(type).source())) {
+                    updatedTypes.add(type);
+                    builder.putMapping(new MappingMetaData(mapper));
                 }
+            }
 
-                if (updatedTypes.isEmpty()) {
-                    continue;
-                }
-
+            if (updatedTypes.isEmpty() == false) {
                 logger.warn("[{}] re-syncing mappings with cluster state for types [{}]", index, updatedTypes);
                 dirty = true;
-            } catch (Throwable t) {
-                logger.warn("[{}] failed to refresh-mapping in cluster state, types [{}]", index, refreshTask.types);
             }
+        } catch (Throwable t) {
+            logger.warn("[{}] failed to refresh-mapping in cluster state", index);
         }
         return dirty;
     }
@@ -208,9 +189,9 @@ public class MetaDataMappingService extends AbstractComponent {
     /**
      * Refreshes mappings if they are not the same between original and parsed version
      */
-    public void refreshMapping(final String index, final String indexUUID, final String... types) {
-        final RefreshTask refreshTask = new RefreshTask(index, indexUUID, types);
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]",
+    public void refreshMapping(final String index, final String indexUUID) {
+        final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",
                 refreshTask,
                 ClusterStateTaskConfig.build(Priority.HIGH),
                 refreshExectuor,
@@ -223,7 +204,6 @@ public class MetaDataMappingService extends AbstractComponent {
         public BatchResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             List<String> indicesToClose = new ArrayList<>();
             BatchResult.Builder<PutMappingClusterStateUpdateRequest> builder = BatchResult.builder();
-            Map<PutMappingClusterStateUpdateRequest, TaskResult> executionResults = new HashMap<>();
             try {
                 // precreate incoming indices;
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
@@ -235,14 +215,12 @@ public class MetaDataMappingService extends AbstractComponent {
                                 final IndexMetaData indexMetaData = currentState.metaData().index(index);
                                 IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.EMPTY_LIST);
                                 indicesToClose.add(indexMetaData.getIndex());
-                                // make sure to add custom default mapping if exists
-                                if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                                    indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, request.updateAllTypes());
+                                // we need to add all types since we perform cross-type validation
+                                final Map<String, CompressedXContent> mappingSources = new HashMap<>();
+                                for (ObjectObjectCursor<String, MappingMetaData> entry : indexMetaData.getMappings()) {
+                                    mappingSources.put(entry.key, entry.value.source());
                                 }
-                                // only add the current relevant mapping (if exists)
-                                if (indexMetaData.getMappings().containsKey(request.type())) {
-                                    indexService.mapperService().merge(request.type(), indexMetaData.getMappings().get(request.type()).source(), false, request.updateAllTypes());
-                                }
+                                indexService.mapperService().merge(mappingSources, false, request.updateAllTypes());
                             }
                         }
                     }
@@ -265,94 +243,27 @@ public class MetaDataMappingService extends AbstractComponent {
         }
 
         private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request) throws IOException {
-            Map<String, DocumentMapper> newMappers = new HashMap<>();
-            Map<String, DocumentMapper> existingMappers = new HashMap<>();
+            final String mappingType = request.type();
+
+            final Map<String, MappingMetaData> mappings = new HashMap<>();
             for (String index : request.indices()) {
                 IndexService indexService = indicesService.indexServiceSafe(index);
-                // try and parse it (no need to add it here) so we can bail early in case of parsing exception
-                DocumentMapper newMapper;
-                DocumentMapper existingMapper = indexService.mapperService().documentMapper(request.type());
-                if (MapperService.DEFAULT_MAPPING.equals(request.type())) {
-                    // _default_ types do not go through merging, but we do test the new settings. Also don't apply the old default
-                    newMapper = indexService.mapperService().parse(request.type(), new CompressedXContent(request.source()), false);
-                } else {
-                    newMapper = indexService.mapperService().parse(request.type(), new CompressedXContent(request.source()), existingMapper == null);
-                    if (existingMapper != null) {
-                        // first, simulate
-                        MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true, request.updateAllTypes());
-                        // if we have conflicts, throw an exception
-                        if (mergeResult.hasConflicts()) {
-                            throw new MergeMappingException(mergeResult.buildConflicts());
-                        }
-                    } else {
-                        // TODO: can we find a better place for this validation?
-                        // The reason this validation is here is that the mapper service doesn't learn about
-                        // new types all at once , which can create a false error.
-
-                        // For example in MapperService we can't distinguish between a create index api call
-                        // and a put mapping api call, so we don't which type did exist before.
-                        // Also the order of the mappings may be backwards.
-                        if (newMapper.parentFieldMapper().active()) {
-                            IndexMetaData indexMetaData = currentState.metaData().index(index);
-                            for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                if (newMapper.parentFieldMapper().type().equals(mapping.value.type())) {
-                                    throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
-                                }
-                            }
-                        }
-                    }
-                }
-                newMappers.put(index, newMapper);
-                if (existingMapper != null) {
-                    existingMappers.put(index, existingMapper);
-                }
-            }
-
-            String mappingType = request.type();
-            if (mappingType == null) {
-                mappingType = newMappers.values().iterator().next().type();
-            } else if (!mappingType.equals(newMappers.values().iterator().next().type())) {
-                throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
-            }
-            if (!MapperService.DEFAULT_MAPPING.equals(mappingType) && !PercolatorService.TYPE_NAME.equals(mappingType) && mappingType.charAt(0) == '_') {
-                throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
-            }
-            final Map<String, MappingMetaData> mappings = new HashMap<>();
-            for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
-                String index = entry.getKey();
-                // do the actual merge here on the master, and update the mapping source
-                DocumentMapper newMapper = entry.getValue();
-                IndexService indexService = indicesService.indexService(index);
-                if (indexService == null) {
-                    continue;
-                }
-
                 CompressedXContent existingSource = null;
-                if (existingMappers.containsKey(entry.getKey())) {
-                    existingSource = existingMappers.get(entry.getKey()).mappingSource();
+                DocumentMapper oldMapper = indexService.mapperService().documentMapper(mappingType);
+                if (oldMapper != null) {
+                    existingSource = oldMapper.mappingSource();
                 }
-                DocumentMapper mergedMapper = indexService.mapperService().merge(newMapper.type(), newMapper.mappingSource(), false, request.updateAllTypes());
+                DocumentMapper mergedMapper = indexService.mapperService().merge(Collections.singletonMap(mappingType, new CompressedXContent(request.source())), true, request.updateAllTypes()).get(mappingType);
                 CompressedXContent updatedSource = mergedMapper.mappingSource();
 
-                if (existingSource != null) {
-                    if (existingSource.equals(updatedSource)) {
-                        // same source, no changes, ignore it
-                    } else {
-                        // use the merged mapping source
-                        mappings.put(index, new MappingMetaData(mergedMapper));
-                        if (logger.isDebugEnabled()) {
-                            logger.debug("[{}] update_mapping [{}] with source [{}]", index, mergedMapper.type(), updatedSource);
-                        } else if (logger.isInfoEnabled()) {
-                            logger.info("[{}] update_mapping [{}]", index, mergedMapper.type());
-                        }
-
-                    }
-                } else {
+                if (existingSource == null || existingSource.equals(updatedSource) == false) {
+                    // the mapping was modified
+                    final String op = existingSource == null ? "create" : "update";
                     mappings.put(index, new MappingMetaData(mergedMapper));
                     if (logger.isDebugEnabled()) {
-                        logger.debug("[{}] create_mapping [{}] with source [{}]", index, newMapper.type(), updatedSource);
+                        logger.debug("[{}] {}_mapping [{}] with source [{}]", index, op, mergedMapper.type(), updatedSource);
                     } else if (logger.isInfoEnabled()) {
-                        logger.info("[{}] create_mapping [{}]", index, newMapper.type());
+                        logger.info("[{}] {}_mapping [{}]", index, op, mergedMapper.type());
                     }
                 }
             }

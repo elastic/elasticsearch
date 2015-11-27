@@ -479,7 +479,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
         }
 
         GeoShapeFieldMapper gsfm = (GeoShapeFieldMapper)mergeWith;
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
+        if (mergeResult.simulate() == false) {
+            assert mergeResult.hasConflicts() == false;
             if (gsfm.coerce.explicit()) {
                 this.coerce = gsfm.coerce;
             }

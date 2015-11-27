@@ -387,7 +387,8 @@ public abstract class FieldMapper extends Mapper {
         }
         multiFields.merge(mergeWith, mergeResult);
 
-        if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
+        if (mergeResult.simulate() == false) {
+            assert mergeResult.hasConflicts() == false;
             // apply changeable values
             MappedFieldType fieldType = fieldMergeWith.fieldType().clone();
             fieldType.freeze();

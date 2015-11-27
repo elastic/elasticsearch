@@ -33,9 +33,9 @@ import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.List;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -200,7 +200,7 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true, false);
+        mapperService.merge(Collections.singletonMap(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping)), true, false);
 
         DocumentMapper mapper = mapperService.documentMapperWithAutoCreate("my_type").getDocumentMapper();
         assertThat(mapper.type(), equalTo("my_type"));
@@ -213,14 +213,14 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
 
         MapperService mapperService = createIndex("test").mapperService();
-        mapperService.merge(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping), true, false);
-
+        Map<String, CompressedXContent> mappingSources = new HashMap<>();
+        mappingSources.put(MapperService.DEFAULT_MAPPING, new CompressedXContent(defaultMapping));
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("my_type")
                 .startObject("_source").field("enabled", true).endObject()
                 .endObject().endObject().string();
-        mapperService.merge("my_type", new CompressedXContent(mapping), true, false);
+        mappingSources.put("my_type", new CompressedXContent(mapping));
 
-        DocumentMapper mapper = mapperService.documentMapper("my_type");
+        DocumentMapper mapper = mapperService.merge(mappingSources, true, false).get("my_type");
         assertThat(mapper.type(), equalTo("my_type"));
         assertThat(mapper.sourceMapper().enabled(), equalTo(true));
     }
@@ -228,13 +228,14 @@ public class DefaultSourceMappingTests extends ESSingleNodeTestCase {
     void assertConflicts(String mapping1, String mapping2, DocumentMapperParser parser, String... conflicts) throws IOException {
         DocumentMapper docMapper = parser.parse(mapping1);
         docMapper = parser.parse(docMapper.mappingSource().string());
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping2).mapping(), true, false);
-
-        List<String> expectedConflicts = new ArrayList<>(Arrays.asList(conflicts));
-        for (String conflict : mergeResult.buildConflicts()) {
-            assertTrue("found unexpected conflict [" + conflict + "]", expectedConflicts.remove(conflict));
+        try {
+            docMapper.merge(parser.parse(mapping2).mapping(), false);
+            if (conflicts.length > 0) {
+                fail();
+            }
+        } catch (MergeMappingException e) {
+            assertEquals("Merge failed with failures {" + Arrays.toString(conflicts) + "}", e.getMessage());
         }
-        assertTrue("missing conflicts: " + Arrays.toString(expectedConflicts.toArray()), expectedConflicts.isEmpty());
     }
 
     public void testEnabledNotUpdateable() throws Exception {

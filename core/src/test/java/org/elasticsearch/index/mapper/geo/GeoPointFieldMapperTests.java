@@ -30,6 +30,7 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -722,7 +723,11 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .field("geohash", false).endObject().endObject().endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        MergeResult mergeResult = stage1.merge(stage2.mapping(), false, false);
+        Mapper mapper1 = stage1.mapping().root().getMapper("point");
+        Mapper mapper2 = stage2.mapping().root().getMapper("point");
+
+        MergeResult mergeResult = new MergeResult(true, false);
+        mapper1.merge(mapper2, mergeResult);
         assertThat(mergeResult.hasConflicts(), equalTo(true));
         assertThat(mergeResult.buildConflicts().length, equalTo(3));
         // todo better way of checking conflict?
@@ -735,7 +740,9 @@ public class GeoPointFieldMapperTests extends ESSingleNodeTestCase {
                 .startObject("properties").startObject("point").field("type", "geo_point").field("lat_lon", true)
                 .field("geohash", true).endObject().endObject().endObject().endObject().string();
         stage2 = parser.parse(stage2Mapping);
-        mergeResult = stage1.merge(stage2.mapping(), false, false);
+        mapper2 = stage2.mapping().root().getMapper("point");
+        mergeResult = new MergeResult(false, false);
+        mapper1.merge(mapper2, mergeResult);
         assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
     }
 

@@ -80,7 +80,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private final boolean dynamic;
 
     private volatile String defaultMappingSource;
-    private volatile String defaultPercolatorMappingSource;
+    private final String defaultPercolatorMappingSource;
 
     private volatile Map<String, DocumentMapper> mappers = emptyMap();
 
@@ -195,92 +195,128 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         typeListeners.remove(listener);
     }
 
-    public DocumentMapper merge(String type, CompressedXContent mappingSource, boolean applyDefault, boolean updateAllTypes) {
-        if (DEFAULT_MAPPING.equals(type)) {
-            // verify we can parse it
-            DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource);
-            // still add it as a document mapper so we have it registered and, for example, persisted back into
-            // the cluster meta data if needed, or checked for existence
-            try (ReleasableLock lock = mappingWriteLock.acquire()) {
-                mappers = newMapBuilder(mappers).put(type, mapper).map();
-            }
+    /**
+     * Merge the provided mapping sources and return the new map of document
+     * mappers, once all updates have been applied.
+     */
+    public Map<String, DocumentMapper> merge(Map<String, CompressedXContent> mappingSources, boolean applyDefault, boolean updateAllTypes) {
+        try (ReleasableLock lock = mappingWriteLock.acquire()) {
+            return doMerge(mappingSources, applyDefault, updateAllTypes);
+        }
+    }
+
+    private Map<String, DocumentMapper> doMerge(Map<String, CompressedXContent> mappingSources, boolean applyDefault, boolean updateAllTypes) {
+        final Set<String> preExistingTypes = Collections.unmodifiableSet(new HashSet<>(mappers.keySet()));
+        String defaultMappingSource = this.defaultMappingSource;
+        DocumentMapper defaultMapper = null;
+
+        // merge the default mapping first, so that it applies to other mappings
+        if (mappingSources.containsKey(DEFAULT_MAPPING)) {
+            final CompressedXContent mappingSource = mappingSources.get(DEFAULT_MAPPING);
+            defaultMapper = documentParser.parseCompressed(DEFAULT_MAPPING, mappingSource);
             try {
                 defaultMappingSource = mappingSource.string();
             } catch (IOException e) {
                 throw new ElasticsearchGenerationException("failed to un-compress", e);
             }
-            return mapper;
-        } else {
-            return merge(parse(type, mappingSource, applyDefault), updateAllTypes);
         }
+
+        for (Map.Entry<String, CompressedXContent> entry : mappingSources.entrySet()) {
+            final String type = entry.getKey();
+            if (type.equals(DEFAULT_MAPPING)) {
+                continue;
+            }
+
+            final CompressedXContent mappingSource = entry.getValue();
+            final String defaultSource;
+            if (preExistingTypes.contains(type) || applyDefault == false) {
+                defaultSource = null;
+            } else if (PercolatorService.TYPE_NAME.equals(type)) {
+                defaultSource = defaultPercolatorMappingSource;
+            } else {
+                defaultSource = defaultMappingSource;
+            }
+
+            final DocumentMapper mapper = documentParser.parseCompressed(type, mappingSource, defaultSource);
+
+            if (mapper.type().equals(type) == false) {
+                throw new InvalidTypeNameException("Type name provided does not match type name within mapping definition");
+            }
+
+            if (mapper.parentFieldMapper().active()
+                    && preExistingTypes.contains(type) == false
+                    && preExistingTypes.contains(mapper.parentFieldMapper().type())) {
+                throw new IllegalArgumentException("can't add a _parent field that points to an already existing type");
+            }
+
+            merge(mapper, updateAllTypes);
+        }
+
+        // Serialize defaults
+        if (defaultMapper != null) {
+            // update the default mapping source
+            this.defaultMappingSource = defaultMappingSource;
+            // still add it as a document mapper so we have it registered and, for example, persisted back into
+            // the cluster meta data if needed, or checked for existence
+            mappers = newMapBuilder(mappers).put(DEFAULT_MAPPING, defaultMapper).immutableMap();
+        }
+
+        return mappers;
     }
 
-    // never expose this to the outside world, we need to reparse the doc mapper so we get fresh
-    // instances of field mappers to properly remove existing doc mapper
     private DocumentMapper merge(DocumentMapper mapper, boolean updateAllTypes) {
-        try (ReleasableLock lock = mappingWriteLock.acquire()) {
-            if (mapper.type().length() == 0) {
-                throw new InvalidTypeNameException("mapping type name is empty");
-            }
-            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
-            }
-            if (mapper.type().charAt(0) == '_') {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
-            }
-            if (mapper.type().contains("#")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
-            }
-            if (mapper.type().contains(",")) {
-                throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
-            }
-            if (mapper.type().equals(mapper.parentFieldMapper().type())) {
-                throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
-            }
-            if (typeNameStartsWithIllegalDot(mapper)) {
-                if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
-                    throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
-                } else {
-                    logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
-                }
-            }
-            // we can add new field/object mappers while the old ones are there
-            // since we get new instances of those, and when we remove, we remove
-            // by instance equality
-            DocumentMapper oldMapper = mappers.get(mapper.type());
-
-            if (oldMapper != null) {
-                MergeResult result = oldMapper.merge(mapper.mapping(), false, updateAllTypes);
-                if (result.hasConflicts()) {
-                    // TODO: What should we do???
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("merging mapping for type [{}] resulted in conflicts: [{}]", mapper.type(), Arrays.toString(result.buildConflicts()));
-                    }
-                }
-                return oldMapper;
+        if (mapper.type().length() == 0) {
+            throw new InvalidTypeNameException("mapping type name is empty");
+        }
+        if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1) && mapper.type().length() > 255) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] is too long; limit is length 255 but was [" + mapper.type().length() + "]");
+        }
+        if (mapper.type().charAt(0) == '_') {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] can't start with '_'");
+        }
+        if (mapper.type().contains("#")) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include '#' in it");
+        }
+        if (mapper.type().contains(",")) {
+            throw new InvalidTypeNameException("mapping type name [" + mapper.type() + "] should not include ',' in it");
+        }
+        if (mapper.type().equals(mapper.parentFieldMapper().type())) {
+            throw new IllegalArgumentException("The [_parent.type] option can't point to the same type");
+        }
+        if (typeNameStartsWithIllegalDot(mapper)) {
+            if (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0_beta1)) {
+                throw new IllegalArgumentException("mapping type name [" + mapper.type() + "] must not start with a '.'");
             } else {
-                List<ObjectMapper> newObjectMappers = new ArrayList<>();
-                List<FieldMapper> newFieldMappers = new ArrayList<>();
-                for (MetadataFieldMapper metadataMapper : mapper.mapping().metadataMappers) {
-                    newFieldMappers.add(metadataMapper);
-                }
-                MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);
-                checkNewMappersCompatibility(newObjectMappers, newFieldMappers, updateAllTypes);
-                addMappers(newObjectMappers, newFieldMappers);
-
-                for (DocumentTypeListener typeListener : typeListeners) {
-                    typeListener.beforeCreate(mapper);
-                }
-                mappers = newMapBuilder(mappers).put(mapper.type(), mapper).map();
-                if (mapper.parentFieldMapper().active()) {
-                    Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
-                    newParentTypes.addAll(parentTypes);
-                    newParentTypes.add(mapper.parentFieldMapper().type());
-                    parentTypes = unmodifiableSet(newParentTypes);
-                }
-                assert assertSerialization(mapper);
-                return mapper;
+                logger.warn("Type [{}] starts with a '.', it is recommended not to start a type name with a '.'", mapper.type());
             }
+        }
+        DocumentMapper oldMapper = mappers.get(mapper.type());
+
+        if (oldMapper != null) {
+            oldMapper.merge(mapper.mapping(), updateAllTypes);
+            return oldMapper;
+        } else {
+            List<ObjectMapper> objectMappers = new ArrayList<>();
+            List<FieldMapper> fieldMappers = new ArrayList<>();
+            for (MetadataFieldMapper metadataMapper : mapper.mapping().metadataMappers) {
+                fieldMappers.add(metadataMapper);
+            }
+            MapperUtils.collect(mapper.mapping().root, objectMappers, fieldMappers);
+            checkMappersCompatibility(objectMappers, fieldMappers, updateAllTypes);
+            addMappers(objectMappers, fieldMappers);
+
+            for (DocumentTypeListener typeListener : typeListeners) {
+                typeListener.beforeCreate(mapper);
+            }
+            mappers = newMapBuilder(mappers).put(mapper.type(), mapper).immutableMap();
+            if (mapper.parentFieldMapper().active()) {
+                Set<String> newParentTypes = new HashSet<>(parentTypes.size() + 1);
+                newParentTypes.addAll(parentTypes);
+                newParentTypes.add(mapper.parentFieldMapper().type());
+                parentTypes = unmodifiableSet(newParentTypes);
+            }
+            assert assertSerialization(mapper);
+            return mapper;
         }
     }
 
@@ -291,7 +327,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        DocumentMapper newMapper = parse(mapper.type(), mappingSource, false);
+        DocumentMapper newMapper = documentParser.parseCompressed(mapper.type(), mappingSource);
 
         if (newMapper.mappingSource().equals(mappingSource) == false) {
             throw new IllegalStateException("DocumentMapper serialization result is different from source. \n--> Source ["
@@ -301,9 +337,37 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return true;
     }
 
-    protected void checkNewMappersCompatibility(Collection<ObjectMapper> newObjectMappers, Collection<FieldMapper> newFieldMappers, boolean updateAllTypes) {
+    /**
+     * Check that fields are defined only once. It is possible to define fields
+     * several times eg. if a field is defined once via 'fields' in the mapping
+     * and once from a field mapper.
+     */
+    private void checkUniqueness(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+        Map<String, Mapper> alreadySeen = new HashMap<>();
+        for (ObjectMapper mapper : objectMappers) {
+            final Mapper removed = alreadySeen.put(mapper.fullPath(), mapper);
+            if (removed != null) {
+                throw new IllegalArgumentException("Two fields are defined for path [" + mapper.fullPath() + "]: " + Arrays.asList(mapper, removed));
+            }
+        }
+        for (FieldMapper mapper : fieldMappers) {
+            final Mapper removed = alreadySeen.put(mapper.name(), mapper);
+            if (removed != null && (indexSettings.getIndexVersionCreated().onOrAfter(Version.V_2_0_0) || mapper != removed)) {
+                // we need the 'removed != mapper' condition because some metadata mappers used to be registered both as a metadata mapper and
+                // as a sub mapper of the root object mapper
+                throw new IllegalArgumentException("Two fields are defined for path [" + mapper.name() + "]: " + Arrays.asList(mapper, removed));
+            }
+        }
+    }
+
+    protected void checkMappersCompatibility(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        for (ObjectMapper newObjectMapper : newObjectMappers) {
+
+        // check compatibility within the mapping update
+        checkUniqueness(objectMappers, fieldMappers);
+
+        // check compatibility with existing types
+        for (ObjectMapper newObjectMapper : objectMappers) {
             ObjectMapper existingObjectMapper = fullPathObjectMappers.get(newObjectMapper.fullPath());
             if (existingObjectMapper != null) {
                 MergeResult result = new MergeResult(true, updateAllTypes);
@@ -314,7 +378,18 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
             }
         }
-        fieldTypes.checkCompatibility(newFieldMappers, updateAllTypes);
+        fieldTypes.checkCompatibility(fieldMappers, updateAllTypes);
+    }
+
+    protected void checkMappersCompatibility(Mapping mapping, boolean updateAllTypes) {
+        // First check compatibility of the new mapping with other types
+        List<ObjectMapper> objectMappers = new ArrayList<>();
+        List<FieldMapper> fieldMappers = new ArrayList<>();
+        for (MetadataFieldMapper metadataMapper : mapping.metadataMappers) {
+            fieldMappers.add(metadataMapper);
+        }
+        MapperUtils.collect(mapping.root(), objectMappers, fieldMappers);
+        checkMappersCompatibility(objectMappers, fieldMappers, updateAllTypes);
     }
 
     protected void addMappers(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
@@ -330,22 +405,19 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         this.fieldTypes = this.fieldTypes.copyAndAddAll(fieldMappers);
     }
 
-    public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
-        String defaultMappingSource;
-        if (PercolatorService.TYPE_NAME.equals(mappingType)) {
-            defaultMappingSource = this.defaultPercolatorMappingSource;
-        }  else {
-            defaultMappingSource = this.defaultMappingSource;
-        }
-        return documentParser.parseCompressed(mappingType, mappingSource, applyDefault ? defaultMappingSource : null);
-    }
-
     public boolean hasMapping(String mappingType) {
         return mappers.containsKey(mappingType);
     }
 
+    /**
+     * Return the list of the active types in this index.
+     * NOTE: even if a default mapping has been specified, it will not be
+     * included in the results.
+     */
     public Collection<String> types() {
-        return mappers.keySet();
+        final Set<String> types = new HashSet<>(mappers.keySet());
+        types.remove(DEFAULT_MAPPING);
+        return Collections.unmodifiableSet(types);
     }
 
     public DocumentMapper documentMapper(String type) {
@@ -364,7 +436,10 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         if (!dynamic) {
             throw new TypeMissingException(index(), type, "trying to auto create mapping, but dynamic mapping is disabled");
         }
-        mapper = parse(type, null, true);
+        final String defaultMappingSource = PercolatorService.TYPE_NAME.equals(type)
+                ? this.defaultPercolatorMappingSource
+                : this.defaultMappingSource;
+        mapper = documentParser.parse(type, null, defaultMappingSource);
         return new DocumentMapperForType(mapper, mapper.mapping());
     }
 

@@ -59,12 +59,10 @@ public class ParentChildFieldDataTests extends AbstractFieldDataTestCase {
 
     @Before
     public void before() throws Exception {
-        mapperService.merge(
-                childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()), true, false
-        );
-        mapperService.merge(
-                grandChildType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()), true, false
-        );
+        Map<String, CompressedXContent> mappingSources = new HashMap<>();
+        mappingSources.put(childType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(childType, "_parent", "type=" + parentType).string()));
+        mappingSources.put(grandChildType, new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef(grandChildType, "_parent", "type=" + childType).string()));
+        mapperService.merge(mappingSources, true, false);
 
         Document d = new Document();
         d.add(new StringField(UidFieldMapper.NAME, Uid.createUid(parentType, "1"), Field.Store.NO));

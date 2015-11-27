@@ -190,11 +190,11 @@ public class FieldNamesFieldMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper mapperEnabled = parser.parse(enabledMapping);
         DocumentMapper mapperDisabled = parser.parse(disabledMapping);
-        mapperEnabled.merge(mapperDisabled.mapping(), false, false);
+        mapperEnabled.merge(mapperDisabled.mapping(), false);
         assertFalse(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
 
         mapperEnabled = parser.parse(enabledMapping);
-        mapperDisabled.merge(mapperEnabled.mapping(), false, false);
+        mapperDisabled.merge(mapperEnabled.mapping(), false);
         assertTrue(mapperEnabled.metadataMapper(FieldNamesFieldMapper.class).fieldType().isEnabled());
     }
 

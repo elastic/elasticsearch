@@ -222,11 +222,7 @@ public class CopyToMapperTests extends ESSingleNodeTestCase {
 
         DocumentMapper docMapperAfter = parser.parse(mappingAfter);
 
-        MergeResult mergeResult = docMapperBefore.merge(docMapperAfter.mapping(), true, false);
-
-        assertThat(Arrays.toString(mergeResult.buildConflicts()), mergeResult.hasConflicts(), equalTo(false));
-
-        docMapperBefore.merge(docMapperAfter.mapping(), false, false);
+        docMapperBefore.merge(docMapperAfter.mapping(), false);
 
         fields = docMapperBefore.mappers().getMapper("copy_test").copyTo().copyToFields();
 

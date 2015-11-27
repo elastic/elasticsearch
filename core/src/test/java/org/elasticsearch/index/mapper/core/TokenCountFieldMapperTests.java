@@ -27,6 +27,7 @@ import org.apache.lucene.analysis.TokenStream;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 
@@ -64,12 +65,17 @@ public class TokenCountFieldMapperTests extends ESSingleNodeTestCase {
                 .endObject().endObject().string();
         DocumentMapper stage2 = parser.parse(stage2Mapping);
 
-        MergeResult mergeResult = stage1.merge(stage2.mapping(), true, false);
+        Mapper tokenCountMapper1 = stage1.mapping().root().getMapper("tc");
+        Mapper tokenCountMapper2 = stage2.mapping().root().getMapper("tc");
+        MergeResult mergeResult = new MergeResult(true, false);
+        tokenCountMapper1.merge(tokenCountMapper2, mergeResult);
+
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // Just simulated so merge hasn't happened yet
         assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("keyword"));
 
-        mergeResult = stage1.merge(stage2.mapping(), false, false);
+        mergeResult = new MergeResult(false, false);
+        tokenCountMapper1.merge(tokenCountMapper2, mergeResult);
         assertThat(mergeResult.hasConflicts(), equalTo(false));
         // Just simulated so merge hasn't happened yet
         assertThat(((TokenCountFieldMapper) stage1.mappers().smartNameFieldMapper("tc")).analyzer(), equalTo("standard"));

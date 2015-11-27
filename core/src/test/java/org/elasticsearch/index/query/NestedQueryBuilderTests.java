@@ -20,6 +20,7 @@
 package org.elasticsearch.index.query;
 
 import com.carrotsearch.randomizedtesting.generators.RandomPicks;
+
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.search.join.ToParentBlockJoinQuery;
@@ -35,6 +36,7 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.TestSearchContext;
 
 import java.io.IOException;
+import java.util.Collections;
 
 import static org.hamcrest.CoreMatchers.instanceOf;
 
@@ -44,7 +46,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
     public void setUp() throws Exception {
         super.setUp();
         MapperService mapperService = queryShardContext().getMapperService();
-        mapperService.merge("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
+        mapperService.merge(Collections.singletonMap("nested_doc", new CompressedXContent(PutMappingRequest.buildFromSimplifiedDef("nested_doc",
                 STRING_FIELD_NAME, "type=string",
                 INT_FIELD_NAME, "type=integer",
                 DOUBLE_FIELD_NAME, "type=double",
@@ -52,7 +54,7 @@ public class NestedQueryBuilderTests extends AbstractQueryTestCase<NestedQueryBu
                 DATE_FIELD_NAME, "type=date",
                 OBJECT_FIELD_NAME, "type=object",
                 "nested1", "type=nested"
-        ).string()), false, false);
+        ).string())), false, false);
     }
 
     @Override

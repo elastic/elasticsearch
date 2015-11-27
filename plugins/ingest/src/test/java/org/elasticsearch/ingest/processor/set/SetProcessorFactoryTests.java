@@ -17,9 +17,8 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor.add;
+package org.elasticsearch.ingest.processor.set;
 
-import org.elasticsearch.ingest.processor.join.JoinProcessor;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -29,19 +28,19 @@ import java.util.Map;
 
 import static org.hamcrest.CoreMatchers.equalTo;
 
-public class AddProcessorFactoryTests extends ESTestCase {
+public class SetProcessorFactoryTests extends ESTestCase {
 
     public void testCreate() throws IOException {
-        AddProcessor.Factory factory = new AddProcessor.Factory();
+        SetProcessor.Factory factory = new SetProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         Map<String, String> fields = Collections.singletonMap("field1", "value1");
         config.put("fields", fields);
-        AddProcessor addProcessor = factory.create(config);
-        assertThat(addProcessor.getFields(), equalTo(fields));
+        SetProcessor setProcessor = factory.create(config);
+        assertThat(setProcessor.getFields(), equalTo(fields));
     }
 
     public void testCreateMissingFields() throws IOException {
-        AddProcessor.Factory factory = new AddProcessor.Factory();
+        SetProcessor.Factory factory = new SetProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
             factory.create(config);

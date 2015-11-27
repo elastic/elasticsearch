@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.ingest.processor.add;
+package org.elasticsearch.ingest.processor.set;
 
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
@@ -31,13 +31,13 @@ import java.util.Map;
  * Processor that adds new fields with their corresponding values. If the field is already present, its value
  * will be replaced with the provided one.
  */
-public class AddProcessor implements Processor {
+public class SetProcessor implements Processor {
 
-    public static final String TYPE = "add";
+    public static final String TYPE = "set";
 
     private final Map<String, Object> fields;
 
-    AddProcessor(Map<String, Object> fields) {
+    SetProcessor(Map<String, Object> fields) {
         this.fields = fields;
     }
 
@@ -57,11 +57,11 @@ public class AddProcessor implements Processor {
         return TYPE;
     }
 
-    public static final class Factory implements Processor.Factory<AddProcessor> {
+    public static final class Factory implements Processor.Factory<SetProcessor> {
         @Override
-        public AddProcessor create(Map<String, Object> config) throws IOException {
+        public SetProcessor create(Map<String, Object> config) throws IOException {
             Map<String, Object> fields = ConfigurationUtils.readMap(config, "fields");
-            return new AddProcessor(Collections.unmodifiableMap(fields));
+            return new SetProcessor(Collections.unmodifiableMap(fields));
         }
     }
 }

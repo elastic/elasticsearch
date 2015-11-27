@@ -22,7 +22,7 @@ package org.elasticsearch.plugin.ingest;
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
 import org.elasticsearch.ingest.processor.Processor;
-import org.elasticsearch.ingest.processor.add.AddProcessor;
+import org.elasticsearch.ingest.processor.set.SetProcessor;
 import org.elasticsearch.ingest.processor.convert.ConvertProcessor;
 import org.elasticsearch.ingest.processor.date.DateProcessor;
 import org.elasticsearch.ingest.processor.geoip.GeoIpProcessor;
@@ -56,7 +56,7 @@ public class IngestModule extends AbstractModule {
         addProcessor(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory());
         addProcessor(GrokProcessor.TYPE, new GrokProcessor.Factory());
         addProcessor(DateProcessor.TYPE, new DateProcessor.Factory());
-        addProcessor(AddProcessor.TYPE, new AddProcessor.Factory());
+        addProcessor(SetProcessor.TYPE, new SetProcessor.Factory());
         addProcessor(RenameProcessor.TYPE, new RenameProcessor.Factory());
         addProcessor(RemoveProcessor.TYPE, new RemoveProcessor.Factory());
         addProcessor(SplitProcessor.TYPE, new SplitProcessor.Factory());

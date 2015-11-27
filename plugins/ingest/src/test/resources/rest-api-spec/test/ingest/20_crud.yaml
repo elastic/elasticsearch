@@ -12,7 +12,7 @@
             "description": "_description",
             "processors": [
               {
-                "add" : {
+                "set" : {
                   "fields" : {
                     "field2": "_value"
                   }

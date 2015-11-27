@@ -9,6 +9,7 @@ import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.inject.Guice;
 import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.EnvironmentModule;
@@ -78,7 +79,7 @@ public class AuthenticationModuleTests extends ESTestCase {
         Environment env = new Environment(settings);
         ThreadPool pool = new ThreadPool(settings);
         try {
-            Injector injector = Guice.createInjector(module, new SettingsModule(settings), new AuditTrailModule(settings), new CryptoModule(settings), new EnvironmentModule(env), new ThreadPoolModule(pool));
+            Injector injector = Guice.createInjector(module, new SettingsModule(settings, new SettingsFilter(settings)), new AuditTrailModule(settings), new CryptoModule(settings), new EnvironmentModule(env), new ThreadPoolModule(pool));
             Realms realms = injector.getInstance(Realms.class);
             Realm.Factory factory = realms.realmFactory("custom");
             assertThat(factory, notNullValue());
@@ -106,7 +107,7 @@ public class AuthenticationModuleTests extends ESTestCase {
         ThreadPool pool = new ThreadPool(settings);
 
         try {
-            Injector injector = Guice.createInjector(module, new SettingsModule(settings), new AuditTrailModule(settings), new CryptoModule(settings), new EnvironmentModule(env), new ThreadPoolModule(pool));
+            Injector injector = Guice.createInjector(module, new SettingsModule(settings, new SettingsFilter(settings)), new AuditTrailModule(settings), new CryptoModule(settings), new EnvironmentModule(env), new ThreadPoolModule(pool));
             AuthenticationFailureHandler failureHandler = injector.getInstance(AuthenticationFailureHandler.class);
             assertThat(failureHandler, notNullValue());
             assertThat(failureHandler, instanceOf(DefaultAuthenticationFailureHandler.class));
@@ -130,7 +131,7 @@ public class AuthenticationModuleTests extends ESTestCase {
         ThreadPool pool = new ThreadPool(settings);
 
         try {
-            Injector injector = Guice.createInjector(module, new SettingsModule(settings), new AuditTrailModule(settings), new CryptoModule(settings), new EnvironmentModule(env), new ThreadPoolModule(pool));
+            Injector injector = Guice.createInjector(module, new SettingsModule(settings, new SettingsFilter(settings)), new AuditTrailModule(settings), new CryptoModule(settings), new EnvironmentModule(env), new ThreadPoolModule(pool));
             AuthenticationFailureHandler failureHandler = injector.getInstance(AuthenticationFailureHandler.class);
             assertThat(failureHandler, notNullValue());
             assertThat(failureHandler, instanceOf(NoOpFailureHandler.class));

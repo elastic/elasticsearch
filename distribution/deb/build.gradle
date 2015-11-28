@@ -19,6 +19,7 @@
 
 task buildDeb(type: Deb) {
   dependsOn dependencyFiles, preparePackagingFiles
+  baseName 'elasticsearch' // this is what pom generation uses for artifactId
   // Follow elasticsearch's deb file naming convention
   archiveName "${packageName}-${project.version}.deb"
   packageGroup 'web'

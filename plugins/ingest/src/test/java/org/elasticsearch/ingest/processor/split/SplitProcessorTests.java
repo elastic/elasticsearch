@@ -24,9 +24,9 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.*;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class SplitProcessorTests extends ESTestCase {
@@ -46,7 +46,7 @@ public class SplitProcessorTests extends ESTestCase {
         }
     }
 
-    public void testSplitNullValue() throws Exception {
+    public void testSplitFieldNotFound() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Map<String, String> split = Collections.singletonMap(fieldName, "\\.");
@@ -55,7 +55,19 @@ public class SplitProcessorTests extends ESTestCase {
             processor.execute(ingestDocument);
             fail("split processor should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field [" + fieldName + "] is null, cannot split."));
+            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
+        }
+    }
+
+    public void testSplitNullValue() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
+        Map<String, String> split = Collections.singletonMap("field", "\\.");
+        Processor processor = new SplitProcessor(split);
+        try {
+            processor.execute(ingestDocument);
+            fail("split processor should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [field] is null, cannot split."));
         }
     }
 

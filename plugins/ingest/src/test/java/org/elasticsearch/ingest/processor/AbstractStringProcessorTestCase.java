@@ -23,12 +23,12 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractStringProcessorTestCase extends ESTestCase {
@@ -57,7 +57,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
         }
     }
 
-    public void testNullValue() throws Exception {
+    public void testFieldNotFound() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Processor processor = newProcessor(Collections.singletonList(fieldName));
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
@@ -65,7 +65,18 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
             processor.execute(ingestDocument);
             fail("processor should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field [" + fieldName + "] is null, cannot process it."));
+            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
+        }
+    }
+
+    public void testNullValue() throws Exception {
+        Processor processor = newProcessor(Collections.singletonList("field"));
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
+        try {
+            processor.execute(ingestDocument);
+            fail("processor should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [field] is null, cannot process it."));
         }
     }
 

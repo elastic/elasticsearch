@@ -24,8 +24,9 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
-import java.util.*;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
 
 import static org.hamcrest.Matchers.equalTo;
 
@@ -44,7 +45,7 @@ public class AddProcessorTests extends ESTestCase {
         processor.execute(ingestDocument);
 
         for (Map.Entry<String, Object> field : fields.entrySet()) {
-            assertThat(ingestDocument.hasFieldValue(field.getKey()), equalTo(true));
+            assertThat(ingestDocument.hasField(field.getKey()), equalTo(true));
             assertThat(ingestDocument.getFieldValue(field.getKey(), Object.class), equalTo(field.getValue()));
         }
     }
@@ -63,7 +64,7 @@ public class AddProcessorTests extends ESTestCase {
         Processor processor = new AddProcessor(fields);
         processor.execute(ingestDocument);
         for (Map.Entry<String, Object> field : fields.entrySet()) {
-            assertThat(ingestDocument.hasFieldValue(field.getKey()), equalTo(true));
+            assertThat(ingestDocument.hasField(field.getKey()), equalTo(true));
             assertThat(ingestDocument.getFieldValue(field.getKey(), Object.class), equalTo(field.getValue()));
         }
     }
@@ -76,7 +77,7 @@ public class AddProcessorTests extends ESTestCase {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("cannot add field to parent [field] of type [java.lang.String], [java.util.Map] expected instead."));
+            assertThat(e.getMessage(), equalTo("cannot set [inner] with parent object of type [java.lang.String] as part of path [field.inner]"));
         }
     }
 }

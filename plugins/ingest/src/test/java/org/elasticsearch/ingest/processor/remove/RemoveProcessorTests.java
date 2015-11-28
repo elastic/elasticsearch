@@ -24,14 +24,13 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Set;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class RemoveProcessorTests extends ESTestCase {
 
@@ -45,15 +44,19 @@ public class RemoveProcessorTests extends ESTestCase {
         Processor processor = new RemoveProcessor(fields);
         processor.execute(ingestDocument);
         for (String field : fields) {
-            assertThat(ingestDocument.getFieldValue(field, Object.class), nullValue());
-            assertThat(ingestDocument.hasFieldValue(field), equalTo(false));
+            assertThat(ingestDocument.hasField(field), equalTo(false));
         }
     }
 
     public void testRemoveNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        Processor processor = new RemoveProcessor(Collections.singletonList(RandomDocumentPicks.randomFieldName(random())));
-        processor.execute(ingestDocument);
-        assertThat(ingestDocument.getSource().size(), equalTo(0));
+        String fieldName = RandomDocumentPicks.randomFieldName(random());
+        Processor processor = new RemoveProcessor(Collections.singletonList(fieldName));
+        try {
+            processor.execute(ingestDocument);
+            fail("remove field should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
+        }
     }
 }

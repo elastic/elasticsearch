@@ -45,7 +45,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,7 +52,6 @@ import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.*;
 import static org.hamcrest.core.Is.is;
-import static org.hamcrest.core.IsNull.notNullValue;
 
 public class IngestClientIT extends ESIntegTestCase {
 
@@ -115,8 +113,37 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(response.getResults().size(), equalTo(1));
         assertThat(response.getResults().get(0), instanceOf(SimulateDocumentSimpleResult.class));
         SimulateDocumentSimpleResult simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) response.getResults().get(0);
-        IngestDocument expectedIngestDocument = new IngestDocument("index", "type", "id", Collections.singletonMap("foo", "bar"));
-        assertThat(simulateDocumentSimpleResult.getIngestDocument(), equalTo(expectedIngestDocument));
+        assertThat(simulateDocumentSimpleResult.getIngestDocument(), nullValue());
+        assertThat(simulateDocumentSimpleResult.getFailure(), notNullValue());
+
+        response = new SimulatePipelineRequestBuilder(client(), SimulatePipelineAction.INSTANCE)
+                .setId("_id")
+                .setSource(jsonBuilder().startObject()
+                        .startArray("docs")
+                        .startObject()
+                        .field("_index", "index")
+                        .field("_type", "type")
+                        .field("_id", "id")
+                        .startObject("_source")
+                        .field("field1", "123.42 400 <foo>")
+                        .endObject()
+                        .endObject()
+                        .endArray()
+                        .endObject().bytes())
+                .get();
+
+        assertThat(response.isVerbose(), equalTo(false));
+        assertThat(response.getPipelineId(), equalTo("_id"));
+        assertThat(response.getResults().size(), equalTo(1));
+        assertThat(response.getResults().get(0), instanceOf(SimulateDocumentSimpleResult.class));
+        simulateDocumentSimpleResult = (SimulateDocumentSimpleResult) response.getResults().get(0);
+        Map<String, Object> source = new HashMap<>();
+        source.put("field1", "123.42 400 <foo>");
+        source.put("val", 123.42f);
+        source.put("status", 400);
+        source.put("msg", "foo");
+        IngestDocument ingestDocument = new IngestDocument("index", "type", "id", source);
+        assertThat(simulateDocumentSimpleResult.getIngestDocument().getSource(), equalTo(ingestDocument.getSource()));
         assertThat(simulateDocumentSimpleResult.getFailure(), nullValue());
     }
 

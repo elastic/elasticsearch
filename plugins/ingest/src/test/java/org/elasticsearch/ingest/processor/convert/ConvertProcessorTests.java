@@ -24,10 +24,10 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.*;
 
-import static org.elasticsearch.ingest.processor.convert.ConvertProcessor.*;
+import static org.elasticsearch.ingest.processor.convert.ConvertProcessor.Type;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ConvertProcessorTests extends ESTestCase {
@@ -309,7 +309,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
     }
 
-    public void testConvertNullField() throws Exception {
+    public void testConvertNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Type type = randomFrom(Type.values());
@@ -319,7 +319,20 @@ public class ConvertProcessorTests extends ESTestCase {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("Field [" + fieldName + "] is null, cannot be converted to type [" + type + "]"));
+            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
+        }
+    }
+
+    public void testConvertNullField() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
+        Type type = randomFrom(Type.values());
+        Map<String, Type> convert = Collections.singletonMap("field", type);
+        Processor processor = new ConvertProcessor(convert);
+        try {
+            processor.execute(ingestDocument);
+            fail("processor execute should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("Field [field] is null, cannot be converted to type [" + type + "]"));
         }
     }
 }

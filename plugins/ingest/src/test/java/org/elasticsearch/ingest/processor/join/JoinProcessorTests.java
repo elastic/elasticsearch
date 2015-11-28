@@ -24,9 +24,9 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.*;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class JoinProcessorTests extends ESTestCase {
@@ -111,7 +111,17 @@ public class JoinProcessorTests extends ESTestCase {
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field [" + fieldName + "] is null, cannot join."));
+            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
+        }
+    }
+
+    public void testJoinNullValue() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
+        Processor processor = new JoinProcessor(Collections.singletonMap("field", "-"));
+        try {
+            processor.execute(ingestDocument);
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [field] is null, cannot join."));
         }
     }
 }

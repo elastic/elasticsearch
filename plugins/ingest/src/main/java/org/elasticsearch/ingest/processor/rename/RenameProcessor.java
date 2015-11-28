@@ -47,8 +47,8 @@ public class RenameProcessor implements Processor {
     @Override
     public void execute(IngestDocument document) {
         for(Map.Entry<String, String> entry : fields.entrySet()) {
-            if (document.hasFieldValue(entry.getKey())) {
-                if (document.hasFieldValue(entry.getKey()) == false) {
+            if (document.hasField(entry.getKey())) {
+                if (document.hasField(entry.getKey()) == false) {
                     throw new IllegalArgumentException("field [" + entry.getKey() + "] doesn't exist");
                 }
                 Object oldValue = document.getFieldValue(entry.getKey(), Object.class);

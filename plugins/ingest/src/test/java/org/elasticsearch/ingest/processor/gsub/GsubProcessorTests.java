@@ -24,13 +24,13 @@ import org.elasticsearch.ingest.RandomDocumentPicks;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.regex.Pattern;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class GsubProcessorTests extends ESTestCase {
@@ -64,7 +64,7 @@ public class GsubProcessorTests extends ESTestCase {
         }
     }
 
-    public void testGsubNullValue() throws Exception {
+    public void testGsubFieldNotFound() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression(fieldName, Pattern.compile("\\."), "-"));
@@ -73,7 +73,19 @@ public class GsubProcessorTests extends ESTestCase {
             processor.execute(ingestDocument);
             fail("processor execution should have failed");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("field [" + fieldName + "] is null, cannot match pattern."));
+            assertThat(e.getMessage(), containsString("not present as part of path [" + fieldName + "]"));
+        }
+    }
+
+    public void testGsubNullValue() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
+        List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression("field", Pattern.compile("\\."), "-"));
+        Processor processor = new GsubProcessor(gsubExpressions);
+        try {
+            processor.execute(ingestDocument);
+            fail("processor execution should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("field [field] is null, cannot match pattern."));
         }
     }
 }

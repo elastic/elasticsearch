@@ -67,29 +67,28 @@ public final class IngestDocument {
      * @param path The path within the document in dot-notation
      * @param clazz The expected class of the field value
      * @return the value for the provided path if existing, null otherwise
-     * @throws IllegalArgumentException if the field is present but is not of the type provided as argument.
+     * @throws IllegalArgumentException if the field is null, empty, or if the source contains a field within the path
+     * which is not of the expected type
      */
     public <T> T getFieldValue(String path, Class<T> clazz) {
-        if (path == null || path.length() == 0) {
-            return null;
+        if (Strings.isEmpty(path)) {
+            throw new IllegalArgumentException("path cannot be null nor empty");
         }
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
 
-        Map<String, Object> innerMap = getParent(pathElements);
-        if (innerMap == null) {
-            return null;
+        Object context = source;
+        for (String pathElement : pathElements) {
+            context = resolve(pathElement, path, context);
         }
 
-        String leafKey = pathElements[pathElements.length - 1];
-        Object fieldValue = innerMap.get(leafKey);
-        if (fieldValue == null) {
+        if (context == null) {
             return null;
         }
-        if (clazz.isInstance(fieldValue)) {
-            return clazz.cast(fieldValue);
+        if (clazz.isInstance(context)) {
+            return clazz.cast(context);
         }
-        throw new IllegalArgumentException("field [" + path + "] of type [" + fieldValue.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
+        throw new IllegalArgumentException("field [" + path + "] of type [" + context.getClass().getName() + "] cannot be cast to [" + clazz.getName() + "]");
     }
 
     /**
@@ -97,18 +96,58 @@ public final class IngestDocument {
      * @param path The path within the document in dot-notation
      * @return true if the document contains a value for the field, false otherwise
      */
-    public boolean hasFieldValue(String path) {
-        if (path == null || path.length() == 0) {
+    public boolean hasField(String path) {
+        if (Strings.isEmpty(path)) {
             return false;
         }
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
-        Map<String, Object> innerMap = getParent(pathElements);
-        if (innerMap == null) {
-            return false;
+
+        Object context = source;
+        for (int i = 0; i < pathElements.length - 1; i++) {
+            String pathElement = pathElements[i];
+            if (context == null) {
+                return false;
+            }
+            if (context instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) context;
+                context = map.get(pathElement);
+            } else if (context instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) context;
+                try {
+                    int index = Integer.parseInt(pathElement);
+                    if (index < 0 || index >= list.size()) {
+                        return false;
+                    }
+                    context = list.get(index);
+                } catch (NumberFormatException e) {
+                    return false;
+                }
+
+            } else {
+                return false;
+            }
         }
+
         String leafKey = pathElements[pathElements.length - 1];
-        return innerMap.containsKey(leafKey);
+        if (context instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) context;
+            return map.containsKey(leafKey);
+        }
+        if (context instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) context;
+            try {
+                int index = Integer.parseInt(leafKey);
+                return index >= 0 && index < list.size();
+            } catch (NumberFormatException e) {
+                return false;
+            }
+        }
+        return false;
     }
 
     /**
@@ -116,73 +155,182 @@ public final class IngestDocument {
      * @param path the path of the field to be removed
      */
     public void removeField(String path) {
-        if (path == null || path.length() == 0) {
-            return;
+        if (Strings.isEmpty(path)) {
+            throw new IllegalArgumentException("path cannot be null nor empty");
         }
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
-        Map<String, Object> parent = getParent(pathElements);
-        if (parent != null) {
-            String leafKey = pathElements[pathElements.length - 1];
-            if (parent.containsKey(leafKey)) {
-                sourceModified = true;
-                parent.remove(leafKey);
-            }
+
+        Object context = source;
+        for (int i = 0; i < pathElements.length - 1; i++) {
+            context = resolve(pathElements[i], path, context);
         }
+
+        String leafKey = pathElements[pathElements.length - 1];
+        if (context instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) context;
+            if (map.containsKey(leafKey)) {
+                map.remove(leafKey);
+                this.sourceModified = true;
+                return;
+            }
+            throw new IllegalArgumentException("field [" + leafKey + "] not present as part of path [" + path + "]");
+        }
+        if (context instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) context;
+            int index;
+            try {
+                index = Integer.parseInt(leafKey);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("[" + leafKey + "] is not an integer, cannot be used as an index as part of path [" + path + "]", e);
+            }
+            if (index < 0 || index >= list.size()) {
+                throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]");
+            }
+            list.remove(index);
+            this.sourceModified = true;
+            return;
+        }
+
+        if (context == null) {
+            throw new IllegalArgumentException("cannot remove [" + leafKey + "] from null as part of path [" + path + "]");
+        }
+        throw new IllegalArgumentException("cannot remove [" + leafKey + "] from object of type [" + context.getClass().getName() + "] as part of path [" + path + "]");
     }
 
-    private Map<String, Object> getParent(String[] pathElements) {
-        Map<String, Object> innerMap = source;
-        for (int i = 0; i < pathElements.length - 1; i++) {
-            Object obj = innerMap.get(pathElements[i]);
-            if (obj instanceof Map) {
-                @SuppressWarnings("unchecked")
-                Map<String, Object> stringObjectMap = (Map<String, Object>) obj;
-                innerMap = stringObjectMap;
-            } else {
-                return null;
-            }
+    private static Object resolve(String pathElement, String fullPath, Object context) {
+        if (context == null) {
+            throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + fullPath + "]");
         }
-        return innerMap;
+        if (context instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) context;
+            if (map.containsKey(pathElement)) {
+                return map.get(pathElement);
+            }
+            throw new IllegalArgumentException("field [" + pathElement + "] not present as part of path [" + fullPath + "]");
+        }
+        if (context instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) context;
+            int index;
+            try {
+                index = Integer.parseInt(pathElement);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + fullPath + "]", e);
+            }
+            if (index < 0 || index >= list.size()) {
+                throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + fullPath + "]");
+            }
+            return list.get(index);
+        }
+        throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from object of type [" + context.getClass().getName() + "] as part of path [" + fullPath + "]");
+    }
+
+    /**
+     * Appends the provided value to the provided path in the document.
+     * Any non existing path element will be created. Same as {@link #setFieldValue(String, Object)}
+     * but if the last element is a list, the value will be appended to the existing list.
+     * @param path The path within the document in dot-notation
+     * @param value The value to put in for the path key
+     */
+    public void appendFieldValue(String path, Object value) {
+        setFieldValue(path, value, true);
     }
 
     /**
      * Sets the provided value to the provided path in the document.
-     * Any non existing path element will be created.
+     * Any non existing path element will be created. If the last element is a list,
+     * the value will replace the existing list.
      * @param path The path within the document in dot-notation
      * @param value The value to put in for the path key
      */
     public void setFieldValue(String path, Object value) {
-        if (path == null || path.length() == 0) {
-            throw new IllegalArgumentException("cannot add null or empty field");
+        setFieldValue(path, value, false);
+    }
+
+    private void setFieldValue(String path, Object value, boolean append) {
+        if (Strings.isEmpty(path)) {
+            throw new IllegalArgumentException("path cannot be null nor empty");
         }
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
 
-        Map<String, Object> inner = source;
+        Object context = source;
         for (int i = 0; i < pathElements.length - 1; i++) {
             String pathElement = pathElements[i];
-            if (inner.containsKey(pathElement)) {
-                Object object = inner.get(pathElement);
-                if (object instanceof Map) {
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> stringObjectMap = (Map<String, Object>) object;
-                    inner = stringObjectMap;
-                } else if (object == null ) {
-                    throw new IllegalArgumentException("cannot add field to null parent, [" + Map.class.getName() + "] expected instead.");
+            if (context == null) {
+                throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from null as part of path [" + path + "]");
+            }
+            if (context instanceof Map) {
+                @SuppressWarnings("unchecked")
+                Map<String, Object> map = (Map<String, Object>) context;
+                if (map.containsKey(pathElement)) {
+                    context = map.get(pathElement);
                 } else {
-                    throw new IllegalArgumentException("cannot add field to parent [" + pathElement + "] of type [" + object.getClass().getName() + "], [" + Map.class.getName() + "] expected instead.");
+                    HashMap<Object, Object> newMap = new HashMap<>();
+                    map.put(pathElement, newMap);
+                    sourceModified = true;
+                    context = newMap;
                 }
+            } else if (context instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Object> list = (List<Object>) context;
+                int index;
+                try {
+                    index = Integer.parseInt(pathElement);
+                } catch (NumberFormatException e) {
+                    throw new IllegalArgumentException("[" + pathElement + "] is not an integer, cannot be used as an index as part of path [" + path + "]", e);
+                }
+                if (index < 0 || index >= list.size()) {
+                    throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]");
+                }
+                context = list.get(index);
             } else {
-                Map<String, Object> newInnerMap = new HashMap<>();
-                inner.put(pathElement, newInnerMap);
-                inner = newInnerMap;
+                throw new IllegalArgumentException("cannot resolve [" + pathElement + "] from object of type [" + context.getClass().getName() + "] as part of path [" + path + "]");
             }
         }
 
         String leafKey = pathElements[pathElements.length - 1];
-        inner.put(leafKey, value);
-        sourceModified = true;
+        if (context == null) {
+            throw new IllegalArgumentException("cannot set [" + leafKey + "] with null parent as part of path [" + path + "]");
+        }
+        if (context instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<String, Object> map = (Map<String, Object>) context;
+            if (append) {
+                if (map.containsKey(leafKey)) {
+                    Object object = map.get(leafKey);
+                    if (object instanceof List) {
+                        @SuppressWarnings("unchecked")
+                        List<Object> list = (List<Object>) object;
+                        list.add(value);
+                        sourceModified = true;
+                        return;
+                    }
+                }
+            }
+            map.put(leafKey, value);
+            sourceModified = true;
+        } else if (context instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> list = (List<Object>) context;
+            int index;
+            try {
+                index = Integer.parseInt(leafKey);
+            } catch (NumberFormatException e) {
+                throw new IllegalArgumentException("[" + leafKey + "] is not an integer, cannot be used as an index as part of path [" + path + "]", e);
+            }
+            if (index < 0 || index >= list.size()) {
+                throw new IllegalArgumentException("[" + index + "] is out of bounds for array with length [" + list.size() + "] as part of path [" + path + "]");
+            }
+            list.add(index, value);
+            this.sourceModified = true;
+        } else {
+            throw new IllegalArgumentException("cannot set [" + leafKey + "] with parent object of type [" + context.getClass().getName() + "] as part of path [" + path + "]");
+        }
     }
 
     public String getMetadata(MetaData metaData) {
@@ -195,7 +343,7 @@ public final class IngestDocument {
 
     /**
      * Returns the document. Should be used only for reading. Any change made to the returned map will
-     * not be reflected to the modified flag. Modify the document instead using {@link #setFieldValue(String, Object)}
+     * not be reflected to the sourceModified flag. Modify the document instead using {@link #setFieldValue(String, Object)}
      * and {@link #removeField(String)}
      */
     public Map<String, Object> getSource() {

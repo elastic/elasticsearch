@@ -180,39 +180,6 @@ public class PluginManagerCliParser extends CliTool {
     }
 
     /**
-     * Update a plugin
-     */
-    static class Update extends CliTool.Command {
-
-        private static final String NAME = "update";
-
-        private static final CliToolConfig.Cmd CMD = cmd(NAME, Update.class).build();
-        private final Command remove;
-        private final Command install;
-
-        public static Command parse(Terminal terminal, CommandLine cli) {
-            Command remove = Remove.parse(terminal, cli);
-            Command install = Install.parse(terminal, cli);
-            return new Update(terminal, remove, install);
-        }
-
-        Update(Terminal terminal, Command remove, Command install) {
-            super(terminal);
-            this.remove = remove;
-            this.install = install;
-        }
-
-        @Override
-        public ExitStatus execute(Settings settings, Environment env) throws Exception {
-            ExitStatus status = remove.execute(settings, env);
-            if (status != ExitStatus.OK) {
-                return status;
-            }
-            return install.execute(settings, env);
-        }
-    }
-
-    /**
      * Installs a plugin
      */
     static class Install extends Command {
@@ -286,6 +253,39 @@ public class PluginManagerCliParser extends CliTool {
             }
             pluginManager.downloadAndExtract(name, terminal, batch);
             return ExitStatus.OK;
+        }
+    }
+
+    /**
+     * Update a plugin
+     */
+    static class Update extends CliTool.Command {
+
+        private static final String NAME = "update";
+
+        private static final CliToolConfig.Cmd CMD = cmd(NAME, Update.class).build();
+        private final Command remove;
+        private final Command install;
+
+        public static Command parse(Terminal terminal, CommandLine cli) {
+            Command remove = Remove.parse(terminal, cli);
+            Command install = Install.parse(terminal, cli);
+            return new Update(terminal, remove, install);
+        }
+
+        Update(Terminal terminal, Command remove, Command install) {
+            super(terminal);
+            this.remove = remove;
+            this.install = install;
+        }
+
+        @Override
+        public ExitStatus execute(Settings settings, Environment env) throws Exception {
+            ExitStatus status = remove.execute(settings, env);
+            if (status != ExitStatus.OK) {
+                return status;
+            }
+            return install.execute(settings, env);
         }
     }
 }

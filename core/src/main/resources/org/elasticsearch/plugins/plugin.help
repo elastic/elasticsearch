@@ -16,6 +16,8 @@ COMMANDS
 
     remove     Remove a plugin
 
+    update     Update a plugin
+
     list       List installed plugins
 
 NOTES

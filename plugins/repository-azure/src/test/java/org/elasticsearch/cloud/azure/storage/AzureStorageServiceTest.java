@@ -37,6 +37,7 @@ public class AzureStorageServiceTest extends ESTestCase {
             .put("cloud.azure.storage.azure2.key", "mykey2")
             .put("cloud.azure.storage.azure3.account", "myaccount3")
             .put("cloud.azure.storage.azure3.key", "mykey3")
+            .put("cloud.azure.storage.azure3.timeout", "30s")
             .build();
 
     public void testGetSelectedClientWithNoPrimaryAndSecondary() {
@@ -89,6 +90,28 @@ public class AzureStorageServiceTest extends ESTestCase {
         assertThat(client.getEndpoint(), is(URI.create("https://azure1")));
     }
 
+    public void testGetSelectedClientGlobalTimeout() {
+        Settings timeoutSettings = Settings.builder()
+                .put(settings)
+                .put("cloud.azure.storage.timeout", "10s")
+                .build();
+
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(timeoutSettings);
+        azureStorageService.doStart();
+        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(10 * 1000));
+        CloudBlobClient client3 = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
+        assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
+    }
+
+    public void testGetSelectedClientDefaultTimeout() {
+        AzureStorageServiceImpl azureStorageService = new AzureStorageServiceMock(settings);
+        azureStorageService.doStart();
+        CloudBlobClient client1 = azureStorageService.getSelectedClient("azure1", LocationMode.PRIMARY_ONLY);
+        assertThat(client1.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(5 * 60 * 1000));
+        CloudBlobClient client3 = azureStorageService.getSelectedClient("azure3", LocationMode.PRIMARY_ONLY);
+        assertThat(client3.getDefaultRequestOptions().getTimeoutIntervalInMs(), is(30 * 1000));
+    }
 
     /**
      * This internal class just overload createClient method which is called by AzureStorageServiceImpl.doStart()

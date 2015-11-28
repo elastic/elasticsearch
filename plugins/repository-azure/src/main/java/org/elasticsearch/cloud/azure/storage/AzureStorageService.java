@@ -41,6 +41,8 @@ public interface AzureStorageService {
         @Deprecated
         public static final String KEY_DEPRECATED = "cloud.azure.storage.key";
 
+        public static final String TIMEOUT = "cloud.azure.storage.timeout";
+
         public static final String ACCOUNT = "repositories.azure.account";
         public static final String LOCATION_MODE = "repositories.azure.location_mode";
         public static final String CONTAINER = "repositories.azure.container";

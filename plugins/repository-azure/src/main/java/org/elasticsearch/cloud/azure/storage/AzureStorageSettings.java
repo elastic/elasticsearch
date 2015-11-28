@@ -25,6 +25,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.repositories.RepositorySettings;
 
 import java.util.HashMap;
@@ -36,11 +37,13 @@ public class AzureStorageSettings {
     private String name;
     private String account;
     private String key;
+    private TimeValue timeout;
 
-    public AzureStorageSettings(String name, String account, String key) {
+    public AzureStorageSettings(String name, String account, String key, TimeValue timeout) {
         this.name = name;
         this.account = account;
         this.key = key;
+        this.timeout = timeout;
     }
 
     public String getName() {
@@ -55,12 +58,17 @@ public class AzureStorageSettings {
         return account;
     }
 
+    public TimeValue getTimeout() {
+        return timeout;
+    }
+
     @Override
     public String toString() {
         final StringBuffer sb = new StringBuffer("AzureStorageSettings{");
         sb.append("name='").append(name).append('\'');
         sb.append(", account='").append(account).append('\'');
         sb.append(", key='").append(key).append('\'');
+        sb.append(", timeout=").append(timeout);
         sb.append('}');
         return sb.toString();
     }
@@ -77,10 +85,13 @@ public class AzureStorageSettings {
         // We check for deprecated settings
         String account = settings.get(Storage.ACCOUNT_DEPRECATED);
         String key = settings.get(Storage.KEY_DEPRECATED);
+
+        TimeValue globalTimeout = settings.getAsTime(Storage.TIMEOUT, TimeValue.timeValueMinutes(5));
+
         if (account != null) {
             logger.warn("[{}] and [{}] have been deprecated. Use now [{}xxx.account] and [{}xxx.key] where xxx is any name",
                     Storage.ACCOUNT_DEPRECATED, Storage.KEY_DEPRECATED, Storage.PREFIX, Storage.PREFIX);
-            primaryStorage = new AzureStorageSettings(null, account, key);
+            primaryStorage = new AzureStorageSettings(null, account, key, globalTimeout);
         } else {
             Settings storageSettings = settings.getByPrefix(Storage.PREFIX);
             if (storageSettings != null) {
@@ -89,7 +100,8 @@ public class AzureStorageSettings {
                     if (storage.getValue() instanceof Map) {
                         @SuppressWarnings("unchecked")
                         Map<String, String> map = (Map) storage.getValue();
-                        AzureStorageSettings current = new AzureStorageSettings(storage.getKey(), map.get("account"), map.get("key"));
+                        TimeValue timeout = TimeValue.parseTimeValue(map.get("timeout"), globalTimeout, Storage.PREFIX + storage.getKey() + ".timeout");
+                        AzureStorageSettings current = new AzureStorageSettings(storage.getKey(), map.get("account"), map.get("key"), timeout);
                         boolean activeByDefault = Boolean.parseBoolean(map.getOrDefault("default", "false"));
                         if (activeByDefault) {
                             if (primaryStorage == null) {

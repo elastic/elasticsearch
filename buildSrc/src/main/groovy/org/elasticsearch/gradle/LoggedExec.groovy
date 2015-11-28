@@ -17,28 +17,26 @@
  * under the License.
  */
 
-package org.elasticsearch.common.settings;
+package org.elasticsearch.gradle
 
-import org.elasticsearch.common.inject.AbstractModule;
+import org.gradle.api.GradleException
+import org.gradle.api.tasks.Exec
 
 /**
- * A module that binds the provided settings to the {@link Settings} interface.
- *
- *
+ * A wrapper around gradle's Exec task to capture output and log on error.
  */
-public class SettingsModule extends AbstractModule {
-
-    private final Settings settings;
-    private final SettingsFilter settingsFilter;
-
-    public SettingsModule(Settings settings, SettingsFilter settingsFilter) {
-        this.settings = settings;
-        this.settingsFilter = settingsFilter;
-    }
-
-    @Override
-    protected void configure() {
-        bind(Settings.class).toInstance(settings);
-        bind(SettingsFilter.class).toInstance(settingsFilter);
+class LoggedExec extends Exec {
+    LoggedExec() {
+        if (logger.isInfoEnabled() == false) {
+            standardOutput = new ByteArrayOutputStream()
+            errorOutput = standardOutput
+            ignoreExitValue = true
+            doLast {
+                if (execResult.exitValue != 0) {
+                    standardOutput.toString('UTF-8').eachLine { line -> logger.error(line) }
+                    throw new GradleException("Process '${executable} ${args.join(' ')}' finished with non-zero exit value ${execResult.exitValue}")
+                }
+            }
+        }
     }
 }

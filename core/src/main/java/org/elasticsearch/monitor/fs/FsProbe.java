@@ -20,7 +20,6 @@
 package org.elasticsearch.monitor.fs;
 
 import org.elasticsearch.common.component.AbstractComponent;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.NodeEnvironment.NodePath;
@@ -31,7 +30,6 @@ public class FsProbe extends AbstractComponent {
 
     private final NodeEnvironment nodeEnv;
 
-    @Inject
     public FsProbe(Settings settings, NodeEnvironment nodeEnv) {
         super(settings);
         this.nodeEnv = nodeEnv;

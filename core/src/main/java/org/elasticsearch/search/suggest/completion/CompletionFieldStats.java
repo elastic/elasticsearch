@@ -20,6 +20,8 @@
 package org.elasticsearch.search.suggest.completion;
 
 import com.carrotsearch.hppc.ObjectLongHashMap;
+
+import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -32,28 +34,35 @@ import java.io.IOException;
 
 public class CompletionFieldStats {
 
-    public static CompletionStats completionStats(IndexReader indexReader, String ... fields) {
+    /**
+     * Returns total in-heap bytes used by all suggesters.  This method has CPU cost <code>O(numIndexedFields)</code>.
+     *
+     * @param fieldNamePatterns if non-null, any completion field name matching any of these patterns will break out its in-heap bytes
+     * separately in the returned {@link CompletionStats}
+     */
+    public static CompletionStats completionStats(IndexReader indexReader, String ... fieldNamePatterns) {
         long sizeInBytes = 0;
         ObjectLongHashMap<String> completionFields = null;
-        if (fields != null  && fields.length > 0) {
-            completionFields = new ObjectLongHashMap<>(fields.length);
+        if (fieldNamePatterns != null  && fieldNamePatterns.length > 0) {
+            completionFields = new ObjectLongHashMap<>(fieldNamePatterns.length);
         }
         for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
             LeafReader atomicReader = atomicReaderContext.reader();
             try {
-                for (String fieldName : atomicReader.fields()) {
-                    Terms terms = atomicReader.fields().terms(fieldName);
+                Fields fields = atomicReader.fields();
+                for (String fieldName : fields) {
+                    Terms terms = fields.terms(fieldName);
                     if (terms instanceof CompletionTerms) {
                         // TODO: currently we load up the suggester for reporting its size
                         long fstSize = ((CompletionTerms) terms).suggester().ramBytesUsed();
-                        if (fields != null && fields.length > 0 && Regex.simpleMatch(fields, fieldName)) {
+                        if (fieldNamePatterns != null && fieldNamePatterns.length > 0 && Regex.simpleMatch(fieldNamePatterns, fieldName)) {
                             completionFields.addTo(fieldName, fstSize);
                         }
                         sizeInBytes += fstSize;
                     }
                 }
-            } catch (IOException ignored) {
-                throw new ElasticsearchException(ignored);
+            } catch (IOException ioe) {
+                throw new ElasticsearchException(ioe);
             }
         }
         return new CompletionStats(sizeInBytes, completionFields);

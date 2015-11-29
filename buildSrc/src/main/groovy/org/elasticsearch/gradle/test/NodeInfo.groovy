@@ -45,6 +45,9 @@ class NodeInfo {
     /** elasticsearch home dir */
     File homeDir
 
+    /** config directory */
+    File confDir
+
     /** working directory for the node process */
     File cwd
 
@@ -77,6 +80,7 @@ class NodeInfo {
         baseDir = new File(project.buildDir, "cluster/${task.name} node${nodeNum}")
         pidFile = new File(baseDir, 'es.pid')
         homeDir = homeDir(baseDir, config.distribution)
+        confDir = confDir(baseDir, config.distribution)
         cwd = new File(baseDir, "cwd")
         failedMarker = new File(cwd, 'run.failed')
         startLog = new File(cwd, 'run.log')
@@ -92,6 +96,7 @@ class NodeInfo {
                 args.add("-D${property.getKey()}=${property.getValue()}")
             }
         }
+        args.add("-Des.default.path.conf=${confDir}")
         // running with cmd on windows will look for this with the .bat extension
         esScript = new File(homeDir, 'bin/elasticsearch').toString()
     }
@@ -122,10 +127,28 @@ class NodeInfo {
             case 'zip':
             case 'tar':
                 path = "elasticsearch-${VersionProperties.elasticsearch}"
-                break;
+                break
+            case 'rpm':
+            case 'deb':
+                path = "${distro}-extracted/usr/share/elasticsearch"
+                break
             default:
                 throw new InvalidUserDataException("Unknown distribution: ${distro}")
         }
         return new File(baseDir, path)
+    }
+
+    static File confDir(File baseDir, String distro) {
+        String Path
+        switch (distro) {
+            case 'zip':
+            case 'tar':
+                return new File(homeDir(baseDir, distro), 'config')
+            case 'rpm':
+            case 'deb':
+                return new File(baseDir, "${distro}-extracted/etc/elasticsearch")
+            default:
+                throw new InvalidUserDataException("Unkown distribution: ${distro}")
+        }
     }
 }

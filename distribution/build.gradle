@@ -143,9 +143,7 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
  *    MavenFilteringHack or any other copy-style action.
  */
 configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
-  // Currently disabled these because they are broken.
-  // integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
-  integTest.enabled = false
+  integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
   File packagingFiles = new File(buildDir, 'packaging')
   project.ext.packagingFiles = packagingFiles
   task processPackagingFiles(type: Copy) {

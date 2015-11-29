@@ -39,9 +39,6 @@ class StandaloneTestBasePlugin implements Plugin<Project> {
         BuildPlugin.globalBuildInfo(project)
         BuildPlugin.configureRepositories(project)
 
-        // remove some unnecessary tasks for a qa test
-        project.tasks.removeAll { it.name in ['assemble', 'buildDependents'] }
-
         // only setup tests to build
         project.sourceSets {
             test
@@ -54,6 +51,12 @@ class StandaloneTestBasePlugin implements Plugin<Project> {
             classpath {
                 sourceSets = [project.sourceSets.test]
                 plusConfigurations = [project.configurations.testRuntime]
+            }
+        }
+        project.idea {
+            module {
+                testSourceDirs += project.sourceSets.test.java.srcDirs
+                scopes['TEST'] = [plus: [project.configurations.testRuntime]]
             }
         }
         PrecommitTasks.configure(project)

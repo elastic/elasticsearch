@@ -316,11 +316,8 @@ class ClusterFormationTasks {
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
         String executable
-        List<String> esArgs = []
         if (Os.isFamily(Os.FAMILY_WINDOWS)) {
             executable = 'cmd'
-            esArgs.add('/C')
-            esArgs.add('call')
         } else {
             executable = 'sh'
         }
@@ -350,6 +347,9 @@ class ClusterFormationTasks {
 
             ant.exec(executable: executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
                 node.env.each { key, value -> env(key: key, value: value) }
+                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+                  arg(value: '/C')
+                }
                 arg(value: script)
                 node.args.each { arg(value: it) }
             }

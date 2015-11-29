@@ -536,7 +536,7 @@ public abstract class StreamInput extends InputStream {
     /**
      * Serializes a potential null value.
      */
-    public <T extends StreamableReader<T>> T readOptionalStreamable(StreamableReader<T> streamableReader) throws IOException {
+    public <T extends StreamableReader<T>> T readOptionalStreamableReader(StreamableReader<T> streamableReader) throws IOException {
         if (readBoolean()) {
             return streamableReader.readFrom(this);
         } else {

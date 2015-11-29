@@ -30,6 +30,8 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
 
     public static String SETTINGS_INDEX_LAG_THRESHOLD = "index.seq_no.index_lag.threshold";
     public static String SETTINGS_INDEX_LAG_MAX_WAIT = "index.seq_no.index_lag.max_wait";
+    final static int DEFAULT_INDEX_LAG_THRESHOLD = 1024;
+    final static TimeValue DEFAULT_INDEX_LAG_MAX_WAIT = TimeValue.timeValueSeconds(30);
 
     final Object mutex = new Object();
     final FixedBitSet processedSeqNo;
@@ -42,8 +44,8 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
 
     public LocalCheckpointService(ShardId shardId, IndexSettings indexSettings) {
         super(shardId, indexSettings);
-        indexLagThreshold = indexSettings.getSettings().getAsInt(SETTINGS_INDEX_LAG_THRESHOLD, 1024);
-        indexLagMaxWait = indexSettings.getSettings().getAsTime(SETTINGS_INDEX_LAG_MAX_WAIT, TimeValue.timeValueSeconds(30));
+        indexLagThreshold = indexSettings.getSettings().getAsInt(SETTINGS_INDEX_LAG_THRESHOLD, DEFAULT_INDEX_LAG_THRESHOLD);
+        indexLagMaxWait = indexSettings.getSettings().getAsTime(SETTINGS_INDEX_LAG_MAX_WAIT, DEFAULT_INDEX_LAG_MAX_WAIT);
         processedSeqNo = new FixedBitSet(indexLagThreshold);
 
     }
@@ -58,23 +60,12 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         }
     }
 
-    public void markSeqNoAsStarted(long seqNo) {
+    public long markSeqNoAsCompleted(long seqNo) {
         synchronized (mutex) {
             // make sure we track highest seen seqNo
             if (seqNo >= nextSeqNo) {
                 nextSeqNo = seqNo + 1;
             }
-            if (seqNo <= checkpoint) {
-                // this is possible during recover where we might replay an op that was also replicated
-                return;
-            }
-            ensureCapacity(seqNo);
-            assert processedSeqNo.get(seqNoToOffset(seqNo)) == false : "expected [" + seqNo + "] not to be marked as started";
-        }
-    }
-
-    public long markSeqNoAsCompleted(long seqNo) {
-        synchronized (mutex) {
             if (seqNo <= checkpoint) {
                 // this is possible during recover where we might replay an op that was also replicated
                 return checkpoint;
@@ -108,7 +99,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
 
     private boolean hasCapacity(long seqNo) {
         assert Thread.holdsLock(mutex);
-        return (seqNo - checkpoint) < indexLagThreshold;
+        return (seqNo - checkpoint) <= indexLagThreshold;
     }
 
     private void ensureCapacity(long seqNo) {
@@ -136,7 +127,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
     }
 
     private int seqNoToOffset(long seqNo) {
-        assert seqNo - checkpoint < indexLagThreshold;
+        assert seqNo - checkpoint <= indexLagThreshold;
         assert seqNo > checkpoint;
         return (int) (seqNo % indexLagThreshold);
     }

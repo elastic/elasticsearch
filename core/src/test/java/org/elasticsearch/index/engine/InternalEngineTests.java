@@ -1398,6 +1398,53 @@ public class InternalEngineTests extends ESTestCase {
         }
     }
 
+    public void testSeqNoAndLocalCheckpoint() {
+        int opCount = randomIntBetween(1, 10);
+        long seqNoCount = -1;
+        for (int op = 0; op < opCount; op++) {
+            final String id = randomFrom("1", "2", "3");
+            ParsedDocument doc = testParsedDocument(id, id, "test", null, -1, -1, testDocumentWithTextField(), B_1, null);
+            if (randomBoolean()) {
+                final Engine.Index index = new Engine.Index(newUid(id), doc,
+                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
+                        PRIMARY, System.currentTimeMillis());
+
+                try {
+                    engine.index(index);
+                } catch (VersionConflictEngineException e) {
+                    // OK
+                }
+                if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    seqNoCount++;
+                    Engine.Index replica = new Engine.Index(index.uid(), index.parsedDoc(), index.seqNo(),
+                            index.version(), VersionType.EXTERNAL, REPLICA, System.currentTimeMillis());
+                    replicaEngine.index(replica);
+                }
+            } else {
+                final Engine.Delete delete = new Engine.Delete("test", id, newUid(id),
+                        SequenceNumbersService.UNASSIGNED_SEQ_NO,
+                        rarely() ? 100 : Versions.MATCH_ANY, VersionType.INTERNAL,
+                        PRIMARY, System.currentTimeMillis(), false);
+                try {
+                    engine.delete(delete);
+                } catch (VersionConflictEngineException e) {
+                    // OK
+                }
+                if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    seqNoCount++;
+                    Engine.Delete replica = new Engine.Delete(delete.type(), delete.id(), delete.uid(), delete.seqNo(),
+                            delete.version(), VersionType.EXTERNAL, REPLICA, System.currentTimeMillis(), false);
+                    replicaEngine.delete(replica);
+                }
+            }
+        }
+        assertThat(engine.seqNoStats().getMaxSeqNo(), equalTo(seqNoCount));
+        assertThat(engine.seqNoStats().getLocalCheckpoint(), equalTo(seqNoCount));
+        assertThat(replicaEngine.seqNoStats().getMaxSeqNo(), equalTo(seqNoCount));
+        assertThat(replicaEngine.seqNoStats().getLocalCheckpoint(), equalTo(seqNoCount));
+    }
+
     // #8603: make sure we can separately log IFD's messages
     public void testIndexWriterIFDInfoStream() {
         assumeFalse("who tests the tester?", VERBOSE);

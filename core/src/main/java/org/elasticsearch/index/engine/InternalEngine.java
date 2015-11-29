@@ -356,45 +356,38 @@ public class InternalEngine extends Engine {
 
     private boolean innerIndex(Index index) throws IOException {
         synchronized (dirtyLock(index.uid())) {
-            lastWriteNanos = index.startTime();
-            final long currentVersion;
-            final boolean deleted;
-            VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
-            if (versionValue == null) {
-                currentVersion = loadCurrentVersionFromIndex(index.uid());
-                deleted = currentVersion == Versions.NOT_FOUND;
-            } else {
-                deleted = versionValue.delete();
-                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
-                    currentVersion = Versions.NOT_FOUND; // deleted, and GC
-                } else {
-                    currentVersion = versionValue.version();
-                }
-            }
-
-            long expectedVersion = index.version();
-            if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-                if (index.origin() == Operation.Origin.RECOVERY) {
-                    return false;
-                } else {
-                    throw new VersionConflictEngineException(shardId, index.type(), index.id(),
-                            index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
-                }
-            }
-            long updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
-
-            final boolean created;
-            index.updateVersion(updatedVersion);
-            final long seqNo;
-            if (index.origin() == Operation.Origin.PRIMARY) {
-                seqNo = seqNoService.generateSeqNo();
-            } else {
-                seqNo = index.seqNo();
-                seqNoService.markSeqNoAsStarted(seqNo);
-            }
             try {
+                lastWriteNanos = index.startTime();
+                final long currentVersion;
+                final boolean deleted;
+                VersionValue versionValue = versionMap.getUnderLock(index.uid().bytes());
+                if (versionValue == null) {
+                    currentVersion = loadCurrentVersionFromIndex(index.uid());
+                    deleted = currentVersion == Versions.NOT_FOUND;
+                } else {
+                    deleted = versionValue.delete();
+                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                        currentVersion = Versions.NOT_FOUND; // deleted, and GC
+                    } else {
+                        currentVersion = versionValue.version();
+                    }
+                }
+
+                long expectedVersion = index.version();
+                if (index.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
+                    if (index.origin() == Operation.Origin.RECOVERY) {
+                        return false;
+                    } else {
+                        throw new VersionConflictEngineException(shardId, index.type(), index.id(),
+                                index.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
+                    }
+                }
+                long updatedVersion = index.versionType().updateVersion(currentVersion, expectedVersion);
+
+                final boolean created;
+                index.updateVersion(updatedVersion);
                 if (index.origin() == Operation.Origin.PRIMARY) {
-                    index.updateSeqNo(seqNo);
+                    index.updateSeqNo(seqNoService.generateSeqNo());
                 }
                 if (currentVersion == Versions.NOT_FOUND) {
                     // document does not exists, we can optimize for create
@@ -424,7 +417,9 @@ public class InternalEngine extends Engine {
                 indexingService.postIndexUnderLock(index);
                 return created;
             } finally {
-                seqNoService.markSeqNoAsCompleted(seqNo);
+                if (index.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    seqNoService.markSeqNoAsCompleted(index.seqNo());
+                }
             }
         }
     }
@@ -481,44 +476,37 @@ public class InternalEngine extends Engine {
 
     private void innerDelete(Delete delete) throws IOException {
         synchronized (dirtyLock(delete.uid())) {
-            lastWriteNanos = delete.startTime();
-            final long currentVersion;
-            final boolean deleted;
-            VersionValue versionValue = versionMap.getUnderLock(delete.uid().bytes());
-            if (versionValue == null) {
-                currentVersion = loadCurrentVersionFromIndex(delete.uid());
-                deleted = currentVersion == Versions.NOT_FOUND;
-            } else {
-                deleted = versionValue.delete();
-                if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
-                    currentVersion = Versions.NOT_FOUND; // deleted, and GC
-                } else {
-                    currentVersion = versionValue.version();
-                }
-            }
-
-            long updatedVersion;
-            long expectedVersion = delete.version();
-            if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
-                if (delete.origin() == Operation.Origin.RECOVERY) {
-                    return;
-                } else {
-                    throw new VersionConflictEngineException(shardId, delete.type(), delete.id(),
-                            delete.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
-                }
-            }
-            updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
-
-            final long seqNo;
-            if (delete.origin() == Operation.Origin.PRIMARY) {
-                seqNo = seqNoService.generateSeqNo();
-            } else {
-                seqNo = delete.seqNo();
-                seqNoService.markSeqNoAsStarted(seqNo);
-            }
             try {
+                lastWriteNanos = delete.startTime();
+                final long currentVersion;
+                final boolean deleted;
+                VersionValue versionValue = versionMap.getUnderLock(delete.uid().bytes());
+                if (versionValue == null) {
+                    currentVersion = loadCurrentVersionFromIndex(delete.uid());
+                    deleted = currentVersion == Versions.NOT_FOUND;
+                } else {
+                    deleted = versionValue.delete();
+                    if (engineConfig.isEnableGcDeletes() && versionValue.delete() && (engineConfig.getThreadPool().estimatedTimeInMillis() - versionValue.time()) > engineConfig.getGcDeletesInMillis()) {
+                        currentVersion = Versions.NOT_FOUND; // deleted, and GC
+                    } else {
+                        currentVersion = versionValue.version();
+                    }
+                }
+
+                long updatedVersion;
+                long expectedVersion = delete.version();
+                if (delete.versionType().isVersionConflictForWrites(currentVersion, expectedVersion, deleted)) {
+                    if (delete.origin() == Operation.Origin.RECOVERY) {
+                        return;
+                    } else {
+                        throw new VersionConflictEngineException(shardId, delete.type(), delete.id(),
+                                delete.versionType().explainConflictForWrites(currentVersion, expectedVersion, deleted));
+                    }
+                }
+                updatedVersion = delete.versionType().updateVersion(currentVersion, expectedVersion);
+
                 if (delete.origin() == Operation.Origin.PRIMARY) {
-                    delete.updateSeqNo(seqNo);
+                    delete.updateSeqNo(seqNoService.generateSeqNo());
                 }
 
                 final boolean found;
@@ -540,7 +528,9 @@ public class InternalEngine extends Engine {
                 delete.setTranslogLocation(translogLocation);
                 indexingService.postDeleteUnderLock(delete);
             } finally {
-                seqNoService.markSeqNoAsCompleted(seqNo);
+                if (delete.seqNo() != SequenceNumbersService.UNASSIGNED_SEQ_NO) {
+                    seqNoService.markSeqNoAsCompleted(delete.seqNo());
+                }
             }
         }
     }

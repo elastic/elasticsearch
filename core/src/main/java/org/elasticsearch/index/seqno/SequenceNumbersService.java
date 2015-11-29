@@ -42,11 +42,6 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         return localCheckpointService.generateSeqNo();
     }
 
-    public void markSeqNoAsStarted(long seqNo) {
-        localCheckpointService.markSeqNoAsStarted(seqNo);
-
-    }
-
     public void markSeqNoAsCompleted(long seqNo) {
         localCheckpointService.markSeqNoAsCompleted(seqNo);
     }

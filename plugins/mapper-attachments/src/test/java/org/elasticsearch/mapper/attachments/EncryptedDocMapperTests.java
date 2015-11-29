@@ -60,7 +60,7 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.get(docMapper.mappers().getMapper("file1.title").fieldType().names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.author").fieldType().names().indexName()), equalTo("kimchy"));
         assertThat(doc.get(docMapper.mappers().getMapper("file1.keywords").fieldType().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").fieldType().names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file1.content_type").fieldType().names().indexName()), startsWith("text/html;"));
         assertThat(doc.getField(docMapper.mappers().getMapper("file1.content_length").fieldType().names().indexName()).numericValue().longValue(), is(344L));
 
         assertThat(doc.get(docMapper.mappers().getMapper("file2").fieldType().names().indexName()), nullValue());
@@ -96,7 +96,7 @@ public class EncryptedDocMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.get(docMapper.mappers().getMapper("file2.title").fieldType().names().indexName()), equalTo("Hello"));
         assertThat(doc.get(docMapper.mappers().getMapper("file2.author").fieldType().names().indexName()), equalTo("kimchy"));
         assertThat(doc.get(docMapper.mappers().getMapper("file2.keywords").fieldType().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
-        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").fieldType().names().indexName()), equalTo("text/html; charset=ISO-8859-1"));
+        assertThat(doc.get(docMapper.mappers().getMapper("file2.content_type").fieldType().names().indexName()), startsWith("text/html;"));
         assertThat(doc.getField(docMapper.mappers().getMapper("file2.content_length").fieldType().names().indexName()).numericValue().longValue(), is(344L));
     }
 

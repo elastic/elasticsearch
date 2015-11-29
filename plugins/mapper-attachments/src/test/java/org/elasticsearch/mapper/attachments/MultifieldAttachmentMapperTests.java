@@ -86,7 +86,6 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testExternalValues() throws Exception {
         String originalText = "This is an elasticsearch mapper attachment test.";
-        String contentType = "text/plain; charset=ISO-8859-1";
         String forcedName = "dummyname.txt";
 
         String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
@@ -108,9 +107,9 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.rootDoc().getField("file.content").stringValue(), is(originalText + "\n"));
 
         assertThat(doc.rootDoc().getField("file.content_type"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), startsWith("text/plain;"));
         assertThat(doc.rootDoc().getField("file.content_type.suggest"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), startsWith("text/plain;"));
         assertThat(doc.rootDoc().getField("file.content_length"), notNullValue());
         assertThat(doc.rootDoc().getField("file.content_length").numericValue().intValue(), is(originalText.length()));
 
@@ -131,9 +130,9 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.rootDoc().getField("file.content").stringValue(), is(originalText + "\n"));
 
         assertThat(doc.rootDoc().getField("file.content_type"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type").stringValue(), startsWith("text/plain;"));
         assertThat(doc.rootDoc().getField("file.content_type.suggest"), notNullValue());
-        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), is(contentType));
+        assertThat(doc.rootDoc().getField("file.content_type.suggest").stringValue(), startsWith("text/plain;"));
         assertThat(doc.rootDoc().getField("file.content_length"), notNullValue());
         assertThat(doc.rootDoc().getField("file.content_length").numericValue().intValue(), is(originalText.length()));
 

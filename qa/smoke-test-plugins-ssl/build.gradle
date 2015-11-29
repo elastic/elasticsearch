@@ -13,11 +13,6 @@ File cert = new File(project.buildDir, 'cert/test-node.csr')
 File signedCert = new File(project.buildDir, 'cert/test-node-signed.csr')
 File keystore = new File(project.buildDir, 'keystore/test-node.jks')
 
-// we touch keystore because otherwise it fails, extraConfigFile does not exist
-// this tricks some broken compile-time check into just moving along: we nuke this stuff before we actually generate
-keystore.parentFile.mkdirs()
-keystore.createNewFile()
-
 String caConfigData = """
 [ ca ]
 default_ca = CA_default

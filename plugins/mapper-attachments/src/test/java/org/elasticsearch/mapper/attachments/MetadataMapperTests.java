@@ -70,7 +70,11 @@ public class MetadataMapperTests extends AttachmentUnitTestCase {
         assertThat(doc.get(docMapper.mappers().getMapper("file.author").fieldType().names().indexName()), equalTo("kimchy"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.keywords").fieldType().names().indexName()), equalTo("elasticsearch,cool,bonsai"));
         assertThat(doc.get(docMapper.mappers().getMapper("file.content_type").fieldType().names().indexName()), startsWith("text/html;"));
-        assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue(), is(expectedLength));
+        if (expectedLength == null) {
+          assertNull(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue());
+        } else {
+          assertThat(doc.getField(docMapper.mappers().getMapper("file.content_length").fieldType().names().indexName()).numericValue().longValue(), greaterThan(0L));
+        }
     }
 
     public void testIgnoreWithoutDate() throws Exception {

@@ -296,13 +296,6 @@ class ClusterFormationTasks {
 
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
-            // we must add debug options inside the closure so the config is read at execution time, as
-            // gradle task options are not processed until the end of the configuration phase
-            if (node.config.debug) {
-                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
-                node.env['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
-            }
-
             // Due to how ant exec works with the spawn option, we lose all stdout/stderr from the
             // process executed. To work around this, when spawning, we wrap the elasticsearch start
             // command inside another shell script, which simply internally redirects the output
@@ -334,6 +327,13 @@ class ClusterFormationTasks {
 
         // this closure is the actual code to run elasticsearch
         Closure elasticsearchRunner = {
+            // we must add debug options inside the closure so the config is read at execution time, as
+            // gradle task options are not processed until the end of the configuration phase
+            if (node.config.debug) {
+                println 'Running elasticsearch in debug mode, suspending until connected on port 8000'
+                node.env['JAVA_OPTS'] = '-agentlib:jdwp=transport=dt_socket,server=y,suspend=y,address=8000'
+            }
+
             node.getCommandString().eachLine { line -> logger.info(line) }
 
             if (logger.isInfoEnabled() || node.config.daemonize == false) {

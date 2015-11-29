@@ -319,20 +319,27 @@ public class Completion090PostingsFormat extends PostingsFormat {
         }
     }
 
-    public CompletionStats completionStats(IndexReader indexReader, String ... fields) {
+    /**
+     * Returns total in-heap bytes used by all suggesters.  This method has CPU cost <code>O(numIndexedFields)</code>.
+     *
+     * @param fieldNamePatterns if non-null, any completion field name matching any of these patterns will break out its in-heap bytes
+     * separately in the returned {@link CompletionStats}
+     */
+    public CompletionStats completionStats(IndexReader indexReader, String ... fieldNamePatterns) {
         CompletionStats completionStats = new CompletionStats();
         for (LeafReaderContext atomicReaderContext : indexReader.leaves()) {
             LeafReader atomicReader = atomicReaderContext.reader();
             try {
-                for (String fieldName : atomicReader.fields()) {
-                    Terms terms = atomicReader.fields().terms(fieldName);
+                Fields fields = atomicReader.fields();
+                for (String fieldName : fields) {
+                    Terms terms = fields.terms(fieldName);
                     if (terms instanceof CompletionTerms) {
                         CompletionTerms completionTerms = (CompletionTerms) terms;
-                        completionStats.add(completionTerms.stats(fields));
+                        completionStats.add(completionTerms.stats(fieldNamePatterns));
                     }
                 }
-            } catch (IOException e) {
-                logger.error("Could not get completion stats: {}", e, e.getMessage());
+            } catch (IOException ioe) {
+                logger.error("Could not get completion stats", ioe);
             }
         }
 

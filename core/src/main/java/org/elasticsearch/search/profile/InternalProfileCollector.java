@@ -42,42 +42,27 @@ import java.util.Locale;
  * - doSetNextReader()
  * - needsScores()
  *
- * Because Collectors are (relatively) simple, this class also acts as the repository
- * for timing values and is the class that is serialized between nodes after the search
- * is complete.  When the InternalProfileCollector is serialized, only the timing
- * information is sent (not the wrapped Collector), so it cannot be used for another
- * search
- *
  * InternalProfiler facilitates the linking of the the Collector graph
  */
-public class InternalProfileCollector implements Collector, CollectorResult, ToXContent, Streamable {
-
-    private static final ParseField NAME = new ParseField("name");
-    private static final ParseField REASON = new ParseField("reason");
-    private static final ParseField TIME = new ParseField("time");
-    private static final ParseField CHILDREN = new ParseField("children");
+public class InternalProfileCollector implements Collector {
 
     /**
      * A more friendly representation of the Collector's class name
      */
-    private String collectorName;
+    private final String collectorName;
 
     /**
      * A "hint" to help provide some context about this Collector
      */
-    private String reason;
+    private final String reason;
 
-    /** The wrapped collector, or null when deserializing. */
+    /** The wrapped collector */
     private final ProfileCollector collector;
 
     /**
-     * The total elapsed time for this Collector, only relevant if
-     * {@code collector} is null, otherwise you need to read
-     * {@code collector.getTime()}.
+     * A list of "embedded" children collectors
      */
-    private Long time;
-
-    private List<InternalProfileCollector> children;
+    private final List<InternalProfileCollector> children;
 
     public InternalProfileCollector(Collector collector, String reason, List<InternalProfileCollector> children) {
         this.collector = new ProfileCollector(collector);
@@ -86,9 +71,25 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
         this.children = children;
     }
 
-    /** For serialization. */
-    public InternalProfileCollector() {
-        this.collector = null;
+    /**
+     * @return the profiled time for this collector (inclusive of children)
+     */
+    public long getTime() {
+        return collector.getTime();
+    }
+
+    /**
+     * @return a human readable "hint" about what this collector was used for
+     */
+    public String getReason() {
+        return this.reason;
+    }
+
+    /**
+     * @return the lucene class name of the collector
+     */
+    public String getName() {
+        return this.collectorName;
     }
 
     /**
@@ -111,7 +112,7 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
         }
 
         // Aggregation collector toString()'s include the user-defined agg name
-        if (reason.equals(REASON_AGGREGATION) || reason.equals(REASON_AGGREGATION_GLOBAL)) {
+        if (reason.equals(CollectorResult.REASON_AGGREGATION) || reason.equals(CollectorResult.REASON_AGGREGATION_GLOBAL)) {
             s += ": [" + c.toString() + "]";
         }
         return s;
@@ -127,91 +128,16 @@ public class InternalProfileCollector implements Collector, CollectorResult, ToX
         return collector.needsScores();
     }
 
-    /**
-     * Returns the reason "hint"
-     */
-    @Override
-    public String getReason() {
-        return reason;
+    public CollectorResult getCollectorTree() {
+        return InternalProfileCollector.doGetCollectorTree(this);
     }
 
-    /**
-     * Returns the elapsed time for this Collector, inclusive of children
-     */
-    @Override
-    public long getTime() {
-        if (collector == null) {
-            return time;
-        } else {
-            assert time == null;
-            return collector.getTime();
+    private static CollectorResult doGetCollectorTree(InternalProfileCollector collector) {
+        List<CollectorResult> childResults = new ArrayList<>(collector.children.size());
+        for (InternalProfileCollector child : collector.children) {
+            CollectorResult result = doGetCollectorTree(child);
+            childResults.add(result);
         }
-    }
-
-    @Override
-    public List<CollectorResult> getProfiledChildren() {
-        return Collections.unmodifiableList(children);
-    }
-    @Override
-    public String getName() {
-        return collectorName;
-    }
-
-    @Override
-    public String toString() {
-        return getName();
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder = builder.startObject()
-                .field(NAME.getPreferredName(), toString())
-                .field(REASON.getPreferredName(), reason.toString())
-                .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)));
-
-        if (children.isEmpty() == false) {
-            builder = builder.startArray(CHILDREN.getPreferredName());
-            for (InternalProfileCollector child : children) {
-                builder = child.toXContent(builder, params);
-            }
-            builder = builder.endArray();
-        }
-        builder = builder.endObject();
-        return builder;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
-        collectorName = in.readString();
-        reason = in.readString();
-        time = in.readLong();
-        int size = in.readVInt();
-        children = new ArrayList<>(size);
-        for (int i = 0; i < size; i++) {
-            InternalProfileCollector child = readProfileCollectorFromStream(in);
-            children.add(child);
-        }
-    }
-
-    public static InternalProfileCollector readProfileCollectorFromStream(StreamInput in) throws IOException {
-        InternalProfileCollector newInternalProfileCollector = new InternalProfileCollector();
-        newInternalProfileCollector.readFrom(in);
-        return newInternalProfileCollector;
-    }
-
-    @Override
-    public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(collectorName);
-        out.writeString(reason);
-        if (collector != null) {
-            out.writeLong(collector.getTime());
-        } else {
-            assert time != null;
-            out.writeLong(time);
-        }
-        out.writeVInt(children.size());
-        for (InternalProfileCollector child : children) {
-            child.writeTo(out);
-        }
+        return new CollectorResult(collector.getName(), collector.getReason(), collector.getTime(), childResults);
     }
 }

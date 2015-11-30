@@ -19,14 +19,24 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.ParseField;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 /**
- * Public interface to access the profiled timings of the various
+ * Public interface and serialization container for profiled timings of the
  * Collectors used in the search.  Children CollectorResult's may be
  * embedded inside of a parent CollectorResult
  */
-public interface CollectorResult {
+public class CollectorResult implements ToXContent, Writeable {
 
     public static final String REASON_SEARCH_COUNT = "search_count";
     public static final String REASON_SEARCH_TOP_HITS = "search_top_hits";
@@ -38,24 +48,109 @@ public interface CollectorResult {
     public static final String REASON_AGGREGATION = "aggregation";
     public static final String REASON_AGGREGATION_GLOBAL = "aggregation_global";
 
-    /**
-     * Return the elapsed time for this Collector, inclusive of all children
-     */
-    long getTime();
+    private static final ParseField NAME = new ParseField("name");
+    private static final ParseField REASON = new ParseField("reason");
+    private static final ParseField TIME = new ParseField("time");
+    private static final ParseField CHILDREN = new ParseField("children");
 
     /**
-     * Return the reason "hint" for the Collector, to provide a little more
-     * context to the end user why the Collector was added to the query.
+     * A more friendly representation of the Collector's class name
      */
-    String getReason();
+    private final String collectorName;
 
     /**
-     * Return the Class name of this Collector
+     * A "hint" to help provide some context about this Collector
      */
-    String getName();
+    private final String reason;
 
     /**
-     * Returns a list of children nested inside this Collector
+     * The total elapsed time for this Collector
      */
-    List<CollectorResult> getProfiledChildren();
+    private final Long time;
+
+    /**
+     * A list of children collectors "embedded" inside this collector
+     */
+    private List<CollectorResult> children;
+
+    public CollectorResult(String collectorName, String reason, Long time, List<CollectorResult> children) {
+        this.collectorName = collectorName;
+        this.reason = reason;
+        this.time = time;
+        this.children = children;
+    }
+
+    public CollectorResult(StreamInput in) throws IOException {
+        this.collectorName = in.readString();
+        this.reason = in.readString();
+        this.time = in.readLong();
+        int size = in.readVInt();
+        this.children = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            CollectorResult child = new CollectorResult(in);
+            this.children.add(child);
+        }
+    }
+
+    /**
+     * @return the profiled time for this collector (inclusive of children)
+     */
+    public long getTime() {
+        return this.time;
+    }
+
+    /**
+     * @return a human readable "hint" about what this collector was used for
+     */
+    public String getReason() {
+        return this.reason;
+    }
+
+    /**
+     * @return the lucene class name of the collector
+     */
+    public String getName() {
+        return this.collectorName;
+    }
+
+    /**
+     * @return a list of children collectors
+     */
+    public List<CollectorResult> getProfiledChildren() {
+        return children;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+        builder = builder.startObject()
+                .field(NAME.getPreferredName(), toString())
+                .field(REASON.getPreferredName(), reason)
+                .field(TIME.getPreferredName(), String.format(Locale.US, "%.10gms", (double) (getTime() / 1000000.0)));
+
+        if (!children.isEmpty()) {
+            builder = builder.startArray(CHILDREN.getPreferredName());
+            for (CollectorResult child : children) {
+                builder = child.toXContent(builder, params);
+            }
+            builder = builder.endArray();
+        }
+        builder = builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(collectorName);
+        out.writeString(reason);
+        out.writeLong(time);
+        out.writeVInt(children.size());
+        for (CollectorResult child : children) {
+            child.writeTo(out);
+        }
+    }
+
+    @Override
+    public Object readFrom(StreamInput in) throws IOException {
+        return new CollectorResult(in);
+    }
 }

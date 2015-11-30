@@ -36,12 +36,12 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
 
     private List<InternalProfileResult> profileResults;
 
-    private InternalProfileCollector profileCollector;
+    private CollectorResult profileCollector;
 
     private long rewriteTime;
 
     public InternalProfileShardResult(List<InternalProfileResult> profileResults, long rewriteTime,
-                                      InternalProfileCollector profileCollector) {
+                                      CollectorResult profileCollector) {
         this.profileResults = profileResults;
         this.profileCollector = profileCollector;
         this.rewriteTime = rewriteTime;
@@ -101,8 +101,7 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
 
         boolean hasCollector = in.readBoolean();
         if (hasCollector) {
-            profileCollector = InternalProfileCollector.readProfileCollectorFromStream(in);
-
+            profileCollector = new CollectorResult(in);
         }
         rewriteTime = in.readLong();
     }

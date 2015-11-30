@@ -105,8 +105,8 @@ public final class Profiler {
     /**
      * Return the current root Collector for this search
      */
-    public InternalProfileCollector getCollector() {
-        return collector;
+    public CollectorResult getCollector() {
+        return collector.getCollectorTree();
     }
 
     /**

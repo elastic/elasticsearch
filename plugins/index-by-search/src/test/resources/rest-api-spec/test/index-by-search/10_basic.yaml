@@ -19,3 +19,49 @@
 
   - match: {indexed: 1}
   - is_true: took
+
+---
+"Multi index example":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  blog
+        type:   post
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        index: twitter,blog
+        body:
+          index:
+            index: all_together
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: all_together
+        type: tweet
+        body:
+          query:
+            match:
+              user: kimchy
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: all_together
+        type: post
+        body:
+          query:
+            match:
+              user: kimchy
+  - match: { hits.total: 1 }

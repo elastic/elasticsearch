@@ -122,9 +122,14 @@ public class RestIndexBySearchAction extends BaseRestHandler {
             }
         }
         if (internalRequest.index().type() == null) {
-            if (types.length == 1) {
+            switch (types.length) {
+            case 0:
+                // Not specified meaning we'll copy it from the document
+                break;
+            case 1:
                 internalRequest.index().type(types[0]);
-            } else {
+                break;
+            default:
                 badRequest(channel, "multiple types specified in url but index request didn't specify a type");
                 return;
             }
@@ -147,7 +152,7 @@ public class RestIndexBySearchAction extends BaseRestHandler {
     private void badRequest(RestChannel channel, String message) {
         try {
             XContentBuilder builder = channel.newErrorBuilder();
-            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", "body required").endObject()));
+            channel.sendResponse(new BytesRestResponse(BAD_REQUEST, builder.startObject().field("error", message).endObject()));
         } catch (IOException e) {
             logger.warn("Failed to send response", e);
         }

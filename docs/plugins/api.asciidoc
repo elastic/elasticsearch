@@ -15,6 +15,11 @@ The delete by query plugin adds support for deleting all of the documents
 replacement for the problematic _delete-by-query_ functionality which has been
 removed from Elasticsearch core.
 
+<<plugins-index-by-search,Index by Search>>::
+
+The Index by Search plugin adds support for indexing a set of documents that
+match a search.
+
 [float]
 === Community contributed API extension plugins
 

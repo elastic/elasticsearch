@@ -108,14 +108,42 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
 
-        // field2 is not stored, check that it gets extracted from source
+        // field2 is not stored, check that it is not extracted from source.
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("field2").execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
-        assertThat(searchResponse.getHits().getAt(0).fields().get("field2").value().toString(), equalTo("value2"));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(0));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field2"), nullValue());
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("field3").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("*3").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("*3").addField("field1").addField("field2").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
+
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("field*").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("f*3").execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
@@ -439,8 +467,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
                 .get();
 
         assertThat(searchResponse.getHits().totalHits(), equalTo(1l));
-        assertThat(searchResponse.getHits().getAt(0).field("field1").isMetadataField(), equalTo(false));
-        assertThat(searchResponse.getHits().getAt(0).field("field1").getValue().toString(), equalTo("value"));
+        assertThat(searchResponse.getHits().getAt(0).field("field1"), nullValue());
         assertThat(searchResponse.getHits().getAt(0).field("_routing").isMetadataField(), equalTo(true));
         assertThat(searchResponse.getHits().getAt(0).field("_routing").getValue().toString(), equalTo("1"));
     }
@@ -647,8 +674,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
 
         Map<String, SearchHitField> fields = response.getHits().getAt(0).getFields();
 
-        assertThat(fields.get("field1").isMetadataField(), equalTo(false));
-        assertThat(fields.get("field1").getValue().toString(), equalTo("value"));
+        assertThat(fields.get("field1"), nullValue());
         assertThat(fields.get("_routing").isMetadataField(), equalTo(true));
         assertThat(fields.get("_routing").getValue().toString(), equalTo("1"));
         assertThat(fields.get("_timestamp").isMetadataField(), equalTo(true));

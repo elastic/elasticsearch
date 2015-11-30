@@ -160,7 +160,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
 
     private BytesReference ext = null;
 
-    private Boolean profile;
+    private boolean profile = false;
 
 
     /**
@@ -489,9 +489,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
     }
 
     /**
-     * Should the query be profiled. Defaults to <tt>False</tt>
+     * Should the query be profiled. Defaults to <tt>false</tt>
      */
-    public SearchSourceBuilder profile(Boolean profile) {
+    public SearchSourceBuilder profile(boolean profile) {
         this.profile = profile;
         return this;
     }
@@ -500,7 +500,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
      * Return whether to profile query execution, or {@code null} if
      * unspecified.
      */
-    public Boolean profile() {
+    public boolean profile() {
         return profile;
     }
 
@@ -963,8 +963,8 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.field(EXPLAIN_FIELD.getPreferredName(), explain);
         }
 
-        if (profile != null) {
-            builder.field("profile", profile);
+        if (profile) {
+            builder.field("profile", true);
         }
 
         if (fetchSourceContext != null) {
@@ -1252,9 +1252,9 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             builder.ext = in.readBytesReference();
         }
         if (in.getVersion().onOrAfter(Version.V_2_2_0)) {
-            builder.profile = in.readOptionalBoolean();
+            builder.profile = in.readBoolean();
         } else {
-            builder.profile = null;
+            builder.profile = false;
         }
         return builder;
     }
@@ -1370,7 +1370,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
             out.writeBytesReference(ext);
         }
         if (out.getVersion().onOrAfter(Version.V_2_2_0)) {
-            out.writeOptionalBoolean(profile);
+            out.writeBoolean(profile);
         }
     }
 

@@ -714,7 +714,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
         if (source.minScore() != null) {
             context.minimumScore(source.minScore());
         }
-        if (source.profile() != null && source.profile()) {
+        if (source.profile()) {
             context.setProfilers(new Profilers(context.searcher()));
         }
         context.timeoutInMillis(source.timeoutInMillis());

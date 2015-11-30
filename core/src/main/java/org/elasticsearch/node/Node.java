@@ -125,7 +125,11 @@ public class Node implements Releasable {
      * @param preparedSettings Base settings to configure the node with
      */
     public Node(Settings preparedSettings) {
-        this(preparedSettings, Version.CURRENT, Collections.<Class<? extends Plugin>>emptyList());
+        this(preparedSettings, Collections.<Class<? extends Plugin>>emptyList());
+    }
+
+    Node(Settings preparedSettings, Collection<Class<? extends Plugin>> classpathPlugins) {
+        this(preparedSettings, Version.CURRENT, classpathPlugins);
     }
 
     Node(Settings preparedSettings, Version version, Collection<Class<? extends Plugin>> classpathPlugins) {

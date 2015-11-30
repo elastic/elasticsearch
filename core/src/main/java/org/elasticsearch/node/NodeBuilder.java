@@ -20,6 +20,10 @@
 package org.elasticsearch.node;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.plugins.Plugin;
+
+import java.util.Collection;
+import java.util.HashSet;
 
 /**
  * A node builder is used to construct a {@link Node} instance.
@@ -55,6 +59,7 @@ import org.elasticsearch.common.settings.Settings;
 public class NodeBuilder {
 
     private final Settings.Builder settings = Settings.settingsBuilder();
+    private final Collection<Class<? extends Plugin>> classpathPlugins = new HashSet<>();
 
     /**
      * A convenient factory method to create a {@link NodeBuilder}.
@@ -139,10 +144,26 @@ public class NodeBuilder {
     }
 
     /**
+     * Add the given plugin to the node when it is created.
+     */
+    public NodeBuilder addPlugin(Class<? extends Plugin> pluginClass) {
+        classpathPlugins.add(pluginClass);
+        return this;
+    }
+
+    /**
+     * Add the given plugins to the node when it is created.
+     */
+    public NodeBuilder addPlugins(Collection<Class<? extends Plugin>> pluginClasses) {
+        this.classpathPlugins.addAll(pluginClasses);
+        return this;
+    }
+
+    /**
      * Builds the node without starting it.
      */
     public Node build() {
-        return new Node(settings.build());
+        return new Node(settings.build(), classpathPlugins);
     }
 
     /**

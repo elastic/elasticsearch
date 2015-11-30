@@ -45,6 +45,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     private AggregatedDfs aggregatedDfs;
 
     private final Engine.Searcher engineSearcher;
+
+    // TODO revisit moving the profiler to inheritance or wrapping model in the future
     private Profiler profiler;
 
     public ContextIndexSearcher(Engine.Searcher searcher,

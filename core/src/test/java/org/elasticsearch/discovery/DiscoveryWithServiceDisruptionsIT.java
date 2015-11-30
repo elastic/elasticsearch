@@ -25,11 +25,7 @@ import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -59,16 +55,7 @@ import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.discovery.ClusterDiscoveryConfiguration;
-import org.elasticsearch.test.disruption.BlockClusterStateProcessing;
-import org.elasticsearch.test.disruption.IntermittentLongGCDisruption;
-import org.elasticsearch.test.disruption.LongGCDisruption;
-import org.elasticsearch.test.disruption.NetworkDelaysPartition;
-import org.elasticsearch.test.disruption.NetworkDisconnectPartition;
-import org.elasticsearch.test.disruption.NetworkPartition;
-import org.elasticsearch.test.disruption.NetworkUnresponsivePartition;
-import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
-import org.elasticsearch.test.disruption.SingleNodeDisruption;
-import org.elasticsearch.test.disruption.SlowClusterStateProcessing;
+import org.elasticsearch.test.disruption.*;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.TransportException;
@@ -78,31 +65,15 @@ import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
-import java.util.Objects;
-import java.util.Set;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Semaphore;
-import java.util.concurrent.TimeUnit;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.not;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 @ClusterScope(scope = Scope.TEST, numDataNodes = 0, transportClientRatio = 0)
 @ESIntegTestCase.SuppressLocalMode
@@ -650,7 +621,7 @@ public class DiscoveryWithServiceDisruptionsIT extends ESIntegTestCase {
         // but will be queued and once the old master node un-freezes it gets executed.
         // The old master node will send this update + the cluster state where he is flagged as master to the other
         // nodes that follow the new master. These nodes should ignore this update.
-        internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", Priority.IMMEDIATE, new ClusterStateUpdateTask() {
+        internalCluster().getInstance(ClusterService.class, oldMasterNode).submitStateUpdateTask("sneaky-update", new ClusterStateUpdateTask(Priority.IMMEDIATE) {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
                 return ClusterState.builder(currentState).build();

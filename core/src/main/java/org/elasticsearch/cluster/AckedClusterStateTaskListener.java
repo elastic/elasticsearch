@@ -18,31 +18,11 @@
  */
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.unit.TimeValue;
 
-/**
- * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
- * all the nodes have acknowledged a cluster state update request
- */
-public abstract class AckedClusterStateUpdateTask<Response> extends ClusterStateUpdateTask implements AckedClusterStateTaskListener {
-
-    private final ActionListener<Response> listener;
-    private final AckedRequest request;
-
-    protected AckedClusterStateUpdateTask(AckedRequest request, ActionListener<Response> listener) {
-        this(Priority.NORMAL, request, listener);
-    }
-
-    protected AckedClusterStateUpdateTask(Priority priority, AckedRequest request, ActionListener<Response> listener) {
-        super(priority);
-        this.listener = listener;
-        this.request = request;
-    }
+public interface AckedClusterStateTaskListener extends ClusterStateTaskListener {
 
     /**
      * Called to determine which nodes the acknowledgement is expected from
@@ -50,9 +30,7 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
      * @param discoveryNode a node
      * @return true if the node is expected to send ack back, false otherwise
      */
-    public boolean mustAck(DiscoveryNode discoveryNode) {
-        return true;
-    }
+    boolean mustAck(DiscoveryNode discoveryNode);
 
     /**
      * Called once all the nodes have acknowledged the cluster state update request. Must be
@@ -60,34 +38,17 @@ public abstract class AckedClusterStateUpdateTask<Response> extends ClusterState
      *
      * @param t optional error that might have been thrown
      */
-    public void onAllNodesAcked(@Nullable Throwable t) {
-        listener.onResponse(newResponse(true));
-    }
-
-    protected abstract Response newResponse(boolean acknowledged);
+    void onAllNodesAcked(@Nullable Throwable t);
 
     /**
      * Called once the acknowledgement timeout defined by
      * {@link AckedClusterStateUpdateTask#ackTimeout()} has expired
      */
-    public void onAckTimeout() {
-        listener.onResponse(newResponse(false));
-    }
-
-    @Override
-    public void onFailure(String source, Throwable t) {
-        listener.onFailure(t);
-    }
+    void onAckTimeout();
 
     /**
      * Acknowledgement timeout, maximum time interval to wait for acknowledgements
      */
-    public TimeValue ackTimeout() {
-        return request.ackTimeout();
-    }
+    TimeValue ackTimeout();
 
-    @Override
-    public TimeValue timeout() {
-        return request.masterNodeTimeout();
-    }
 }

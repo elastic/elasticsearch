@@ -20,10 +20,7 @@
 package org.elasticsearch.discovery.zen.fd;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateNonMasterUpdateTask;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Nullable;
@@ -31,7 +28,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
@@ -340,7 +336,11 @@ public class MasterFaultDetection extends FaultDetection {
 
             if (!nodes.localNodeMaster() || !nodes.nodeExists(request.nodeId)) {
                 logger.trace("checking ping from [{}] under a cluster state thread", request.nodeId);
-                clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ProcessedClusterStateNonMasterUpdateTask() {
+                clusterService.submitStateUpdateTask("master ping (from: [" + request.nodeId + "])", new ClusterStateUpdateTask() {
+                    @Override
+                    public boolean runOnlyOnMaster() {
+                        return false;
+                    }
 
                     @Override
                     public ClusterState execute(ClusterState currentState) throws Exception {

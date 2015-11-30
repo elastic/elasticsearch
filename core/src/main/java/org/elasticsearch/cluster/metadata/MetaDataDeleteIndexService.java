@@ -22,7 +22,7 @@ package org.elasticsearch.cluster.metadata;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.action.index.NodeIndexDeletedAction;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.routing.RoutingTable;
@@ -39,7 +39,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.Locale;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -70,8 +69,7 @@ public class MetaDataDeleteIndexService extends AbstractComponent {
     public void deleteIndices(final Request request, final Listener userListener) {
         final Collection<String> indices = Arrays.asList(request.indices);
         final DeleteIndexListener listener = new DeleteIndexListener(userListener);
-        clusterService.submitStateUpdateTask("delete-index " + indices, Priority.URGENT, new TimeoutClusterStateUpdateTask() {
-
+        clusterService.submitStateUpdateTask("delete-index " + indices, new ClusterStateUpdateTask(Priority.URGENT) {
             @Override
             public TimeValue timeout() {
                 return request.masterTimeout;

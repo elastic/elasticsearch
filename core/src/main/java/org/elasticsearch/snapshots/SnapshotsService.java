@@ -29,11 +29,9 @@ import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
 import org.elasticsearch.cluster.SnapshotsInProgress.State;
-import org.elasticsearch.cluster.TimeoutClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetaData;
@@ -191,7 +189,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
     public void createSnapshot(final SnapshotRequest request, final CreateSnapshotListener listener) {
         final SnapshotId snapshotId = new SnapshotId(request.repository(), request.name());
         validate(snapshotId);
-        clusterService.submitStateUpdateTask(request.cause(), new TimeoutClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask(request.cause(), new ClusterStateUpdateTask() {
 
             private SnapshotsInProgress.Entry newSnapshot = null;
 
@@ -254,7 +252,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
         }
         validate(new SnapshotId(request.repository(), request.name()));
     }
-    
+
     private static void validate(SnapshotId snapshotId) {
         String name = snapshotId.getSnapshot();
         if (!Strings.hasLength(name)) {
@@ -313,7 +311,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
                 endSnapshot(snapshot);
                 return;
             }
-            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotId().getSnapshot() + "]", new ProcessedClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("update_snapshot [" + snapshot.snapshotId().getSnapshot() + "]", new ClusterStateUpdateTask() {
                 boolean accepted = false;
                 SnapshotsInProgress.Entry updatedSnapshot;
                 String failure = null;
@@ -815,7 +813,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      * @param t          exception if snapshot failed
      */
     private void removeSnapshotFromClusterState(final SnapshotId snapshotId, final SnapshotInfo snapshot, final Throwable t) {
-        clusterService.submitStateUpdateTask("remove snapshot metadata", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove snapshot metadata", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 SnapshotsInProgress snapshots = currentState.custom(SnapshotsInProgress.TYPE);
@@ -870,7 +868,7 @@ public class SnapshotsService extends AbstractLifecycleComponent<SnapshotsServic
      */
     public void deleteSnapshot(final SnapshotId snapshotId, final DeleteSnapshotListener listener) {
         validate(snapshotId);
-        clusterService.submitStateUpdateTask("delete snapshot", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("delete snapshot", new ClusterStateUpdateTask() {
 
             boolean waitForSnapshot = false;
 

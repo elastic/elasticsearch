@@ -19,17 +19,13 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.unit.TimeValue;
+public abstract class AbstractAckedClusterStateTaskListener implements AckedClusterStateTaskListener {
+    @Override
+    public void onNoLongerMaster(String source) {
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+    }
 
-/**
- * An extension interface to {@link org.elasticsearch.cluster.ClusterStateUpdateTask} that allows to associate
- * a timeout.
- */
-abstract public class TimeoutClusterStateUpdateTask extends ProcessedClusterStateUpdateTask {
-
-    /**
-     * If the cluster state update task wasn't processed by the provided timeout, call
-     * {@link #onFailure(String, Throwable)}
-     */
-    abstract public TimeValue timeout();
+    @Override
+    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+    }
 }

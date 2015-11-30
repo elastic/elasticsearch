@@ -28,7 +28,6 @@ import org.elasticsearch.cluster.routing.OperationRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.service.PendingClusterTask;
 import org.elasticsearch.common.Nullable;
-import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.logging.ESLogger;
@@ -41,10 +40,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Queue;
+import java.util.*;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ScheduledFuture;
 
@@ -184,31 +180,45 @@ public class TestClusterService implements ClusterService {
     }
 
     @Override
-    synchronized public void submitStateUpdateTask(String source, Priority priority, ClusterStateUpdateTask updateTask) {
-        logger.debug("processing [{}]", source);
-        if (state().nodes().localNodeMaster() == false && updateTask.runOnlyOnMaster()) {
-            updateTask.onNoLongerMaster(source);
-            logger.debug("failed [{}], no longer master", source);
-            return;
-        }
-        ClusterState newState;
-        ClusterState previousClusterState = state;
-        try {
-            newState = updateTask.execute(previousClusterState);
-        } catch (Exception e) {
-            updateTask.onFailure(source, new ElasticsearchException("failed to process cluster state update task [" + source + "]", e));
-            return;
-        }
-        setStateAndNotifyListeners(newState);
-        if (updateTask instanceof ProcessedClusterStateUpdateTask) {
-            ((ProcessedClusterStateUpdateTask) updateTask).clusterStateProcessed(source, previousClusterState, newState);
-        }
-        logger.debug("finished [{}]", source);
+    public void submitStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
+        submitStateUpdateTask(source, null, updateTask, updateTask, updateTask);
     }
 
     @Override
-    public void submitStateUpdateTask(String source, ClusterStateUpdateTask updateTask) {
-        submitStateUpdateTask(source, Priority.NORMAL, updateTask);
+    synchronized public <T> void submitStateUpdateTask(final String source, T task, ClusterStateTaskConfig config, ClusterStateTaskExecutor<T> executor, final ClusterStateTaskListener listener) {
+        logger.debug("processing [{}]", source);
+        if (state().nodes().localNodeMaster() == false && executor.runOnlyOnMaster()) {
+            listener.onNoLongerMaster(source);
+            logger.debug("failed [{}], no longer master", source);
+            return;
+        }
+        ClusterStateTaskExecutor.BatchResult<T> batchResult;
+        ClusterState previousClusterState = state;
+        try {
+            batchResult = executor.execute(previousClusterState, Arrays.asList(task));
+        } catch (Exception e) {
+            batchResult = ClusterStateTaskExecutor.BatchResult.<T>builder().failure(task, e).build(previousClusterState);
+        }
+
+        batchResult.executionResults.get(task).handle(
+            new Runnable() {
+                @Override
+                public void run() {
+
+                }
+            },
+            new ClusterStateTaskExecutor.TaskResult.FailureConsumer() {
+                @Override
+                public void accept(Throwable ex) {
+                    listener.onFailure(source, new ElasticsearchException("failed to process cluster state update task [" + source + "]", ex));
+                }
+            }
+        );
+
+        setStateAndNotifyListeners(batchResult.resultingState);
+        listener.clusterStateProcessed(source, previousClusterState, batchResult.resultingState);
+        logger.debug("finished [{}]", source);
+
     }
 
     @Override

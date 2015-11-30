@@ -44,7 +44,7 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.cluster.ClusterService;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProcessedClusterStateUpdateTask;
+import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.SnapshotsInProgress.Entry;
 import org.elasticsearch.cluster.SnapshotsInProgress.ShardSnapshotStatus;
@@ -1775,7 +1775,7 @@ public class SharedClusterSnapshotRestoreIT extends AbstractSnapshotIntegTestCas
 
         logger.info("--> emulate an orphan snapshot");
 
-        clusterService.submitStateUpdateTask("orphan snapshot test", new ProcessedClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("orphan snapshot test", new ClusterStateUpdateTask() {
 
             @Override
             public ClusterState execute(ClusterState currentState) {

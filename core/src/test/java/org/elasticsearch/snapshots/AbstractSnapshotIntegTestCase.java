@@ -21,12 +21,7 @@ package org.elasticsearch.snapshots;
 import com.google.common.base.Predicate;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.cluster.tasks.PendingClusterTasksResponse;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.ClusterStateUpdateTask;
-import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.*;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.cluster.service.PendingClusterTask;
@@ -223,7 +218,7 @@ public abstract class AbstractSnapshotIntegTestCase extends ESIntegTestCase {
 
         private void addBlock() {
             // We should block after this task - add blocking cluster state update task
-            clusterService.submitStateUpdateTask("test_block", passThroughPriority, new ClusterStateUpdateTask() {
+            clusterService.submitStateUpdateTask("test_block", new ClusterStateUpdateTask(passThroughPriority) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     while(System.currentTimeMillis() < stopWaitingAt) {

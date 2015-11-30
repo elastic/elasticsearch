@@ -16,18 +16,25 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-
 package org.elasticsearch.cluster;
 
-/**
- * An extension interface to {@link ClusterStateUpdateTask} that allows to be notified when
- * the cluster state update has been processed.
- */
-public abstract class ProcessedClusterStateUpdateTask extends ClusterStateUpdateTask {
+import java.util.List;
+
+public interface ClusterStateTaskListener {
 
     /**
-     * Called when the result of the {@link #execute(ClusterState)} have been processed
+     * A callback called when execute fails.
+     */
+    void onFailure(String source, Throwable t);
+
+    /**
+     * called when the task was rejected because the local node is no longer master
+     */
+    void onNoLongerMaster(String source);
+
+    /**
+     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
      * properly by all listeners.
      */
-    public abstract void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState);
+    void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState);
 }

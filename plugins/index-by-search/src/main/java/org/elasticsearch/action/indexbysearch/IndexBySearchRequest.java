@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
+
 import java.io.IOException;
 
 import org.elasticsearch.action.ActionRequest;
@@ -33,6 +35,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
+    private static final int DEFAULT_SIZE = 100;
 
     /**
      * The search to be executed.
@@ -59,6 +62,10 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         this.index = index;
 
         search.scroll(DEFAULT_SCROLL_TIMEOUT);
+        search.source(new SearchSourceBuilder());
+        search.source().version(true);
+        search.source().sort(fieldSort("_doc"));
+        search.source().size(DEFAULT_SIZE);
     }
 
     @Override
@@ -87,6 +94,7 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
      * Set the search source (used by ObjectParser).
      */
     public void searchSource(SearchSourceBuilder sourceBuilder) {
+        // NOCOMMIT - this is totally broken.
         search().source(sourceBuilder);
     }
 

@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static org.elasticsearch.index.VersionType.EXTERNAL;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -87,10 +89,10 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
                      */
                     index.type(doc.type());
                 }
-                // TODO routing needs to be copied
                 index.source(doc.sourceRef());
-                // TODO version - preserve external versioning optionally - if
-                // it is external than we should always?
+                if (index.versionType() == EXTERNAL) {
+                    index.version(doc.version());
+                }
                 // TODO if writing back to the same index we can check the
                 // version numbers
 

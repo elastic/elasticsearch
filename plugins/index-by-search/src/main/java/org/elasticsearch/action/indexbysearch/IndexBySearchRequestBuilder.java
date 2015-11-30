@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static java.lang.Math.min;
+
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.index.IndexAction;
@@ -26,9 +28,6 @@ import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchAction;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.client.ElasticsearchClient;
-
-import static java.lang.Math.min;
-import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 public class IndexBySearchRequestBuilder
         extends ActionRequestBuilder<IndexBySearchRequest, IndexBySearchResponse, IndexBySearchRequestBuilder> {
@@ -47,9 +46,6 @@ public class IndexBySearchRequestBuilder
         super(client, action, new IndexBySearchRequest(search.request(), index.request()));
         this.search = search;
         this.index = index;
-
-        search.addSort(fieldSort("_doc"));
-        search.setSize(100); // Default to large-ish bulks
     }
 
     public SearchRequestBuilder search() {

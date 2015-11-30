@@ -19,7 +19,32 @@
 
 package org.elasticsearch.plugin.indexbysearch;
 
+import static org.elasticsearch.index.VersionType.EXTERNAL;
+import static org.elasticsearch.index.VersionType.INTERNAL;
+
+import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
+
 public class IndexBySearchVersionTests extends IndexBySearchTestCase {
     // NOCOMMIT add tests for not clobbering versions on update
-    // NOCOMMIT add tests for preserving external versioning
+
+    public void testExternalVersioning() throws Exception {
+        indexRandom(true, client().prepareIndex("test", "source", "test")
+                .setVersionType(EXTERNAL)
+                .setVersion(4).setSource("foo", "bar"));
+
+        assertEquals(4, client().prepareGet("test", "source", "test").get().getVersion());
+
+        // If the copy request
+        IndexBySearchRequestBuilder copy = newIndexBySearch();
+        copy.index().setIndex("test").setType("dest_internal").setVersionType(INTERNAL);
+        assertResponse(copy.get(), 1, 0);
+        refresh();
+        assertEquals(1, client().prepareGet("test", "dest_internal", "test").get().getVersion());
+
+        copy = newIndexBySearch();
+        copy.index().setIndex("test").setType("dest_external").setVersionType(EXTERNAL);
+        assertResponse(copy.get(), 1, 0);
+        refresh();
+        assertEquals(4, client().prepareGet("test", "dest_external", "test").get().getVersion());
+    }
 }

@@ -137,6 +137,35 @@ When using the `q` parameter, the following additional parameters are
 supported (as explained in {ref}/search-uri-request.html[URI search request]):
 `df`, `analyzer`, `default_operator`.
 
+[float]
+=== Preserving external versioning
+
+If the documents were built with external version numbers
+(`version_type=external`) then you can preserve them during the index like so:
+[source,js]
+--------------------------------------------------
+POST /source/_index_by_search
+{
+  "index": {
+    "index": "dest",
+    "version_type": "external"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+or
+
+[source,js]
+--------------------------------------------------
+POST /source/_index_by_search?version_type=external
+{
+  "index": {
+    "index": "dest"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
 
 [float]
 === Response body

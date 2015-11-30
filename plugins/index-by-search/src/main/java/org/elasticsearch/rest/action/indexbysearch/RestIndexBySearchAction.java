@@ -41,6 +41,7 @@ import org.elasticsearch.common.xcontent.ObjectParser.ValueType;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
@@ -73,6 +74,7 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         ObjectParser<IndexRequest, Void> indexParser = new ObjectParser<>("index");
         indexParser.declareString(IndexRequest::index, new ParseField("index"));
         indexParser.declareString(IndexRequest::type, new ParseField("type"));
+        indexParser.declareString((i, v) -> i.versionType(VersionType.fromString(v)), new ParseField("version_type"));
         PARSER.declareField((p, v, c) -> indexParser.parse(p, v.index(), null), new ParseField("index"), ValueType.OBJECT);
     }
 
@@ -102,7 +104,7 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         internalRequest.search().indicesOptions(IndicesOptions.fromRequest(request, internalRequest.search().indicesOptions()));
         internalRequest.search().routing(request.param("routing"));
 
-        // TODO routing for index?
+        internalRequest.index().versionType(VersionType.fromString(request.param("version_type"), internalRequest.index().versionType()));
 
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
             PARSER.parse(xcontent, internalRequest, new QueryParseContext(indicesQueriesRegistry));

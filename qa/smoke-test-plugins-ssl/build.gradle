@@ -157,6 +157,14 @@ for (Project subproj : project.rootProject.subprojects) {
 }
 
 integTest {
+  // in some environments, openssl might not be available
+  try {
+    int ret = Runtime.getRuntime().exec("openssl version").waitFor();
+    enabled = (ret == 0);
+  } catch (IOException unavailable) {
+    enabled = false;
+  }
+
   cluster {
     // TODO: use some variable here for port number
     systemProperty 'es.marvel.agent.exporter.es.hosts', 'https://marvel_export:changeme@localhost:9400'

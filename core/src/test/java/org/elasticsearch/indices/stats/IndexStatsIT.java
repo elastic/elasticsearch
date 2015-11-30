@@ -313,7 +313,7 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     @Test
-    @TestLogging("_root:TRACE")
+    @TestLogging("_root:DEBUG")
     public void throttleStats() throws Exception {
         assertAcked(prepareCreate("test")
                     .setSettings(Settings.builder()

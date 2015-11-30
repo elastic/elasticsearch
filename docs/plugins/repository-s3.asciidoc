@@ -198,7 +198,7 @@ The following settings are supported:
     request. Beyond this threshold, the S3 repository will use the
     http://docs.aws.amazon.com/AmazonS3/latest/dev/uploadobjusingmpu.html[AWS Multipart Upload API]
     to split the chunk into several parts, each of `buffer_size` length, and
-    to upload each part in its own request. Note that positioning a buffer
+    to upload each part in its own request. Note that setting a buffer
     size lower than `5mb` is not allowed since it will prevents the use of the
     Multipart API and may result in upload errors. Defaults to `5mb`.
 

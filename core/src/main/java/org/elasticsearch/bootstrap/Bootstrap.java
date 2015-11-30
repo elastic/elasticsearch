@@ -249,6 +249,7 @@ final class Bootstrap {
         BootstrapCLIParser bootstrapCLIParser = new BootstrapCLIParser();
         CliTool.ExitStatus status = bootstrapCLIParser.execute(args);
 
+        exit(1);
         if (CliTool.ExitStatus.OK != status) {
             exit(status.status());
         }

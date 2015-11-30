@@ -315,49 +315,27 @@ class ClusterFormationTasks {
 
     /** Adds a task to start an elasticsearch node with the given configuration */
     static Task configureStartTask(String name, Project project, Task setup, NodeInfo node) {
-        String executable
-        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-            executable = 'cmd'
-        } else {
-            executable = 'sh'
-        }
 
         // this closure is converted into ant nodes by groovy's AntBuilder
         Closure antRunner = { AntBuilder ant ->
+            ant.exec(executable: node.executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
+                node.env.each { key, value -> env(key: key, value: value) }
+                node.args.each { arg(value: it) }
+            }
+        }
+
+        // this closure is the actual code to run elasticsearch
+        Closure elasticsearchRunner = {
             // Due to how ant exec works with the spawn option, we lose all stdout/stderr from the
             // process executed. To work around this, when spawning, we wrap the elasticsearch start
             // command inside another shell script, which simply internally redirects the output
             // of the real elasticsearch script. This allows ant to keep the streams open with the
             // dummy process, but us to have the output available if there is an error in the
             // elasticsearch start script
-            String script = node.esScript
             if (node.config.daemonize) {
-                String scriptName = 'run'
-                String argsPasser = '"$@"'
-                String exitMarker = "; if [ \$? != 0 ]; then touch run.failed; fi"
-                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                    scriptName += '.bat'
-                    argsPasser = '%*'
-                    exitMarker = "\r\n if \"%errorlevel%\" neq \"0\" ( type nul >> run.failed )"
-                }
-                File wrapperScript = new File(node.cwd, scriptName)
-                wrapperScript.setText("\"${script}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
-                script = wrapperScript.toString()
+                node.writeWrapperScript()
             }
 
-            ant.exec(executable: executable, spawn: node.config.daemonize, dir: node.cwd, taskname: 'elasticsearch') {
-                node.env.each { key, value -> env(key: key, value: value) }
-                if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                  arg(value: '/C')
-                }
-                arg(value: script)
-                node.args.each { arg(value: it) }
-            }
-
-        }
-
-        // this closure is the actual code to run elasticsearch
-        Closure elasticsearchRunner = {
             // we must add debug options inside the closure so the config is read at execution time, as
             // gradle task options are not processed until the end of the configuration phase
             if (node.config.debug) {
@@ -436,14 +414,19 @@ class ClusterFormationTasks {
                 // We already log the command at info level. No need to do it twice.
                 node.getCommandString().eachLine { line -> logger.error(line) }
             }
-            // the waitfor failed, so dump any output we got (may be empty if info logging, but that is ok)
-            logger.error("Node ${node.nodeNum} ant output:")
-            node.buffer.toString('UTF-8').eachLine { line -> logger.error(line) }
+            logger.error("Node ${node.nodeNum} output:")
+            logger.error("|-----------------------------------------")
+            logger.error("|  failure marker exists: ${node.failedMarker.exists()}")
+            logger.error("|  pid file exists: ${node.pidFile.exists()}")
+            // the waitfor failed, so dump any output we got (if info logging this goes directly to stdout)
+            logger.error("|\n|  [ant output]")
+            node.buffer.toString('UTF-8').eachLine { line -> logger.error("|    ${line}") }
             // also dump the log file for the startup script (which will include ES logging output to stdout)
             if (node.startLog.exists()) {
-                logger.error("Node ${node.nodeNum} log:")
-                node.startLog.eachLine { line -> logger.error(line) }
+                logger.error("|\n|  [log]")
+                node.startLog.eachLine { line -> logger.error("|    ${line}") }
             }
+            logger.error("|-----------------------------------------")
         }
         throw new GradleException(msg)
     }

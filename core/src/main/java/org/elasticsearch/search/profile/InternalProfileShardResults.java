@@ -3,6 +3,7 @@ package org.elasticsearch.search.profile;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 
@@ -14,7 +15,7 @@ import java.util.stream.Collectors;
  * A container class to hold all the profile results across all shards.  Internally
  * holds a map of shard ID -&gt; Profiled results
  */
-public final class InternalProfileShardResults implements Streamable, ToXContent{
+public final class InternalProfileShardResults implements Writeable<InternalProfileShardResults>, ToXContent{
 
     private Map<String, List<ProfileShardResult>> shardResults;
 
@@ -29,22 +30,7 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
         this.shardResults =  Collections.unmodifiableMap(transformed);
     }
 
-    public InternalProfileShardResults() {
-        // For serialization
-    }
-
-    public Map<String, List<ProfileShardResult>> getShardResults() {
-        return this.shardResults;
-    }
-
-    public static InternalProfileShardResults readProfileShardResults(StreamInput in) throws IOException {
-        InternalProfileShardResults shardResults = new InternalProfileShardResults();
-        shardResults.readFrom(in);
-        return shardResults;
-    }
-
-    @Override
-    public void readFrom(StreamInput in) throws IOException {
+    public InternalProfileShardResults(StreamInput in) throws IOException {
         int size = in.readInt();
         shardResults = new HashMap<>(size);
 
@@ -60,6 +46,15 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
             }
             shardResults.put(key, shardResult);
         }
+    }
+
+    public Map<String, List<ProfileShardResult>> getShardResults() {
+        return this.shardResults;
+    }
+
+    @Override
+    public InternalProfileShardResults readFrom(StreamInput in) throws IOException {
+        return new InternalProfileShardResults(in);
     }
 
     @Override
@@ -83,7 +78,7 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
             builder.startObject().field("id",entry.getKey()).startArray("searches");
             for (ProfileShardResult result : entry.getValue()) {
                 builder.startObject();
-                ((ProfileShardResult)result).toXContent(builder, params);
+                result.toXContent(builder, params);
                 builder.endObject();
             }
             builder.endArray().endObject();

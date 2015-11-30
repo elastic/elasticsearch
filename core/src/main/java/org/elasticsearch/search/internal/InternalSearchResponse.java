@@ -143,7 +143,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
         terminatedEarly = in.readOptionalBoolean();
 
         if (in.getVersion().onOrAfter(Version.V_2_2_0) && in.readBoolean()) {
-            profileResults = InternalProfileShardResults.readProfileShardResults(in);
+            profileResults = new InternalProfileShardResults(in);
         } else {
             profileResults = null;
         }

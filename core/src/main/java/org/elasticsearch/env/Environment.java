@@ -23,8 +23,6 @@ import org.apache.lucene.util.Constants;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
-import org.elasticsearch.common.logging.ESLogger;
-import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
 
 import java.io.IOException;
@@ -101,13 +99,10 @@ public class Environment {
             throw new IllegalStateException("path.home is not configured");
         }
 
-        ESLogger logger = ESLoggerFactory.getLogger("env");
         if (settings.get("path.conf") != null) {
             configFile = PathUtils.get(cleanPath(settings.get("path.conf")));
-            logger.info("Using path.conf: " + configFile);
         } else {
             configFile = homeFile.resolve("config");
-            logger.info("Using default path.conf: " + configFile);
         }
 
         if (settings.get("path.scripts") != null) {

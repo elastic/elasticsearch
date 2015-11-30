@@ -31,7 +31,7 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorStreams;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
-import org.elasticsearch.search.profile.InternalProfileShardResult;
+import org.elasticsearch.search.profile.ProfileShardResult;
 import org.elasticsearch.search.suggest.Suggest;
 
 import java.io.IOException;
@@ -56,7 +56,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
     private Suggest suggest;
     private boolean searchTimedOut;
     private Boolean terminatedEarly = null;
-    private List<InternalProfileShardResult> profileShardResults;
+    private List<ProfileShardResult> profileShardResults;
 
     public QuerySearchResult() {
 
@@ -128,7 +128,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Returns the profiled results for this search, or potentially null if result was empty
      * @return The profiled results, or null
      */
-    public @Nullable List<InternalProfileShardResult> profileResults() {
+    public @Nullable List<ProfileShardResult> profileResults() {
         return profileShardResults;
     }
 
@@ -136,7 +136,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
      * Sets the finalized profiling results for this query
      * @param shardResults The finalized profile
      */
-    public void profileResults(List<InternalProfileShardResult> shardResults) {
+    public void profileResults(List<ProfileShardResult> shardResults) {
         this.profileShardResults = shardResults;
     }
 
@@ -216,7 +216,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             int profileSize = in.readVInt();
             profileShardResults = new ArrayList<>(profileSize);
             for (int i = 0; i < profileSize; i++) {
-                InternalProfileShardResult result = InternalProfileShardResult.readProfileShardResult(in);
+                ProfileShardResult result = new ProfileShardResult(in);
                 profileShardResults.add(result);
             }
         }
@@ -265,7 +265,7 @@ public class QuerySearchResult extends QuerySearchResultProvider {
             } else {
                 out.writeBoolean(true);
                 out.writeVInt(profileShardResults.size());
-                for (InternalProfileShardResult shardResult : profileShardResults) {
+                for (ProfileShardResult shardResult : profileShardResults) {
                     shardResult.writeTo(out);
                 }
             }

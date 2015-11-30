@@ -40,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregation.ReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -56,7 +55,7 @@ import org.elasticsearch.search.profile.InternalProfileShardResults;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.query.QuerySearchResultProvider;
 import org.elasticsearch.search.suggest.Suggest;
-import org.elasticsearch.search.profile.InternalProfileShardResult;
+import org.elasticsearch.search.profile.ProfileShardResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -415,7 +414,7 @@ public class SearchPhaseController extends AbstractComponent {
         //Collect profile results
         InternalProfileShardResults shardResults = null;
         if (!queryResults.isEmpty() && firstResult.profileResults() != null) {
-            Map<String, List<InternalProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
+            Map<String, List<ProfileShardResult>> profileResults = new HashMap<>(queryResults.size());
             for (AtomicArray.Entry<? extends QuerySearchResultProvider> entry : queryResults) {
                 String key = entry.value.queryResult().shardTarget().toString();
                 profileResults.put(key, entry.value.queryResult().profileResults());

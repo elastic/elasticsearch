@@ -129,7 +129,7 @@ public class QueryPhase implements SearchPhase {
         aggregationPhase.execute(searchContext);
 
         if (searchContext.getProfilers() != null) {
-            List<InternalProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
+            List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
             searchContext.queryResult().profileResults(shardResults);
         }
     }
@@ -398,7 +398,7 @@ public class QueryPhase implements SearchPhase {
             queryResult.topDocs(topDocsCallable.call());
 
             if (searchContext.getProfilers() != null) {
-                List<InternalProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
+                List<ProfileShardResult> shardResults = Profiler.buildShardResults(searchContext.getProfilers().getProfilers());
                 searchContext.queryResult().profileResults(shardResults);
             }
 

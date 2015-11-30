@@ -19,18 +19,86 @@
 
 package org.elasticsearch.search.profile;
 
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Streamable;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
 
-import java.util.List;
+import java.io.IOException;
+import java.util.*;
 
 /**
- * Public interface to access the profiled results of a single shard in the request
+ * A container class to hold the profile results for a single shard in the request.
+ * Contains a list of query profiles, a collector tree and a total rewrite tree.
  */
-public interface ProfileShardResult {
+public final class ProfileShardResult implements Writeable<ProfileShardResult>, ToXContent {
 
-    List<ProfileResult> getQueryResults();
+    private final List<ProfileResult> profileResults;
 
-    long getRewriteTime();
+    private final CollectorResult profileCollector;
 
-    CollectorResult getCollectorResult();
+    private final long rewriteTime;
+
+    public ProfileShardResult(List<ProfileResult> profileResults, long rewriteTime,
+                              CollectorResult profileCollector) {
+        assert(profileCollector != null);
+        this.profileResults = profileResults;
+        this.profileCollector = profileCollector;
+        this.rewriteTime = rewriteTime;
+    }
+
+    public ProfileShardResult(StreamInput in) throws IOException {
+        int profileSize = in.readVInt();
+        profileResults = new ArrayList<>(profileSize);
+        for (int j = 0; j < profileSize; j++) {
+            profileResults.add(new ProfileResult(in));
+        }
+
+        profileCollector = new CollectorResult(in);
+        rewriteTime = in.readLong();
+    }
+
+    public List<ProfileResult> getQueryResults() {
+        return Collections.unmodifiableList(profileResults);
+    }
+
+    public long getRewriteTime() {
+        return rewriteTime;
+    }
+
+    public CollectorResult getCollectorResult() {
+        return profileCollector;
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startArray("query");
+        for (ProfileResult p : profileResults) {
+            p.toXContent(builder, params);
+        }
+        builder.endArray();
+        builder.field("rewrite_time", rewriteTime);
+        builder.startArray("collector");
+        profileCollector.toXContent(builder, params);
+        builder.endArray();
+        return builder;
+    }
+
+    @Override
+    public ProfileShardResult readFrom(StreamInput in) throws IOException {
+        return new ProfileShardResult(in);
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeVInt(profileResults.size());
+        for (ProfileResult p : profileResults) {
+            p.writeTo(out);
+        }
+        profileCollector.writeTo(out);
+        out.writeLong(rewriteTime);
+    }
 
 }

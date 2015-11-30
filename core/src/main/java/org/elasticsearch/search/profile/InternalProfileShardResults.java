@@ -18,7 +18,7 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
 
     private Map<String, List<ProfileShardResult>> shardResults;
 
-    public InternalProfileShardResults(Map<String, List<InternalProfileShardResult>> shardResults) {
+    public InternalProfileShardResults(Map<String, List<ProfileShardResult>> shardResults) {
         Map<String, List<ProfileShardResult>> transformed =
                 shardResults.entrySet()
                         .stream()
@@ -55,7 +55,7 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
             List<ProfileShardResult> shardResult = new ArrayList<>(shardResultsSize);
 
             for (int j = 0; j < shardResultsSize; j++) {
-                InternalProfileShardResult result = InternalProfileShardResult.readProfileShardResult(in);
+                ProfileShardResult result = new ProfileShardResult(in);
                 shardResult.add(result);
             }
             shardResults.put(key, shardResult);
@@ -70,7 +70,7 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
             out.writeInt(entry.getValue().size());
 
             for (ProfileShardResult result : entry.getValue()) {
-                ((InternalProfileShardResult)result).writeTo(out);
+                result.writeTo(out);
             }
         }
     }
@@ -83,7 +83,7 @@ public final class InternalProfileShardResults implements Streamable, ToXContent
             builder.startObject().field("id",entry.getKey()).startArray("searches");
             for (ProfileShardResult result : entry.getValue()) {
                 builder.startObject();
-                ((InternalProfileShardResult)result).toXContent(builder, params);
+                ((ProfileShardResult)result).toXContent(builder, params);
                 builder.endObject();
             }
             builder.endArray().endObject();

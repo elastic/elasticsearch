@@ -116,10 +116,10 @@ public final class Profiler {
      * @param profilers A list of Profilers to convert into InternalProfileShardResults
      * @return          A list of corresponding InternalProfileShardResults
      */
-    public static List<InternalProfileShardResult> buildShardResults(List<Profiler> profilers) {
-        List<InternalProfileShardResult> results = new ArrayList<>(profilers.size());
+    public static List<ProfileShardResult> buildShardResults(List<Profiler> profilers) {
+        List<ProfileShardResult> results = new ArrayList<>(profilers.size());
         for (Profiler profiler : profilers) {
-            InternalProfileShardResult result =  new InternalProfileShardResult(
+            ProfileShardResult result =  new ProfileShardResult(
                     profiler.getQueryTree(), profiler.getRewriteTime(), profiler.getCollector());
             results.add(result);
         }

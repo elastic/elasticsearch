@@ -103,7 +103,7 @@ public class InternalSearchResponse implements Streamable, ToXContent {
      */
     public Map<String, List<ProfileShardResult>> profile() {
         if (profileResults == null) {
-            return Collections.unmodifiableMap(new HashMap<>());
+            return Collections.emptyMap();
         }
         return profileResults.getShardResults();
     }

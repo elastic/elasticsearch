@@ -365,6 +365,7 @@ class BuildPlugin implements Plugin<Project> {
             enableSystemAssertions false
 
             testLogging {
+                showNumFailuresAtEnd 25
                 slowTests {
                     heartbeat 10
                     summarySize 5

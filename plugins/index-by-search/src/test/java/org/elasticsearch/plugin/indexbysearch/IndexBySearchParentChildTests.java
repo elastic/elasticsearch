@@ -19,39 +19,53 @@
 
 package org.elasticsearch.plugin.indexbysearch;
 
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-
 import static org.elasticsearch.index.query.QueryBuilders.hasParentQuery;
 import static org.elasticsearch.index.query.QueryBuilders.idsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.hamcrest.Matchers.equalTo;
 
+import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
+import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
+
 /**
  * Index-by-search tests for parent/child.
  */
 public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
+    QueryBuilder<?> findsCity;
+    QueryBuilder<?> findsNeighborhood;
+
     public void testParentChild() throws Exception {
-        QueryBuilder<?> parentIsUS = setupParentChildIndex(true);
+        setupParentChildIndex(true);
 
         // Copy the child to a new type
         IndexBySearchRequestBuilder copy = newIndexBySearch();
-        copy.search().setQuery(parentIsUS);
-        copy.index().setIndex("test").setType("dest");
+        copy.search().setQuery(findsCity);
+        copy.index().setIndex("test").setType("dest_city");
         assertResponse(copy.get(), 1, 0);
         refresh();
 
         // Make sure parent/child is intact on that type
-        assertSearchHits(client().prepareSearch("test").setTypes("dest").setQuery(parentIsUS).get(), "north carolina");
+        assertSearchHits(client().prepareSearch("test").setTypes("dest_city").setQuery(findsCity).get(), "pittsburgh");
+
+        // Copy the grandchild to a new type
+        copy = newIndexBySearch();
+        copy.search().setQuery(findsNeighborhood);
+        copy.index().setIndex("test").setType("dest_neighborhood");
+        assertResponse(copy.get(), 1, 0);
+        refresh();
+
+        // Make sure parent/child is intact on that type
+        assertSearchHits(client().prepareSearch("test").setTypes("dest_neighborhood").setQuery(findsNeighborhood).get(), "make-believe");
     }
 
     public void testErrorMessageWhenBadParentChild() throws Exception {
-        QueryBuilder<?> parentIsUS = setupParentChildIndex(false);
+        setupParentChildIndex(false);
 
         // Copy the child to a new type
         IndexBySearchRequestBuilder copy = newIndexBySearch();
-        copy.search().setQuery(parentIsUS);
+        copy.search().setQuery(findsCity);
         copy.index().setIndex("test").setType("dest");
         try {
             copy.get();
@@ -61,26 +75,31 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         }
     }
 
-    // NOCOMMIT needs grandparent tests
-
     /**
      * Setup a parent/child index and return a query that should find the child
      * using the parent.
      */
-    private QueryBuilder<?> setupParentChildIndex(boolean addParentMappingForDest) throws Exception {
-        assertAcked(client().admin().indices().prepareCreate("test")
-                .addMapping("city", "{\"_parent\": {\"type\": \"country\"}}")
-                .addMapping(addParentMappingForDest ? "dest" : "not_dest", "{\"_parent\": {\"type\": \"country\"}}"));
+    private void setupParentChildIndex(boolean addParentMappingForDest) throws Exception {
+        CreateIndexRequestBuilder create = client().admin().indices().prepareCreate("test");
+        create.addMapping("city", "{\"_parent\": {\"type\": \"country\"}}");
+        create.addMapping("neighborhood", "{\"_parent\": {\"type\": \"city\"}}");
+        if (addParentMappingForDest) {
+            create.addMapping("dest_city", "{\"_parent\": {\"type\": \"country\"}}");
+            create.addMapping("dest_neighborhood", "{\"_parent\": {\"type\": \"city\"}}");
+        }
+        assertAcked(create);
         ensureGreen();
 
-        indexRandom(true,
-                client().prepareIndex("test", "country", "united states").setSource("foo", "bar"),
-                client().prepareIndex("test", "city", "north carolina").setParent("united states").setSource("foo", "bar"));
+        indexRandom(true, client().prepareIndex("test", "country", "united states").setSource("foo", "bar"),
+                client().prepareIndex("test", "city", "pittsburgh").setParent("united states").setSource("foo", "bar"),
+                client().prepareIndex("test", "neighborhood", "make-believe").setParent("pittsburgh")
+                        .setSource("foo", "bar").setRouting("united states"));
 
         // Make sure we build the parent/child relationship
-        QueryBuilder<?> parentIsUS = hasParentQuery("country", idsQuery("country").addIds("united states"));
-        assertSearchHits(client().prepareSearch("test").setQuery(parentIsUS).get(), "north carolina");
+        findsCity = hasParentQuery("country", idsQuery("country").addIds("united states"));
+        assertSearchHits(client().prepareSearch("test").setQuery(findsCity).get(), "pittsburgh");
 
-        return parentIsUS;
+        findsNeighborhood = hasParentQuery("city", findsCity);
+        assertSearchHits(client().prepareSearch("test").setQuery(findsNeighborhood).get(), "make-believe");
     }
 }

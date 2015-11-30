@@ -127,20 +127,15 @@ See {ref}/search-uri-request.html[URI search request] for details.
 The number of hits returned by the {ref}/search-request-scroll.html[scroll]
 request.  Defaults to 100.  May also be specified in the request body.
 
-// NOCOMMIT - stopped here. timeout isn't implemented because we'll be doing job stuff instead
-`timeout`::
-
-The maximum execution time of the delete by query process. Once expired, no
-more documents will be deleted.
-
 `routing`::
 
-A comma separated list of routing values to control which shards the delete by
-query request should be executed on.
+A comma separated list of routing values to control from which shards the
+source documents are copied. When documents are indexed they retain their
+original routing.
 
 When using the `q` parameter, the following additional parameters are
-supported (as explained in {ref}/search-uri-request.html[URI search request]): `df`, `analyzer`,
-`default_operator`.
+supported (as explained in {ref}/search-uri-request.html[URI search request]):
+`df`, `analyzer`, `default_operator`.
 
 
 [float]
@@ -153,7 +148,7 @@ The JSON response looks like this:
 {
   "took" : 639,
   "timed_out" : false,
-  "_indices" : {
+  "_indices" : { // NOCOMMIT - we should probably add this
     "_all" : {
       "found" : 5901,
       "deleted" : 5901,
@@ -174,10 +169,11 @@ The JSON response looks like this:
 Internally, the query is used to execute an initial
 {ref}/search-request-scroll.html[scroll] request. As hits are
 pulled from the scroll API, they are passed to the {ref}/docs-bulk.html[Bulk
-API] for deletion.
+API] for indexing.
 
-IMPORTANT: Delete by query will only delete the version of the document that
-was visible to search at the time the request was executed.  Any documents
+NOCOMMIT - this isn't true - we need to be careful with versions but haven't implemented that
+IMPORTANT: Index-by-search will only delete the version of the document that
+was visible to search at the time the request was executed. Any documents
 that have been reindexed or updated during execution will not be deleted.
 
 Since documents can be updated or deleted by external operations during the

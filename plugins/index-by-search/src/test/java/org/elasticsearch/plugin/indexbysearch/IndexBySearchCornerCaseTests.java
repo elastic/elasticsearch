@@ -19,12 +19,12 @@
 
 package org.elasticsearch.plugin.indexbysearch;
 
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
-import org.elasticsearch.common.unit.TimeValue;
-
 import static org.elasticsearch.index.query.QueryBuilders.existsQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
+
+import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
+import org.elasticsearch.common.unit.TimeValue;
 
 /**
  * Index-by-search test for ttl, timestamp, and routing.
@@ -46,7 +46,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         assertResponse(copy.get(), 1, 0);
         refresh();
 
-        // Make sure parent/child is intact on that type
+        // Make sure timestamp is intact on that type
         assertSearchHits(client().prepareSearch("test").setTypes("dest").setQuery(existsQuery("_timestamp")).get(), "has_timestamp");
     }
 
@@ -58,7 +58,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         indexRandom(true,
                 client().prepareIndex("test", "source", "has_ttl").setTTL(TimeValue.timeValueMinutes(10).millis()).setSource("foo", "bar"));
 
-        assertNotNull(client().prepareGet("test", "source", "has_ttl").get().getField("_ttl"));
+        assertNotNull(client().prepareGet("test", "source", "has_ttl").get().getField("_ttl").getValue());
 
         // Copy the child to a new type
         IndexBySearchRequestBuilder copy = newIndexBySearch();
@@ -66,7 +66,25 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         assertResponse(copy.get(), 1, 0);
         refresh();
 
-        // Make sure parent/child is intact on that type
-        assertNotNull(client().prepareGet("test", "dest", "has_ttl").get().getField("_ttl"));
+        // Make sure the ttl is intact on that type
+        assertNotNull(client().prepareGet("test", "dest", "has_ttl").get().getField("_ttl").getValue());
+    }
+
+    public void testRouting() throws Exception {
+        indexRandom(true,
+                client().prepareIndex("test", "source", "has_routing").setRouting("bar").setSource("foo", "bar"));
+
+        assertNotNull(client().prepareGet("test", "source", "has_routing").setRouting("bar").get().getField("_routing").getValue());
+
+        // Copy the child to a new type
+        IndexBySearchRequestBuilder copy = newIndexBySearch();
+        copy.index().setIndex("test").setType("dest");
+        assertResponse(copy.get(), 1, 0);
+        refresh();
+
+        // Make sure routing is intact on that type
+        assertNotNull(client().prepareGet("test", "dest", "has_routing").setRouting("bar").get().getField("_routing").getValue());
+
+        assertSearchHits(client().prepareSearch("test").setTypes("dest").setRouting("bar").get(), "has_routing");
     }
 }

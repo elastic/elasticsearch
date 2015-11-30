@@ -96,7 +96,11 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
 
                 SearchHitField parent = doc.field("_parent");
                 if (parent != null) {
-                    index.parent((String) parent.value());
+                    index.parent(parent.value());
+                }
+                SearchHitField routing = doc.field("_routing");
+                if (routing != null) {
+                    index.routing(routing.value());
                 }
                 SearchHitField timestamp = doc.field("_timestamp");
                 if (timestamp != null) {
@@ -105,7 +109,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
                 }
                 SearchHitField ttl = doc.field("_ttl");
                 if (ttl != null) {
-                    index.ttl((Long) ttl.value());
+                    index.ttl(ttl.value());
                 }
 
                 bulkRequest.add(index);

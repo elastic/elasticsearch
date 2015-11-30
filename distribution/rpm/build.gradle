@@ -19,8 +19,9 @@
 
 task buildRpm(type: Rpm) {
   dependsOn dependencyFiles, preparePackagingFiles
+  baseName 'elasticsearch' // this is what pom generation uses for artifactId
   // Follow elasticsearch's rpm file naming convention
-  archiveName = "${packageName}-${project.version}.rpm"
+  archiveName "${packageName}-${project.version}.rpm"
   packageGroup 'Application/Internet'
   prefix '/usr'
   packager 'Elasticsearch'
@@ -31,7 +32,16 @@ task buildRpm(type: Rpm) {
 }
 
 artifacts {
+  'default' buildRpm
   archives buildRpm
 }
 
-integTest.dependsOn buildRpm
+integTest {
+  /* We use real rpm tools to extract the rpm file for testing so we have to
+    skip the test if they aren't around. */
+  enabled = new File('/bin/rpm').exists() ||   // Standard location
+      new File('/usr/bin/rpm').exists() ||     // Debian location
+      new File('/usr/local/bin/rpm').exists()  // Homebrew location
+  dependsOn buildRpm
+  clusterConfig.distribution = 'rpm'
+}

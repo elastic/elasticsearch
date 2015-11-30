@@ -19,25 +19,16 @@
 
 package org.elasticsearch.plugin.indexbysearch;
 
-import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
-import org.elasticsearch.common.settings.Settings;
+import static org.elasticsearch.index.query.QueryBuilders.termQuery;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.index.query.QueryBuilders.termQuery;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import org.elasticsearch.action.index.IndexRequestBuilder;
+import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
 
 public class IndexBySearchBasicTests extends IndexBySearchTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        return Settings.settingsBuilder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put("force.http.enabled", true)
-                .build();
-    }
-
     public void testBasicsIntoExistingIndex() throws Exception {
         basics(true);
     }

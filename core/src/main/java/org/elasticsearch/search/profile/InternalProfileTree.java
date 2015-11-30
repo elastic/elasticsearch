@@ -19,7 +19,6 @@
 
 package org.elasticsearch.search.profile;
 
-
 import org.apache.lucene.search.Query;
 
 import java.util.*;

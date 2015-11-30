@@ -26,7 +26,6 @@ import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.elasticsearch.search.profile.ProfileBreakdown;
 
 import java.io.IOException;
 import java.util.Set;

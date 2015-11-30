@@ -26,20 +26,43 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.AbstractIndexShardComponent;
 import org.elasticsearch.index.shard.ShardId;
 
+/**
+ * This class generates sequences numbers and keeps track of the so called local checkpoint - the highest number for which
+ * all previous seqNo have been processed (including)
+ */
 public class LocalCheckpointService extends AbstractIndexShardComponent {
 
+    /** sets the maximum spread between lowest and highest seq no in flight */
     public static String SETTINGS_INDEX_LAG_THRESHOLD = "index.seq_no.index_lag.threshold";
+
+    /**
+     * how long should an incoming indexing request which violates {@link #SETTINGS_INDEX_LAG_THRESHOLD } should wait
+     * before being rejected
+     */
     public static String SETTINGS_INDEX_LAG_MAX_WAIT = "index.seq_no.index_lag.max_wait";
+
+    /** default value for {@link #SETTINGS_INDEX_LAG_THRESHOLD} */
     final static int DEFAULT_INDEX_LAG_THRESHOLD = 1024;
+
+    /** default value for {@link #SETTINGS_INDEX_LAG_MAX_WAIT} */
     final static TimeValue DEFAULT_INDEX_LAG_MAX_WAIT = TimeValue.timeValueSeconds(30);
 
+    /** protects changes to all internal state and signals changes in {@link #checkpoint} */
     final Object mutex = new Object();
+
+    /** each bits maps to a seqNo in round robin fashion. a set bit means the seqNo has been processed */
     final FixedBitSet processedSeqNo;
+
+    /** value of {@link #SETTINGS_INDEX_LAG_THRESHOLD } */
     final int indexLagThreshold;
+    /** value of {#link #SETTINGS_INDEX_LAG_THRESHOLD } */
     final TimeValue indexLagMaxWait;
 
 
+    /** the next available seqNo - used for seqNo generation */
     volatile long nextSeqNo = 0;
+
+    /** the current local checkpoint, i.e., all seqNo lower<= this number have been completed */
     volatile long checkpoint = -1;
 
     public LocalCheckpointService(ShardId shardId, IndexSettings indexSettings) {
@@ -50,6 +73,11 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
 
     }
 
+    /**
+     * issue the next sequence number
+     *
+     * Note that this method can block to honour maximum indexing lag . See {@link #SETTINGS_INDEX_LAG_THRESHOLD }
+     **/
     public long generateSeqNo() {
         synchronized (mutex) {
             // we have to keep checking when ensure capacity returns because it release the lock and nextSeqNo may change
@@ -60,6 +88,10 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         }
     }
 
+    /**
+     * marks the processing of the given seqNo have been completed
+     * Note that this method can block to honour maximum indexing lag . See {@link #SETTINGS_INDEX_LAG_THRESHOLD }
+     **/
     public long markSeqNoAsCompleted(long seqNo) {
         synchronized (mutex) {
             // make sure we track highest seen seqNo
@@ -88,20 +120,24 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         return checkpoint;
     }
 
+    /** get's the current check point */
     public long getCheckpoint() {
         return checkpoint;
     }
 
+    /** get's the maximum seqno seen so far */
     public long getMaxSeqNo() {
         return nextSeqNo - 1;
     }
 
 
+    /** checks if seqNo violates {@link #SETTINGS_INDEX_LAG_THRESHOLD } */
     private boolean hasCapacity(long seqNo) {
         assert Thread.holdsLock(mutex);
         return (seqNo - checkpoint) <= indexLagThreshold;
     }
 
+    /** blocks until {@link #SETTINGS_INDEX_LAG_THRESHOLD } is honoured or raises {@link EsRejectedExecutionException }*/
     private void ensureCapacity(long seqNo) {
         assert Thread.holdsLock(mutex);
         long retry = 0;
@@ -126,6 +162,7 @@ public class LocalCheckpointService extends AbstractIndexShardComponent {
         }
     }
 
+    /** maps the given seqNo to a position in {@link #processedSeqNo} */
     private int seqNoToOffset(long seqNo) {
         assert seqNo - checkpoint <= indexLagThreshold;
         assert seqNo > checkpoint;

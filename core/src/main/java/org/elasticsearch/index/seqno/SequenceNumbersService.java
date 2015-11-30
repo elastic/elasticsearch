@@ -42,10 +42,17 @@ public class SequenceNumbersService extends AbstractIndexShardComponent {
         return localCheckpointService.generateSeqNo();
     }
 
+    /**
+     * marks the given seqNo as completed. See {@link LocalCheckpointService#markSeqNoAsCompleted(long)}
+     * more details
+     */
     public void markSeqNoAsCompleted(long seqNo) {
         localCheckpointService.markSeqNoAsCompleted(seqNo);
     }
 
+    /**
+     * Gets sequence number related stats
+     */
     public SeqNoStats stats() {
         return new SeqNoStats(localCheckpointService.getMaxSeqNo(), localCheckpointService.getCheckpoint());
     }

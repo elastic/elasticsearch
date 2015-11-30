@@ -39,10 +39,12 @@ public class SeqNoStats implements ToXContent, Writeable<SeqNoStats> {
         this.localCheckpoint = localCheckpoint;
     }
 
+    /** the maximum sequence number seen so far */
     public long getMaxSeqNo() {
         return maxSeqNo;
     }
 
+    /** the maximum sequence number for which all previous operations (including) have been completed */
     public long getLocalCheckpoint() {
         return localCheckpoint;
     }

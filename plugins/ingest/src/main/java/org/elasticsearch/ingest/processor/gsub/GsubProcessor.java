@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +67,7 @@ public class GsubProcessor implements Processor {
 
     public static class Factory implements Processor.Factory<GsubProcessor> {
         @Override
-        public GsubProcessor create(Map<String, Object> config) throws IOException {
+        public GsubProcessor create(Map<String, Object> config) throws Exception {
             List<Map<String, String>> gsubConfig = ConfigurationUtils.readList(config, "expressions");
             List<GsubExpression> gsubExpressions = new ArrayList<>();
             for (Map<String, String> stringObjectMap : gsubConfig) {

@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
@@ -65,7 +64,7 @@ public class SplitProcessor implements Processor {
 
     public static class Factory implements Processor.Factory<SplitProcessor> {
         @Override
-        public SplitProcessor create(Map<String, Object> config) throws IOException {
+        public SplitProcessor create(Map<String, Object> config) throws Exception {
             Map<String, String> fields = ConfigurationUtils.readMap(config, "fields");
             return new SplitProcessor(Collections.unmodifiableMap(fields));
         }

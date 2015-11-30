@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
@@ -59,7 +58,7 @@ public class SetProcessor implements Processor {
 
     public static final class Factory implements Processor.Factory<SetProcessor> {
         @Override
-        public SetProcessor create(Map<String, Object> config) throws IOException {
+        public SetProcessor create(Map<String, Object> config) throws Exception {
             Map<String, Object> fields = ConfigurationUtils.readMap(config, "fields");
             return new SetProcessor(Collections.unmodifiableMap(fields));
         }

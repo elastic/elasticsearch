@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.io.InputStream;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -39,7 +38,7 @@ public final class GrokProcessor implements Processor {
     private final String matchField;
     private final Grok grok;
 
-    public GrokProcessor(Grok grok, String matchField) throws IOException {
+    public GrokProcessor(Grok grok, String matchField) {
         this.matchField = matchField;
         this.grok = grok;
     }
@@ -72,7 +71,7 @@ public final class GrokProcessor implements Processor {
     public static class Factory implements Processor.Factory<GrokProcessor> {
         private Path grokConfigDirectory;
 
-        public GrokProcessor create(Map<String, Object> config) throws IOException {
+        public GrokProcessor create(Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(config, "field");
             String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern");
             Map<String, String> patternBank = new HashMap<>();

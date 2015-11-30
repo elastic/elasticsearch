@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.util.*;
 
 /**
@@ -129,7 +128,7 @@ public class ConvertProcessor implements Processor {
 
     public static class Factory implements Processor.Factory<ConvertProcessor> {
         @Override
-        public ConvertProcessor create(Map<String, Object> config) throws IOException {
+        public ConvertProcessor create(Map<String, Object> config) throws Exception {
             Map<String, String> fields = ConfigurationUtils.readMap(config, "fields");
             Map<String, Type> convertFields = new HashMap<>();
             for (Map.Entry<String, String> entry : fields.entrySet()) {

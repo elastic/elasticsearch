@@ -111,7 +111,7 @@ public final class DateProcessor implements Processor {
     public static class Factory implements Processor.Factory<DateProcessor> {
 
         @SuppressWarnings("unchecked")
-        public DateProcessor create(Map<String, Object> config) {
+        public DateProcessor create(Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(config, "match_field");
             String targetField = ConfigurationUtils.readStringProperty(config, "target_field", DEFAULT_TARGET_FIELD);
             String timezoneString = ConfigurationUtils.readOptionalStringProperty(config, "timezone");

@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.processor;
 
 import org.elasticsearch.ingest.IngestDocument;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -58,7 +57,7 @@ public abstract class AbstractStringProcessor implements Processor {
 
     public static abstract class Factory<T extends AbstractStringProcessor> implements Processor.Factory<T> {
         @Override
-        public T create(Map<String, Object> config) throws IOException {
+        public T create(Map<String, Object> config) throws Exception {
             List<String> fields = ConfigurationUtils.readList(config, "fields");
             return newProcessor(Collections.unmodifiableList(fields));
         }

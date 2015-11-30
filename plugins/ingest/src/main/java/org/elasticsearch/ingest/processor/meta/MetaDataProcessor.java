@@ -8,7 +8,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.IngestDocument.MetaData;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.io.StringWriter;
 import java.util.Collections;
 import java.util.HashMap;
@@ -49,7 +48,7 @@ public final class MetaDataProcessor implements Processor {
         private final MustacheFactory mustacheFactory = new DefaultMustacheFactory();
 
         @Override
-        public MetaDataProcessor create(Map<String, Object> config) throws IOException {
+        public MetaDataProcessor create(Map<String, Object> config) throws Exception {
             Map<MetaData, Mustache> templates = new HashMap<>();
             Iterator<Map.Entry<String, Object>> iterator = config.entrySet().iterator();
             while (iterator.hasNext()) {

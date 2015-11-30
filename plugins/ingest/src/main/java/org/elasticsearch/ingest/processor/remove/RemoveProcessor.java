@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
@@ -60,7 +59,7 @@ public class RemoveProcessor implements Processor {
 
     public static class Factory implements Processor.Factory<RemoveProcessor> {
         @Override
-        public RemoveProcessor create(Map<String, Object> config) throws IOException {
+        public RemoveProcessor create(Map<String, Object> config) throws Exception {
             List<String> fields = ConfigurationUtils.readList(config, "fields");
             return new RemoveProcessor(Collections.unmodifiableList(fields));
         }

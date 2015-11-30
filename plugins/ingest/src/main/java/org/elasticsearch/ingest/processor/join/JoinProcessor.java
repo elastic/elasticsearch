@@ -23,7 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -68,7 +67,7 @@ public class JoinProcessor implements Processor {
 
     public static class Factory implements Processor.Factory<JoinProcessor> {
         @Override
-        public JoinProcessor create(Map<String, Object> config) throws IOException {
+        public JoinProcessor create(Map<String, Object> config) throws Exception {
             Map<String, String> fields = ConfigurationUtils.readMap(config, "fields");
             return new JoinProcessor(Collections.unmodifiableMap(fields));
         }

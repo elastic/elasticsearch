@@ -42,10 +42,9 @@ public class IndexAuditIT extends ESIntegTestCase {
 
         assertThat(found, is(true));
 
-        SearchResponse searchResponse = client().prepareSearch(".shield_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER)).addField("principal").get();
+        SearchResponse searchResponse = client().prepareSearch(".shield_audit_log*").setQuery(QueryBuilders.matchQuery("principal", USER)).get();
         assertThat(searchResponse.getHits().getHits().length, greaterThan(0));
-        assertThat((String) searchResponse.getHits().getAt(0).field("principal").getValue(), is(USER));
-
+        assertThat((String) searchResponse.getHits().getAt(0).sourceAsMap().get("principal"), is(USER));
     }
 
     @Override

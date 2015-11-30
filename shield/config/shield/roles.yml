@@ -32,7 +32,7 @@ kibana4:
       - cluster:monitor/health 
   indices:
     '*':
-      privileges: indices:admin/mappings/fields/get, indices:admin/validate/query, indices:data/read/search, indices:data/read/msearch, indices:admin/get
+      privileges: indices:admin/mappings/fields/get, indices:admin/validate/query, indices:data/read/search, indices:data/read/msearch, indices:data/read/field_stats, indices:admin/get
     '.kibana':
       privileges: indices:admin/exists, indices:admin/mapping/put, indices:admin/mappings/fields/get, indices:admin/refresh, indices:admin/validate/query, indices:data/read/get, indices:data/read/mget, indices:data/read/search, indices:data/write/delete, indices:data/write/index, indices:data/write/update
 

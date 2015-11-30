@@ -1,10 +1,17 @@
 [[mapping-index-field]]
 === `_index` field
 
-When performing queries across multiple indexes, it is sometimes desirable
-to add query clauses that are associated with documents of only certain
-indexes. The `_index` field allows matching on the index a document was
-indexed into. Its value is accessible in queries, aggregations, scripts, and when sorting:
+When performing queries across multiple indexes, it is sometimes desirable to
+add query clauses that are associated with documents of only certain indexes.
+The `_index` field allows matching on the index a document was indexed into.
+Its value is accessible in `term`, or `terms` queries, aggregations,
+scripts, and when sorting:
+
+NOTE: The `_index` is exposed as a virtual field -- it is not added to the
+Lucene index as a real field.  This means that you can use the `_index` field
+in a `term` or `terms` query (or any query that is rewritten to a `term`
+query, such as the `match`,  `query_string` or `simple_query_string` query),
+but it does not support `prefix`, `wildcard`, `regexp`, or `fuzzy` queries.
 
 [source,js]
 --------------------------

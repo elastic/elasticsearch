@@ -86,7 +86,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
 
     protected abstract BulkRequest buildBulk(Iterable<SearchHit> docs);
 
-    protected abstract Response buildResponse();
+    protected abstract Response buildResponse(long took);
 
     public void start() {
         initialSearch();
@@ -110,7 +110,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
 
     void initialSearch() {
         try {
-            startTime.set(System.currentTimeMillis());
+            startTime.set(System.nanoTime());
             if (logger.isWarnEnabled()) {
                 logger.warn("executing initial scroll against {}{}",
                         firstSearchRequest.indices() == null ? "all indices" : firstSearchRequest.indices(),
@@ -237,7 +237,9 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
             public void onResponse(ClearScrollResponse response) {
                 logger.warn("Freed [{}] contexts", response.getNumFreed());
                 if (failure == null) {
-                    listener.onResponse(buildResponse());
+                    long took = System.nanoTime() - startTime.get();
+                    took /= 1000000; // Millis instead of nanos
+                    listener.onResponse(buildResponse(took));
                 } else {
                     listener.onFailure(failure);
                 }

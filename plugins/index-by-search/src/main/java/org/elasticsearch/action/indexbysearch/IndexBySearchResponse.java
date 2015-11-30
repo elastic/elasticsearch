@@ -22,16 +22,24 @@ package org.elasticsearch.action.indexbysearch;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ToXContent;
+import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 import java.io.IOException;
 
-public class IndexBySearchResponse extends ActionResponse {
+import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.INDEXED;
+import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.TOOK;
+
+public class IndexBySearchResponse extends ActionResponse implements ToXContent {
+    private long took;
     private long indexed;
 
     public IndexBySearchResponse() {
     }
 
-    public IndexBySearchResponse(long indexed) {
+    public IndexBySearchResponse(long took, long indexed) {
+        this.took = took;
         this.indexed = indexed;
     }
 
@@ -42,12 +50,26 @@ public class IndexBySearchResponse extends ActionResponse {
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
+        took = in.readVLong();
         indexed = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
+        out.writeVLong(took);
         out.writeVLong(indexed);
+    }
+
+    static final class Fields {
+        static final XContentBuilderString TOOK = new XContentBuilderString("took");
+        static final XContentBuilderString INDEXED = new XContentBuilderString("indexed");
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(TOOK, took);
+        builder.field(INDEXED, indexed);
+        return builder;
     }
 }

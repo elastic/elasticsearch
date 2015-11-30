@@ -23,6 +23,8 @@ import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.action.indexbysearch.IndexBySearchAction;
 import org.elasticsearch.action.indexbysearch.TransportIndexBySearchAction;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestModule;
+import org.elasticsearch.rest.action.indexbysearch.RestIndexBySearchAction;
 
 public class IndexBySearchPlugin extends Plugin {
     public static final String NAME = "index-by-search";
@@ -39,5 +41,9 @@ public class IndexBySearchPlugin extends Plugin {
 
     public void onModule(ActionModule actionModule) {
         actionModule.registerAction(IndexBySearchAction.INSTANCE, TransportIndexBySearchAction.class);
+    }
+
+    public void onModule(RestModule restModule) {
+        restModule.addRestAction(RestIndexBySearchAction.class);
     }
 }

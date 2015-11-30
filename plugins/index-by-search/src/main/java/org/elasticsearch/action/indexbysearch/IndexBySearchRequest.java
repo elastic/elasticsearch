@@ -19,6 +19,8 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import java.io.IOException;
+
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -27,8 +29,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
-
-import java.io.IOException;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
@@ -74,12 +75,19 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         return this;
     }
 
-    protected SearchRequest search() {
+    public SearchRequest search() {
         return search;
     }
 
-    protected IndexRequest index() {
+    public IndexRequest index() {
         return index;
+    }
+
+    /**
+     * Set the search source (used by ObjectParser).
+     */
+    public void searchSource(SearchSourceBuilder sourceBuilder) {
+        search().source(sourceBuilder);
     }
 
     @Override

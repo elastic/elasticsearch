@@ -1,3 +1,21 @@
-"NOCOMMIT dummy tests":
+---
+"Response format":
+  - do:
+      index:
+        index:  test
+        type:   foo
+        id:     1
+        body:   { "text": "test" }
   - do:
       indices.refresh: {}
+
+  - do:
+      index_by_search:
+        index: test
+        type: foo,bar
+        body:
+          index:
+            type: baz
+
+  - match: {indexed: 1}
+  - is_true: took

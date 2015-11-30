@@ -1,0 +1,150 @@
+---
+"Multiple indices fails if type not set on index":
+  - do:
+      catch: request
+      index_by_search:
+        index: foo,bar
+
+---
+"Multiple indices are ok if it is narrowed on the index":
+  - do:
+      index:
+        index:  foo
+        type:   test
+        id:     1
+        body:   { "text": "test" }
+  - do:
+      index:
+        index:  bar
+        type:   test
+        id:     1
+        body:   { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        index: foo,bar
+        type: test
+        body:
+          index:
+            index: baz
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: baz
+        type: test
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+---
+"Multiple types fails if type not set on index":
+  - do:
+      catch: request
+      index_by_search:
+        index: test
+        type: foo,bar
+
+---
+"Multiple types are ok if it is narrowed on the index":
+  - do:
+      index:
+        index:  test
+        type:   foo
+        id:     1
+        body:   { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        index: test
+        type: foo,bar
+        body:
+          index:
+            type: baz
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type: baz
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+---
+"Fail if type is not specified on the url or index":
+  - do:
+      catch: request
+      index_by_search:
+        index: test
+
+---
+"Read type from the index if it isn't specified on the url":
+  - do:
+      index:
+        index:  test
+        type:   foo
+        id:     1
+        body:   { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        index: test
+        body:
+          index:
+            type: baz
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type: baz
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }
+
+---
+"Type on index overrides type on url":
+  - do:
+      index:
+        index:  test
+        type:   foo
+        id:     1
+        body:   { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        index: test
+        type: foo
+        body:
+          index:
+            type: baz
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type: baz
+        body:
+          query:
+            match:
+              text: test
+  - match: { hits.total: 1 }

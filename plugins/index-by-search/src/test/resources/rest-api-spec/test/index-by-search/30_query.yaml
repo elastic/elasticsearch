@@ -1,0 +1,68 @@
+---
+"Limit copy using query on url":
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     1
+        body:   { "text": "test" }
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     2
+        body:   { "text": "junk" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        index: test
+        type: test
+        q: text:test
+        body:
+          index:
+            index: target
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: target
+  - match: { hits.total: 1 }
+
+---
+"Limit copy using query on search request":
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     1
+        body:   { "text": "test" }
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     2
+        body:   { "text": "junk" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        index: test
+        type: test
+        body:
+          search:
+            query:
+              match:
+                text: test
+          index:
+            index: target
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: target
+  - match: { hits.total: 1 }

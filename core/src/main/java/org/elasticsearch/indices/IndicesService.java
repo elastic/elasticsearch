@@ -89,7 +89,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private volatile Map<String, IndexService> indices = emptyMap();
-    private final Map<Index, List<PendingDelete>> pendingDeletes = new HashMap<>();
+    private final Map<String, List<PendingDelete>> pendingDeletes = new HashMap<>();
     private final OldShardsStats oldShardsStats = new OldShardsStats();
     private final IndexStoreConfig indexStoreConfig;
     private final MapperRegistry mapperRegistry;
@@ -576,7 +576,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             throw new IllegalArgumentException("settings must not be null");
         }
         PendingDelete pendingDelete = new PendingDelete(shardId, settings);
-        addPendingDelete(shardId.index(), pendingDelete);
+        addPendingDelete(settings.getUUID(), pendingDelete);
     }
 
     /**
@@ -584,15 +584,15 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      */
     public void addPendingDelete(Index index, IndexSettings settings) {
         PendingDelete pendingDelete = new PendingDelete(index, settings);
-        addPendingDelete(index, pendingDelete);
+        addPendingDelete(settings.getUUID(), pendingDelete);
     }
 
-    private void addPendingDelete(Index index, PendingDelete pendingDelete) {
+    private void addPendingDelete(String indexUUID, PendingDelete pendingDelete) {
         synchronized (pendingDeletes) {
-            List<PendingDelete> list = pendingDeletes.get(index);
+            List<PendingDelete> list = pendingDeletes.get(indexUUID);
             if (list == null) {
                 list = new ArrayList<>();
-                pendingDeletes.put(index, list);
+                pendingDeletes.put(indexUUID, list);
             }
             list.add(pendingDelete);
         }
@@ -652,7 +652,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     public void processPendingDeletes(Index index, IndexSettings indexSettings, TimeValue timeout) throws IOException, InterruptedException {
         logger.debug("{} processing pending deletes", index);
         final long startTimeNS = System.nanoTime();
-        final List<ShardLock> shardLocks = nodeEnv.lockAllForIndex(index, indexSettings, timeout.millis());
+        final List<ShardLock> shardLocks = nodeEnv.lockAsManyAsPossibleForIndex(index, indexSettings, timeout.millis());
+        if (shardLocks.isEmpty()) {
+            logger.debug("{} no shards could be locked", index);
+            throw new LockObtainFailedException("no shards could be locked");
+        }
+        boolean allShardsLocked = shardLocks.size() >= indexSettings.getNumberOfShards();
         try {
             Map<ShardId, ShardLock> locks = new HashMap<>();
             for (ShardLock lock : shardLocks) {
@@ -660,7 +665,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             }
             final List<PendingDelete> remove;
             synchronized (pendingDeletes) {
-                 remove = pendingDeletes.remove(index);
+                 remove = pendingDeletes.remove(indexSettings.getUUID());
             }
             if (remove != null && remove.isEmpty() == false) {
                 CollectionUtil.timSort(remove); // make sure we delete indices first
@@ -678,7 +683,9 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                             assert delete.shardId == -1;
                             logger.debug("{} deleting index store reason [{}]", index, "pending delete");
                             try {
-                                nodeEnv.deleteIndexDirectoryUnderLock(index, indexSettings);
+                                if (allShardsLocked) {
+                                    nodeEnv.deleteIndexDirectoryUnderLock(index, indexSettings);
+                                }
                                 iterator.remove();
                             } catch (IOException ex) {
                                 logger.debug("{} retry pending delete", ex, index);
@@ -707,14 +714,18 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
                     }
                 } while ((System.nanoTime() - startTimeNS) < timeout.nanos());
             }
+
+            if (allShardsLocked == false) {
+                throw new LockObtainFailedException("could only obtain " + shardLocks.size() + " out of " + indexSettings.getNumberOfShards() + " locks");
+            }
         } finally {
             IOUtils.close(shardLocks);
         }
     }
 
-    int numPendingDeletes(Index index) {
+    int numPendingDeletes(String indexUUID) {
         synchronized (pendingDeletes) {
-            List<PendingDelete> deleteList = pendingDeletes.get(index);
+            List<PendingDelete> deleteList = pendingDeletes.get(indexUUID);
             if (deleteList == null) {
                 return 0;
             }

@@ -164,21 +164,21 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         assertAcked(client().admin().indices().prepareClose("test"));
         assertTrue(path.exists());
 
-        assertEquals(indicesService.numPendingDeletes(test.index()), numPending);
+        assertEquals(indicesService.numPendingDeletes(test.indexUUID()), numPending);
 
         // shard lock released... we can now delete
         indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-        assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+        assertEquals(indicesService.numPendingDeletes(test.indexUUID()), 0);
         assertFalse(path.exists());
 
         if (randomBoolean()) {
             indicesService.addPendingDelete(new ShardId(test.index(), 0), test.getIndexSettings());
             indicesService.addPendingDelete(new ShardId(test.index(), 1), test.getIndexSettings());
             indicesService.addPendingDelete(new ShardId("bogus", 1), test.getIndexSettings());
-            assertEquals(indicesService.numPendingDeletes(test.index()), 2);
+            assertEquals(indicesService.numPendingDeletes(test.indexUUID()), 2);
             // shard lock released... we can now delete
             indicesService.processPendingDeletes(test.index(), test.getIndexSettings(), new TimeValue(0, TimeUnit.MILLISECONDS));
-            assertEquals(indicesService.numPendingDeletes(test.index()), 0);
+            assertEquals(indicesService.numPendingDeletes(test.indexUUID()), 0);
         }
         assertAcked(client().admin().indices().prepareOpen("test"));
 

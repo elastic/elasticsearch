@@ -294,7 +294,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     public void deleteShardDirectorySafe(ShardId shardId, IndexSettings indexSettings) throws IOException {
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("deleting shard {} directory, paths: [{}]", shardId, paths);
-        try (ShardLock lock = shardLock(shardId)) {
+        try (ShardLock lock = shardLock(shardId, indexSettings.getUUID(), TimeUnit.SECONDS.toMillis(5))) {
             deleteShardDirectoryUnderLock(lock, indexSettings);
         }
     }
@@ -342,7 +342,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
      */
     public void deleteShardDirectoryUnderLock(ShardLock lock, IndexSettings indexSettings) throws IOException {
         final ShardId shardId = lock.getShardId();
-        assert isShardLocked(shardId) : "shard " + shardId + " is not locked";
+        assert isShardLocked(shardId, indexSettings.getUUID()) : "shard " + shardId + " is not locked";
         final Path[] paths = availableShardPaths(shardId);
         logger.trace("acquiring locks for {}, paths: [{}]", shardId, paths);
         acquireFSLockForPaths(indexSettings, paths);
@@ -358,9 +358,9 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         assert FileSystemUtils.exists(paths) == false;
     }
 
-    private boolean isShardLocked(ShardId id) {
+    private boolean isShardLocked(ShardId id, String indexUUID) {
         try {
-            shardLock(id, 0).close();
+            shardLock(id, indexUUID, 0).close();
             return false;
         } catch (IOException ex) {
             return true;
@@ -426,7 +426,7 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
         try {
             for (int i = 0; i < numShards; i++) {
                 long timeoutLeftMS = Math.max(0, lockTimeoutMS - TimeValue.nsecToMSec((System.nanoTime() - startTimeNS)));
-                allLocks.add(shardLock(new ShardId(index, i), timeoutLeftMS));
+                allLocks.add(shardLock(new ShardId(index, i), settings.getUUID(), timeoutLeftMS));
             }
             success = true;
         } finally {
@@ -439,42 +439,78 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
     }
 
     /**
-     * Tries to lock the given shards ID. A shard lock is required to perform any kind of
-     * write operation on a shards data directory like deleting files, creating a new index writer
-     * or recover from a different shard instance into it. If the shard lock can not be acquired
-     * an {@link LockObtainFailedException} is thrown.
+     * Tries to lock as many local shards as possible for the given index.
      *
-     * Note: this method will return immediately if the lock can't be acquired.
-     *
-     * @param id the shard ID to lock
-     * @return the shard lock. Call {@link ShardLock#close()} to release the lock
+     * @param index the index to lock shards for
+     * @param lockTimeoutMS how long to wait for acquiring the indices shard locks
+     * @return the {@link ShardLock} instances for this index.
      * @throws IOException if an IOException occurs.
      */
-    public ShardLock shardLock(ShardId id) throws IOException {
-        return shardLock(id, 0);
+    public List<ShardLock> lockAsManyAsPossibleForIndex(Index index, IndexSettings settings, long lockTimeoutMS) throws IOException {
+        final int numShards = settings.getNumberOfShards();
+        if (numShards <= 0) {
+            throw new IllegalArgumentException("settings must contain a non-null > 0 number of shards");
+        }
+        logger.trace("locking as many shards as possible for index {} - [{}]", index, numShards);
+        List<ShardLock> successfulLocks = new ArrayList<>(numShards);
+        long startTimeNS = System.nanoTime();
+        for (int i = 0; i < numShards; i++) {
+            try {
+                long timeoutLeftMS = Math.max(0, lockTimeoutMS - TimeValue.nsecToMSec((System.nanoTime() - startTimeNS)));
+                successfulLocks.add(shardLock(new ShardId(index, i), settings.getUUID(), timeoutLeftMS));
+            } catch (Exception e) {
+                logger.trace("failed to lock shard [{}][{}] with index UUID {}", index, i, settings.getUUID());
+            }
+        }
+        return successfulLocks;
     }
 
     /**
      * Tries to lock the given shards ID. A shard lock is required to perform any kind of
      * write operation on a shards data directory like deleting files, creating a new index writer
-     * or recover from a different shard instance into it. If the shard lock can not be acquired
-     * an {@link org.apache.lucene.store.LockObtainFailedException} is thrown
+     * or recover from a different shard instance into it.
+     * If the shard lock can not be acquired or the {@code indexUuid} values
+     * do not match, an {@link org.apache.lucene.store.LockObtainFailedException} is thrown
+     *
+     * Note: this method will return immediately if the lock can't be acquired.
+     *
      * @param id the shard ID to lock
+     * @param indexUuid the index uuid
+     * @return the shard lock. Call {@link ShardLock#close()} to release the lock
+     * @throws IOException if an IOException occurs.
+     */
+    public ShardLock shardLock(ShardId id, String indexUuid) throws IOException {
+        return shardLock(id, indexUuid, 0);
+    }
+
+    /**
+     * Tries to lock the given shards ID. A shard lock is required to perform any kind of
+     * write operation on a shards data directory like deleting files, creating a new index writer
+     * or recover from a different shard instance into it.
+     * If the shard lock can not be acquired or the {@code indexUuid} values
+     * do not match, an {@link org.apache.lucene.store.LockObtainFailedException} is thrown
+     * @param id the shard ID to lock
+     * @param indexUuid the index uuid. If null, we match any index uuid
      * @param lockTimeoutMS the lock timeout in milliseconds
      * @return the shard lock. Call {@link ShardLock#close()} to release the lock
      * @throws IOException if an IOException occurs.
      */
-    public ShardLock shardLock(final ShardId id, long lockTimeoutMS) throws IOException {
+    public ShardLock shardLock(final ShardId id, String indexUuid, long lockTimeoutMS) throws IOException {
         logger.trace("acquiring node shardlock on [{}], timeout [{}]", id, lockTimeoutMS);
         final InternalShardLock shardLock;
         final boolean acquired;
         synchronized (shardLocks) {
             if (shardLocks.containsKey(id)) {
                 shardLock = shardLocks.get(id);
-                shardLock.incWaitCount();
-                acquired = false;
+                if (indexUuid == null || shardLock.indexUuid == null || indexUuid.equals(shardLock.indexUuid)) {
+                    shardLock.incWaitCount();
+                    acquired = false;
+                } else {
+                    throw new LockObtainFailedException("Index UUID of caller [" + indexUuid +
+                            "] does not match index UUID of current held lock [" + shardLock.indexUuid + "]");
+                }
             } else {
-                shardLock = new InternalShardLock(id);
+                shardLock = new InternalShardLock(id, indexUuid);
                 shardLocks.put(id, shardLock);
                 acquired = true;
             }
@@ -518,10 +554,12 @@ public class NodeEnvironment extends AbstractComponent implements Closeable {
          */
         private final Semaphore mutex = new Semaphore(1);
         private int waitCount = 1; // guarded by shardLocks
-        private ShardId shardId;
+        private final ShardId shardId;
+        private final String indexUuid;
 
-        InternalShardLock(ShardId id) {
+        InternalShardLock(ShardId id, String indexUuid) {
             shardId = id;
+            this.indexUuid = indexUuid;
             mutex.acquireUninterruptibly();
         }
 

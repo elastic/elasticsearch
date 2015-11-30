@@ -323,7 +323,7 @@ public class MultiDataPathUpgrader {
 
             for (String index : allIndices) {
                 for (ShardId shardId : findAllShardIds(nodeEnv.indexPaths(new Index(index)))) {
-                    try (ShardLock lock = nodeEnv.shardLock(shardId, 0)) {
+                    try (ShardLock lock = nodeEnv.shardLock(shardId, null, 0)) {
                         if (upgrader.needsUpgrading(shardId)) {
                             final ShardPath shardPath = upgrader.pickShardPath(shardId);
                             upgrader.upgrade(shardId, shardPath);

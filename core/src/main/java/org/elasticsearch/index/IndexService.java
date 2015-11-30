@@ -233,7 +233,7 @@ public final class IndexService extends AbstractIndexComponent implements IndexC
         boolean success = false;
         Store store = null;
         IndexShard indexShard = null;
-        final ShardLock lock = nodeEnv.shardLock(shardId, TimeUnit.SECONDS.toMillis(5));
+        final ShardLock lock = nodeEnv.shardLock(shardId, this.indexSettings.getUUID(), TimeUnit.SECONDS.toMillis(5));
         try {
             eventListener.beforeIndexShardCreated(shardId, indexSettings);
             ShardPath path;

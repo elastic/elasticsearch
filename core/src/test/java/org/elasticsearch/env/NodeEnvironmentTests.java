@@ -22,6 +22,7 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.LuceneTestCase;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -37,6 +38,7 @@ import java.nio.file.Path;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -87,11 +89,11 @@ public class NodeEnvironmentTests extends ESTestCase {
     public void testShardLock() throws IOException {
         final NodeEnvironment env = newNodeEnvironment();
 
-        ShardLock fooLock = env.shardLock(new ShardId("foo", 0));
+        ShardLock fooLock = env.shardLock(new ShardId("foo", 0), idxSettings.getUUID(), TimeUnit.SECONDS.toMillis(5));
         assertEquals(new ShardId("foo", 0), fooLock.getShardId());
 
         try {
-            env.shardLock(new ShardId("foo", 0));
+            env.shardLock(new ShardId("foo", 0), idxSettings.getUUID(), TimeUnit.SECONDS.toMillis(5));
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -109,11 +111,11 @@ public class NodeEnvironmentTests extends ESTestCase {
 
         fooLock.close();
         // can lock again?
-        env.shardLock(new ShardId("foo", 0)).close();
+        env.shardLock(new ShardId("foo", 0), this.idxSettings.getUUID(), TimeUnit.SECONDS.toMillis(5)).close();
 
         List<ShardLock> locks = env.lockAllForIndex(new Index("foo"), idxSettings, randomIntBetween(0, 10));
         try {
-            env.shardLock(new ShardId("foo", 0));
+            env.shardLock(new ShardId("foo", 0), this.idxSettings.getUUID(), TimeUnit.SECONDS.toMillis(5));
             fail("shard is locked");
         } catch (LockObtainFailedException ex) {
             // expected
@@ -142,7 +144,7 @@ public class NodeEnvironmentTests extends ESTestCase {
 
     public void testDeleteSafe() throws IOException, InterruptedException {
         final NodeEnvironment env = newNodeEnvironment();
-        ShardLock fooLock = env.shardLock(new ShardId("foo", 0));
+        ShardLock fooLock = env.shardLock(new ShardId("foo", 0), this.idxSettings.getUUID(), TimeUnit.SECONDS.toMillis(5));
         assertEquals(new ShardId("foo", 0), fooLock.getShardId());
 
 
@@ -200,7 +202,8 @@ public class NodeEnvironmentTests extends ESTestCase {
                 @Override
                 protected void doRun() throws Exception {
                     start.await();
-                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", 0))) {
+                    try (ShardLock autoCloses = env.shardLock(new ShardId("foo", 0),
+                            NodeEnvironmentTests.this.idxSettings.getUUID(), TimeUnit.SECONDS.toMillis(5))) {
                         blockLatch.countDown();
                         Thread.sleep(randomIntBetween(1, 10));
                     }
@@ -258,7 +261,7 @@ public class NodeEnvironmentTests extends ESTestCase {
                     for (int i = 0; i < iters; i++) {
                         int shard = randomIntBetween(0, counts.length - 1);
                         try {
-                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", shard), scaledRandomIntBetween(0, 10))) {
+                            try (ShardLock autoCloses = env.shardLock(new ShardId("foo", shard), idxSettings.getUUID(), scaledRandomIntBetween(0, 10))) {
                                 counts[shard].value++;
                                 countsAtomic[shard].incrementAndGet();
                                 assertEquals(flipFlop[shard].incrementAndGet(), 1);

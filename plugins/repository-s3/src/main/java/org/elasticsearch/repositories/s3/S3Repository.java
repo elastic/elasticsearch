@@ -19,6 +19,7 @@
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.services.s3.AmazonS3;
 import org.elasticsearch.cloud.aws.AwsS3Service;
 import org.elasticsearch.cloud.aws.AwsS3Service.CLOUD_AWS;
 import org.elasticsearch.cloud.aws.AwsS3Service.REPOSITORY_S3;
@@ -123,12 +124,14 @@ public class S3Repository extends BlobStoreRepository {
         // Parse and validate the user's S3 Storage Class setting
         String storageClass = repositorySettings.settings().get("storage_class", settings.get(REPOSITORY_S3.STORAGE_CLASS, null));
         String cannedACL = repositorySettings.settings().get("canned_acl", settings.get(REPOSITORY_S3.CANNED_ACL, null));
+        Boolean pathStyleAccess = repositorySettings.settings().getAsBoolean("path_style_access", settings.getAsBoolean(REPOSITORY_S3.PATH_STYLE_ACCESS, null));
 
-        logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}], cannedACL [{}], storageClass [{}]",
-                bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
+            logger.debug("using bucket [{}], region [{}], endpoint [{}], protocol [{}], chunk_size [{}], server_side_encryption [{}], buffer_size [{}], max_retries [{}], canned_acl [{}], storage_class [{}], path_style_access [{}]",
+                bucket, region, endpoint, protocol, chunkSize, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass, pathStyleAccess);
 
-        blobStore = new S3BlobStore(settings, s3Service.client(endpoint, protocol, region, repositorySettings.settings().get("access_key"), repositorySettings.settings().get("secret_key"), maxRetries),
-                bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
+        AmazonS3 client = s3Service.client(endpoint, protocol, region, repositorySettings.settings().get("access_key"),
+                repositorySettings.settings().get("secret_key"), maxRetries, pathStyleAccess);
+        blobStore = new S3BlobStore(settings, client, bucket, region, serverSideEncryption, bufferSize, maxRetries, cannedACL, storageClass);
 
         String basePath = repositorySettings.settings().get("base_path", settings.get(REPOSITORY_S3.BASE_PATH));
         if (Strings.hasLength(basePath)) {

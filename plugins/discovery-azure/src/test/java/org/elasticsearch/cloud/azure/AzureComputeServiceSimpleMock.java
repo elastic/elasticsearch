@@ -19,13 +19,8 @@
 
 package org.elasticsearch.cloud.azure;
 
-import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
-import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
-import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
-import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
-import com.microsoft.windowsazure.management.compute.models.RoleInstance;
+import com.microsoft.windowsazure.management.compute.models.*;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceAbstractMock;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.plugins.Plugin;
@@ -47,11 +42,10 @@ public class AzureComputeServiceSimpleMock extends AzureComputeServiceAbstractMo
             return "plugs in a mock compute service for testing";
         }
         public void onModule(AzureDiscoveryModule azureDiscoveryModule) {
-            azureDiscoveryModule.computeServiceImpl = AzureComputeServiceSimpleMock.class;
+            azureDiscoveryModule.computeService = new AzureComputeServiceSimpleMock(this.additionalSettings());
         }
     }
 
-    @Inject
     public AzureComputeServiceSimpleMock(Settings settings) {
         super(settings);
     }

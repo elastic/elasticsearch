@@ -19,14 +19,9 @@
 
 package org.elasticsearch.cloud.azure;
 
-import com.microsoft.windowsazure.management.compute.models.DeploymentSlot;
-import com.microsoft.windowsazure.management.compute.models.DeploymentStatus;
-import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDetailedResponse;
-import com.microsoft.windowsazure.management.compute.models.InstanceEndpoint;
-import com.microsoft.windowsazure.management.compute.models.RoleInstance;
+import com.microsoft.windowsazure.management.compute.models.*;
 import org.elasticsearch.cloud.azure.management.AzureComputeServiceAbstractMock;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugins.Plugin;
 
@@ -51,16 +46,13 @@ public class AzureComputeServiceTwoNodesMock extends AzureComputeServiceAbstract
             return "plugs in a mock compute service for testing";
         }
         public void onModule(AzureDiscoveryModule azureDiscoveryModule) {
-            azureDiscoveryModule.computeServiceImpl = AzureComputeServiceTwoNodesMock.class;
+            azureDiscoveryModule.computeService = new AzureComputeServiceTwoNodesMock(this.additionalSettings());
         }
     }
 
-    NetworkService networkService;
-
     @Inject
-    protected AzureComputeServiceTwoNodesMock(Settings settings, NetworkService networkService) {
+    protected AzureComputeServiceTwoNodesMock(Settings settings) {
         super(settings);
-        this.networkService = networkService;
     }
 
     @Override

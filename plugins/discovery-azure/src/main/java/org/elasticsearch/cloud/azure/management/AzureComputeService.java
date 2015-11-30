@@ -26,9 +26,7 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
  */
 public interface AzureComputeService {
 
-    static public final class Management {
-        public static final String API_IMPLEMENTATION = "cloud.azure.management.api.impl";
-
+    final class Management {
         public static final String SUBSCRIPTION_ID = "cloud.azure.management.subscription.id";
         public static final String SERVICE_NAME = "cloud.azure.management.cloud.service.name";
 
@@ -38,7 +36,7 @@ public interface AzureComputeService {
         public static final String KEYSTORE_TYPE = "cloud.azure.management.keystore.type";
     }
 
-    static public final class Discovery {
+    final class Discovery {
         public static final String REFRESH = "discovery.azure.refresh_interval";
 
         public static final String HOST_TYPE = "discovery.azure.host.type";
@@ -46,5 +44,6 @@ public interface AzureComputeService {
         public static final String DEPLOYMENT_NAME = "discovery.azure.deployment.name";
         public static final String DEPLOYMENT_SLOT = "discovery.azure.deployment.slot";
     }
-    public HostedServiceGetDetailedResponse getServiceDetails();
+
+    HostedServiceGetDetailedResponse getServiceDetails();
 }

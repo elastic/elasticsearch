@@ -19,7 +19,10 @@
 
 package org.elasticsearch.plugin.discovery.azure;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.azure.AzureDiscoveryModule;
+import org.elasticsearch.cloud.azure.management.AzureComputeService.Management;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
@@ -38,11 +41,17 @@ import java.util.Collections;
 public class AzureDiscoveryPlugin extends Plugin {
 
     private final Settings settings;
+    private final boolean azureDiscoveryActivated;
     protected final ESLogger logger = Loggers.getLogger(AzureDiscoveryPlugin.class);
 
     public AzureDiscoveryPlugin(Settings settings) {
         this.settings = settings;
-        logger.trace("starting azure discovery plugin...");
+        azureDiscoveryActivated = AzureDiscovery.AZURE.equals(settings.get("discovery.type"));
+        if (azureDiscoveryActivated) {
+            logger.trace("starting azure discovery plugin...");
+        } else {
+            logger.info("You added discovery-azure plugin but not using it. Check your config or remove it.");
+        }
     }
 
     @Override
@@ -57,13 +66,46 @@ public class AzureDiscoveryPlugin extends Plugin {
 
     @Override
     public Collection<Module> nodeModules() {
-        return Collections.singletonList((Module) new AzureDiscoveryModule(settings));
+        // The user explicitly asked for a azure discovery. We will fail to start
+        // if all settings are not set and correct
+        if (azureDiscoveryActivated) {
+            // Check that we have all needed properties
+            if (isPropertyMissing(settings, Management.SUBSCRIPTION_ID) ||
+                isPropertyMissing(settings, Management.SERVICE_NAME) ||
+                isPropertyMissing(settings, Management.KEYSTORE_PATH) ||
+                isPropertyMissing(settings, Management.KEYSTORE_PASSWORD)
+                ) {
+                logger.error("one or more azure discovery settings are missing. " +
+                        "Check elasticsearch.yml file. Should have [{}], [{}], [{}] and [{}].",
+                    Management.SUBSCRIPTION_ID,
+                    Management.SERVICE_NAME,
+                    Management.KEYSTORE_PATH,
+                    Management.KEYSTORE_PASSWORD);
+                throw new ElasticsearchException("one or more azure discovery settings are missing. " +
+                    "Check elasticsearch.yml file. Should have [{}], [{}], [{}] and [{}].",
+                    Management.SUBSCRIPTION_ID,
+                    Management.SERVICE_NAME,
+                    Management.KEYSTORE_PATH,
+                    Management.KEYSTORE_PASSWORD);
+            }
+
+            logger.debug("starting azure client service");
+            return Collections.singletonList((Module) new AzureDiscoveryModule(settings));
+        }
+        return Collections.EMPTY_LIST;
     }
 
     public void onModule(DiscoveryModule discoveryModule) {
-        if (AzureDiscoveryModule.isDiscoveryReady(settings, logger)) {
+        if (azureDiscoveryActivated) {
             discoveryModule.addDiscoveryType("azure", AzureDiscovery.class);
             discoveryModule.addUnicastHostProvider(AzureUnicastHostsProvider.class);
         }
+    }
+
+    public static boolean isPropertyMissing(Settings settings, String name) throws ElasticsearchException {
+        if (!Strings.hasText(settings.get(name))) {
+            return true;
+        }
+        return false;
     }
 }

@@ -56,6 +56,10 @@ dependencyLicenses {
   mapping from: /jaxb-.*/, to: 'jaxb'
 }
 
+forbiddenPatterns {
+  exclude '**/*.pkcs12'
+}
+
 compileJava.options.compilerArgs << '-Xlint:-path,-serial,-static,-unchecked'
 // TODO: why is deprecation needed here but not in maven....?
 compileJava.options.compilerArgs << '-Xlint:-deprecation'

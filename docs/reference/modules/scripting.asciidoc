@@ -120,10 +120,12 @@ curl -XPOST localhost:9200/_search -d '{
       "functions": [
         {
           "script_score": {
-            "lang": "groovy",
-            "file": "calculate-score",
-            "params": {
-              "my_modifier": 8
+            "script": {
+              "lang": "groovy",
+              "file": "calculate-score",
+              "params": {
+                "my_modifier": 8
+              }
             }
           }
         }
@@ -179,10 +181,12 @@ curl -XPOST localhost:9200/_search -d '{
       "functions": [
         {
           "script_score": {
-            "id": "indexedCalculateScore",
-            "lang" : "groovy",
-            "params": {
-              "my_modifier": 8
+            "script": {
+              "id": "indexedCalculateScore",
+              "lang" : "groovy",
+              "params": {
+                "my_modifier": 8
+              }
             }
           }
         }

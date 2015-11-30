@@ -38,9 +38,7 @@ import static org.hamcrest.Matchers.containsString;
 public class SimpleNettyTransportTests extends AbstractSimpleTransportTestCase {
     @Override
     protected MockTransportService build(Settings settings, Version version, NamedWriteableRegistry namedWriteableRegistry) {
-        int startPort = 11000 + randomIntBetween(0, 255);
-        int endPort = startPort + 10;
-        settings = Settings.builder().put(settings).put("transport.tcp.port", startPort + "-" + endPort).build();
+        settings = Settings.builder().put(settings).put("transport.tcp.port", "0").build();
         MockTransportService transportService = new MockTransportService(settings, new NettyTransport(settings, threadPool, new NetworkService(settings), BigArrays.NON_RECYCLING_INSTANCE, version, namedWriteableRegistry), threadPool);
         transportService.start();
         return transportService;

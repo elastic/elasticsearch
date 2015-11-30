@@ -88,7 +88,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1);
-        List<InternalProfileResult> results = profiler.getQueryTree();
+        List<ProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));
@@ -107,7 +107,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.search(query, 1, Sort.INDEXORDER); // scores are not needed
-        List<InternalProfileResult> results = profiler.getQueryTree();
+        List<ProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));
@@ -126,7 +126,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new TermQuery(new Term("foo", "bar"));
         searcher.count(query); // will use index stats
-        List<InternalProfileResult> results = profiler.getQueryTree();
+        List<ProfileResult> results = profiler.getQueryTree();
         assertEquals(0, results.size());
 
         long rewriteTime = profiler.getRewriteTime();
@@ -142,7 +142,7 @@ public class ProfileTests extends ESTestCase {
         searcher.setProfiler(profiler);
         Query query = new RandomApproximationQuery(new TermQuery(new Term("foo", "bar")), random());
         searcher.count(query);
-        List<InternalProfileResult> results = profiler.getQueryTree();
+        List<ProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
         assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));

@@ -28,7 +28,7 @@ import java.util.concurrent.LinkedBlockingDeque;
 /**
  * This class tracks the dependency tree for queries (scoring and rewriting) and
  * generates {@link ProfileBreakdown} for each node in the tree.  It also finalizes the tree
- * and returns a list of {@link InternalProfileResult} that can be serialized back to the client
+ * and returns a list of {@link ProfileResult} that can be serialized back to the client
  */
 final class InternalProfileTree {
 
@@ -162,8 +162,8 @@ final class InternalProfileTree {
      *
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<InternalProfileResult> getQueryTree() {
-        ArrayList<InternalProfileResult> results = new ArrayList<>(5);
+    public List<ProfileResult> getQueryTree() {
+        ArrayList<ProfileResult> results = new ArrayList<>(5);
         for (Integer root : roots) {
             results.add(doGetQueryTree(root));
         }
@@ -175,22 +175,27 @@ final class InternalProfileTree {
      * @param token  The node we are currently finalizing
      * @return       A hierarchical representation of the tree inclusive of children at this level
      */
-    private InternalProfileResult doGetQueryTree(int token) {
-
+    private ProfileResult doGetQueryTree(int token) {
         Query query = queries.get(token);
         ProfileBreakdown breakdown = timings.get(token);
         Map<String, Long> timings = breakdown.toTimingMap();
-        InternalProfileResult rootNode =  new InternalProfileResult(query, timings);
-        ArrayList<Integer> children = tree.get(token);
+        List<Integer> children = tree.get(token);
+        List<ProfileResult> childrenProfileResults = Collections.emptyList();
 
         if (children != null) {
+            childrenProfileResults = new ArrayList<>(children.size());
             for (Integer child : children) {
-                InternalProfileResult childNode = doGetQueryTree(child);
-                rootNode.addChild(childNode);
+                ProfileResult childNode = doGetQueryTree(child);
+                childrenProfileResults.add(childNode);
             }
         }
 
-        return rootNode;
+        // TODO this would be better done bottom-up instead of top-down to avoid
+        // calculating the same times over and over...but worth the effort?
+        long nodeTime = getNodeTime(timings, childrenProfileResults);
+        String queryDescription = query.getClass().getSimpleName();
+        String luceneName = query.toString();
+        return new ProfileResult(queryDescription, luceneName, timings, childrenProfileResults, nodeTime);
     }
 
     public long getRewriteTime() {
@@ -207,5 +212,25 @@ final class InternalProfileTree {
         ArrayList<Integer> parentNode = tree.get(parent);
         parentNode.add(childToken);
         tree.set(parent, parentNode);
+    }
+
+    /**
+     * Internal helper to calculate the time of a node, inclusive of children
+     *
+     * @param timings   A map of breakdown timing for the node
+     * @param children  All children profile results at this node
+     * @return          The total time at this node, inclusive of children
+     */
+    private static long getNodeTime(Map<String, Long> timings, List<ProfileResult> children) {
+        long nodeTime = 0;
+        for (long time : timings.values()) {
+            nodeTime += time;
+        }
+
+        // Then add up our children
+        for (ProfileResult child : children) {
+            nodeTime += getNodeTime(child.getTimeBreakdown(), child.getProfiledChildren());
+        }
+        return nodeTime;
     }
 }

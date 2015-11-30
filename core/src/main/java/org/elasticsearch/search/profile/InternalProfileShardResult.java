@@ -34,13 +34,13 @@ import java.util.*;
  */
 public class InternalProfileShardResult implements ProfileShardResult, Streamable, ToXContent {
 
-    private List<InternalProfileResult> profileResults;
+    private List<ProfileResult> profileResults;
 
     private CollectorResult profileCollector;
 
     private long rewriteTime;
 
-    public InternalProfileShardResult(List<InternalProfileResult> profileResults, long rewriteTime,
+    public InternalProfileShardResult(List<ProfileResult> profileResults, long rewriteTime,
                                       CollectorResult profileCollector) {
         this.profileResults = profileResults;
         this.profileCollector = profileCollector;
@@ -70,7 +70,7 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startArray("query");
 
-        for (InternalProfileResult p : profileResults) {
+        for (ProfileResult p : profileResults) {
             p.toXContent(builder, params);
         }
         builder.endArray();
@@ -96,7 +96,7 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
         int profileSize = in.readVInt();
         profileResults = new ArrayList<>(profileSize);
         for (int j = 0; j < profileSize; j++) {
-            profileResults.add(InternalProfileResult.readProfileResult(in));
+            profileResults.add(new ProfileResult(in));
         }
 
         boolean hasCollector = in.readBoolean();
@@ -109,7 +109,7 @@ public class InternalProfileShardResult implements ProfileShardResult, Streamabl
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVInt(profileResults.size());
-        for (InternalProfileResult p : profileResults) {
+        for (ProfileResult p : profileResults) {
             p.writeTo(out);
         }
         if (profileCollector == null) {

@@ -91,7 +91,7 @@ public final class Profiler {
     /**
      * @return a hierarchical representation of the profiled query tree
      */
-    public List<InternalProfileResult> getQueryTree() {
+    public List<ProfileResult> getQueryTree() {
         return queryTree.getQueryTree();
     }
 

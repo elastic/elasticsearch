@@ -7,75 +7,7 @@ dependencies {
 }
 
 // location of keystore and files to generate it
-File ca = new File(project.buildDir, 'ca')
-File caConfig = new File(ca, 'conf/caconfig.cnf')
-File cert = new File(project.buildDir, 'cert/test-node.csr')
-File signedCert = new File(project.buildDir, 'cert/test-node-signed.csr')
 File keystore = new File(project.buildDir, 'keystore/test-node.jks')
-
-String caConfigData = """
-[ ca ]
-default_ca = CA_default
-[ CA_default ]
-copy_extensions = copy
-serial = ${ca}/serial
-database = ${ca}/index.txt
-new_certs_dir = ${ca}/certs
-certificate = ${ca}/certs/cacert.pem
-private_key = ${ca}/private/cakey.pem
-default_days = 712
-default_md = sha256
-preserve = no
-email_in_dn = no
-x509_extensions = v3_ca
-name_opt = ca_default
-cert_opt = ca_default
-policy = policy_anything
-[ policy_anything ]
-countryName             = optional
-stateOrProvinceName     = optional
-localityName            = optional
-organizationName        = optional
-organizationalUnitName  = optional
-commonName              = supplied
-emailAddress            = optional
-[ req ]
-default_bits = 2048 # Size of keys
-default_keyfile = key.pem # name of generated keys
-default_md = sha256 # message digest algorithm
-string_mask = nombstr # permitted characters
-distinguished_name = req_distinguished_name
-req_extensions = v3_req
-[ req_distinguished_name ]
-# Variable name Prompt string
-#------------------------- ----------------------------------
-0.organizationName = Organization Name (company)
-organizationalUnitName = Organizational Unit Name (department, division)
-emailAddress = Email Address
-emailAddress_max = 40
-localityName = Locality Name (city, district)
-stateOrProvinceName = State or Province Name (full name)
-countryName = Country Name (2 letter code)
-countryName_min = 2
-countryName_max = 2
-commonName = Common Name (hostname, IP, or your name)
-commonName_max = 64
-# Default values for the above, for consistency and less typing.
-# Variable name Value
-#------------------------ ------------------------------
-0.organizationName_default = Elasticsearch Test Org
-localityName_default = Amsterdam
-stateOrProvinceName_default = Amsterdam
-countryName_default = NL
-emailAddress_default = cacerttest@YOUR.COMPANY.TLD
-[ v3_ca ]
-basicConstraints = CA:TRUE
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer:always
-[ v3_req ]
-basicConstraints = CA:FALSE
-subjectKeyIdentifier = hash
-"""
 
 // generate the keystore
 task createKey(type: LoggedExec) {
@@ -95,58 +27,9 @@ task createKey(type: LoggedExec) {
        '-storepass', 'keypass'
 }
 
-task createCertificate(type: LoggedExec, dependsOn: createKey) {
-  doFirst {
-    project.delete(cert.parentFile)
-    cert.parentFile.mkdirs()
-  }
-  executable = 'keytool'
-  standardInput = new ByteArrayInputStream('keypass\n'.getBytes('UTF-8'))
-  args '-certreq',
-       '-alias', 'test-node',
-       '-keystore', keystore,
-       '-file', cert,
-       '-keyalg', 'RSA',
-       '-ext', 'san=dns:localhost,ip:127.0.0.1'
-}
-
-task createCertificateAuthority(type: LoggedExec) {
-  doFirst {
-    project.delete(ca)
-    ca.mkdirs()
-    for (String dir : ['private', 'certs', 'conf']) {
-      new File(ca, dir).mkdirs()
-    }
-    caConfig.setText(caConfigData, 'UTF-8')
-    new File(ca, 'serial').setText('01', 'UTF-8')
-    new File(ca, 'index.txt').setText('', 'UTF-8')
-  }
-  executable = 'openssl'
-  args 'req', '-new', '-x509', '-extensions', 'v3_ca',
-      '-keyout', new File(ca, 'private/cakey.pem'),
-      '-out', new File(ca, 'certs/cacert.pem'),
-      '-days', '1460',
-      '-config', caConfig,
-      '-subj', '/OU=XPlugins QA',
-      '-passout', 'pass:capass'
-}
-
-task signCertificate(type: LoggedExec, dependsOn: [createCertificate, createCertificateAuthority]) {
-  executable = 'openssl'
-  standardInput = new ByteArrayInputStream('y\ny\n'.getBytes('UTF-8'))
-  args 'ca', '-in', cert, '-notext', '-out', signedCert, '-config', caConfig,
-       '-extensions', 'v3_req', '-passin', 'pass:capass'
-}
-
-task importCertificate(type: LoggedExec, dependsOn: signCertificate) {
-  executable = 'keytool'
-  standardInput = new ByteArrayInputStream('keypass\nyes\n'.getBytes('UTF-8'))
-  args '-importcert', '-keystore', keystore, '-file', signedCert, '-trustcacerts'
-}
-
 // add keystore to test classpath: it expects it there
 sourceSets.test.resources.srcDir(keystore.parentFile)
-processTestResources.dependsOn(importCertificate)
+processTestResources.dependsOn(createKey)
 
 // add ES plugins, this loop must be outside of a configuration closure, otherwise it may get executed multiple times
 for (Project subproj : project.rootProject.subprojects) {
@@ -157,14 +40,6 @@ for (Project subproj : project.rootProject.subprojects) {
 }
 
 integTest {
-  // in some environments, openssl might not be available
-  try {
-    int ret = Runtime.getRuntime().exec("openssl version").waitFor();
-    enabled = (ret == 0);
-  } catch (IOException unavailable) {
-    enabled = false;
-  }
-
   cluster {
     // TODO: use some variable here for port number
     systemProperty 'es.marvel.agent.exporter.es.hosts', 'https://marvel_export:changeme@localhost:9400'

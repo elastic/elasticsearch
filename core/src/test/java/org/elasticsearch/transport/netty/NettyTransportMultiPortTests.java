@@ -18,8 +18,6 @@
  */
 package org.elasticsearch.transport.netty;
 
-import com.carrotsearch.hppc.IntHashSet;
-
 import org.elasticsearch.Version;
 import org.elasticsearch.cache.recycler.PageCacheRecycler;
 import org.elasticsearch.common.component.Lifecycle;
@@ -27,174 +25,113 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.NetworkUtils;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.transport.InetSocketTransportAddress;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.junit.rule.RepeatOnExceptionRule;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.BindTransportException;
 import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
-import org.junit.Rule;
-
-import java.io.IOException;
-import java.io.OutputStream;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
-import java.net.Socket;
-import java.nio.charset.StandardCharsets;
 
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.hamcrest.Matchers.is;
 
 public class NettyTransportMultiPortTests extends ESTestCase {
 
-    private static final int MAX_RETRIES = 10;
     private String host;
-
-    @Rule
-    public RepeatOnExceptionRule repeatOnBindExceptionRule = new RepeatOnExceptionRule(logger, MAX_RETRIES, BindTransportException.class);
 
     @Before
     public void setup() {
-        if (randomBoolean()) {
-            host = "localhost";
+        if (NetworkUtils.SUPPORTS_V6 && randomBoolean()) {
+            host = "::1";
         } else {
-            if (NetworkUtils.SUPPORTS_V6 && randomBoolean()) {
-                host = "::1";
-            } else {
-                host = "127.0.0.1";
-            }
+            host = "127.0.0.1";
         }
     }
 
     public void testThatNettyCanBindToMultiplePorts() throws Exception {
-        int[] ports = getRandomPorts(3);
-
         Settings settings = settingsBuilder()
                 .put("network.host", host)
-                .put("transport.tcp.port", ports[0])
-                .put("transport.profiles.default.port", ports[1])
-                .put("transport.profiles.client1.port", ports[2])
+                .put("transport.tcp.port", 22) // will not actually bind to this
+                .put("transport.profiles.default.port", 0)
+                .put("transport.profiles.client1.port", 0)
                 .build();
 
         ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
-            assertConnectionRefused(ports[0]);
-            assertPortIsBound(ports[1]);
-            assertPortIsBound(ports[2]);
+        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+            assertEquals(1, transport.profileBoundAddresses().size());
+            assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
             terminate(threadPool);
         }
     }
 
     public void testThatDefaultProfileInheritsFromStandardSettings() throws Exception {
-        int[] ports = getRandomPorts(2);
-
         Settings settings = settingsBuilder()
                 .put("network.host", host)
-                .put("transport.tcp.port", ports[0])
-                .put("transport.profiles.client1.port", ports[1])
+                .put("transport.tcp.port", 0)
+                .put("transport.profiles.client1.port", 0)
                 .build();
 
         ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
-            assertPortIsBound(ports[0]);
-            assertPortIsBound(ports[1]);
+        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+            assertEquals(1, transport.profileBoundAddresses().size());
+            assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
             terminate(threadPool);
         }
     }
 
     public void testThatProfileWithoutPortSettingsFails() throws Exception {
-        int[] ports = getRandomPorts(1);
 
         Settings settings = settingsBuilder()
                 .put("network.host", host)
-                .put("transport.tcp.port", ports[0])
+                .put("transport.tcp.port", 0)
                 .put("transport.profiles.client1.whatever", "foo")
                 .build();
 
         ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
-            assertPortIsBound(ports[0]);
+        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+            assertEquals(0, transport.profileBoundAddresses().size());
+            assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
             terminate(threadPool);
         }
     }
 
     public void testThatDefaultProfilePortOverridesGeneralConfiguration() throws Exception {
-        int[] ports = getRandomPorts(3);
-
         Settings settings = settingsBuilder()
                 .put("network.host", host)
-                .put("transport.tcp.port", ports[0])
-                .put("transport.netty.port", ports[1])
-                .put("transport.profiles.default.port", ports[2])
+                .put("transport.tcp.port", 22) // will not actually bind to this
+                .put("transport.netty.port", 23) // will not actually bind to this
+                .put("transport.profiles.default.port", 0)
                 .build();
 
         ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
-            assertConnectionRefused(ports[0]);
-            assertConnectionRefused(ports[1]);
-            assertPortIsBound(ports[2]);
+        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+            assertEquals(0, transport.profileBoundAddresses().size());
+            assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
             terminate(threadPool);
         }
     }
 
     public void testThatProfileWithoutValidNameIsIgnored() throws Exception {
-        int[] ports = getRandomPorts(3);
-
         Settings settings = settingsBuilder()
                 .put("network.host", host)
-                .put("transport.tcp.port", ports[0])
+                .put("transport.tcp.port", 0)
                 // mimics someone trying to define a profile for .local which is the profile for a node request to itself
-                .put("transport.profiles." + TransportService.DIRECT_RESPONSE_PROFILE + ".port", ports[1])
-                .put("transport.profiles..port", ports[2])
+                .put("transport.profiles." + TransportService.DIRECT_RESPONSE_PROFILE + ".port", 22) // will not actually bind to this
+                .put("transport.profiles..port", 23) // will not actually bind to this
                 .build();
 
         ThreadPool threadPool = new ThreadPool("tst");
-        try (NettyTransport ignored = startNettyTransport(settings, threadPool)) {
-            assertPortIsBound(ports[0]);
-            assertConnectionRefused(ports[1]);
-            assertConnectionRefused(ports[2]);
+        try (NettyTransport transport = startNettyTransport(settings, threadPool)) {
+            assertEquals(0, transport.profileBoundAddresses().size());
+            assertEquals(1, transport.boundAddress().boundAddresses().length);
         } finally {
             terminate(threadPool);
         }
-    }
-
-    private int[] getRandomPorts(int numberOfPorts) {
-        IntHashSet ports = new IntHashSet();
-
-        int nextPort = randomIntBetween(49152, 65535);
-        for (int i = 0; i < numberOfPorts; i++) {
-            boolean foundPortInRange = false;
-            while (!foundPortInRange) {
-                if (!ports.contains(nextPort)) {
-                    logger.debug("looking to see if port [{}]is available", nextPort);
-                    try (ServerSocket serverSocket = new ServerSocket()) {
-                        // Set SO_REUSEADDR as we may bind here and not be able
-                        // to reuse the address immediately without it.
-                        serverSocket.setReuseAddress(NetworkUtils.defaultReuseAddress());
-                        serverSocket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), nextPort));
-
-                        // bind was a success
-                        logger.debug("port [{}] available.", nextPort);
-                        foundPortInRange = true;
-                        ports.add(nextPort);
-                    } catch (IOException e) {
-                        // Do nothing
-                        logger.debug("port [{}] not available.", e, nextPort);
-                    }
-                }
-                nextPort = randomIntBetween(49152, 65535);
-            }
-        }
-        return ports.toArray();
     }
 
     private NettyTransport startNettyTransport(Settings settings, ThreadPool threadPool) {
@@ -205,37 +142,5 @@ public class NettyTransportMultiPortTests extends ESTestCase {
 
         assertThat(nettyTransport.lifecycleState(), is(Lifecycle.State.STARTED));
         return nettyTransport;
-    }
-
-    private void assertConnectionRefused(int port) throws Exception {
-        try {
-            trySocketConnection(new InetSocketTransportAddress(InetAddress.getByName(host), port).address());
-            fail("Expected to get exception when connecting to port " + port);
-        } catch (IOException e) {
-            // expected
-            logger.info("Got expected connection message {}", e.getMessage());
-        }
-    }
-
-    private void assertPortIsBound(int port) throws Exception {
-        assertPortIsBound(host, port);
-    }
-
-    private void assertPortIsBound(String host, int port) throws Exception {
-        logger.info("Trying to connect to [{}]:[{}]", host, port);
-        trySocketConnection(new InetSocketTransportAddress(InetAddress.getByName(host), port).address());
-    }
-
-    private void trySocketConnection(InetSocketAddress address) throws Exception {
-        try (Socket socket = new Socket()) {
-            logger.info("Connecting to {}", address);
-            socket.connect(address, 500);
-
-            assertThat(socket.isConnected(), is(true));
-            try (OutputStream os = socket.getOutputStream()) {
-                os.write("foo".getBytes(StandardCharsets.UTF_8));
-                os.flush();
-            }
-        }
     }
 }

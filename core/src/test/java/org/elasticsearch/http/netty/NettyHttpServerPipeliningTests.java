@@ -91,7 +91,10 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
     }
 
     public void testThatHttpPipeliningWorksWhenEnabled() throws Exception {
-        Settings settings = settingsBuilder().put("http.pipelining", true).build();
+        Settings settings = settingsBuilder()
+                               .put("http.pipelining", true)
+                               .put("http.port", "0")
+                               .build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
         httpServerTransport.start();
         InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());
@@ -105,7 +108,10 @@ public class NettyHttpServerPipeliningTests extends ESTestCase {
     }
 
     public void testThatHttpPipeliningCanBeDisabled() throws Exception {
-        Settings settings = settingsBuilder().put("http.pipelining", false).build();
+        Settings settings = settingsBuilder()
+                                .put("http.pipelining", false)
+                                .put("http.port", "0")
+                                .build();
         httpServerTransport = new CustomNettyHttpServerTransport(settings);
         httpServerTransport.start();
         InetSocketTransportAddress transportAddress = (InetSocketTransportAddress) randomFrom(httpServerTransport.boundAddress().boundAddresses());

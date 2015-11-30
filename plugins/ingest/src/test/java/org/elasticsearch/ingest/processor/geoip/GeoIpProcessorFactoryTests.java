@@ -24,7 +24,6 @@ import org.elasticsearch.test.StreamsUtils;
 import org.junit.Before;
 
 import java.io.ByteArrayInputStream;
-import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
@@ -47,8 +46,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuild_defaults() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
-        factory.setConfigDirectory(configDir);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(configDir);
 
         Map<String, Object> config = new HashMap<>();
         config.put("source_field", "_field");
@@ -61,8 +59,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuild_targetField() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
-        factory.setConfigDirectory(configDir);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(configDir);
         Map<String, Object> config = new HashMap<>();
         config.put("source_field", "_field");
         config.put("target_field", "_field");
@@ -72,8 +69,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuild_dbFile() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
-        factory.setConfigDirectory(configDir);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(configDir);
         Map<String, Object> config = new HashMap<>();
         config.put("source_field", "_field");
         config.put("database_file", "GeoLite2-Country.mmdb");
@@ -84,8 +80,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuild_nonExistingDbFile() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
-        factory.setConfigDirectory(configDir);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(configDir);
 
         Map<String, Object> config = new HashMap<>();
         config.put("source_field", "_field");
@@ -98,8 +93,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuild_fields() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
-        factory.setConfigDirectory(configDir);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(configDir);
 
         Set<GeoIpProcessor.Field> fields = EnumSet.noneOf(GeoIpProcessor.Field.class);
         List<String> fieldNames = new ArrayList<>();
@@ -118,8 +112,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuild_illegalFieldOption() throws Exception {
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory();
-        factory.setConfigDirectory(configDir);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(configDir);
 
         Map<String, Object> config = new HashMap<>();
         config.put("source_field", "_field");

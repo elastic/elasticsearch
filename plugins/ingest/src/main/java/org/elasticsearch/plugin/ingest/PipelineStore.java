@@ -36,6 +36,8 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.SearchScrollIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.component.AbstractComponent;
+import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleComponent;
 import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.inject.Provider;
@@ -54,10 +56,11 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.threadpool.ThreadPool;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.*;
 
-public class PipelineStore extends AbstractComponent {
+public class PipelineStore extends AbstractLifecycleComponent {
 
     public final static String INDEX = ".ingest";
     public final static String TYPE = "pipeline";
@@ -74,29 +77,44 @@ public class PipelineStore extends AbstractComponent {
     private volatile Map<String, PipelineDefinition> pipelines = new HashMap<>();
 
     @Inject
-    public PipelineStore(Settings settings, Provider<Client> clientProvider, ThreadPool threadPool, Environment environment, ClusterService clusterService, Map<String, Processor.Factory> processors) {
+    public PipelineStore(Settings settings, Provider<Client> clientProvider, ThreadPool threadPool, Environment environment, ClusterService clusterService, Map<String, ProcessorFactoryProvider> processorFactoryProviders) {
         super(settings);
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.clientProvider = clientProvider;
         this.scrollTimeout = settings.getAsTime("ingest.pipeline.store.scroll.timeout", TimeValue.timeValueSeconds(30));
         this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
-        for (Processor.Factory factory : processors.values()) {
-            factory.setConfigDirectory(environment.configFile());
+        Map<String, Processor.Factory> processorFactories = new HashMap<>();
+        for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
+            Processor.Factory processorFactory = entry.getValue().get(environment);
+            processorFactories.put(entry.getKey(), processorFactory);
         }
-        this.processorFactoryRegistry = Collections.unmodifiableMap(processors);
+        this.processorFactoryRegistry = Collections.unmodifiableMap(processorFactories);
         clusterService.add(new PipelineStoreListener());
-        clusterService.addLifecycleListener(new LifecycleListener() {
-            @Override
-            public void beforeClose() {
-                // Ideally we would implement Closeable, but when a node is stopped this doesn't get invoked:
-                try {
-                    IOUtils.close(processorFactoryRegistry.values());
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+    }
+
+    @Override
+    protected void doStart() {
+    }
+
+    @Override
+    protected void doStop() {
+    }
+
+    @Override
+    protected void doClose() {
+        // TODO: When org.elasticsearch.node.Node can close Closable instances we should remove this code
+        List<Closeable> closeables = new ArrayList<>();
+        for (Processor.Factory factory : processorFactoryRegistry.values()) {
+            if (factory instanceof Closeable) {
+                closeables.add((Closeable) factory);
             }
-        });
+        }
+        try {
+            IOUtils.close(closeables);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     /**
@@ -237,6 +255,19 @@ public class PipelineStore extends AbstractComponent {
             client = clientProvider.get();
         }
         return client;
+    }
+
+    /**
+     * The ingest framework (pipeline, processor and processor factory) can't rely on ES specific code. However some
+     * processors rely on reading files from the config directory. We can't add Environment as a constructor parameter,
+     * so we need some code that provides the physical location of the configuration directory to the processor factories
+     * that need this and this is what this processor factory provider does.
+     */
+    @FunctionalInterface
+    interface ProcessorFactoryProvider {
+
+        Processor.Factory get(Environment environment);
+
     }
 
     class Updater implements Runnable {

@@ -43,8 +43,7 @@ public class GrokProcessorFactoryTests extends ESTestCase {
     }
 
     public void testBuild() throws Exception {
-        GrokProcessor.Factory factory = new GrokProcessor.Factory();
-        factory.setConfigDirectory(configDir);
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(configDir);
 
         Map<String, Object> config = new HashMap<>();
         config.put("field", "_field");

@@ -46,7 +46,7 @@ public interface Processor {
     /**
      * A factory that knows how to construct a processor based on a map of maps.
      */
-    interface Factory<P extends Processor> extends Closeable {
+    interface Factory<P extends Processor> {
 
         /**
          * Creates a processor based on the specified map of maps config.
@@ -56,14 +56,5 @@ public interface Processor {
          */
         P create(Map<String, Object> config) throws Exception;
 
-        /**
-         * Sets the configuration directory when needed to read additional config files
-         */
-        default void setConfigDirectory(Path configDirectory) {
-        }
-
-        @Override
-        default void close() throws IOException {
-        }
     }
 }

@@ -69,7 +69,12 @@ public final class GrokProcessor implements Processor {
     }
 
     public static class Factory implements Processor.Factory<GrokProcessor> {
-        private Path grokConfigDirectory;
+
+        private final Path grokConfigDirectory;
+
+        public Factory(Path configDirectory) {
+            this.grokConfigDirectory = configDirectory.resolve("ingest").resolve("grok");
+        }
 
         public GrokProcessor create(Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(config, "field");
@@ -90,10 +95,6 @@ public final class GrokProcessor implements Processor {
             return new GrokProcessor(grok, matchField);
         }
 
-        @Override
-        public void setConfigDirectory(Path configDirectory) {
-            this.grokConfigDirectory = configDirectory.resolve("ingest").resolve("grok");
-        }
     }
 
 }

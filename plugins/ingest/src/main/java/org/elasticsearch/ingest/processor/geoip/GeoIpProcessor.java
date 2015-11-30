@@ -29,6 +29,7 @@ import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.Processor;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
@@ -211,14 +212,18 @@ public final class GeoIpProcessor implements Processor {
         return geoData;
     }
 
-    public static class Factory implements Processor.Factory<GeoIpProcessor> {
+    public static class Factory implements Processor.Factory<GeoIpProcessor>, Closeable {
 
         static final Set<Field> DEFAULT_FIELDS = EnumSet.of(
                 Field.CONTINENT_NAME, Field.COUNTRY_ISO_CODE, Field.REGION_NAME, Field.CITY_NAME, Field.LOCATION
         );
 
-        private Path geoIpConfigDirectory;
+        private final Path geoIpConfigDirectory;
         private final DatabaseReaderService databaseReaderService = new DatabaseReaderService();
+
+        public Factory(Path configDirectory) {
+            this.geoIpConfigDirectory = configDirectory.resolve("ingest").resolve("geoip");
+        }
 
         public GeoIpProcessor create(Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(config, "source_field");
@@ -248,11 +253,6 @@ public final class GeoIpProcessor implements Processor {
             } else {
                 throw new IllegalArgumentException("database file [" + databaseFile + "] doesn't exist in [" + geoIpConfigDirectory + "]");
             }
-        }
-
-        @Override
-        public void setConfigDirectory(Path configDirectory) {
-            geoIpConfigDirectory = configDirectory.resolve("ingest").resolve("geoip");
         }
 
         @Override

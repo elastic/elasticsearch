@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.common.inject.AbstractModule;
 import org.elasticsearch.common.inject.multibindings.MapBinder;
-import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.ingest.processor.set.SetProcessor;
 import org.elasticsearch.ingest.processor.convert.ConvertProcessor;
 import org.elasticsearch.ingest.processor.date.DateProcessor;
@@ -42,9 +41,11 @@ import org.elasticsearch.plugin.ingest.transport.simulate.SimulateExecutionServi
 import java.util.HashMap;
 import java.util.Map;
 
+import static org.elasticsearch.plugin.ingest.PipelineStore.ProcessorFactoryProvider;
+
 public class IngestModule extends AbstractModule {
 
-    private final Map<String, Processor.Factory> processors = new HashMap<>();
+    private final Map<String, ProcessorFactoryProvider> processorFactoryProviders = new HashMap<>();
 
     @Override
     protected void configure() {
@@ -53,23 +54,23 @@ public class IngestModule extends AbstractModule {
         binder().bind(PipelineStore.class).asEagerSingleton();
         binder().bind(SimulateExecutionService.class).asEagerSingleton();
 
-        addProcessor(GeoIpProcessor.TYPE, new GeoIpProcessor.Factory());
-        addProcessor(GrokProcessor.TYPE, new GrokProcessor.Factory());
-        addProcessor(DateProcessor.TYPE, new DateProcessor.Factory());
-        addProcessor(SetProcessor.TYPE, new SetProcessor.Factory());
-        addProcessor(RenameProcessor.TYPE, new RenameProcessor.Factory());
-        addProcessor(RemoveProcessor.TYPE, new RemoveProcessor.Factory());
-        addProcessor(SplitProcessor.TYPE, new SplitProcessor.Factory());
-        addProcessor(JoinProcessor.TYPE, new JoinProcessor.Factory());
-        addProcessor(UppercaseProcessor.TYPE, new UppercaseProcessor.Factory());
-        addProcessor(LowercaseProcessor.TYPE, new LowercaseProcessor.Factory());
-        addProcessor(TrimProcessor.TYPE, new TrimProcessor.Factory());
-        addProcessor(ConvertProcessor.TYPE, new ConvertProcessor.Factory());
-        addProcessor(GsubProcessor.TYPE, new GsubProcessor.Factory());
-        addProcessor(MetaDataProcessor.TYPE, new MetaDataProcessor.Factory());
+        addProcessor(GeoIpProcessor.TYPE, environment -> new GeoIpProcessor.Factory(environment.configFile()));
+        addProcessor(GrokProcessor.TYPE, environment -> new GrokProcessor.Factory(environment.configFile()));
+        addProcessor(DateProcessor.TYPE, environment -> new DateProcessor.Factory());
+        addProcessor(SetProcessor.TYPE, environment -> new SetProcessor.Factory());
+        addProcessor(RenameProcessor.TYPE, environment -> new RenameProcessor.Factory());
+        addProcessor(RemoveProcessor.TYPE, environment -> new RemoveProcessor.Factory());
+        addProcessor(SplitProcessor.TYPE, environment -> new SplitProcessor.Factory());
+        addProcessor(JoinProcessor.TYPE, environment -> new JoinProcessor.Factory());
+        addProcessor(UppercaseProcessor.TYPE, environment -> new UppercaseProcessor.Factory());
+        addProcessor(LowercaseProcessor.TYPE, environment -> new LowercaseProcessor.Factory());
+        addProcessor(TrimProcessor.TYPE, environment -> new TrimProcessor.Factory());
+        addProcessor(ConvertProcessor.TYPE, environment -> new ConvertProcessor.Factory());
+        addProcessor(GsubProcessor.TYPE, environment -> new GsubProcessor.Factory());
+        addProcessor(MetaDataProcessor.TYPE, environment -> new MetaDataProcessor.Factory());
 
-        MapBinder<String, Processor.Factory> mapBinder = MapBinder.newMapBinder(binder(), String.class, Processor.Factory.class);
-        for (Map.Entry<String, Processor.Factory> entry : processors.entrySet()) {
+        MapBinder<String, ProcessorFactoryProvider> mapBinder = MapBinder.newMapBinder(binder(), String.class, ProcessorFactoryProvider.class);
+        for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
             mapBinder.addBinding(entry.getKey()).toInstance(entry.getValue());
         }
     }
@@ -77,8 +78,8 @@ public class IngestModule extends AbstractModule {
     /**
      * Adds a processor factory under a specific type name.
      */
-    public void addProcessor(String type, Processor.Factory factory) {
-        processors.put(type, factory);
+    public void addProcessor(String type, ProcessorFactoryProvider processorFactoryProvider) {
+        processorFactoryProviders.put(type, processorFactoryProvider);
     }
 
 }

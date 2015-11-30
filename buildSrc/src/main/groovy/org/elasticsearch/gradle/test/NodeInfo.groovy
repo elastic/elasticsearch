@@ -18,6 +18,7 @@
  */
 package org.elasticsearch.gradle.test
 
+import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.VersionProperties
 import org.gradle.api.InvalidUserDataException
 import org.gradle.api.Project
@@ -48,6 +49,9 @@ class NodeInfo {
     /** config directory */
     File confDir
 
+    /** THE config file */
+    File configFile
+
     /** working directory for the node process */
     File cwd
 
@@ -66,8 +70,14 @@ class NodeInfo {
     /** arguments to start the node with */
     List<String> args
 
+    /** Executable to run the bin/elasticsearch with, either cmd or sh */
+    String executable
+
     /** Path to the elasticsearch start script */
-    String esScript
+    File esScript
+
+    /** script to run when running in the background */
+    File wrapperScript
 
     /** buffer for ant output when starting this node */
     ByteArrayOutputStream buffer = new ByteArrayOutputStream()
@@ -81,33 +91,72 @@ class NodeInfo {
         pidFile = new File(baseDir, 'es.pid')
         homeDir = homeDir(baseDir, config.distribution)
         confDir = confDir(baseDir, config.distribution)
+        configFile = new File(confDir, 'elasticsearch.yml')
         cwd = new File(baseDir, "cwd")
         failedMarker = new File(cwd, 'run.failed')
         startLog = new File(cwd, 'run.log')
         pluginsTmpDir = new File(baseDir, "plugins tmp")
 
+        args = []
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            executable = 'cmd'
+            args.add('/C')
+            args.add('"') // quote the entire command
+            wrapperScript = new File(cwd, "run.bat")
+            esScript = new File(homeDir, 'bin/elasticsearch.bat')
+        } else {
+            executable = 'sh'
+            wrapperScript = new File(cwd, "run")
+            esScript = new File(homeDir, 'bin/elasticsearch')
+        }
+        if (config.daemonize) {
+            args.add("${wrapperScript}")
+        } else {
+            args.add("${esScript}")
+        }
+
         env = [
             'JAVA_HOME' : project.javaHome,
             'ES_GC_OPTS': config.jvmArgs // we pass these with the undocumented gc opts so the argline can set gc, etc
         ]
-        args = config.systemProperties.collect { key, value -> "-D${key}=${value}" }
+        args.addAll(config.systemProperties.collect { key, value -> "-D${key}=${value}" })
         for (Map.Entry<String, String> property : System.properties.entrySet()) {
             if (property.getKey().startsWith('es.')) {
                 args.add("-D${property.getKey()}=${property.getValue()}")
             }
         }
-        args.add("-Des.default.path.conf=${confDir}")
-        // running with cmd on windows will look for this with the .bat extension
-        esScript = new File(homeDir, 'bin/elasticsearch').toString()
+        args.add("-Des.path.conf=${confDir}")
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            args.add('"') // end the entire command, quoted
+        }
     }
 
     /** Returns debug string for the command that started this node. */
     String getCommandString() {
-        String esCommandString = "Elasticsearch node ${nodeNum} command: ${esScript} "
-        esCommandString += args.join(' ')
-        esCommandString += '\nenvironment:'
-        env.each { k, v -> esCommandString += "\n  ${k}: ${v}" }
+        String esCommandString = "\nNode ${nodeNum} configuration:\n"
+        esCommandString += "|-----------------------------------------\n"
+        esCommandString += "|  cwd: ${cwd}\n"
+        esCommandString += "|  command: ${executable} ${args.join(' ')}\n"
+        esCommandString += '|  environment:\n'
+        env.each { k, v -> esCommandString += "|    ${k}: ${v}\n" }
+        if (config.daemonize) {
+            esCommandString += "|\n|  [${wrapperScript.name}]\n"
+            wrapperScript.eachLine('UTF-8', { line -> esCommandString += "    ${line}\n"})
+        }
+        esCommandString += '|\n|  [elasticsearch.yml]\n'
+        configFile.eachLine('UTF-8', { line -> esCommandString += "|    ${line}\n" })
+        esCommandString += "|-----------------------------------------"
         return esCommandString
+    }
+
+    void writeWrapperScript() {
+        String argsPasser = '"$@"'
+        String exitMarker = "; if [ \$? != 0 ]; then touch run.failed; fi"
+        if (Os.isFamily(Os.FAMILY_WINDOWS)) {
+            argsPasser = '%*'
+            exitMarker = "\r\n if \"%errorlevel%\" neq \"0\" ( type nul >> run.failed )"
+        }
+        wrapperScript.setText("\"${esScript}\" ${argsPasser} > run.log 2>&1 ${exitMarker}", 'UTF-8')
     }
 
     /** Returns the http port for this node */

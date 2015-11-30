@@ -19,10 +19,8 @@
 
 package org.elasticsearch.ingest.processor.remove;
 
-import org.elasticsearch.ingest.processor.join.JoinProcessor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -32,7 +30,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class RemoveProcessorFactoryTests extends ESTestCase {
 
-    public void testCreate() throws IOException {
+    public void testCreate() throws Exception {
         RemoveProcessor.Factory factory = new RemoveProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         List<String> fields = Collections.singletonList("field1");
@@ -41,7 +39,7 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
         assertThat(removeProcessor.getFields(), equalTo(fields));
     }
 
-    public void testCreateMissingFields() throws IOException {
+    public void testCreateMissingFields() throws Exception {
         RemoveProcessor.Factory factory = new RemoveProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {

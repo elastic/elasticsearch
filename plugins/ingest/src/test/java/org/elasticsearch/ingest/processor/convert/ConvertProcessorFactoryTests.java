@@ -22,7 +22,6 @@ package org.elasticsearch.ingest.processor.convert;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,7 +30,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class ConvertProcessorFactoryTests extends ESTestCase {
 
-    public void testCreate() throws IOException {
+    public void testCreate() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         ConvertProcessor.Type type = randomFrom(ConvertProcessor.Type.values());
@@ -42,7 +41,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         assertThat(convertProcessor.getFields().get("field1"), equalTo(type));
     }
 
-    public void testCreateMissingFields() throws IOException {
+    public void testCreateMissingFields() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
@@ -53,7 +52,7 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    public void testCreateUnsupportedType() throws IOException {
+    public void testCreateUnsupportedType() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String type = "type-" + randomAsciiOfLengthBetween(1, 10);

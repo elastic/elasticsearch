@@ -19,10 +19,8 @@
 
 package org.elasticsearch.ingest.processor.gsub;
 
-import org.elasticsearch.ingest.processor.join.JoinProcessor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -32,7 +30,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class GsubProcessorFactoryTests extends ESTestCase {
 
-    public void testCreate() throws IOException {
+    public void testCreate() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         List<Map<String, String>> expressions = new ArrayList<>();
@@ -50,7 +48,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         assertThat(gsubExpression.getReplacement(), equalTo("-"));
     }
 
-    public void testCreateMissingExpressions() throws IOException {
+    public void testCreateMissingExpressions() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
@@ -61,7 +59,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    public void testCreateNoFieldPresent() throws IOException {
+    public void testCreateNoFieldPresent() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         List<Map<String, String>> expressions = new ArrayList<>();
@@ -78,7 +76,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    public void testCreateNoPatternPresent() throws IOException {
+    public void testCreateNoPatternPresent() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         List<Map<String, String>> expressions = new ArrayList<>();
@@ -95,7 +93,7 @@ public class GsubProcessorFactoryTests extends ESTestCase {
         }
     }
 
-    public void testCreateNoReplacementPresent() throws IOException {
+    public void testCreateNoReplacementPresent() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         List<Map<String, String>> expressions = new ArrayList<>();

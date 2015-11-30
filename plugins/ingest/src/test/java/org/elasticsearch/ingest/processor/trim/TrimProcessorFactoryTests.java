@@ -19,10 +19,8 @@
 
 package org.elasticsearch.ingest.processor.trim;
 
-import org.elasticsearch.ingest.processor.lowercase.LowercaseProcessor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -32,7 +30,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class TrimProcessorFactoryTests extends ESTestCase {
 
-    public void testCreate() throws IOException {
+    public void testCreate() throws Exception {
         TrimProcessor.Factory factory = new TrimProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         List<String> fields = Collections.singletonList("field1");
@@ -41,7 +39,7 @@ public class TrimProcessorFactoryTests extends ESTestCase {
         assertThat(uppercaseProcessor.getFields(), equalTo(fields));
     }
 
-    public void testCreateMissingFields() throws IOException {
+    public void testCreateMissingFields() throws Exception {
         TrimProcessor.Factory factory = new TrimProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {

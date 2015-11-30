@@ -19,10 +19,8 @@
 
 package org.elasticsearch.ingest.processor.join;
 
-import org.elasticsearch.ingest.processor.split.SplitProcessor;
 import org.elasticsearch.test.ESTestCase;
 
-import java.io.IOException;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -31,7 +29,7 @@ import static org.hamcrest.CoreMatchers.equalTo;
 
 public class JoinProcessorFactoryTests extends ESTestCase {
 
-    public void testCreate() throws IOException {
+    public void testCreate() throws Exception {
         JoinProcessor.Factory factory = new JoinProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         Map<String, String> fields = Collections.singletonMap("field1", "-");
@@ -40,7 +38,7 @@ public class JoinProcessorFactoryTests extends ESTestCase {
         assertThat(joinProcessor.getFields(), equalTo(fields));
     }
 
-    public void testCreateMissingFields() throws IOException {
+    public void testCreateMissingFields() throws Exception {
         JoinProcessor.Factory factory = new JoinProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {

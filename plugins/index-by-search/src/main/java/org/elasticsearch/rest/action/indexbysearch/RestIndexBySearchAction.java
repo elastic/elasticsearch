@@ -59,15 +59,15 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 public class RestIndexBySearchAction extends BaseRestHandler {
     private static final ObjectParser<IndexBySearchRequest, QueryParseContext> PARSER = new ObjectParser<>("index-by-search");
     static {
-    	BiFunction<XContentParser, QueryParseContext, SearchSourceBuilder> parseSearchSource = (parser, context) -> {
-    		try {
+        BiFunction<XContentParser, QueryParseContext, SearchSourceBuilder> parseSearchSource = (parser, context) -> {
+            try {
                 context.reset(parser);
                 return SearchSourceBuilder.parseSearchSource(parser, context);
             } catch (IOException e) {
                 // TODO throw a better exception
                 throw new ElasticsearchException(e);
             }
-    	};
+        };
         PARSER.declareObject(IndexBySearchRequest::searchSource, parseSearchSource, new ParseField("search"));
 
         ObjectParser<IndexRequest, Void> indexParser = new ObjectParser<>("index");
@@ -130,14 +130,14 @@ public class RestIndexBySearchAction extends BaseRestHandler {
             }
         }
 
-		// Fill in the query on the search if it was not set during parsing.
+        // Fill in the query on the search if it was not set during parsing.
         if (internalRequest.search().source() == null) {
-        	internalRequest.search().source(new SearchSourceBuilder());
+            internalRequest.search().source(new SearchSourceBuilder());
         }
         if (internalRequest.search().source().query() == null) {
             QueryBuilder<?> queryFromUrl = RestActions.urlParamsToQueryBuilder(request);
             if (queryFromUrl != null) {
-            	internalRequest.search().source().query(queryFromUrl);
+                internalRequest.search().source().query(queryFromUrl);
             }
         }
 

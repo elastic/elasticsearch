@@ -20,6 +20,8 @@
 package org.elasticsearch.ingest;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.collect.HppcMaps;
+import org.elasticsearch.search.aggregations.support.format.ValueParser;
 
 import java.util.*;
 
@@ -258,6 +260,8 @@ public final class IngestDocument {
         String[] pathElements = Strings.splitStringToArray(path, '.');
         assert pathElements.length > 0;
 
+        value = deepCopy(value);
+
         Object context = source;
         for (int i = 0; i < pathElements.length - 1; i++) {
             String pathElement = pathElements[i];
@@ -352,6 +356,32 @@ public final class IngestDocument {
 
     public boolean isSourceModified() {
         return sourceModified;
+    }
+
+    static Object deepCopy(Object value) {
+        if (value instanceof Map) {
+            @SuppressWarnings("unchecked")
+            Map<Object, Object> mapValue = (Map<Object, Object>) value;
+            Map<Object, Object> copy = new HashMap<>(mapValue.size());
+            for (Map.Entry<Object, Object> entry : mapValue.entrySet()) {
+                copy.put(entry.getKey(), deepCopy(entry.getValue()));
+            }
+            return copy;
+        } else if (value instanceof List) {
+            @SuppressWarnings("unchecked")
+            List<Object> listValue = (List<Object>) value;
+            List<Object> copy = new ArrayList<>(listValue.size());
+            for (Object itemValue : listValue) {
+                copy.add(deepCopy(itemValue));
+            }
+            return copy;
+        } else if (value == null || value instanceof String || value instanceof Integer ||
+                value instanceof Long || value instanceof Float ||
+                value instanceof Double || value instanceof Boolean) {
+            return value;
+        } else {
+            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+        }
     }
 
     @Override

@@ -135,7 +135,7 @@ public final class RandomDocumentPicks {
         return new IngestDocument(index, type, id, document);
     }
 
-    private static Map<String, Object> randomDocument(Random random) {
+    public static Map<String, Object> randomDocument(Random random) {
         Map<String, Object> document = new HashMap<>();
         addRandomFields(random, document, 0);
         return document;

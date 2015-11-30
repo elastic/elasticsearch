@@ -19,6 +19,7 @@
 
 package org.elasticsearch.ingest;
 
+import com.carrotsearch.randomizedtesting.generators.RandomPicks;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
@@ -538,6 +539,16 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat(thirdIngestDocument, equalTo(ingestDocument));
             assertThat(ingestDocument, equalTo(thirdIngestDocument));
             assertThat(ingestDocument.hashCode(), equalTo(thirdIngestDocument.hashCode()));
+        }
+    }
+
+    public void testDeepCopy() {
+        int iterations = scaledRandomIntBetween(8, 64);
+        for (int i = 0; i < iterations; i++) {
+            Map<String, Object> map = RandomDocumentPicks.randomDocument(random());
+            Object copy = IngestDocument.deepCopy(map);
+            assertThat("iteration: " + i, copy, equalTo(map));
+            assertThat("iteration: " + i, copy, not(sameInstance(map)));
         }
     }
 }

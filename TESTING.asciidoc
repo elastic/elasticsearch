@@ -286,7 +286,7 @@ The REST layer is tested through specific tests that are shared between all
 the elasticsearch official clients and consist of YAML files that describe the
 operations to be executed and the obtained results that need to be tested.
 
-The REST tests are run automatically when executing the maven test command. To run only the
+The REST tests are run automatically when executing the "gradle check" command. To run only the
 REST tests use the following command:
 
 ---------------------------------------------------------------------------

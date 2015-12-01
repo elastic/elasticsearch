@@ -76,7 +76,7 @@ REM JAVA_OPTS=%JAVA_OPTS% -XX:HeapDumpPath=$ES_HOME/logs/heapdump.hprof
 
 REM Disables explicit GC
 set JAVA_OPTS=%JAVA_OPTS% -XX:+DisableExplicitGC
-set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/elasticsearch-1.4.0-SNAPSHOT.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*;%ES_HOME%/plugins/watcher/*
+set ES_CLASSPATH=%ES_CLASSPATH%;%ES_HOME%/lib/elasticsearch-1.4.0-SNAPSHOT.jar;%ES_HOME%/lib/*;%ES_HOME%/lib/sigar/*;%ES_HOME%/plugins/x-pack/*
 set ES_PARAMS=-Des.path.home="%ES_HOME%"
 
 SET HOSTNAME=%COMPUTERNAME%

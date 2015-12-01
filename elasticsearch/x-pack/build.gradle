@@ -5,6 +5,8 @@ esplugin {
   name 'x-pack'
   description 'Elasticsearch Expanded Pack Plugin'
   classname 'org.elasticsearch.xpack.XPackPlugin'
+  // FIXME we still can't be isolated due to shield custom realms
+  isolated false
 }
 
 ext.versions = [
@@ -115,5 +117,12 @@ bundlePlugin {
   }
   from('shield/bin/watcher') {
     into 'bin'
+  }
+
+  integTest {
+    cluster {
+      // TODO set up tests so that shield can be enabled or disabled
+      systemProperty 'es.shield.enabled', 'false'
+    }
   }
 }

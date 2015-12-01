@@ -51,6 +51,7 @@ import org.elasticsearch.shield.transport.filter.IPFilter;
 import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.transport.TransportModule;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import java.nio.file.Path;
 import java.util.*;
@@ -319,7 +320,7 @@ public class ShieldPlugin extends Plugin {
     }
 
     public static Path configDir(Environment env) {
-        return env.configFile().resolve(NAME);
+        return env.configFile().resolve(XPackPlugin.NAME);
     }
 
     public static Path resolveConfigFile(Environment env, String name) {

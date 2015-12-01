@@ -1,6 +1,6 @@
-# Integration tests for License plugin
+# Integration tests for Marvel plugin
 #
-"License loaded":
+"X-Pack loaded":
     - do:
         cluster.state: {}
 
@@ -10,6 +10,5 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.0.name: license  }
+    - match:  { nodes.$master.plugins.0.name: x-pack  }
     - match:  { nodes.$master.plugins.0.jvm: true  }
-

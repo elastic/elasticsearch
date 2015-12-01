@@ -6,6 +6,8 @@ dependencies {
 
 integTest {
   includePackaged true
+  systemProperty 'es.watcher.enabled', 'false'
+  systemProperty 'es.marvel.enabled', 'false'
   systemProperty 'tests.rest.blacklist', 
     ['indices.get/10_basic/*allow_no_indices*',
      'cat.count/10_basic/Test cat count output',
@@ -32,7 +34,7 @@ integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
     setupCommand 'setupDummyUser',
-                 'bin/shield/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
+                 'bin/x-pack/esusers', 'useradd', 'test_user', '-p', 'changeme', '-r', 'admin'
     waitCondition = { node, ant ->
       File tmpFile = new File(node.cwd, 'wait.success')
       ant.get(src: "http://localhost:${node.httpPort()}",

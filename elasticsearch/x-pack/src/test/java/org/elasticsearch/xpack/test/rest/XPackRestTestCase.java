@@ -3,7 +3,7 @@
  * or more contributor license agreements. Licensed under the Elastic License;
  * you may not use this file except in compliance with the Elastic License.
  */
-package org.elasticsearch.watcher.test.rest;
+package org.elasticsearch.xpack.test.rest;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -34,9 +34,9 @@ import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
 @ESRestTestCase.Rest
 @ClusterScope(scope = SUITE, numClientNodes = 1, transportClientRatio = 0, numDataNodes = 1, randomDynamicTemplates = false)
 @TestLogging("_root:DEBUG")
-public abstract class WatcherRestTestCase extends ESRestTestCase {
+public abstract class XPackRestTestCase extends ESRestTestCase {
 
-    public WatcherRestTestCase(@Name("yaml") RestTestCandidate testCandidate) {
+    public XPackRestTestCase(@Name("yaml") RestTestCandidate testCandidate) {
         super(testCandidate);
     }
 

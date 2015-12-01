@@ -52,7 +52,7 @@ public class FieldTypeLookupTests extends ESTestCase {
     public void testDefaultMapping() {
         FieldTypeLookup lookup = new FieldTypeLookup();
         try {
-            lookup.copyAndAddAll(MapperService.DEFAULT_MAPPING, Collections.emptyList());
+            lookup.copyAndAddAll(MapperService.DEFAULT_MAPPING, Collections.<FieldMapper>emptyList());
             fail();
         } catch (IllegalArgumentException expected) {
             assertEquals("Default mappings should not be added to the lookup", expected.getMessage());

@@ -199,22 +199,24 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
             BatchResult.Builder<ShardRoutingEntry> builder = BatchResult.builder();
-            ClusterState accumulator = ClusterState.builder(currentState).build();
+            List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             for (ShardRoutingEntry task : tasks) {
                 task.processed = true;
-                try {
-                    RoutingAllocation.Result result =
-                            allocationService.applyStartedShard(currentState, task.shardRouting, true);
-                    builder.success(task);
-                    if (result.changed()) {
-                        accumulator = ClusterState.builder(accumulator).routingResult(result).build();
-                    }
-                } catch (Throwable t) {
-                    builder.failure(task, t);
+                shardRoutingsToBeApplied.add(task.shardRouting);
+            }
+            ClusterState maybeUpdatedState = currentState;
+            try {
+                RoutingAllocation.Result result =
+                    allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied, true);
+                if (result.changed()) {
+                    maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
+                builder.successes(tasks);
+            } catch (Throwable t) {
+                builder.failures(tasks, t);
             }
 
-            return builder.build(accumulator);
+            return builder.build(maybeUpdatedState);
         }
 
         @Override

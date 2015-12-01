@@ -40,6 +40,7 @@ import java.util.LinkedHashMap;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.hamcrest.CoreMatchers.equalTo;
+import static org.hamcrest.CoreMatchers.containsString;
 
 
 public class UpdateMappingTests extends ESSingleNodeTestCase {
@@ -129,15 +130,15 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         try {
             mapperService.merge("type", new CompressedXContent(update.string()), false, false);
             fail();
-        } catch (MergeMappingException e) {
-            // expected
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
         }
 
         try {
             mapperService.merge("type", new CompressedXContent(update.string()), false, false);
             fail();
-        } catch (MergeMappingException e) {
-            // expected
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("mapper [foo] cannot be changed from type [long] to [double]"));
         }
 
         assertTrue(mapperService.documentMapper("type").mapping().root().getMapper("foo") instanceof LongFieldMapper);
@@ -174,7 +175,6 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
     }
 
     // same as the testConflictNewType except that the mapping update is on an existing type
-    @AwaitsFix(bugUrl="https://github.com/elastic/elasticsearch/issues/15049")
     public void testConflictNewTypeUpdate() throws Exception {
         XContentBuilder mapping1 = XContentFactory.jsonBuilder().startObject().startObject("type1")
                 .startObject("properties").startObject("foo").field("type", "long").endObject()

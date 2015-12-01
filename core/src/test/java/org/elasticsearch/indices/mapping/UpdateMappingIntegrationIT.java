@@ -130,7 +130,6 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 equalTo("{\"doc\":{\"properties\":{\"date\":{\"type\":\"integer\"}}}}"));
     }
 
-    @Test(expected = MergeMappingException.class)
     public void updateMappingWithConflicts() throws Exception {
 
         client().admin().indices().prepareCreate("test")
@@ -142,21 +141,27 @@ public class UpdateMappingIntegrationIT extends ESIntegTestCase {
                 .execute().actionGet();
         client().admin().cluster().prepareHealth().setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().execute().actionGet();
 
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}")
-                .execute().actionGet();
-
-        assertThat(putMappingResponse.isAcknowledged(), equalTo(true));
+        try {
+            client().admin().indices().preparePutMapping("test").setType("type")
+                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"integer\"}}}}").execute().actionGet();
+            fail("Expected MergeMappingException");
+        } catch (MergeMappingException e) {
+            assertThat(e.getMessage(), containsString("mapper [body] cannot be changed from type [string] to [int]"));
+        }
     }
 
-    @Test(expected = MergeMappingException.class)
     public void updateMappingWithNormsConflicts() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .addMapping("type", "{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": false }}}}}")
                 .execute().actionGet();
-        PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
-                .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": true }}}}}")
-                .execute().actionGet();
+        try {
+            PutMappingResponse putMappingResponse = client().admin().indices().preparePutMapping("test").setType("type")
+                    .setSource("{\"type\":{\"properties\":{\"body\":{\"type\":\"string\", \"norms\": { \"enabled\": true }}}}}")
+                    .execute().actionGet();
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Mapper for [body] conflicts with existing mapping in other types"));
+        }
     }
 
     /*

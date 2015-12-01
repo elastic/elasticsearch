@@ -461,7 +461,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
 
     /**
      * This method deletes the shard contents on disk for the given shard ID. This method will fail if the shard deleting
-     * is prevented by {@link #canDeleteShardContent(org.elasticsearch.index.shard.ShardId, org.elasticsearch.cluster.metadata.IndexMetaData)}
+     * is prevented by {@link #canDeleteShardContent(ShardId, IndexSettings)}
      * of if the shards lock can not be acquired.
      *
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove the index folder as well.
@@ -529,18 +529,10 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * </ul>
      *
      * @param shardId the shard to delete.
-     * @param metaData the shards index metadata. This is required to access the indexes settings etc.
+     * @param indexSettings the shards's relevant {@link IndexSettings}. This is required to access the indexes settings etc.
      */
-    public boolean canDeleteShardContent(ShardId shardId, IndexMetaData metaData) {
-        // we need the metadata here since we have to build the complete settings
-        // to decide where the shard content lives. In the future we might even need more info here ie. for shadow replicas
-        // The plan was to make it harder to miss-use and ask for metadata instead of simple settings
-        assert shardId.getIndex().equals(metaData.getIndex());
-        final IndexSettings indexSettings = buildIndexSettings(metaData);
-        return canDeleteShardContent(shardId, indexSettings);
-    }
-
-    private boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
+    public boolean canDeleteShardContent(ShardId shardId, IndexSettings indexSettings) {
+        assert shardId.getIndex().equals(indexSettings.getIndex().name());
         final IndexService indexService = this.indices.get(shardId.getIndex());
         if (indexSettings.isOnSharedFilesystem() == false) {
             if (indexService != null && nodeEnv.hasNodeFile()) {

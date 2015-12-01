@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.SnapshotId;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -38,7 +39,9 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Transport Action for get snapshots operation
@@ -84,8 +87,24 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshot));
                 }
             } else {
-                for (int i = 0; i < request.snapshots().length; i++) {
-                    SnapshotId snapshotId = new SnapshotId(request.repository(), request.snapshots()[i]);
+                Set<String> snapshotsToGet = new LinkedHashSet<>(); // to keep insertion order
+                List<Snapshot> snapshots = null;
+                for (String snapshotOrPattern : request.snapshots()) {
+                    if (Regex.isSimpleMatchPattern(snapshotOrPattern) == false) {
+                        snapshotsToGet.add(snapshotOrPattern);
+                    } else {
+                        if (snapshots == null) { // lazily load snapshots
+                            snapshots = snapshotsService.snapshots(request.repository(), request.ignoreUnavailable());
+                        }
+                        for (Snapshot snapshot : snapshots) {
+                            if (Regex.simpleMatch(snapshotOrPattern, snapshot.name())) {
+                                snapshotsToGet.add(snapshot.name());
+                            }
+                        }
+                    }
+                }
+                for (String snapshot : snapshotsToGet) {
+                    SnapshotId snapshotId = new SnapshotId(request.repository(), snapshot);
                     snapshotInfoBuilder.add(new SnapshotInfo(snapshotsService.snapshot(snapshotId)));
                 }
             }

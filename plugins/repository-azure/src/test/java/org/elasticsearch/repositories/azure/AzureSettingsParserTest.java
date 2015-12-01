@@ -68,8 +68,8 @@ public class AzureSettingsParserTest extends LuceneTestCase {
 
     public void testDeprecatedSettings() {
         Settings settings = Settings.builder()
-                .put(Storage.ACCOUNT, "myaccount1")
-                .put(Storage.KEY, "mykey1")
+                .put(Storage.ACCOUNT_DEPRECATED, "myaccount1")
+                .put(Storage.KEY_DEPRECATED, "mykey1")
                 .build();
 
         Tuple<AzureStorageSettings, Map<String, AzureStorageSettings>> tuple = AzureStorageSettings.parse(settings);

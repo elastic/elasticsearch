@@ -24,6 +24,8 @@ import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.repositories.RepositorySettings;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -73,11 +75,11 @@ public class AzureStorageSettings {
         Map<String, AzureStorageSettings> secondaryStorage = new HashMap<>();
 
         // We check for deprecated settings
-        String account = settings.get(Storage.ACCOUNT);
-        String key = settings.get(Storage.KEY);
+        String account = settings.get(Storage.ACCOUNT_DEPRECATED);
+        String key = settings.get(Storage.KEY_DEPRECATED);
         if (account != null) {
             logger.warn("[{}] and [{}] have been deprecated. Use now [{}xxx.account] and [{}xxx.key] where xxx is any name",
-                    Storage.ACCOUNT, Storage.KEY, Storage.PREFIX, Storage.PREFIX);
+                    Storage.ACCOUNT_DEPRECATED, Storage.KEY_DEPRECATED, Storage.PREFIX, Storage.PREFIX);
             primaryStorage = new AzureStorageSettings(null, account, key);
         } else {
             Settings storageSettings = settings.getByPrefix(Storage.PREFIX);
@@ -118,5 +120,29 @@ public class AzureStorageSettings {
         }
 
         return Tuple.tuple(primaryStorage, secondaryStorage);
+    }
+
+    public static String getRepositorySettings(RepositorySettings repositorySettings,
+                                               String repositorySettingName,
+                                               String repositoriesSettingName,
+                                               String defaultValue) {
+        return repositorySettings.settings().get(repositorySettingName,
+            repositorySettings.globalSettings().get(repositoriesSettingName, defaultValue));
+    }
+
+    public static ByteSizeValue getRepositorySettingsAsBytesSize(RepositorySettings repositorySettings,
+                                               String repositorySettingName,
+                                               String repositoriesSettingName,
+                                               ByteSizeValue defaultValue) {
+        return repositorySettings.settings().getAsBytesSize(repositorySettingName,
+            repositorySettings.globalSettings().getAsBytesSize(repositoriesSettingName, defaultValue));
+    }
+
+    public static Boolean getRepositorySettingsAsBoolean(RepositorySettings repositorySettings,
+                                                                 String repositorySettingName,
+                                                                 String repositoriesSettingName,
+                                                         Boolean defaultValue) {
+        return repositorySettings.settings().getAsBoolean(repositorySettingName,
+            repositorySettings.globalSettings().getAsBoolean(repositoriesSettingName, defaultValue));
     }
 }

@@ -46,13 +46,23 @@ public class RenameProcessor implements Processor {
     @Override
     public void execute(IngestDocument document) {
         for(Map.Entry<String, String> entry : fields.entrySet()) {
-            if (document.hasField(entry.getKey())) {
-                if (document.hasField(entry.getKey()) == false) {
-                    throw new IllegalArgumentException("field [" + entry.getKey() + "] doesn't exist");
-                }
-                Object oldValue = document.getFieldValue(entry.getKey(), Object.class);
-                document.removeField(entry.getKey());
-                document.setFieldValue(entry.getValue(), oldValue);
+            String oldFieldName = entry.getKey();
+            if (document.hasField(oldFieldName) == false) {
+                throw new IllegalArgumentException("field [" + oldFieldName + "] doesn't exist");
+            }
+            String newFieldName = entry.getValue();
+            if (document.hasField(newFieldName)) {
+                throw new IllegalArgumentException("field [" + newFieldName + "] already exists");
+            }
+
+            Object oldValue = document.getFieldValue(entry.getKey(), Object.class);
+            document.setFieldValue(newFieldName, oldValue);
+            try {
+                document.removeField(oldFieldName);
+            } catch (Exception e) {
+                //remove the new field if the removal of the old one failed
+                document.removeField(newFieldName);
+                throw e;
             }
         }
     }

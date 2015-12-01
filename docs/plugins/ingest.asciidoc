@@ -33,7 +33,8 @@ Removes one or more existing fields. If a field doesn't exist, nothing will happ
 --------------------------------------------------
 
 ==== Rename processor
-Renames one or more existing fields. If a field doesn't exist, an exception will be thrown.
+Renames one or more existing fields. If a field doesn't exist, an exception will be thrown. Also the new field
+name must not exist.
 
 [source,js]
 --------------------------------------------------

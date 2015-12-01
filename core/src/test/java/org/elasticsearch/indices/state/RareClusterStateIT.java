@@ -161,9 +161,9 @@ public class RareClusterStateIT extends ESIntegTestCase {
         });
     }
 
-
     @Test
     @TestLogging(value = "cluster.service:TRACE")
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/14932")
     public void testDeleteCreateInOneBulk() throws Exception {
         internalCluster().startNodesAsync(2, Settings.builder()
                 .put(DiscoveryModule.DISCOVERY_TYPE_KEY, "zen")

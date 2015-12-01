@@ -250,13 +250,14 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             DocumentMapper oldMapper = mappers.get(mapper.type());
 
             if (oldMapper != null) {
-                MergeResult result = oldMapper.merge(mapper.mapping(), false, updateAllTypes);
+                // simulate first
+                MergeResult result = oldMapper.merge(mapper.mapping(), true, updateAllTypes);
                 if (result.hasConflicts()) {
-                    // TODO: What should we do???
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("merging mapping for type [{}] resulted in conflicts: [{}]", mapper.type(), Arrays.toString(result.buildConflicts()));
-                    }
+                    throw new MergeMappingException(result.buildConflicts());
                 }
+                // then apply for real
+                result = oldMapper.merge(mapper.mapping(), false, updateAllTypes);
+                assert result.hasConflicts() == false; // we already simulated
                 return oldMapper;
             } else {
                 List<ObjectMapper> newObjectMappers = new ArrayList<>();

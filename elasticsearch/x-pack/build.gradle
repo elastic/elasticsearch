@@ -13,6 +13,9 @@ ext.versions = [
   okhttp: '2.3.0'
 ]
 
+// TODO: fix this! https://github.com/elastic/x-plugins/issues/1066
+ext.compactProfile = 'full'
+
 dependencies {
   // license deps
   compile project(':x-plugins:elasticsearch:license:plugin-api')
@@ -125,4 +128,17 @@ bundlePlugin {
       systemProperty 'es.shield.enabled', 'false'
     }
   }
+}
+
+// TODO: don't publish test artifacts just to run messy tests, fix the tests!
+// https://github.com/elastic/x-plugins/issues/724
+configurations {
+    testArtifacts.extendsFrom testRuntime
+}
+task testJar(type: Jar) {
+    classifier "test"
+    from sourceSets.test.output
+}
+artifacts {
+    testArtifacts testJar
 }

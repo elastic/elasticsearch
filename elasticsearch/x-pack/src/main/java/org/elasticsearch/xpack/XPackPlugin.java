@@ -12,6 +12,7 @@ import org.elasticsearch.common.inject.Module;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.license.plugin.LicensePlugin;
@@ -20,6 +21,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.shield.ShieldPlugin;
+import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.watcher.WatcherPlugin;
 
@@ -110,11 +112,13 @@ public class XPackPlugin extends Plugin {
         shieldPlugin.onModule(module);
     }
 
-    // NOTE: The fact this signature takes a module is a hack, and effectively like the previous
-    // processModule in the plugin api. The problem is tight coupling between watcher and shield.
-    // We need to avoid trying to load the AuthorizationModule class unless we know shield integration
-    // is enabled. This is a temporary solution until inter-plugin-communication can be worked out.
-    public void onModule(Module module) {
+    public void onModule(HttpServerModule module) {
+        shieldPlugin.onModule(module);
+    }
+
+    public void onModule(AuthorizationModule module) {
+        shieldPlugin.onModule(module);
+        // FIXME clean these up
         watcherPlugin.onModule(module);
         marvelPlugin.onModule(module);
     }

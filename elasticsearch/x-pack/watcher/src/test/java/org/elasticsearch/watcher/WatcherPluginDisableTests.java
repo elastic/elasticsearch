@@ -12,6 +12,7 @@ import org.elasticsearch.action.admin.cluster.node.info.NodeInfo;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.shield.ShieldPlugin;
 import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.plugins.Plugin;
@@ -41,13 +42,14 @@ public class WatcherPluginDisableTests extends ESIntegTestCase {
         return Settings.settingsBuilder()
                 .put(super.nodeSettings(nodeOrdinal))
                 .put(WatcherPlugin.ENABLED_SETTING, false)
+                .put(ShieldPlugin.ENABLED_SETTING_NAME, false) // disable shield because of query cache check and authentication/authorization
                 .put(Node.HTTP_ENABLED, true)
                 .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return Arrays.asList(XPackPlugin.class, XPackPlugin.class);
+        return Collections.<Class<? extends Plugin>>singleton(XPackPlugin.class);
     }
 
     @Override

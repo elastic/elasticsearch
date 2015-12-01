@@ -91,15 +91,14 @@ public abstract class MarvelIntegTestCase extends ESIntegTestCase {
                     .put("shield.user", "test:changeme")
                     .build();
         }
-        return super.transportClientSettings();
+        return Settings.builder().put(super.transportClientSettings())
+                .put("shield.enabled", false)
+                .build();
     }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        if (shieldEnabled) {
-            return Arrays.asList(XPackPlugin.class, XPackPlugin.class, XPackPlugin.class);
-        }
-        return Arrays.asList(XPackPlugin.class, XPackPlugin.class);
+        return Collections.singletonList(XPackPlugin.class);
     }
 
     @Override

@@ -66,8 +66,11 @@ ext.expansions = [
 ]
 
 processResources {
-  inputs.properties(expansions)
-  MavenFilteringHack.filter(it, expansions)
+  from(sourceSets.main.resources.srcDirs) {
+    exclude '**/public.key'
+    inputs.properties(expansions)
+    MavenFilteringHack.filter(it, expansions)
+  }
   String licenseKeyName = System.getProperty('license.key', 'dev')
   String licenseKeyPath = "license-plugin/keys/${licenseKeyName}/public.key"
   if (file(licenseKeyPath).exists() == false) {

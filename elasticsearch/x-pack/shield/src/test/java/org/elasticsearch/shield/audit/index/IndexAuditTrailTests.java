@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.shield.ShieldPlugin;
-import org.elasticsearch.xpack.XPackPlugin;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authc.AuthenticationService;
 import org.elasticsearch.shield.authc.AuthenticationToken;
@@ -220,20 +219,20 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "anonymous_access_denied");
-
+        Map<String, Object> sourceMap = hit.sourceAsMap();
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress(), hit.field("origin_address").getValue());
+            assertEquals(remoteHostAddress(), sourceMap.get("origin_address"));
         } else {
-            assertEquals("local[local_host]", hit.field("origin_address").getValue());
+            assertEquals("local[local_host]", sourceMap.get("origin_address"));
         }
 
-        assertEquals("_action", hit.field("action").getValue());
-        assertEquals("transport", hit.field("origin_type").getValue());
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals("transport", sourceMap.get("origin_type"));
         if (message instanceof IndicesRequest) {
-            List<Object> indices = hit.field("indices").getValues();
+            List<Object> indices = (List<Object>) sourceMap.get("indices");
             assertThat(indices, contains((Object[]) ((IndicesRequest) message).indices()));
         }
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testAnonymousAccessDeniedTransportMuted() throws Exception {
@@ -257,10 +256,11 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "rest", "anonymous_access_denied");
-        assertThat(NetworkAddress.formatAddress(InetAddress.getLoopbackAddress()), equalTo(hit.field("origin_address").getValue()));
-        assertThat("_uri", equalTo(hit.field("uri").getValue()));
-        assertThat(hit.field("origin_type").getValue(), is("rest"));
-        assertThat(hit.field("request_body").getValue(), notNullValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertThat(NetworkAddress.formatAddress(InetAddress.getLoopbackAddress()), equalTo(sourceMap.get("origin_address")));
+        assertThat("_uri", equalTo(sourceMap.get("uri")));
+        assertThat(sourceMap.get("origin_type"), is("rest"));
+        assertThat(sourceMap.get("request_body"), notNullValue());
     }
 
     public void testAnonymousAccessDeniedRestMuted() throws Exception {
@@ -282,19 +282,19 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         awaitAuditDocumentCreation(resolveIndexName());
 
         SearchHit hit = getIndexedAuditMessage();
-
+        Map<String, Object> sourceMap = hit.sourceAsMap();
         assertAuditMessage(hit, "transport", "authentication_failed");
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress(), hit.field("origin_address").getValue());
+            assertEquals(remoteHostAddress(), sourceMap.get("origin_address"));
         } else {
-            assertEquals("local[local_host]", hit.field("origin_address").getValue());
+            assertEquals("local[local_host]", sourceMap.get("origin_address"));
         }
 
-        assertEquals("_principal", hit.field("principal").getValue());
-        assertEquals("_action", hit.field("action").getValue());
-        assertEquals("transport", hit.field("origin_type").getValue());
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        assertEquals("_principal", sourceMap.get("principal"));
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals("transport", sourceMap.get("origin_type"));
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testAuthenticationFailedTransportNoToken() throws Exception {
@@ -306,21 +306,21 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "transport", "authentication_failed");
-
+        Map<String, Object> sourceMap = hit.sourceAsMap();
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress(), hit.field("origin_address").getValue());
+            assertEquals(remoteHostAddress(), sourceMap.get("origin_address"));
         } else {
-            assertEquals("local[local_host]", hit.field("origin_address").getValue());
+            assertEquals("local[local_host]", sourceMap.get("origin_address"));
         }
 
-        assertThat(hit.field("principal"), nullValue());
-        assertEquals("_action", hit.field("action").getValue());
-        assertEquals("transport", hit.field("origin_type").getValue());
+        assertThat(sourceMap.get("principal"), nullValue());
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals("transport", sourceMap.get("origin_type"));
         if (message instanceof IndicesRequest) {
-            List<Object> indices = hit.field("indices").getValues();
+            List<Object> indices = (List<Object>) sourceMap.get("indices");
             assertThat(indices, contains((Object[]) ((IndicesRequest) message).indices()));
         }
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testAuthenticationFailed_Transport_Muted() throws Exception {
@@ -356,11 +356,12 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "rest", "authentication_failed");
-        assertThat(hit.field("principal").getValue(), is((Object) "_principal"));
-        assertThat("127.0.0.1", equalTo(hit.field("origin_address").getValue()));
-        assertThat("_uri", equalTo(hit.field("uri").getValue()));
-        assertThat(hit.field("origin_type").getValue(), is("rest"));
-        assertThat(hit.field("request_body").getValue(), notNullValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertThat(sourceMap.get("principal"), is((Object) "_principal"));
+        assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
+        assertThat("_uri", equalTo(sourceMap.get("uri")));
+        assertThat(sourceMap.get("origin_type"), is("rest"));
+        assertThat(sourceMap.get("request_body"), notNullValue());
     }
 
     public void testAuthenticationFailedRestNoToken() throws Exception {
@@ -372,11 +373,12 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "rest", "authentication_failed");
-        assertThat(hit.field("principal"), nullValue());
-        assertThat("127.0.0.1", equalTo(hit.field("origin_address").getValue()));
-        assertThat("_uri", equalTo(hit.field("uri").getValue()));
-        assertThat(hit.field("origin_type").getValue(), is("rest"));
-        assertThat(hit.field("request_body").getValue(), notNullValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertThat(sourceMap.get("principal"), nullValue());
+        assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
+        assertThat("_uri", equalTo(sourceMap.get("uri")));
+        assertThat(sourceMap.get("origin_type"), is("rest"));
+        assertThat(sourceMap.get("request_body"), notNullValue());
     }
 
     public void testAuthenticationFailedRestMuted() throws Exception {
@@ -412,22 +414,23 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "transport", "authentication_failed");
+        Map<String, Object> sourceMap = hit.sourceAsMap();
 
         if (message instanceof RemoteHostMockMessage) {
-            assertEquals(remoteHostAddress(), hit.field("origin_address").getValue());
+            assertEquals(remoteHostAddress(), sourceMap.get("origin_address"));
         } else {
-            assertEquals("local[local_host]", hit.field("origin_address").getValue());
+            assertEquals("local[local_host]", sourceMap.get("origin_address"));
         }
 
-        assertEquals("transport", hit.field("origin_type").getValue());
-        assertEquals("_principal", hit.field("principal").getValue());
-        assertEquals("_action", hit.field("action").getValue());
-        assertEquals("_realm", hit.field("realm").getValue());
+        assertEquals("transport", sourceMap.get("origin_type"));
+        assertEquals("_principal", sourceMap.get("principal"));
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals("_realm", sourceMap.get("realm"));
         if (message instanceof IndicesRequest) {
-            List<Object> indices = hit.field("indices").getValues();
+            List<Object> indices = (List<Object>) sourceMap.get("indices");
             assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
         }
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testAuthenticationFailedTransportRealmMuted() throws Exception {
@@ -451,11 +454,12 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "rest", "authentication_failed");
-        assertThat("127.0.0.1", equalTo(hit.field("origin_address").getValue()));
-        assertThat("_uri", equalTo(hit.field("uri").getValue()));
-        assertEquals("_realm", hit.field("realm").getValue());
-        assertThat(hit.field("origin_type").getValue(), is("rest"));
-        assertThat(hit.field("request_body").getValue(), notNullValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertThat("127.0.0.1", equalTo(sourceMap.get("origin_address")));
+        assertThat("_uri", equalTo(sourceMap.get("uri")));
+        assertEquals("_realm", sourceMap.get("realm"));
+        assertThat(sourceMap.get("origin_type"), is("rest"));
+        assertThat(sourceMap.get("request_body"), notNullValue());
     }
 
     public void testAuthenticationFailedRestRealmMuted() throws Exception {
@@ -485,19 +489,20 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "access_granted");
-        assertEquals("transport", hit.field("origin_type").getValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
-            assertThat(hit.field("principal").getValue(), is("running as"));
-            assertThat(hit.field("run_by_principal").getValue(), is("_username"));
+            assertThat(sourceMap.get("principal"), is("running as"));
+            assertThat(sourceMap.get("run_by_principal"), is("_username"));
         } else {
-            assertEquals("_username", hit.field("principal").getValue());
+            assertEquals("_username", sourceMap.get("principal"));
         }
-        assertEquals("_action", hit.field("action").getValue());
+        assertEquals("_action", sourceMap.get("action"));
         if (message instanceof IndicesRequest) {
-            List<Object> indices = hit.field("indices").getValues();
+            List<Object> indices = (List<Object>) sourceMap.get("indices");
             assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
         }
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testAccessGrantedMuted() throws Exception {
@@ -519,10 +524,11 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "access_granted");
-        assertEquals("transport", hit.field("origin_type").getValue());
-        assertEquals(User.SYSTEM.principal(), hit.field("principal").getValue());
-        assertEquals("internal:_action", hit.field("action").getValue());
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertEquals("transport", sourceMap.get("origin_type"));
+        assertEquals(User.SYSTEM.principal(), sourceMap.get("principal"));
+        assertEquals("internal:_action", sourceMap.get("action"));
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testSystemAccessGrantedMuted() throws Exception {
@@ -551,20 +557,21 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         awaitAuditDocumentCreation(resolveIndexName());
 
         SearchHit hit = getIndexedAuditMessage();
+        Map<String, Object> sourceMap = hit.sourceAsMap();
         assertAuditMessage(hit, "transport", "access_denied");
-        assertEquals("transport", hit.field("origin_type").getValue());
+        assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
-            assertThat(hit.field("principal").getValue(), is("running as"));
-            assertThat(hit.field("run_by_principal").getValue(), is("_username"));
+            assertThat(sourceMap.get("principal"), is("running as"));
+            assertThat(sourceMap.get("run_by_principal"), is("_username"));
         } else {
-            assertEquals("_username", hit.field("principal").getValue());
+            assertEquals("_username", sourceMap.get("principal"));
         }
-        assertEquals("_action", hit.field("action").getValue());
+        assertEquals("_action", sourceMap.get("action"));
         if (message instanceof IndicesRequest) {
-            List<Object> indices = hit.field("indices").getValues();
+            List<Object> indices = (List<Object>) sourceMap.get("indices");
             assertThat(indices, contains((Object[]) ((IndicesRequest)message).indices()));
         }
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testAccessDenied_Muted() throws Exception {
@@ -586,12 +593,12 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         awaitAuditDocumentCreation(resolveIndexName());
 
         SearchHit hit = getIndexedAuditMessage();
-
+        Map<String, Object> sourceMap = hit.sourceAsMap();
         assertAuditMessage(hit, "transport", "tampered_request");
-        assertEquals("transport", hit.field("origin_type").getValue());
-        assertThat(hit.field("principal"), is(nullValue()));
-        assertEquals("_action", hit.field("action").getValue());
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        assertEquals("transport", sourceMap.get("origin_type"));
+        assertThat(sourceMap.get("principal"), is(nullValue()));
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testTamperedRequestWithUser() throws Exception {
@@ -610,15 +617,16 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "transport", "tampered_request");
-        assertEquals("transport", hit.field("origin_type").getValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertEquals("transport", sourceMap.get("origin_type"));
         if (runAs) {
-            assertThat(hit.field("principal").getValue(), is("running as"));
-            assertThat(hit.field("run_by_principal").getValue(), is("_username"));
+            assertThat(sourceMap.get("principal"), is("running as"));
+            assertThat(sourceMap.get("run_by_principal"), is("_username"));
         } else {
-            assertEquals("_username", hit.field("principal").getValue());
+            assertEquals("_username", sourceMap.get("principal"));
         }
-        assertEquals("_action", hit.field("action").getValue());
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testTamperedRequestMuted() throws Exception {
@@ -647,8 +655,9 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "ip_filter", "connection_granted");
-        assertEquals("allow default:accept_all", hit.field("rule").getValue());
-        assertEquals("default", hit.field("transport_profile").getValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertEquals("allow default:accept_all", sourceMap.get("rule"));
+        assertEquals("default", sourceMap.get("transport_profile"));
     }
 
     public void testConnectionGrantedMuted() throws Exception {
@@ -674,8 +683,9 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
         SearchHit hit = getIndexedAuditMessage();
 
         assertAuditMessage(hit, "ip_filter", "connection_denied");
-        assertEquals("deny _all", hit.field("rule").getValue());
-        assertEquals("default", hit.field("transport_profile").getValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertEquals("deny _all", sourceMap.get("rule"));
+        assertEquals("default", sourceMap.get("transport_profile"));
     }
 
     public void testConnectionDeniedMuted() throws Exception {
@@ -700,11 +710,12 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "run_as_granted");
-        assertEquals("transport", hit.field("origin_type").getValue());
-        assertThat(hit.field("principal").getValue(), is("_username"));
-        assertThat(hit.field("run_as_principal").getValue(), is("running as"));
-        assertEquals("_action", hit.field("action").getValue());
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertEquals("transport", sourceMap.get("origin_type"));
+        assertThat(sourceMap.get("principal"), is("_username"));
+        assertThat(sourceMap.get("run_as_principal"), is("running as"));
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testRunAsGrantedMuted() throws Exception {
@@ -728,11 +739,12 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         SearchHit hit = getIndexedAuditMessage();
         assertAuditMessage(hit, "transport", "run_as_denied");
-        assertEquals("transport", hit.field("origin_type").getValue());
-        assertThat(hit.field("principal").getValue(), is("_username"));
-        assertThat(hit.field("run_as_principal").getValue(), is("running as"));
-        assertEquals("_action", hit.field("action").getValue());
-        assertEquals(hit.field("request").getValue(), message.getClass().getSimpleName());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertEquals("transport", sourceMap.get("origin_type"));
+        assertThat(sourceMap.get("principal"), is("_username"));
+        assertThat(sourceMap.get("run_as_principal"), is("running as"));
+        assertEquals("_action", sourceMap.get("action"));
+        assertEquals(sourceMap.get("request"), message.getClass().getSimpleName());
     }
 
     public void testRunAsDeniedMuted() throws Exception {
@@ -748,15 +760,16 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
     }
 
     private void assertAuditMessage(SearchHit hit, String layer, String type) {
-        assertThat(hit.field("@timestamp").getValue(), notNullValue());
-        DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime(hit.field("@timestamp").getValue());
+        Map<String, Object> sourceMap = hit.sourceAsMap();
+        assertThat(sourceMap.get("@timestamp"), notNullValue());
+        DateTime dateTime = ISODateTimeFormat.dateTimeParser().withZoneUTC().parseDateTime((String) sourceMap.get("@timestamp"));
         assertThat(dateTime.isBefore(DateTime.now(DateTimeZone.UTC)), is(true));
 
-        assertThat(DummyTransportAddress.INSTANCE.getHost(), equalTo(hit.field("node_host_name").getValue()));
-        assertThat(DummyTransportAddress.INSTANCE.getAddress(), equalTo(hit.field("node_host_address").getValue()));
+        assertThat(DummyTransportAddress.INSTANCE.getHost(), equalTo(sourceMap.get("node_host_name")));
+        assertThat(DummyTransportAddress.INSTANCE.getAddress(), equalTo(sourceMap.get("node_host_address")));
 
-        assertEquals(layer, hit.field("layer").getValue());
-        assertEquals(type, hit.field("event_type").getValue());
+        assertEquals(layer, sourceMap.get("layer"));
+        assertEquals(type, sourceMap.get("event_type"));
     }
 
     private static class LocalHostMockMessage extends TransportMessage<LocalHostMockMessage> {
@@ -821,7 +834,6 @@ public class IndexAuditTrailTests extends ShieldIntegTestCase {
 
         SearchResponse response = getClient().prepareSearch(resolveIndexName())
                 .setTypes(IndexAuditTrail.DOC_TYPE)
-                .fields(fieldList())
                 .execute().actionGet();
 
         assertEquals(1, response.getHits().getTotalHits());

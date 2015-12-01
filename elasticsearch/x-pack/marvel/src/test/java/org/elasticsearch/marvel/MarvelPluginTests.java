@@ -13,6 +13,7 @@ import org.elasticsearch.marvel.test.MarvelIntegTestCase;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.tribe.TribeService;
+import org.elasticsearch.xpack.XPackPlugin;
 
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.hamcrest.Matchers.equalTo;
@@ -53,12 +54,12 @@ public class MarvelPluginTests extends MarvelIntegTestCase {
             for (PluginInfo plugin : nodeInfo.getPlugins().getInfos()) {
                 assertNotNull(plugin);
 
-                if (MarvelPlugin.NAME.equals(plugin.getName())) {
+                if (XPackPlugin.NAME.equals(plugin.getName())) {
                     found = true;
                     break;
                 }
             }
-            assertThat("marvel plugin not found", found, equalTo(true));
+            assertThat("x-pack plugin not found", found, equalTo(true));
         }
     }
 

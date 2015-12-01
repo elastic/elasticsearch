@@ -1,4 +1,7 @@
 grant {
   // needed because of problems in unbound LDAP library
   permission java.util.PropertyPermission "*", "read,write";
+
+  // needed to set expert SSL options, etc
+  permission java.lang.RuntimePermission "setFactory";
 };

@@ -24,6 +24,7 @@ import org.elasticsearch.test.rest.client.http.HttpResponse;
 import org.elasticsearch.test.rest.json.JsonPath;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
+import org.elasticsearch.xpack.XPackPlugin;
 import org.hamcrest.Matcher;
 import org.junit.After;
 import org.junit.BeforeClass;
@@ -55,6 +56,10 @@ public class ShieldPluginEnabledDisabledTests extends ShieldIntegTestCase {
         // reenabled the license, so the internal cluster will be cleaned appropriately.
         logger.info("cleanup: enabling licensing...");
         LicensingTests.enableLicensing();
+    }
+    @Override
+    protected Class<? extends XPackPlugin> xpackPluginClass() {
+        return LicensingTests.InternalXPackPlugin.class;
     }
 
     @Override

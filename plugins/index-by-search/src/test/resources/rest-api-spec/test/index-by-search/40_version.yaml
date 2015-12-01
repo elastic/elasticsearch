@@ -1,5 +1,5 @@
 ---
-"Preserve external version if set on url":
+"Preserve external version":
   - do:
       index:
         index:        test
@@ -20,45 +20,9 @@
 
   - do:
       index_by_search:
-        index: test
-        version_type: external
         body:
-          index:
-            index: target
-  - do:
-      indices.refresh: {}
-
-  - do:
-      get:
-        index: target
-        type:  test
-        id:    1
-  - match: { _version: 4 }
-
----
-"Preserve external version if set on the index request":
-  - do:
-      index:
-        index:        test
-        type:         test
-        id:           1
-        version:      4
-        version_type: external
-        body:         { "text": "test" }
-  - do:
-      indices.refresh: {}
-
-  - do:
-      get:
-        index: test
-        type:  test
-        id:    1
-  - match: { _version: 4 }
-
-  - do:
-      index_by_search:
-        index: test
-        body:
+          source:
+            index: test
           index:
             index: target
             version_type: external
@@ -94,11 +58,12 @@
 
   - do:
       index_by_search:
-        index: test
         body:
-          search:
-            query:
-              match_all: {}
+          source:
+            index: test
+            search:
+              query:
+                match_all: {}
           index:
             index: target
             version_type: external

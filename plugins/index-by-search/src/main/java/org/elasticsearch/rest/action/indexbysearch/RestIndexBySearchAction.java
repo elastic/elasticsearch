@@ -29,10 +29,9 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.indexbysearch.IndexBySearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.ParseField;
-import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ObjectParser;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryParseContext;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -49,7 +47,6 @@ import org.elasticsearch.rest.BytesRestResponse;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
-import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
 
 /**
@@ -58,21 +55,26 @@ import org.elasticsearch.rest.action.support.RestToXContentListener;
 public class RestIndexBySearchAction extends BaseRestHandler {
     private static final ObjectParser<IndexBySearchRequest, QueryParseContext> PARSER = new ObjectParser<>("index-by-search");
     static {
-        ObjectParser.Parser<IndexBySearchRequest, QueryParseContext> parseSearchSource = (parser, request, context) -> {
+        ObjectParser<SearchRequest, QueryParseContext> sourceParser = new ObjectParser<>("source");
+        sourceParser.declareStringArray((s, i) -> s.indices(i.toArray(new String[i.size()])), new ParseField("index"));
+        sourceParser.declareStringArray((s, i) -> s.types(i.toArray(new String[i.size()])), new ParseField("type"));
+        ObjectParser.Parser<SearchRequest, QueryParseContext> parseSearchSource = (parser, search, context) -> {
             try {
                 context.reset(parser);
-                request.search().source().parseXConent(parser, context);
+                search.source().parseXConent(parser, context);
             } catch (IOException e) {
                 // TODO throw a better exception
                 throw new ElasticsearchException(e);
             }
         };
-        PARSER.declareField(parseSearchSource, new ParseField("search"), ValueType.OBJECT);
+        sourceParser.declareField(parseSearchSource, new ParseField("search"), ValueType.OBJECT);
 
         ObjectParser<IndexRequest, Void> indexParser = new ObjectParser<>("index");
         indexParser.declareString(IndexRequest::index, new ParseField("index"));
         indexParser.declareString(IndexRequest::type, new ParseField("type"));
         indexParser.declareString((i, v) -> i.versionType(VersionType.fromString(v)), new ParseField("version_type"));
+
+        PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.search(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> indexParser.parse(p, v.index(), null), new ParseField("index"), ValueType.OBJECT);
     }
 
@@ -83,64 +85,28 @@ public class RestIndexBySearchAction extends BaseRestHandler {
             IndicesQueriesRegistry indicesQueriesRegistry) {
         super(settings, controller, client);
         this.indicesQueriesRegistry = indicesQueriesRegistry;
-        controller.registerHandler(POST, "/{index}/_index_by_search", this);
-        controller.registerHandler(POST, "/{index}/{type}/_index_by_search", this);
+        controller.registerHandler(POST, "/_index_by_search", this);
     }
 
     @Override
     public void handleRequest(RestRequest request, RestChannel channel, Client client) throws IOException {
-        if (request.content() == null) {
+        if (request.hasContent() == false) {
             badRequest(channel, "body required");
             return;
         }
-        String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
-        String[] types = Strings.splitStringByCommaToArray(request.param("type"));
 
         IndexBySearchRequest internalRequest = new IndexBySearchRequest(new SearchRequest(), new IndexRequest());
-        internalRequest.search().indices(indices);
-        internalRequest.search().types(types);
-        internalRequest.search().indicesOptions(IndicesOptions.fromRequest(request, internalRequest.search().indicesOptions()));
-        internalRequest.search().routing(request.param("routing"));
-
-        internalRequest.index().versionType(VersionType.fromString(request.param("version_type"), internalRequest.index().versionType()));
 
         try (XContentParser xcontent = XContentFactory.xContent(request.content()).createParser(request.content())) {
             PARSER.parse(xcontent, internalRequest, new QueryParseContext(indicesQueriesRegistry));
+        } catch (ParsingException e) {
+            logger.warn("Bad request", e);
+            badRequest(channel, e.getDetailedMessage());
+            return;
         }
-
-
-        /*
-         * Fill in the index and type on the index prototype if it was not set
-         * during parsing.
-         */
         if (internalRequest.index().index() == null) {
-            if (indices.length == 1) {
-                internalRequest.index().index(indices[0]);
-            } else {
-                badRequest(channel, "multiple indices specified in url but index request didn't specify an index");
-                return;
-            }
-        }
-        if (internalRequest.index().type() == null) {
-            switch (types.length) {
-            case 0:
-                // Not specified meaning we'll copy it from the document
-                break;
-            case 1:
-                internalRequest.index().type(types[0]);
-                break;
-            default:
-                badRequest(channel, "multiple types specified in url but index request didn't specify a type");
-                return;
-            }
-        }
-
-        // Fill in the query on the search if it was not set during parsing.
-        if (internalRequest.search().source().query() == null) {
-            QueryBuilder<?> queryFromUrl = RestActions.urlParamsToQueryBuilder(request);
-            if (queryFromUrl != null) {
-                internalRequest.search().source().query(queryFromUrl);
-            }
+            badRequest(channel, "index required on index portion of request body");
+            return;
         }
 
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));

@@ -11,17 +11,19 @@
 
   - do:
       index_by_search:
-        index: test
-        type: foo,bar
         body:
+          source:
+            index: test
+            type: [foo, bar]
           index:
+            index: test
             type: baz
 
   - match: {indexed: 1}
   - is_true: took
 
 ---
-"Multi index example":
+"Multi index search with types copied from hits":
   - do:
       index:
         index:  twitter
@@ -39,8 +41,9 @@
 
   - do:
       index_by_search:
-        index: twitter,blog
         body:
+          source:
+            index: [twitter, blog]
           index:
             index: all_together
   - do:

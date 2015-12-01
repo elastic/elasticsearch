@@ -3,33 +3,13 @@
     "documentation": "https://www.elastic.co/guide/en/elasticsearch/plugins/master/plugins-index-by-search.html",
     "methods": ["POST"],
     "url": {
-      "path": "/{index}/_index_by_search",
-      "paths": ["/{index}/_index_by_search", "/{index}/{type}/_index_by_search"],
-      "parts": {
-        "index": {
-          "type" : "list",
-          "required": true,
-          "description" : "A comma-separated list of indices to restrict the operation; use `_all` to perform the operation on all indices"
-        },
-        "type": {
-          "type" : "list",
-          "description" : "A comma-separated list of types to restrict the operation"
-        }
-      },
-      "params": {
-        "q": {
-          "type" : "string",
-          "description" : "Query in the Lucene query string syntax"
-        },
-        "version_type": {
-          "type" : "enum",
-          "options" : ["internal", "external", "external_gte", "force"],
-          "description" : "Specific version type"
-        }
-      }
+      "path": "/_index_by_search",
+      "paths": ["/_index_by_search"],
+      "parts": {},
+      "params": {}
     },
     "body": {
-      "description" : "A query to restrict the operation specified with the Query DSL"
+      "description" : "NOCOMMIT some description"
     }
   }
 }

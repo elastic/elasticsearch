@@ -267,7 +267,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 }
                 MapperUtils.collect(mapper.mapping().root, newObjectMappers, newFieldMappers);
                 checkNewMappersCompatibility(newObjectMappers, newFieldMappers, updateAllTypes);
-                addMappers(newObjectMappers, newFieldMappers);
+                addMappers(mapper.type(), newObjectMappers, newFieldMappers);
 
                 for (DocumentTypeListener typeListener : typeListeners) {
                     typeListener.beforeCreate(mapper);
@@ -318,7 +318,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         fieldTypes.checkCompatibility(newFieldMappers, updateAllTypes);
     }
 
-    protected void addMappers(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
+    protected void addMappers(String type, Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers) {
         assert mappingLock.isWriteLockedByCurrentThread();
         ImmutableOpenMap.Builder<String, ObjectMapper> fullPathObjectMappers = ImmutableOpenMap.builder(this.fullPathObjectMappers);
         for (ObjectMapper objectMapper : objectMappers) {
@@ -328,7 +328,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
             }
         }
         this.fullPathObjectMappers = fullPathObjectMappers.build();
-        this.fieldTypes = this.fieldTypes.copyAndAddAll(fieldMappers);
+        this.fieldTypes = this.fieldTypes.copyAndAddAll(type, fieldMappers);
     }
 
     public DocumentMapper parse(String mappingType, CompressedXContent mappingSource, boolean applyDefault) throws MapperParsingException {
@@ -345,10 +345,21 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
         return mappers.containsKey(mappingType);
     }
 
+    /**
+     * Return the set of concrete types that have a mapping.
+     * NOTE: this does not return the default mapping.
+     */
     public Collection<String> types() {
-        return mappers.keySet();
+        final Set<String> types = new HashSet<>(mappers.keySet());
+        types.remove(DEFAULT_MAPPING);
+        return Collections.unmodifiableSet(types);
     }
 
+    /**
+     * Return the {@link DocumentMapper} for the given type. By using the special
+     * {@value #DEFAULT_MAPPING} type, you can get a {@link DocumentMapper} for
+     * the default mapping.
+     */
     public DocumentMapper documentMapper(String type) {
         return mappers.get(type);
     }

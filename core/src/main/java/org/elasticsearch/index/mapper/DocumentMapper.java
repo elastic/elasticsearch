@@ -351,7 +351,7 @@ public class DocumentMapper implements ToXContent {
         this.fieldMappers = this.fieldMappers.copyAndAllAll(fieldMappers);
 
         // finally update for the entire index
-        mapperService.addMappers(objectMappers, fieldMappers);
+        mapperService.addMappers(type, objectMappers, fieldMappers);
     }
 
     public MergeResult merge(Mapping mapping, boolean simulate, boolean updateAllTypes) {

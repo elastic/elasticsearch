@@ -295,6 +295,9 @@ class BuildPlugin implements Plugin<Project> {
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                // compile with compact 3 profile by default
+                // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                options.compilerArgs << '-profile' << 'compact3'
                 options.encoding = 'UTF-8'
             }
         }

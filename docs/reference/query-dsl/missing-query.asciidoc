@@ -1,6 +1,8 @@
 [[query-dsl-missing-query]]
 === Missing Query
 
+deprecated[2.2.0, Use `exists` query inside a `must_not` clause instead]
+
 Returns documents that have only `null` values or no value in the original field:
 
 [source,js]

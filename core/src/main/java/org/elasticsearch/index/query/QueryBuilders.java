@@ -766,8 +766,7 @@ public abstract class QueryBuilders {
 
     /**
      * A filter to filter only documents where a field does not exists in them.
-     *
-     * @param name The name of the field
+     * @deprecated Use {@link #existsQuery(String)} inside a {@link BoolQueryBuilder#mustNot(QueryBuilder)} clause instead.
      */
     public static MissingQueryBuilder missingQuery(String name) {
         return new MissingQueryBuilder(name);
@@ -792,7 +791,7 @@ public abstract class QueryBuilders {
 
     /**
      * Create a new {@link AndQueryBuilder} composed of the given filters.
-     * @deprecated Use {@link #boolQuery()} instead
+     * @deprecated Use {@link #boolQuery().mustNot()} instead
      */
     @Deprecated
     public static AndQueryBuilder andQuery(QueryBuilder... filters) {

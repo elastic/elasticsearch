@@ -283,6 +283,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
+        project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
             // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
@@ -297,7 +298,9 @@ class BuildPlugin implements Plugin<Project> {
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
                 // compile with compact 3 profile by default
                 // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
-                options.compilerArgs << '-profile' << 'compact3'
+                if (project.compactProfile != 'full') {
+                    options.compilerArgs << '-profile' << project.compactProfile
+                }
                 options.encoding = 'UTF-8'
             }
         }

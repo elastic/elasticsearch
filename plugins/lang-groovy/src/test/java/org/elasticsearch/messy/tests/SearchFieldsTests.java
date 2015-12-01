@@ -77,7 +77,7 @@ public class SearchFieldsTests extends ESIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return pluginList(GroovyPlugin.class);
     }
-    
+
     @Test
     public void testStoredFields() throws Exception {
         createIndex("test");
@@ -116,6 +116,33 @@ public class SearchFieldsTests extends ESIntegTestCase {
         assertThat(searchResponse.getHits().getAt(0).fields().get("field2").value().toString(), equalTo("value2"));
 
         searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("field3").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("*3").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("*3").addField("field1").addField("field2").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(3));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field2").value().toString(), equalTo("value2"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("field*").execute().actionGet();
+        assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
+        assertThat(searchResponse.getHits().hits().length, equalTo(1));
+        assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(2));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field3").value().toString(), equalTo("value3"));
+        assertThat(searchResponse.getHits().getAt(0).fields().get("field1").value().toString(), equalTo("value1"));
+
+        searchResponse = client().prepareSearch().setQuery(matchAllQuery()).addField("f*3").execute().actionGet();
         assertThat(searchResponse.getHits().getTotalHits(), equalTo(1l));
         assertThat(searchResponse.getHits().hits().length, equalTo(1));
         assertThat(searchResponse.getHits().getAt(0).fields().size(), equalTo(1));

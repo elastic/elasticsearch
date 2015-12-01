@@ -31,6 +31,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.collect.Tuple;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.lucene.search.Queries;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.text.StringAndBytesText;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -98,6 +99,7 @@ public class FetchPhase implements SearchPhase {
     public void execute(SearchContext context) {
         FieldsVisitor fieldsVisitor;
         Set<String> fieldNames = null;
+        List<String> fieldNamePatterns = null;
         List<String> extractFieldNames = null;
 
         boolean loadAllStored = false;
@@ -113,6 +115,12 @@ public class FetchPhase implements SearchPhase {
             for (String fieldName : context.fieldNames()) {
                 if (fieldName.equals("*")) {
                     loadAllStored = true;
+                    continue;
+                } else if (Regex.isSimpleMatchPattern(fieldName)) {
+                    if (fieldNamePatterns == null) {
+                        fieldNamePatterns = new ArrayList<>();
+                    }
+                    fieldNamePatterns.add(fieldName);
                     continue;
                 }
                 if (fieldName.equals(SourceFieldMapper.NAME)) {
@@ -143,9 +151,10 @@ public class FetchPhase implements SearchPhase {
             }
             if (loadAllStored) {
                 fieldsVisitor = new AllFieldsVisitor(); // load everything, including _source
-            } else if (fieldNames != null) {
+            } else if (fieldNames != null || fieldNamePatterns != null) {
                 boolean loadSource = extractFieldNames != null || context.sourceRequested();
-                fieldsVisitor = new CustomFieldsVisitor(fieldNames, loadSource);
+                fieldsVisitor = new CustomFieldsVisitor(fieldNames == null ? Collections.<String>emptySet() : fieldNames,
+                        fieldNamePatterns == null ? Collections.<String>emptyList() : fieldNamePatterns, loadSource);
             } else {
                 fieldsVisitor = new FieldsVisitor(extractFieldNames != null || context.sourceRequested());
             }
@@ -163,7 +172,7 @@ public class FetchPhase implements SearchPhase {
             try {
                 int rootDocId = findRootDocumentIfNested(context, subReaderContext, subDocId);
                 if (rootDocId != -1) {
-                    searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId, extractFieldNames, loadAllStored, fieldNames, subReaderContext);
+                    searchHit = createNestedSearchHit(context, docId, subDocId, rootDocId, extractFieldNames, loadAllStored, fieldNames, fieldNamePatterns, subReaderContext);
                 } else {
                     searchHit = createSearchHit(context, fieldsVisitor, docId, subDocId, extractFieldNames, subReaderContext);
                 }
@@ -249,7 +258,7 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, List<String> extractFieldNames, boolean loadAllStored, Set<String> fieldNames, LeafReaderContext subReaderContext) throws IOException {
+    private InternalSearchHit createNestedSearchHit(SearchContext context, int nestedTopDocId, int nestedSubDocId, int rootSubDocId, List<String> extractFieldNames, boolean loadAllStored, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) throws IOException {
         // Also if highlighting is requested on nested documents we need to fetch the _source from the root document,
         // otherwise highlighting will attempt to fetch the _source from the nested doc, which will fail,
         // because the entire _source is only stored with the root document.
@@ -257,7 +266,7 @@ public class FetchPhase implements SearchPhase {
         loadStoredFields(context, subReaderContext, rootFieldsVisitor, rootSubDocId);
         rootFieldsVisitor.postProcess(context.mapperService());
 
-        Map<String, SearchHitField> searchFields = getSearchFields(context, nestedSubDocId, loadAllStored, fieldNames, subReaderContext);
+        Map<String, SearchHitField> searchFields = getSearchFields(context, nestedSubDocId, loadAllStored, fieldNames, fieldNamePatterns, subReaderContext);
         DocumentMapper documentMapper = context.mapperService().documentMapper(rootFieldsVisitor.uid().type());
         SourceLookup sourceLookup = context.lookup().source();
         sourceLookup.setSegmentAndDocument(subReaderContext, nestedSubDocId);
@@ -322,14 +331,15 @@ public class FetchPhase implements SearchPhase {
         return searchHit;
     }
 
-    private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, boolean loadAllStored, Set<String> fieldNames, LeafReaderContext subReaderContext) {
+    private Map<String, SearchHitField> getSearchFields(SearchContext context, int nestedSubDocId, boolean loadAllStored, Set<String> fieldNames, List<String> fieldNamePatterns, LeafReaderContext subReaderContext) {
         Map<String, SearchHitField> searchFields = null;
         if (context.hasFieldNames() && !context.fieldNames().isEmpty()) {
             FieldsVisitor nestedFieldsVisitor = null;
             if (loadAllStored) {
                 nestedFieldsVisitor = new AllFieldsVisitor();
-            } else if (fieldNames != null) {
-                nestedFieldsVisitor = new CustomFieldsVisitor(fieldNames, false);
+            } else if (fieldNames != null || fieldNamePatterns != null) {
+                nestedFieldsVisitor = new CustomFieldsVisitor(fieldNames == null ? Collections.<String>emptySet() : fieldNames,
+                        fieldNamePatterns == null ? Collections.<String>emptyList() : fieldNamePatterns, false);
             }
 
             if (nestedFieldsVisitor != null) {

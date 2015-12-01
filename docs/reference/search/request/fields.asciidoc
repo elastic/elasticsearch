@@ -19,6 +19,22 @@ by a search hit.
 }
 --------------------------------------------------
 
+`fields` also accepts one or more wildcard patterns to control which fields of the document should be returned.
+WARNING: Only 'stored' fields can be retrieved with wildcard patterns.
+
+For example:
+
+[source,js]
+--------------------------------------------------
+{
+    "fields": "["xxx*", "*xxx", "*xxx*", "xxx*yyy", "user", "postDate"],
+    "query" : {
+        "term" : { "user" : "kimchy" }
+    }
+}
+--------------------------------------------------
+
+
 `*` can be used to load all stored fields from the document.
 
 An empty array will cause only the `_id` and `_type` for each hit to be

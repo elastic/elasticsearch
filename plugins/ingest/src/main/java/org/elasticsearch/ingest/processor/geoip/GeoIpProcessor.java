@@ -24,6 +24,7 @@ import com.maxmind.geoip2.exception.AddressNotFoundException;
 import com.maxmind.geoip2.model.CityResponse;
 import com.maxmind.geoip2.model.CountryResponse;
 import com.maxmind.geoip2.record.*;
+import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.ingest.IngestDocument;
@@ -40,8 +41,10 @@ import java.nio.file.StandardOpenOption;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.*;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.ingest.processor.ConfigurationUtils.readList;
+import static org.elasticsearch.ingest.processor.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.processor.ConfigurationUtils.readStringProperty;
 
 public final class GeoIpProcessor implements Processor {
@@ -218,21 +221,41 @@ public final class GeoIpProcessor implements Processor {
                 Field.CONTINENT_NAME, Field.COUNTRY_ISO_CODE, Field.REGION_NAME, Field.CITY_NAME, Field.LOCATION
         );
 
-        private final Path geoIpConfigDirectory;
-        private final DatabaseReaderService databaseReaderService = new DatabaseReaderService();
+        private final Map<String, DatabaseReader> databaseReaders;
 
         public Factory(Path configDirectory) {
-            this.geoIpConfigDirectory = configDirectory.resolve("ingest").resolve("geoip");
+            Path geoIpConfigDirectory = configDirectory.resolve("ingest").resolve("geoip");
+            if (Files.exists(geoIpConfigDirectory) == false && Files.isDirectory(geoIpConfigDirectory)) {
+                throw new IllegalStateException("the geoip directory [" + geoIpConfigDirectory  + "] containing databases doesn't exist");
+            }
+
+            try (Stream<Path> databaseFiles = Files.list(geoIpConfigDirectory)) {
+                Map<String, DatabaseReader> databaseReaders = new HashMap<>();
+                // Use iterator instead of forEach otherwise IOException needs to be caught twice...
+                Iterator<Path> iterator = databaseFiles.iterator();
+                while (iterator.hasNext()) {
+                    Path databasePath = iterator.next();
+                    if (Files.isRegularFile(databasePath)) {
+                        try (InputStream inputStream = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
+                            databaseReaders.put(databasePath.getFileName().toString(), new DatabaseReader.Builder(inputStream).build());
+                        }
+                    }
+                }
+                this.databaseReaders = Collections.unmodifiableMap(databaseReaders);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
         }
 
         public GeoIpProcessor create(Map<String, Object> config) throws Exception {
             String ipField = readStringProperty(config, "source_field");
             String targetField = readStringProperty(config, "target_field", "geoip");
             String databaseFile = readStringProperty(config, "database_file", "GeoLite2-City.mmdb");
+            List<String> fieldNames = readOptionalList(config, "fields");
+
             final Set<Field> fields;
-            if (config.containsKey("fields")) {
+            if (fieldNames != null) {
                 fields = EnumSet.noneOf(Field.class);
-                List<String> fieldNames = readList(config, "fields");
                 for (String fieldName : fieldNames) {
                     try {
                         fields.add(Field.parse(fieldName));
@@ -244,20 +267,16 @@ public final class GeoIpProcessor implements Processor {
                 fields = DEFAULT_FIELDS;
             }
 
-            Path databasePath = geoIpConfigDirectory.resolve(databaseFile);
-            if (Files.exists(databasePath) && Files.isRegularFile(databasePath)) {
-                try (InputStream database = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
-                    DatabaseReader databaseReader = databaseReaderService.getOrCreateDatabaseReader(databaseFile, database);
-                    return new GeoIpProcessor(ipField, databaseReader, targetField, fields);
-                }
-            } else {
-                throw new IllegalArgumentException("database file [" + databaseFile + "] doesn't exist in [" + geoIpConfigDirectory + "]");
+            DatabaseReader databaseReader = databaseReaders.get(databaseFile);
+            if (databaseReader == null) {
+                throw new IllegalArgumentException("database file [" + databaseFile + "] doesn't exist");
             }
+            return new GeoIpProcessor(ipField, databaseReader, targetField, fields);
         }
 
         @Override
         public void close() throws IOException {
-            databaseReaderService.close();
+            IOUtils.close(databaseReaders.values());
         }
     }
 

@@ -87,8 +87,9 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("database_file", "does-not-exist.mmdb");
         try {
             factory.create(config);
+            fail("Exception expected");
         } catch (IllegalArgumentException e) {
-            assertThat(e.getMessage(), startsWith("database file [does-not-exist.mmdb] doesn't exist in"));
+            assertThat(e.getMessage(), equalTo("database file [does-not-exist.mmdb] doesn't exist"));
         }
     }
 
@@ -119,6 +120,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("fields", Collections.singletonList("invalid"));
         try {
             factory.create(config);
+            fail("exception expected");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("illegal field option [invalid]. valid values are [[IP, COUNTRY_ISO_CODE, COUNTRY_NAME, CONTINENT_NAME, REGION_NAME, CITY_NAME, TIMEZONE, LATITUDE, LONGITUDE, LOCATION]]"));
         }
@@ -128,6 +130,7 @@ public class GeoIpProcessorFactoryTests extends ESTestCase {
         config.put("fields", "invalid");
         try {
             factory.create(config);
+            fail("exception expected");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), equalTo("property [fields] isn't a list, but of type [java.lang.String]"));
         }

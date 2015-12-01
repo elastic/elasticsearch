@@ -33,24 +33,16 @@ public class SplitProcessorTests extends ESTestCase {
 
     public void testSplit() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, String> fields = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
-            fields.put(fieldName, "\\.");
-        }
-        Processor processor = new SplitProcessor(fields);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
+        Processor processor = new SplitProcessor(fieldName, "\\.");
         processor.execute(ingestDocument);
-        for (String field : fields.keySet()) {
-            assertThat(ingestDocument.getFieldValue(field, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(Arrays.asList("127", "0", "0", "1")));
     }
 
     public void testSplitFieldNotFound() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Map<String, String> split = Collections.singletonMap(fieldName, "\\.");
-        Processor processor = new SplitProcessor(split);
+        Processor processor = new SplitProcessor(fieldName, "\\.");
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");
@@ -61,8 +53,7 @@ public class SplitProcessorTests extends ESTestCase {
 
     public void testSplitNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        Map<String, String> split = Collections.singletonMap("field", "\\.");
-        Processor processor = new SplitProcessor(split);
+        Processor processor = new SplitProcessor("field", "\\.");
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");
@@ -75,7 +66,7 @@ public class SplitProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, randomInt());
-        Processor processor = new SplitProcessor(Collections.singletonMap(fieldName, "\\."));
+        Processor processor = new SplitProcessor(fieldName, "\\.");
         try {
             processor.execute(ingestDocument);
             fail("split processor should have failed");

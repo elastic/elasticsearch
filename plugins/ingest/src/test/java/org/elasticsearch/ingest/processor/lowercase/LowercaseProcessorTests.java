@@ -27,8 +27,8 @@ import java.util.Locale;
 
 public class LowercaseProcessorTests extends AbstractStringProcessorTestCase {
     @Override
-    protected AbstractStringProcessor newProcessor(Collection<String> fields) {
-        return new LowercaseProcessor(fields);
+    protected AbstractStringProcessor newProcessor(String field) {
+        return new LowercaseProcessor(field);
     }
 
     @Override

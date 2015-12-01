@@ -149,4 +149,15 @@ public final class ConfigurationUtils {
             throw new IllegalArgumentException("property [" + propertyName + "] isn't a map, but of type [" + value.getClass().getName() + "]");
         }
     }
+
+    /**
+     * Returns and removes the specified property as an {@link Object} from the specified configuration map.
+     */
+    public static Object readObject(Map<String, Object> configuration, String propertyName) {
+        Object value = configuration.remove(propertyName);
+        if (value == null) {
+            throw new IllegalArgumentException("required property [" + propertyName + "] is missing");
+        }
+        return value;
+    }
 }

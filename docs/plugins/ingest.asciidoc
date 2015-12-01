@@ -4,52 +4,46 @@
 === Processors
 
 ==== Set processor
-Sets one or more fields and associates them with the specified values. If a field already exists,
+Sets one field and associates it with the specified value. If a field already exists,
 its value will be replaced with the provided one.
 
 [source,js]
 --------------------------------------------------
 {
   "set": {
-    "fields": {
-      "field": 582.1
-    }
+    "field1": 582.1
   }
 }
 --------------------------------------------------
 
 ==== Remove processor
-Removes one or more existing fields. If a field doesn't exist, nothing will happen.
+Removes an existing field. If a field doesn't exist, nothing will happen.
 
 [source,js]
 --------------------------------------------------
 {
   "remove": {
-    "fields": [
-      "field1","field2"
-    ]
+    "field": "foo"
   }
 }
 --------------------------------------------------
 
 ==== Rename processor
-Renames one or more existing fields. If a field doesn't exist, an exception will be thrown. Also, the new field
+Renames an existing fields. If a field doesn't exist, an exception will be thrown. Also, the new field
 name must not exist.
 
 [source,js]
 --------------------------------------------------
 {
   "rename": {
-    "fields": {
-      "field1": "field2"
-    }
+    "field": "foo"
   }
 }
 --------------------------------------------------
 
 
 ==== Convert processor
-Converts one or more field value to a different type, like turning a string to an integer.
+Converts an existing field's value to a different type, like turning a string to an integer.
 If the field value is an array, all members will be converted.
 
 The supported types include: `integer`, `float`, `string`, and `boolean`.
@@ -61,10 +55,7 @@ false if its string value is equal to `false` (ignore case) and it will throw ex
 --------------------------------------------------
 {
   "convert": {
-    "fields": {
-      "field1": "integer",
-      "field2": "float"
-    }
+    "foo": "integer"
   }
 }
 --------------------------------------------------
@@ -73,8 +64,7 @@ false if its string value is equal to `false` (ignore case) and it will throw ex
 Converts a string field by applying a regular expression and a replacement.
 If the field is not a string, the processor will throw an exception.
 
-This configuration takes an `expression` array consisting of objects. Each object
-holds three elements: `field` for the field name, `pattern` for the
+This configuration takes a `field` for the field name, `pattern` for the
 pattern to be replaced, and `replacement` for the string to replace the matching patterns with.
 
 
@@ -82,13 +72,9 @@ pattern to be replaced, and `replacement` for the string to replace the matching
 --------------------------------------------------
 {
   "gsub": {
-    "expressions": [
-      {
-        "field": "field1",
-        "pattern": "\.",
-        "replacement": "-"
-      }
-    ]
+    "field": "field1",
+    "pattern": "\.",
+    "replacement": "-"
   }
 }
 --------------------------------------------------
@@ -101,9 +87,8 @@ Throws error when the field is not an array.
 --------------------------------------------------
 {
   "join": {
-    "fields": {
-      "joined_array_field": "other_array_field"
-    }
+    "field": "joined_array_field",
+    "separator": "-"
   }
 }
 --------------------------------------------------
@@ -115,9 +100,7 @@ Split a field to an array using a separator character. Only works on string fiel
 --------------------------------------------------
 {
   "split": {
-    "fields": {
-      "message": ","
-    }
+    "field": ","
   }
 }
 --------------------------------------------------
@@ -129,7 +112,7 @@ Converts a string to its lowercase equivalent.
 --------------------------------------------------
 {
   "lowercase": {
-    "fields": ["foo", "bar"]
+    "field": "foo"
   }
 }
 --------------------------------------------------
@@ -141,7 +124,7 @@ Converts a string to its uppercase equivalent.
 --------------------------------------------------
 {
   "uppercase": {
-    "fields": ["foo", "bar"]
+    "field": "foo"
   }
 }
 --------------------------------------------------
@@ -153,7 +136,7 @@ Trims whitespace from field. NOTE: this only works on leading and trailing white
 --------------------------------------------------
 {
   "trim": {
-    "fields": ["foo", "bar"]
+    "field": "foo"
   }
 }
 --------------------------------------------------

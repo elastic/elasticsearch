@@ -31,8 +31,8 @@ public class TrimProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "trim";
 
-    TrimProcessor(Collection<String> fields) {
-        super(fields);
+    TrimProcessor(String field) {
+        super(field);
     }
 
     @Override
@@ -47,8 +47,8 @@ public class TrimProcessor extends AbstractStringProcessor {
 
     public static class Factory extends AbstractStringProcessor.Factory<TrimProcessor> {
         @Override
-        protected TrimProcessor newProcessor(Collection<String> fields) {
-            return new TrimProcessor(fields);
+        protected TrimProcessor newProcessor(String field) {
+            return new TrimProcessor(field);
         }
     }
 }

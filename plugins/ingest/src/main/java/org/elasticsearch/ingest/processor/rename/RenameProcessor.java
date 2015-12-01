@@ -23,6 +23,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -33,37 +34,39 @@ public class RenameProcessor implements Processor {
 
     public static final String TYPE = "rename";
 
-    private final Map<String, String> fields;
+    private final String oldFieldName;
+    private final String newFieldName;
 
-    RenameProcessor(Map<String, String> fields) {
-        this.fields = fields;
+    RenameProcessor(String oldFieldName, String newFieldName) {
+        this.oldFieldName = oldFieldName;
+        this.newFieldName = newFieldName;
     }
 
-    Map<String, String> getFields() {
-        return fields;
+    String getOldFieldName() {
+        return oldFieldName;
+    }
+
+    String getNewFieldName() {
+        return newFieldName;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        for(Map.Entry<String, String> entry : fields.entrySet()) {
-            String oldFieldName = entry.getKey();
-            if (document.hasField(oldFieldName) == false) {
-                throw new IllegalArgumentException("field [" + oldFieldName + "] doesn't exist");
-            }
-            String newFieldName = entry.getValue();
-            if (document.hasField(newFieldName)) {
-                throw new IllegalArgumentException("field [" + newFieldName + "] already exists");
-            }
+        if (document.hasField(oldFieldName) == false) {
+            throw new IllegalArgumentException("field [" + oldFieldName + "] doesn't exist");
+        }
+        if (document.hasField(newFieldName)) {
+            throw new IllegalArgumentException("field [" + newFieldName + "] already exists");
+        }
 
-            Object oldValue = document.getFieldValue(entry.getKey(), Object.class);
-            document.setFieldValue(newFieldName, oldValue);
-            try {
-                document.removeField(oldFieldName);
-            } catch (Exception e) {
-                //remove the new field if the removal of the old one failed
-                document.removeField(newFieldName);
-                throw e;
-            }
+        Object oldValue = document.getFieldValue(oldFieldName, Object.class);
+        document.setFieldValue(newFieldName, oldValue);
+        try {
+            document.removeField(oldFieldName);
+        } catch (Exception e) {
+            //remove the new field if the removal of the old one failed
+            document.removeField(newFieldName);
+            throw e;
         }
     }
 
@@ -75,8 +78,9 @@ public class RenameProcessor implements Processor {
     public static class Factory implements Processor.Factory<RenameProcessor> {
         @Override
         public RenameProcessor create(Map<String, Object> config) throws Exception {
-            Map<String, String> fields = ConfigurationUtils.readMap(config, "fields");
-            return new RenameProcessor(Collections.unmodifiableMap(fields));
+            String field = ConfigurationUtils.readStringProperty(config, "field");
+            String newField = ConfigurationUtils.readStringProperty(config, "to");
+            return new RenameProcessor(field, newField);
         }
     }
 }

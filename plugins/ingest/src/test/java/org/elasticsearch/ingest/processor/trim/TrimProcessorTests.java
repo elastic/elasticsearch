@@ -22,13 +22,11 @@ package org.elasticsearch.ingest.processor.trim;
 import org.elasticsearch.ingest.processor.AbstractStringProcessor;
 import org.elasticsearch.ingest.processor.AbstractStringProcessorTestCase;
 
-import java.util.Collection;
-
 public class TrimProcessorTests extends AbstractStringProcessorTestCase {
 
     @Override
-    protected AbstractStringProcessor newProcessor(Collection<String> fields) {
-        return new TrimProcessor(fields);
+    protected AbstractStringProcessor newProcessor(String field) {
+        return new TrimProcessor(field);
     }
 
     @Override

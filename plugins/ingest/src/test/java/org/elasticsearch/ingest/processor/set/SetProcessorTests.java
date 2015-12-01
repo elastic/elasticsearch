@@ -32,45 +32,30 @@ public class SetProcessorTests extends ESTestCase {
 
     public void testSetExistingFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        int numFields = randomIntBetween(1, 5);
-        Map<String, Object> fields = new HashMap<>();
-        for (int i = 0; i < numFields; i++) {
-            String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-            Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
-            fields.put(fieldName, fieldValue);
-        }
-        Processor processor = new SetProcessor(fields);
+        String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
+        Processor processor = new SetProcessor(fieldName, fieldValue);
         processor.execute(ingestDocument);
-
-        for (Map.Entry<String, Object> field : fields.entrySet()) {
-            assertThat(ingestDocument.hasField(field.getKey()), equalTo(true));
-            assertThat(ingestDocument.getFieldValue(field.getKey(), Object.class), equalTo(field.getValue()));
-        }
+        assertThat(ingestDocument.hasField(fieldName), equalTo(true));
+        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
     }
 
     public void testSetNewFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         //used to verify that there are no conflicts between subsequent fields going to be added
         IngestDocument testIngestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-        int numFields = randomIntBetween(1, 5);
-        Map<String, Object> fields = new HashMap<>();
-        for (int i = 0; i < numFields; i++) {
-            Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
-            String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
-            fields.put(fieldName, fieldValue);
-        }
-        Processor processor = new SetProcessor(fields);
+        Object fieldValue = RandomDocumentPicks.randomFieldValue(random());
+        String fieldName = RandomDocumentPicks.addRandomField(random(), testIngestDocument, fieldValue);
+        Processor processor = new SetProcessor(fieldName, fieldValue);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, Object> field : fields.entrySet()) {
-            assertThat(ingestDocument.hasField(field.getKey()), equalTo(true));
-            assertThat(ingestDocument.getFieldValue(field.getKey(), Object.class), equalTo(field.getValue()));
-        }
+        assertThat(ingestDocument.hasField(fieldName), equalTo(true));
+        assertThat(ingestDocument.getFieldValue(fieldName, Object.class), equalTo(fieldValue));
     }
 
     public void testSetFieldsTypeMismatch() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue("field", "value");
-        Processor processor = new SetProcessor(Collections.singletonMap("field.inner", "value"));
+        Processor processor = new SetProcessor("field.inner", "value");
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");

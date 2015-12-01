@@ -33,7 +33,7 @@ import static org.hamcrest.Matchers.equalTo;
 
 public abstract class AbstractStringProcessorTestCase extends ESTestCase {
 
-    protected abstract AbstractStringProcessor newProcessor(Collection<String> fields);
+    protected abstract AbstractStringProcessor newProcessor(String field);
 
     protected String modifyInput(String input) {
         return input;
@@ -43,23 +43,16 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
 
     public void testProcessor() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        int numFields = randomIntBetween(1, 5);
-        Map<String, String> expected = new HashMap<>();
-        for (int i = 0; i < numFields; i++) {
-            String fieldValue = RandomDocumentPicks.randomString(random());
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
-            expected.put(fieldName, expectedResult(fieldValue));
-        }
-        Processor processor = newProcessor(expected.keySet());
+        String fieldValue = RandomDocumentPicks.randomString(random());
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, modifyInput(fieldValue));
+        Processor processor = newProcessor(fieldName);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, String> entry : expected.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), String.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult(fieldValue)));
     }
 
     public void testFieldNotFound() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = newProcessor(Collections.singletonList(fieldName));
+        Processor processor = newProcessor(fieldName);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         try {
             processor.execute(ingestDocument);
@@ -70,7 +63,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
     }
 
     public void testNullValue() throws Exception {
-        Processor processor = newProcessor(Collections.singletonList("field"));
+        Processor processor = newProcessor("field");
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
         try {
             processor.execute(ingestDocument);
@@ -82,7 +75,7 @@ public abstract class AbstractStringProcessorTestCase extends ESTestCase {
 
     public void testNonStringValue() throws Exception {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = newProcessor(Collections.singletonList(fieldName));
+        Processor processor = newProcessor(fieldName);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         ingestDocument.setFieldValue(fieldName, randomInt());
         try {

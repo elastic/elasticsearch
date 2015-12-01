@@ -23,6 +23,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 
@@ -34,21 +35,25 @@ public class SetProcessor implements Processor {
 
     public static final String TYPE = "set";
 
-    private final Map<String, Object> fields;
+    private final String field;
+    private final Object value;
 
-    SetProcessor(Map<String, Object> fields) {
-        this.fields = fields;
+    SetProcessor(String field, Object value) {
+        this.field = field;
+        this.value = value;
     }
 
-    Map<String, Object> getFields() {
-        return fields;
+    String getField() {
+        return field;
+    }
+
+    Object getValue() {
+        return value;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        for(Map.Entry<String, Object> entry : fields.entrySet()) {
-            document.setFieldValue(entry.getKey(), entry.getValue());
-        }
+        document.setFieldValue(field, value);
     }
 
     @Override
@@ -59,8 +64,9 @@ public class SetProcessor implements Processor {
     public static final class Factory implements Processor.Factory<SetProcessor> {
         @Override
         public SetProcessor create(Map<String, Object> config) throws Exception {
-            Map<String, Object> fields = ConfigurationUtils.readMap(config, "fields");
-            return new SetProcessor(Collections.unmodifiableMap(fields));
+            String field = ConfigurationUtils.readStringProperty(config, "field");
+            Object value = ConfigurationUtils.readObject(config, "value");
+            return new SetProcessor(field, value);
         }
     }
 }

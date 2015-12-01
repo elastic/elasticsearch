@@ -87,38 +87,41 @@ public class ConvertProcessor implements Processor {
 
     public static final String TYPE = "convert";
 
-    private final Map<String, Type> fields;
+    private final String field;
+    private final Type convertType;
 
-    ConvertProcessor(Map<String, Type> fields) {
-        this.fields = fields;
+    ConvertProcessor(String field, Type convertType) {
+        this.field = field;
+        this.convertType = convertType;
     }
 
-    Map<String, Type> getFields() {
-        return fields;
+    String getField() {
+        return field;
+    }
+
+    Type getConvertType() {
+        return convertType;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        for(Map.Entry<String, Type> entry : fields.entrySet()) {
-            Type type = entry.getValue();
-            Object oldValue = document.getFieldValue(entry.getKey(), Object.class);
-            Object newValue;
-            if (oldValue == null) {
-                throw new IllegalArgumentException("Field [" + entry.getKey() + "] is null, cannot be converted to type [" + type + "]");
-            }
-
-            if (oldValue instanceof List) {
-                List<?> list = (List<?>) oldValue;
-                List<Object> newList = new ArrayList<>();
-                for (Object value : list) {
-                    newList.add(type.convert(value));
-                }
-                newValue = newList;
-            } else {
-                newValue = type.convert(oldValue);
-            }
-            document.setFieldValue(entry.getKey(), newValue);
+        Object oldValue = document.getFieldValue(field, Object.class);
+        Object newValue;
+        if (oldValue == null) {
+            throw new IllegalArgumentException("Field [" + field + "] is null, cannot be converted to type [" + convertType + "]");
         }
+
+        if (oldValue instanceof List) {
+            List<?> list = (List<?>) oldValue;
+            List<Object> newList = new ArrayList<>();
+            for (Object value : list) {
+                newList.add(convertType.convert(value));
+            }
+            newValue = newList;
+        } else {
+            newValue = convertType.convert(oldValue);
+        }
+        document.setFieldValue(field, newValue);
     }
 
     @Override
@@ -129,12 +132,9 @@ public class ConvertProcessor implements Processor {
     public static class Factory implements Processor.Factory<ConvertProcessor> {
         @Override
         public ConvertProcessor create(Map<String, Object> config) throws Exception {
-            Map<String, String> fields = ConfigurationUtils.readMap(config, "fields");
-            Map<String, Type> convertFields = new HashMap<>();
-            for (Map.Entry<String, String> entry : fields.entrySet()) {
-                convertFields.put(entry.getKey(), Type.fromString(entry.getValue()));
-            }
-            return new ConvertProcessor(Collections.unmodifiableMap(convertFields));
+            String field = ConfigurationUtils.readStringProperty(config, "field");
+            Type convertType = Type.fromString(ConfigurationUtils.readStringProperty(config, "type"));
+            return new ConvertProcessor(field, convertType);
         }
     }
 }

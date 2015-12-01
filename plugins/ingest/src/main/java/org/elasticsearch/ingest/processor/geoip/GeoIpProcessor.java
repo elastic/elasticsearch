@@ -165,7 +165,7 @@ public final class GeoIpProcessor implements Processor {
                     break;
                 case LOCATION:
                     if (location.getLatitude() != null && location.getLongitude() != null) {
-                        geoData.put("location", new double[]{location.getLongitude(), location.getLatitude()});
+                        geoData.put("location", Arrays.asList(location.getLongitude(), location.getLatitude()));
                     }
                     break;
             }

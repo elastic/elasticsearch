@@ -24,6 +24,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.InputStream;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
@@ -55,7 +56,7 @@ public class GeoIpProcessorTests extends ESTestCase {
         assertThat(geoData.get("timezone"), equalTo("Europe/Amsterdam"));
         assertThat(geoData.get("latitude"), equalTo(52.374));
         assertThat(geoData.get("longitude"), equalTo(4.8897));
-        assertThat(geoData.get("location"), equalTo(new double[]{4.8897, 52.374}));
+        assertThat(geoData.get("location"), equalTo(Arrays.asList(4.8897d, 52.374d)));
     }
 
     public void testCountry() throws Exception {

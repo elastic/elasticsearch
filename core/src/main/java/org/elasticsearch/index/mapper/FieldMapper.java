@@ -307,7 +307,6 @@ public abstract class FieldMapper extends Mapper {
         if (ref.get().equals(fieldType()) == false) {
             throw new IllegalStateException("Cannot overwrite field type reference to unequal reference");
         }
-        ref.incrementAssociatedMappers();
         this.fieldTypeRef = ref;
     }
 
@@ -380,11 +379,6 @@ public abstract class FieldMapper extends Mapper {
             return;
         }
 
-        boolean strict = this.fieldTypeRef.getNumAssociatedMappers() > 1 && mergeResult.updateAllTypes() == false;
-        fieldType().checkCompatibility(fieldMergeWith.fieldType(), subConflicts, strict);
-        for (String conflict : subConflicts) {
-            mergeResult.addConflict(conflict);
-        }
         multiFields.merge(mergeWith, mergeResult);
 
         if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {

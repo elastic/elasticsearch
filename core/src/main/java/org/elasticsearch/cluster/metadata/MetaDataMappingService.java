@@ -243,8 +243,9 @@ public class MetaDataMappingService extends AbstractComponent {
                                 } else {
                                     indexService = indicesService.indexService(index);
                                 }
-                                // only add the current relevant mapping (if exists)
-                                if (indexMetaData.getMappings().containsKey(request.type())) {
+                                // only add the current relevant mapping (if exists and not yet added)
+                                if (indexMetaData.getMappings().containsKey(request.type()) &&
+                                        !indexService.mapperService().hasMapping(request.type())) {
                                     indexService.mapperService().merge(request.type(), indexMetaData.getMappings().get(request.type()).source(), false, request.updateAllTypes());
                                 }
                             }

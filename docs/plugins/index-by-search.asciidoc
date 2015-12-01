@@ -4,7 +4,7 @@
 The index-by-search plugin adds support for indexing all documents that match
 a query. Internally it uses {ref}/search-request-scroll.html[Scroll] and
 {ref}/docs-bulk.html[Bulk] APIs much like
-{ref}/plusin-delete-by-query[Delete by Query] though it might not use that
+{ref}/plugin-delete-by-query[Delete by Query] though it might not use that
 implementation in the future. Regardless of how it does its work its safe to
 think of it as doing a scroll and then building bulk requests from each batch.
 
@@ -36,13 +36,17 @@ The node must be stopped before removing the plugin.
 [[index-by-search-usage]]
 ==== Using Index-by-Search
 
-The query can either be provided using a simple query string as
-a parameter:
+The simplest way to use index-by-search is to copy an entire index into another
+index. This will copy all documents in the `twitter` index into the
+`new_twitter` index:
 
-[source,shell]
+[source,js]
 --------------------------------------------------
-POST /twitter/tweet/_index_by_search?q=user:kimchy
+POST /_index_by_search
 {
+  "source": {
+    "index": "twitter"
+  },
   "index": {
     "index": "new_twitter"
   }
@@ -50,16 +54,39 @@ POST /twitter/tweet/_index_by_search?q=user:kimchy
 --------------------------------------------------
 // AUTOSENSE
 
-or using the {ref}/query-dsl.html[Query DSL] defined within the request body:
+You can limit the copy to a single type. This will only copy `tweet`s
+from the `twitter` index:
 
 [source,js]
 --------------------------------------------------
-POST /twitter/tweet/_index_by_search
+POST /_index_by_search
 {
-  "search": {
-    "query": { <1>
-      "term": {
-        "user": "kimchy"
+  "source": {
+    "index": "twitter",
+    "type": "tweet"
+  },
+  "index": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+You can limit using the {ref}/query-dsl.html[Query DSL]. This will copy
+all documents from the `twitter` index for the user `kimchy` into the
+new_twitter index:
+
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "source": {
+    "index": "twitter",
+    "search": {
+      "query": { <1>
+        "term": {
+          "user": "kimchy"
+        }
       }
     }
   },
@@ -70,25 +97,42 @@ POST /twitter/tweet/_index_by_search
 --------------------------------------------------
 // AUTOSENSE
 
-<1> The query must be passed as a value to the `query` key, in the same way as
-the {ref}/search-search.html[search api].
+<1> The query must be passed as a value to the `query` key, in the same
+way as the {ref}/search-search.html[search api].
 
-Both of the above examples end up doing the same thing, which is to copy all
-tweets from the twitter index for the user `kimchy` into the new_twitter index.
+By default the newly indexed documents will have the same type as the
+original documents but you can override the type. This will copy all
+`tweet`s in the `twitter` index back into the `twitter` index with the
+type `chirp`:
 
-Index-by-search supports copying from multiple indexes into a single index.
-For example, this will copy all documents from the twitter and blog indexes
-into the all_together index:
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "source": {
+    "index": "twitter",
+    "type": "tweet"
+  },
+  "index": {
+    "index": "twitter",
+    "type": "chirp"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+`index` and `type` in `source` can be multiple values, allowing you to
+copy from lots of sources in one request. This will copy documents from
+the `tweet` and `post` types in the `twitter` and `blog` index. Note that
+this includes the `post` type in the `twitter` index. If you want to be
+more specific you'll need to use the `query`.
 [source,js]
 --------------------------------------------------
 POST /twitter,blog/_index_by_search
 {
-  "search": {
-    "query": { <1>
-      "term": {
-        "user": "kimchy"
-      }
-    }
+  "source": {
+    "index": ["twitter", "blog"],
+    "type": ["tweet", "post"]
   },
   "index": {
     "index": "all_together"
@@ -97,55 +141,72 @@ POST /twitter,blog/_index_by_search
 --------------------------------------------------
 // AUTOSENSE
 
-There are a couple of interesting corner cases to think about with the copy
-command above:
+NOTE: This request makes no effort to prevent writing duplicates so if it
+writes two documents with the same type and id then only one will make it.
 
-1. Because the `type` isn't specified in the request anywhere in the request
-the copied documents keep their original types.
-2. If the request sees two documents with the same type and id then which one
-ends up in the index is unpredictable. In this case the request is safe because
-our ficticious twitter index only contains documents of the "tweet" type and
-our blog index only contains documents of the "post" type.
+Its also possible to limit the number of processed documents by setting
+`size`. This will only copy a single document from `twitter` to
+`new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "size": 1,
+  "source": {
+    "index": "twitter"
+  },
+  "index": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+If you want a particular set of documents from the twitter index you'll
+need to sort. Sorting makes the scroll less efficient but in some contexts
+its worth it. This will copy 10000 documents from `twitter` into
+`new_twitter`:
+
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "size": 10000,
+  "source": {
+    "index": "twitter"
+    "search": {
+      "sort": { "date": "desc" }
+    }
+  },
+  "index": {
+    "index": "new_twitter"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
 
 [float]
 === Query-string parameters
 
-The following query string parameters are supported:
+This request supports no query string parameters beyond the standard
+parameters like `pretty`.
 
-`q`::
-
-Instead of using the {ref}/query-dsl.html[Query DSL] to pass a `query` in the request
-body, you can use the `q` query string parameter to  specify a query using
-{ref}/query-dsl-query-string-query.html#query-string-syntax[`query_string` syntax].
-In this case, the following additional parameters are supported: `df`,
-`analyzer`, `default_operator`,  `lowercase_expanded_terms`,
-`analyze_wildcard` and `lenient`.
-See {ref}/search-uri-request.html[URI search request] for details.
-
-`size`::
-
-The number of hits returned by the {ref}/search-request-scroll.html[scroll]
-request.  Defaults to 100.  May also be specified in the request body.
-
-`routing`::
-
-A comma separated list of routing values to control from which shards the
-source documents are copied. When documents are indexed they retain their
-original routing.
-
-When using the `q` parameter, the following additional parameters are
-supported (as explained in {ref}/search-uri-request.html[URI search request]):
-`df`, `analyzer`, `default_operator`.
 
 [float]
 === Preserving external versioning
 
-If the documents were built with external version numbers
-(`version_type=external`) then you can preserve them during the index like so:
+You can preserve the version numbers of the documents by specifying
+`"version_type": "external"` on the `index` portion of the body. This is
+most important if your documents were created with
+`version_type=external`. Example:
 [source,js]
 --------------------------------------------------
 POST /source/_index_by_search
 {
+  "source": {
+    "index": "src"
+  }
   "index": {
     "index": "dest",
     "version_type": "external"
@@ -154,18 +215,25 @@ POST /source/_index_by_search
 --------------------------------------------------
 // AUTOSENSE
 
-or
+[float]
+=== Search
 
-[source,js]
---------------------------------------------------
-POST /source/_index_by_search?version_type=external
-{
-  "index": {
-    "index": "dest"
-  }
-}
---------------------------------------------------
-// AUTOSENSE
+You may have noticed the `search` component of the `source` in the
+request body and thought "why am I typing this?" The truth is that that
+`search` is actually the search that initiates scroll. You can add all
+kinds of things to it just like you'd set up a scroll request:
+
+`size`::
+
+The number of hits returned by the
+{ref}/search-request-scroll.html[scroll] request. Defaults to 100.
+
+`sort`::
+
+The order in which documents are processed. Defaults to `_doc` for most
+efficient scrolling.
+
+Note: `from` is not supported by scroll so its not supported here.
 
 [float]
 === Response body

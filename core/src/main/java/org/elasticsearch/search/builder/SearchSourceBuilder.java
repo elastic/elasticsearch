@@ -740,6 +740,7 @@ public final class SearchSourceBuilder extends ToXContentToBytes implements Writ
                     fieldNames = new ArrayList<>();
                     fieldNames.add(parser.text());
                 } else if (context.parseFieldMatcher().match(currentFieldName, SORT_FIELD)) {
+                    sorts = new ArrayList<>();
                     sort(parser.text());
                 } else {
                     throw new ParsingException(parser.getTokenLocation(), "Unknown key for a " + token + " in [" + currentFieldName + "].",

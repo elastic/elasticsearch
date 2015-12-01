@@ -19,9 +19,11 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
 import java.io.IOException;
+import java.util.Arrays;
 
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
@@ -29,7 +31,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.support.LoggerMessageFormat;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
@@ -70,7 +71,19 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
 
     @Override
     public ActionRequestValidationException validate() {
-        return null;
+        ActionRequestValidationException e = search.validate();
+        /*
+         * Note that we don't validate the index here - it won't work because
+         * we'll be filling in portions of it as we receive the docs. But we can
+         * validate some things.
+         */
+        if (index.index() == null) {
+            e = addValidationError("index must be specified", e);
+        }
+        if (search.source().from() != -1) {
+            e = addValidationError("from is not supported in this context", e);
+        }
+        return e;
     }
 
     public int size() {
@@ -108,8 +121,20 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
 
     @Override
     public String toString() {
-        return LoggerMessageFormat.format("index-by-search from {}{} to [{}][{}]",
-                search.indices() == null ? "[all indices]" : search.indices(),
-                search.types() == null || search.types().length == 0 ? "" : search.types(), index.index(), index.type());
+        StringBuilder b = new StringBuilder();
+        b.append("index-by-search from ");
+        if (search.indices() != null && search.indices().length != 0) {
+            b.append(Arrays.toString(search.indices()));
+        } else {
+            b.append("[all indices]");
+        }
+        if (search.types() != null && search.types().length != 0) {
+            b.append(search.types());
+        }
+        b.append(" to [").append(index.index()).append(']');
+        if (index.type() != null) {
+            b.append('[').append(index.type()).append(']');
+        }
+        return b.toString();
     }
 }

@@ -1,0 +1,76 @@
+---
+"Can limit copied docs by specifying a query":
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     1
+        body:   { "text": "test" }
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     2
+        body:   { "text": "junk" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: test
+            search:
+              query:
+                match:
+                  text: test
+          index:
+            index: target
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: target
+  - match: { hits.total: 1 }
+
+---
+"Sorting and size combined":
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     1
+        body:   { "order": 1 }
+  - do:
+      index:
+        index:  test
+        type:   test
+        id:     2
+        body:   { "order": 2 }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          size: 1
+          source:
+            index: test
+            search:
+              sort: order
+          index:
+            index: target
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: target
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        index: target
+        q: order:1
+  - match: { hits.total: 1 }

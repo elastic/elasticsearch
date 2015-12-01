@@ -2,10 +2,10 @@
 "Response format":
   - do:
       index:
-        index:  test
-        type:   foo
-        id:     1
-        body:   { "text": "test" }
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
   - do:
       indices.refresh: {}
 
@@ -18,12 +18,141 @@
           index:
             index: test
             type: baz
-
   - match: {indexed: 1}
   - is_true: took
 
 ---
-"Multi index search with types copied from hits":
+"Simplest example in docs":
+  - do:
+      index:
+        index:   twitter
+        type:    tweet
+        id:      1
+        body:    { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: twitter
+          index:
+            index: new_twitter
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: new_twitter
+  - match: { hits.total: 1 }
+
+---
+"Limit by type example in docs":
+  - do:
+      index:
+        index:   twitter
+        type:    tweet
+        id:      1
+        body:    { "user": "kimchy" }
+  - do:
+      index:
+        index:   twitter
+        type:    junk
+        id:      1
+        body:    { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: twitter
+            type:  tweet
+          index:
+            index: new_twitter
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: new_twitter
+  - match: { hits.total: 1 }
+
+---
+"Limit by query example in docs":
+  - do:
+      index:
+        index:   twitter
+        type:    tweet
+        id:      1
+        body:    { "user": "kimchy" }
+  - do:
+      index:
+        index:   twitter
+        type:    tweet
+        id:      2
+        body:    { "user": "junk" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: twitter
+            search:
+              query:
+                match:
+                  user: kimchy
+          index:
+            index: new_twitter
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: new_twitter
+  - match: { hits.total: 1 }
+
+---
+"Override type example in docs":
+  - do:
+      index:
+        index:   twitter
+        type:    tweet
+        id:      1
+        body:    { "user": "kimchy" }
+  - do:
+      index:
+        index:   twitter
+        type:    junk
+        id:      1
+        body:    { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: twitter
+            type:  tweet
+          index:
+            index: new_twitter
+            type:  chirp
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: new_twitter
+        type:  chirp
+  - match: { hits.total: 1 }
+
+---
+"Multi index, multi type example from docs":
   - do:
       index:
         index:  twitter
@@ -44,6 +173,7 @@
         body:
           source:
             index: [twitter, blog]
+            type:  [tweet, post]
           index:
             index: all_together
   - do:
@@ -67,4 +197,38 @@
           query:
             match:
               user: kimchy
+  - match: { hits.total: 1 }
+
+---
+"Limit by size example from docs":
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     1
+        body:   { "user": "kimchy" }
+  - do:
+      index:
+        index:  twitter
+        type:   tweet
+        id:     2
+        body:   { "user": "kimchy" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          size: 1
+          source:
+            index: twitter
+          index:
+            index: new_twitter
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: new_twitter
+        type: tweet
   - match: { hits.total: 1 }

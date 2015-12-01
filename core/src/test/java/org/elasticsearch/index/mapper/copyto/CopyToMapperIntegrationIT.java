@@ -31,7 +31,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchResponse;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -92,4 +94,26 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                 .endArray();
     }
 
+    public void testCopyToWithinMultiField() throws IOException {
+        String mapping = jsonBuilder().startObject().startObject("type").startObject("properties")
+                .startObject("copy_test")
+                .field("type", "string")
+                .startObject("fields")
+                .startObject("raw")
+                .field("type", "string")
+                .field("copy_to", "another_field")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject().endObject().endObject().string();
+        assertAcked(
+                client().admin().indices().prepareCreate("test-idx")
+                        .addMapping("type", mapping)
+        );
+        client().prepareIndex("test-idx", "type").setSource("{\"copy_test\":\"foo bar\"}").get();
+        refresh();
+        SearchResponse searchResponse = client().prepareSearch().setQuery(QueryBuilders.termQuery("another_field", "foo")).get();
+        assertSearchResponse(searchResponse);
+        assertThat(searchResponse.getHits().getHits().length, equalTo(1));
+    }
 }

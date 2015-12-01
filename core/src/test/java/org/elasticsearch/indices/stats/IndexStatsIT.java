@@ -46,12 +46,12 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.MergePolicyConfig;
 import org.elasticsearch.index.shard.MergeSchedulerConfig;
 import org.elasticsearch.index.store.IndexStore;
+import org.elasticsearch.index.translog.TranslogConfig;
 import org.elasticsearch.indices.cache.request.IndicesRequestCache;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.junit.Test;
 
 import java.io.IOException;
@@ -313,7 +313,6 @@ public class IndexStatsIT extends ESIntegTestCase {
     }
 
     @Test
-    @TestLogging("_root:DEBUG")
     public void throttleStats() throws Exception {
         assertAcked(prepareCreate("test")
                     .setSettings(Settings.builder()
@@ -325,7 +324,7 @@ public class IndexStatsIT extends ESIntegTestCase {
                                  .put(MergeSchedulerConfig.MAX_THREAD_COUNT, "1")
                                  .put(MergeSchedulerConfig.MAX_MERGE_COUNT, "1")
                                  .put("index.merge.policy.type", "tiered")
-
+                                 .put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, "ASYNC")
                                  ));
         ensureGreen();
         long termUpto = 0;

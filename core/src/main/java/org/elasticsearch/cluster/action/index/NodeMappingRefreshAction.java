@@ -67,7 +67,7 @@ public class NodeMappingRefreshAction extends AbstractComponent {
 
         @Override
         public void messageReceived(NodeMappingRefreshRequest request, TransportChannel channel) throws Exception {
-            metaDataMappingService.refreshMapping(request.index(), request.indexUUID(), request.types());
+            metaDataMappingService.refreshMapping(request.index(), request.indexUUID());
             channel.sendResponse(TransportResponse.Empty.INSTANCE);
         }
     }

@@ -281,4 +281,11 @@ public class GrokTests extends ESTestCase {
 
         assertEquals(expected, actual);
     }
+
+    public void testNoMatch() {
+        Map<String, String> bank = new HashMap<>();
+        bank.put("MONTHDAY", "(?:(?:0[1-9])|(?:[12][0-9])|(?:3[01])|[1-9])");
+        Grok grok = new Grok(bank, "%{MONTHDAY:greatday}");
+        assertThat(grok.captures("nomatch"), nullValue());
+    }
 }

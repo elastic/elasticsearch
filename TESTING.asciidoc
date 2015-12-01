@@ -286,11 +286,20 @@ The REST layer is tested through specific tests that are shared between all
 the elasticsearch official clients and consist of YAML files that describe the
 operations to be executed and the obtained results that need to be tested.
 
-The REST tests are run automatically when executing the maven test command. To run only the
+The REST tests are run automatically when executing the "gradle check" command. To run only the
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-gradle integTest -Dtests.filter="@Rest"
+gradle :distribution:tar:integTest   \
+  -Dtests.class=org.elasticsearch.test.rest.RestIT
+---------------------------------------------------------------------------
+
+A specific test case can be run with
+
+---------------------------------------------------------------------------
+gradle :distribution:tar:integTest \
+  -Dtests.class=org.elasticsearch.test.rest.RestIT \
+  -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
 
 `RestNIT` are the executable test classes that runs all the

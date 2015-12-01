@@ -79,6 +79,10 @@ class DocumentParser implements Closeable {
     }
 
     private ParsedDocument innerParseDocument(SourceToParse source) throws MapperParsingException {
+        if (docMapper.type().equals(MapperService.DEFAULT_MAPPING)) {
+            throw new IllegalArgumentException("It is forbidden to index into the default mapping [" + MapperService.DEFAULT_MAPPING + "]");
+        }
+
         ParseContext.InternalParseContext context = cache.get();
 
         final Mapping mapping = docMapper.mapping();

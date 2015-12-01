@@ -283,6 +283,7 @@ class BuildPlugin implements Plugin<Project> {
 
     /** Adds compiler settings to the project */
     static void configureCompile(Project project) {
+        project.ext.compactProfile = 'compact3'
         project.afterEvaluate {
             // fail on all javac warnings
             project.tasks.withType(JavaCompile) {
@@ -295,6 +296,11 @@ class BuildPlugin implements Plugin<Project> {
                  */
                 // don't even think about passing args with -J-xxx, oracle will ask you to submit a bug report :)
                 options.compilerArgs << '-Werror' << '-Xlint:all,-path' << '-Xdoclint:all' << '-Xdoclint:-missing'
+                // compile with compact 3 profile by default
+                // NOTE: this is just a compile time check: does not replace testing with a compact3 JRE
+                if (project.compactProfile != 'full') {
+                    options.compilerArgs << '-profile' << project.compactProfile
+                }
                 options.encoding = 'UTF-8'
             }
         }

@@ -53,7 +53,7 @@ public class MetaDataMappingService extends AbstractComponent {
     private final ClusterService clusterService;
     private final IndicesService indicesService;
 
-    final ClusterStateTaskExecutor<RefreshTask> refreshExectuor = new RefreshTaskExecutor();
+    final ClusterStateTaskExecutor<RefreshTask> refreshExecutor = new RefreshTaskExecutor();
     final ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> putMappingExecutor = new PutMappingExecutor();
     private final NodeServicesProvider nodeServicesProvider;
 
@@ -211,10 +211,10 @@ public class MetaDataMappingService extends AbstractComponent {
     public void refreshMapping(final String index, final String indexUUID, final String... types) {
         final RefreshTask refreshTask = new RefreshTask(index, indexUUID, types);
         clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]",
-                refreshTask,
-                ClusterStateTaskConfig.build(Priority.HIGH),
-                refreshExectuor,
-                (source, t) -> logger.warn("failure during [{}]", t, source)
+            refreshTask,
+            ClusterStateTaskConfig.build(Priority.HIGH),
+            refreshExecutor,
+            (source, t) -> logger.warn("failure during [{}]", t, source)
         );
     }
 

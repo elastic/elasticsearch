@@ -34,7 +34,7 @@
 ---
 "no index on destination fails":
   - do:
-      catch: /index required/
+      catch: /index must be specified/
       index_by_search:
         body:
           index: {}

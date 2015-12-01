@@ -105,10 +105,6 @@ public class RestIndexBySearchAction extends BaseRestHandler {
             badRequest(channel, e.getDetailedMessage());
             return;
         }
-        if (internalRequest.index().index() == null) {
-            badRequest(channel, "index required on index portion of request body");
-            return;
-        }
 
         client.execute(INSTANCE, internalRequest, new RestToXContentListener<>(channel));
     }

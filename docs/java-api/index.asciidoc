@@ -48,7 +48,7 @@ third party dependency that in turn depends on an outdated version of a package,
 * The second option is to relocate the troublesome dependencies and to shade them either with your own application
 or with Elasticsearch and any plugins needed by the Elasticsearch client.
 
-The https://www.elastic.co/blog/to-shade-or-not-to-shade["Too shade or not to shade" blog post] describes
+The https://www.elastic.co/blog/to-shade-or-not-to-shade["To shade or not to shade" blog post] describes
 all the steps for doing so.
 
 == Embedding jar with dependencies

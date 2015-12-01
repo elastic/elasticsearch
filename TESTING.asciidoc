@@ -290,7 +290,16 @@ The REST tests are run automatically when executing the maven test command. To r
 REST tests use the following command:
 
 ---------------------------------------------------------------------------
-gradle integTest -Dtests.filter="@Rest"
+gradle :distribution:tar:integTest   \
+  -Dtests.class=org.elasticsearch.test.rest.RestIT
+---------------------------------------------------------------------------
+
+A specific test case can be run with 
+
+---------------------------------------------------------------------------
+gradle :distribution:tar:integTest \
+  -Dtests.class=org.elasticsearch.test.rest.RestIT \
+  -Dtests.method="test {p0=cat.shards/10_basic/Help}"
 ---------------------------------------------------------------------------
 
 `RestNIT` are the executable test classes that runs all the

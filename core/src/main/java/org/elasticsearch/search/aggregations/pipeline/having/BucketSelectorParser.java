@@ -31,6 +31,7 @@ import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -52,7 +53,7 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
         Script script = null;
         String currentFieldName = null;
         Map<String, String> bucketsPathsMap = null;
-        GapPolicy gapPolicy = GapPolicy.SKIP;
+        GapPolicy gapPolicy = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
@@ -113,13 +114,18 @@ public class BucketSelectorParser implements PipelineAggregator.Parser {
                     + "] for bucket_selector aggregation [" + reducerName + "]", parser.getTokenLocation());
         }
 
-        return new BucketSelectorPipelineAggregator.Factory(reducerName, bucketsPathsMap, script, gapPolicy);
+        BucketSelectorPipelineAggregator.Factory factory = new BucketSelectorPipelineAggregator.Factory(reducerName, bucketsPathsMap,
+                script);
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
+        }
+        return factory;
+
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public PipelineAggregatorFactory getFactoryPrototype() {
-        return null;
+        return new BucketSelectorPipelineAggregator.Factory(null, Collections.emptyMap(), null);
     }
 
 }

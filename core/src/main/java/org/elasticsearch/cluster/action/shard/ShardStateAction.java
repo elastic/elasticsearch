@@ -153,22 +153,22 @@ public class ShardStateAction extends AbstractComponent {
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
             BatchResult.Builder<ShardRoutingEntry> builder = BatchResult.builder();
-            ClusterState accumulator = ClusterState.builder(currentState).build();
+            List<FailedRerouteAllocation.FailedShard> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             for (ShardRoutingEntry task : tasks) {
                 task.processed = true;
-                try {
-                    RoutingAllocation.Result result = allocationService.applyFailedShard(
-                            currentState,
-                            new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
-                    builder.success(task);
-                    if (result.changed()) {
-                        accumulator = ClusterState.builder(accumulator).routingResult(result).build();
-                    }
-                } catch (Throwable t) {
-                    builder.failure(task, t);
-                }
+                shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
             }
-            return builder.build(accumulator);
+            ClusterState maybeUpdatedState = currentState;
+            try {
+                RoutingAllocation.Result result = allocationService.applyFailedShards(currentState, shardRoutingsToBeApplied);
+                if (result.changed()) {
+                    maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
+                }
+                builder.successes(tasks);
+            } catch (Throwable t) {
+                builder.failures(tasks, t);
+            }
+            return builder.build(maybeUpdatedState);
         }
 
         @Override

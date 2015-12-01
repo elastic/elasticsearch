@@ -100,10 +100,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
                 if (parent != null) {
                     index.parent(parent.value());
                 }
-                SearchHitField routing = doc.field("_routing");
-                if (routing != null) {
-                    index.routing(routing.value());
-                }
+                handleRouting(doc, index);
                 SearchHitField timestamp = doc.field("_timestamp");
                 if (timestamp != null) {
                     // Comes back as a Long but needs to be a string
@@ -117,6 +114,35 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
                 bulkRequest.add(index);
             }
             return bulkRequest;
+        }
+
+        private void handleRouting(SearchHit doc, IndexRequest index) {
+            String routingSpec = mainRequest.index().routing();
+            if (routingSpec == null) {
+                copyRouting(doc, index);
+                return;
+            }
+            if (routingSpec.startsWith("=")) {
+                index.routing(mainRequest.index().routing().substring(1));
+                return;
+            }
+            switch (routingSpec) {
+            case "keep":
+                copyRouting(doc, index);
+                break;
+            case "discard":
+                index.routing(null);
+                break;
+            default:
+                throw new UnsupportedOperationException("Unsupported routing command");
+            }
+        }
+
+        private void copyRouting(SearchHit doc, IndexRequest index) {
+            SearchHitField routing = doc.field("_routing");
+            if (routing != null) {
+                index.routing(routing.value());
+            }
         }
 
         @Override

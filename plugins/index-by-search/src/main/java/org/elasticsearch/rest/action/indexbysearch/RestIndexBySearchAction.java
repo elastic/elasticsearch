@@ -73,6 +73,7 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         indexParser.declareString(IndexRequest::index, new ParseField("index"));
         indexParser.declareString(IndexRequest::type, new ParseField("type"));
         indexParser.declareString((i, v) -> i.versionType(VersionType.fromString(v)), new ParseField("version_type"));
+        indexParser.declareString(IndexRequest::routing, new ParseField("routing"));
 
         PARSER.declareField((p, v, c) -> sourceParser.parse(p, v.search(), c), new ParseField("source"), ValueType.OBJECT);
         PARSER.declareField((p, v, c) -> indexParser.parse(p, v.index(), null), new ParseField("index"), ValueType.OBJECT);

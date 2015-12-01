@@ -192,7 +192,6 @@ POST /_index_by_search
 This request supports no query string parameters beyond the standard
 parameters like `pretty`.
 
-
 [float]
 === Preserving external versioning
 
@@ -202,7 +201,7 @@ most important if your documents were created with
 `version_type=external`. Example:
 [source,js]
 --------------------------------------------------
-POST /source/_index_by_search
+POST /_index_by_search
 {
   "source": {
     "index": "src"
@@ -210,6 +209,52 @@ POST /source/_index_by_search
   "index": {
     "index": "dest",
     "version_type": "external"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+[float]
+=== Routing
+
+By default if the documents returned by the search have a routing then the
+routing is preserved. You can set `routing` on the `index` request to
+changes this:
+
+`keep`::
+
+Sets the routing on the bulk request sent for each match to the routing on
+the match. The default.
+
+`discard`::
+
+Sets the routing on the bulk request sent for each match to null.
+
+`=<some text>`::
+
+Sets the routing on the bulk request sent for each match to all text after
+the `=`.
+
+For example, you can use the following query to copy all documents from
+the `src` index with the company name `cat` into the `dest` index with
+routing set to `cat`.
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "source": {
+    "index": "src"
+    "search": {
+      "query": {
+        "match": {
+          "company": "cat"
+        }
+      }
+    }
+  }
+  "index": {
+    "index": "dest",
+    "routing": "=cat"
   }
 }
 --------------------------------------------------

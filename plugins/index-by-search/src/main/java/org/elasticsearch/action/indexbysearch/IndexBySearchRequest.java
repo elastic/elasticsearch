@@ -80,6 +80,10 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         if (index.index() == null) {
             e = addValidationError("index must be specified", e);
         }
+        if (false == (index.routing() == null || index.routing().startsWith("=") ||
+                "keep".equals(index.routing()) || "discard".equals(index.routing()))) {
+            e = addValidationError("routing must be unset, [keep], [discard] or [=<some new value>]", e);
+        }
         if (search.source().from() != -1) {
             e = addValidationError("from is not supported in this context", e);
         }

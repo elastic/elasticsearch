@@ -59,9 +59,46 @@
       index_by_search:
         index: test
         body:
-#          search:  NOCOMMIT setting these shouldn't break anything but it does!
-#            query:
-#              match_all: {}
+          index:
+            index: target
+            version_type: external
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: target
+        type:  test
+        id:    1
+  - match: { _version: 4 }
+
+---
+"Preserve external version works even if search is specified":
+  - do:
+      index:
+        index:        test
+        type:         test
+        id:           1
+        version:      4
+        version_type: external
+        body:         { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        type:  test
+        id:    1
+  - match: { _version: 4 }
+
+  - do:
+      index_by_search:
+        index: test
+        body:
+          search:
+            query:
+              match_all: {}
           index:
             index: target
             version_type: external

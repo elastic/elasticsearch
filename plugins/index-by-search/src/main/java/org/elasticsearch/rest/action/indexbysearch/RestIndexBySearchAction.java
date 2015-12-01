@@ -24,7 +24,6 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 import static org.elasticsearch.rest.RestStatus.BAD_REQUEST;
 
 import java.io.IOException;
-import java.util.function.BiFunction;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
@@ -52,7 +51,6 @@ import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.support.RestActions;
 import org.elasticsearch.rest.action.support.RestToXContentListener;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 /**
  * Expose IndexBySearchRequest over rest.
@@ -60,16 +58,16 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 public class RestIndexBySearchAction extends BaseRestHandler {
     private static final ObjectParser<IndexBySearchRequest, QueryParseContext> PARSER = new ObjectParser<>("index-by-search");
     static {
-        BiFunction<XContentParser, QueryParseContext, SearchSourceBuilder> parseSearchSource = (parser, context) -> {
+        ObjectParser.Parser<IndexBySearchRequest, QueryParseContext> parseSearchSource = (parser, request, context) -> {
             try {
                 context.reset(parser);
-                return SearchSourceBuilder.parseSearchSource(parser, context);
+                request.search().source().parseXConent(parser, context);
             } catch (IOException e) {
                 // TODO throw a better exception
                 throw new ElasticsearchException(e);
             }
         };
-        PARSER.declareObject(IndexBySearchRequest::searchSource, parseSearchSource, new ParseField("search"));
+        PARSER.declareField(parseSearchSource, new ParseField("search"), ValueType.OBJECT);
 
         ObjectParser<IndexRequest, Void> indexParser = new ObjectParser<>("index");
         indexParser.declareString(IndexRequest::index, new ParseField("index"));
@@ -138,9 +136,6 @@ public class RestIndexBySearchAction extends BaseRestHandler {
         }
 
         // Fill in the query on the search if it was not set during parsing.
-        if (internalRequest.search().source() == null) {
-            internalRequest.search().source(new SearchSourceBuilder());
-        }
         if (internalRequest.search().source().query() == null) {
             QueryBuilder<?> queryFromUrl = RestActions.urlParamsToQueryBuilder(request);
             if (queryFromUrl != null) {

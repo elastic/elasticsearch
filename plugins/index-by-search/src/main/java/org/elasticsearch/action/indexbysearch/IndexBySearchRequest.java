@@ -90,14 +90,6 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         return index;
     }
 
-    /**
-     * Set the search source (used by ObjectParser).
-     */
-    public void searchSource(SearchSourceBuilder sourceBuilder) {
-        // NOCOMMIT - this is totally broken.
-        search().source(sourceBuilder);
-    }
-
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);

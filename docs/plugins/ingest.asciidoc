@@ -3,14 +3,14 @@
 
 === Processors
 
-==== Set processor
-Sets one or more fields and associates them with the specified values. If a field already exists,
+==== Add processor
+Adds one or more fields and associates them with the specified values. If a field already exists,
 its value will be replaced with the provided one.
 
 [source,js]
 --------------------------------------------------
 {
-  "set": {
+  "add": {
     "fields": {
       "field": 582.1
     }
@@ -33,7 +33,7 @@ Removes one or more existing fields. If a field doesn't exist, nothing will happ
 --------------------------------------------------
 
 ==== Rename processor
-Renames one or more existing fields. If a field doesn't exist, an exception will be thrown. Also the new field
+Renames one or more existing fields. If a field doesn't exist, an exception will be thrown. Also, the new field
 name must not exist.
 
 [source,js]

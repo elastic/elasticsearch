@@ -51,7 +51,6 @@ import static org.hamcrest.Matchers.*;
 @ClusterScope(randomDynamicTemplates = false)
 public class UpdateMappingIntegrationIT extends ESIntegTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/15129")
     public void testDynamicUpdates() throws Exception {
         client().admin().indices().prepareCreate("test")
                 .setSettings(

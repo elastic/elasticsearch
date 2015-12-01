@@ -221,9 +221,8 @@ public class MetaDataMappingService extends AbstractComponent {
     class PutMappingExecutor implements ClusterStateTaskExecutor<PutMappingClusterStateUpdateRequest> {
         @Override
         public BatchResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
-            List<String> indicesToClose = new ArrayList<>();
+            Set<String> indicesToClose = new HashSet<>();
             BatchResult.Builder<PutMappingClusterStateUpdateRequest> builder = BatchResult.builder();
-            Map<PutMappingClusterStateUpdateRequest, TaskResult> executionResults = new HashMap<>();
             try {
                 // precreate incoming indices;
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
@@ -231,16 +230,22 @@ public class MetaDataMappingService extends AbstractComponent {
                     for (String index : request.indices()) {
                         if (currentState.metaData().hasIndex(index)) {
                             // if we don't have the index, we will throw exceptions later;
-                            if (indicesService.hasIndex(index) == false) {
+                            if (indicesService.hasIndex(index) == false || indicesToClose.contains(index)) {
                                 final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                                IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.EMPTY_LIST);
-                                indicesToClose.add(indexMetaData.getIndex());
-                                // make sure to add custom default mapping if exists
-                                if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                                    indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, request.updateAllTypes());
+                                IndexService indexService;
+                                if (indicesService.hasIndex(index) == false) {
+                                    indicesToClose.add(index);
+                                    indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.EMPTY_LIST);
+                                    // make sure to add custom default mapping if exists
+                                    if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
+                                        indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, request.updateAllTypes());
+                                    }
+                                } else {
+                                    indexService = indicesService.indexService(index);
                                 }
-                                // only add the current relevant mapping (if exists)
-                                if (indexMetaData.getMappings().containsKey(request.type())) {
+                                // only add the current relevant mapping (if exists and not yet added)
+                                if (indexMetaData.getMappings().containsKey(request.type()) &&
+                                        !indexService.mapperService().hasMapping(request.type())) {
                                     indexService.mapperService().merge(request.type(), indexMetaData.getMappings().get(request.type()).source(), false, request.updateAllTypes());
                                 }
                             }

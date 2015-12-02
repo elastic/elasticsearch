@@ -527,8 +527,8 @@ PUT _ingest/pipeline/my-pipeline-id
 --------------------------------------------------
 // AUTOSENSE
 
-NOTE: Each ingest node updates its processors asynchronously in the background, so it may take a few seconds for all
-      nodes to have the latest version of the pipeline.
+NOTE: The put pipeline api also instructs all ingest nodes to reload their in-memory representation of pipelines, so that
+      pipeline changes take immediately in effect.
 
 ==== Get pipeline API
 

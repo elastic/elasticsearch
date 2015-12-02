@@ -20,7 +20,6 @@
 package org.elasticsearch.plugin.ingest.transport.simulate;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.processor.Processor;
@@ -29,14 +28,13 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 
-public class SimulateExecutionService {
+class SimulateExecutionService {
 
     private static final String THREAD_POOL_NAME = ThreadPool.Names.MANAGEMENT;
 
     private final ThreadPool threadPool;
 
-    @Inject
-    public SimulateExecutionService(ThreadPool threadPool) {
+    SimulateExecutionService(ThreadPool threadPool) {
         this.threadPool = threadPool;
     }
 

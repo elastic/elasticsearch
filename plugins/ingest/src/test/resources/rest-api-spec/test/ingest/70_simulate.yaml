@@ -1,10 +1,6 @@
 ---
 "Test simulate with stored ingest pipeline":
   - do:
-      cluster.health:
-          wait_for_status: green
-
-  - do:
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -20,14 +16,6 @@
             ]
           }
   - match: { _id: "my_pipeline" }
-
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
 
   - do:
       ingest.simulate:
@@ -53,10 +41,6 @@
 
 ---
 "Test simulate with provided pipeline definition":
-  - do:
-      cluster.health:
-          wait_for_status: green
-
   - do:
       ingest.simulate:
         body: >
@@ -88,10 +72,6 @@
 ---
 "Test simulate with no provided pipeline or pipeline_id":
   - do:
-      cluster.health:
-          wait_for_status: green
-
-  - do:
       catch: request
       ingest.simulate:
         body: >
@@ -114,10 +94,6 @@
 
 ---
 "Test simulate with verbose flag":
-  - do:
-      cluster.health:
-          wait_for_status: green
-
   - do:
       ingest.simulate:
         verbose: true
@@ -169,10 +145,6 @@
 ---
 "Test simulate with exception thrown":
   - do:
-      cluster.health:
-          wait_for_status: green
-
-  - do:
       ingest.simulate:
         body: >
           {
@@ -213,10 +185,6 @@
 
 ---
 "Test verbose simulate with exception thrown":
-  - do:
-      cluster.health:
-          wait_for_status: green
-
   - do:
       ingest.simulate:
         verbose: true

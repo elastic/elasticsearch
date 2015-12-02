@@ -17,7 +17,6 @@
  * under the License.
  */
 
-
 package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.action.ActionModule;
@@ -54,6 +53,7 @@ public class IngestPlugin extends Plugin {
     public static final String PIPELINE_ID_PARAM = "pipeline_id";
     public static final String PIPELINE_ALREADY_PROCESSED = "ingest_already_processed";
     public static final String NAME = "ingest";
+    public static final String NODE_INGEST_SETTING = "node.ingest";
 
     private final Settings nodeSettings;
     private final boolean transportClient;
@@ -87,7 +87,7 @@ public class IngestPlugin extends Plugin {
         if (transportClient) {
             return Collections.emptyList();
         } else {
-            return Collections.singletonList(PipelineStore.class);
+            return Collections.singletonList(PipelineStoreBootstrapper.class);
         }
     }
 
@@ -95,6 +95,8 @@ public class IngestPlugin extends Plugin {
     public Settings additionalSettings() {
         return settingsBuilder()
                 .put(PipelineExecutionService.additionalSettings(nodeSettings))
+                // TODO: in a followup issue this should be made configurable
+                .put(NODE_INGEST_SETTING, true)
                 .build();
     }
 

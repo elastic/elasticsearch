@@ -81,17 +81,12 @@ public class IngestClientIT extends ESIntegTestCase {
                         .endArray()
                         .endObject().bytes())
                 .get();
-        assertBusy(new Runnable() {
-            @Override
-            public void run() {
-                GetPipelineResponse response = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
-                        .setIds("_id")
-                        .get();
-                assertThat(response.isFound(), is(true));
-                assertThat(response.pipelines().size(), equalTo(1));
-                assertThat(response.pipelines().get(0).getId(), equalTo("_id"));
-            }
-        });
+        GetPipelineResponse getResponse = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+                .setIds("_id")
+                .get();
+        assertThat(getResponse.isFound(), is(true));
+        assertThat(getResponse.pipelines().size(), equalTo(1));
+        assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
         SimulatePipelineResponse response = new SimulatePipelineRequestBuilder(client(), SimulatePipelineAction.INSTANCE)
                 .setId("_id")
@@ -200,14 +195,12 @@ public class IngestClientIT extends ESIntegTestCase {
                         .endArray()
                         .endObject().bytes())
                 .get();
-        assertBusy(() -> {
-            GetPipelineResponse response = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
-                    .setIds("_id")
-                    .get();
-            assertThat(response.isFound(), is(true));
-            assertThat(response.pipelines().size(), equalTo(1));
-            assertThat(response.pipelines().get(0).getId(), equalTo("_id"));
-        });
+        GetPipelineResponse getResponse = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+                .setIds("_id")
+                .get();
+        assertThat(getResponse.isFound(), is(true));
+        assertThat(getResponse.pipelines().size(), equalTo(1));
+        assertThat(getResponse.pipelines().get(0).getId(), equalTo("_id"));
 
         createIndex("test");
         XContentBuilder updateMappingBuilder = jsonBuilder().startObject().startObject("properties")
@@ -222,23 +215,19 @@ public class IngestClientIT extends ESIntegTestCase {
                 .putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id")
                 .get();
 
-        assertBusy(() -> {
-            Map<String, Object> doc = client().prepareGet("test", "type", "1")
-                    .get().getSourceAsMap();
-            assertThat(doc.get("val"), equalTo(123.42));
-            assertThat(doc.get("status"), equalTo(400));
-            assertThat(doc.get("msg"), equalTo("foo"));
-        });
+        Map<String, Object> doc = client().prepareGet("test", "type", "1")
+                .get().getSourceAsMap();
+        assertThat(doc.get("val"), equalTo(123.42));
+        assertThat(doc.get("status"), equalTo(400));
+        assertThat(doc.get("msg"), equalTo("foo"));
 
         client().prepareBulk().add(
                 client().prepareIndex("test", "type", "2").setSource("field1", "123.42 400 <foo>")
         ).putHeader(IngestPlugin.PIPELINE_ID_PARAM, "_id").get();
-        assertBusy(() -> {
-            Map<String, Object> doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
-            assertThat(doc.get("val"), equalTo(123.42));
-            assertThat(doc.get("status"), equalTo(400));
-            assertThat(doc.get("msg"), equalTo("foo"));
-        });
+        doc = client().prepareGet("test", "type", "2").get().getSourceAsMap();
+        assertThat(doc.get("val"), equalTo(123.42));
+        assertThat(doc.get("status"), equalTo(400));
+        assertThat(doc.get("msg"), equalTo("foo"));
 
         DeleteResponse response = new DeletePipelineRequestBuilder(client(), DeletePipelineAction.INSTANCE)
                 .setId("_id")
@@ -246,13 +235,11 @@ public class IngestClientIT extends ESIntegTestCase {
         assertThat(response.isFound(), is(true));
         assertThat(response.getId(), equalTo("_id"));
 
-        assertBusy(() -> {
-            GetPipelineResponse response1 = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
-                    .setIds("_id")
-                    .get();
-            assertThat(response1.isFound(), is(false));
-            assertThat(response1.pipelines().size(), equalTo(0));
-        });
+        getResponse = new GetPipelineRequestBuilder(client(), GetPipelineAction.INSTANCE)
+                .setIds("_id")
+                .get();
+        assertThat(getResponse.isFound(), is(false));
+        assertThat(getResponse.pipelines().size(), equalTo(0));
     }
 
     @Override

@@ -1,10 +1,6 @@
 ---
 "Test Grok Pipeline":
   - do:
-      cluster.health:
-          wait_for_status: green
-
-  - do:
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -20,14 +16,6 @@
             ]
           }
   - match: { _id: "my_pipeline" }
-
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
 
   - do:
       ingest.index:
@@ -48,10 +36,6 @@
 
 ---
 "Test Grok Pipeline With Custom Pattern":
-  - do:
-      cluster.health:
-          wait_for_status: green
-
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"
@@ -97,10 +81,6 @@
 
 ---
 "Test Grok Pipeline With Custom Pattern Sharing Same Name As Another":
-  - do:
-      cluster.health:
-          wait_for_status: green
-
   - do:
       ingest.put_pipeline:
         id: "my_pipeline"

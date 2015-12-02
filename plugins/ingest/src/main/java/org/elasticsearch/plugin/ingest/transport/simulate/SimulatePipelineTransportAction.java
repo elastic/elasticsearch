@@ -27,6 +27,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.plugin.ingest.PipelineStore;
+import org.elasticsearch.plugin.ingest.PipelineStoreBootstrapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -34,14 +35,15 @@ import java.io.IOException;
 import java.util.Map;
 
 public class SimulatePipelineTransportAction extends HandledTransportAction<SimulatePipelineRequest, SimulatePipelineResponse> {
+
     private final PipelineStore pipelineStore;
     private final SimulateExecutionService executionService;
 
     @Inject
-    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStore pipelineStore, SimulateExecutionService executionService) {
+    public SimulatePipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStoreBootstrapper bootstrapper) {
         super(settings, SimulatePipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, SimulatePipelineRequest::new);
-        this.pipelineStore = pipelineStore;
-        this.executionService = executionService;
+        this.pipelineStore = bootstrapper.getPipelineStore();
+        this.executionService = new SimulateExecutionService(threadPool);
     }
 
     @Override

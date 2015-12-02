@@ -31,14 +31,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.text.Text;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.get.GetResult;
-import org.elasticsearch.script.ScriptService;
-import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.internal.InternalSearchHit;
 import org.elasticsearch.search.internal.InternalSearchHits;
 import org.elasticsearch.search.internal.InternalSearchResponse;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.threadpool.ThreadPool;
-import org.junit.After;
+import org.elasticsearch.transport.TransportService;
 import org.junit.Before;
 import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
@@ -51,7 +48,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.Matchers.any;
 import static org.mockito.Mockito.mock;
@@ -59,29 +55,25 @@ import static org.mockito.Mockito.when;
 
 public class PipelineStoreTests extends ESTestCase {
 
-    private ThreadPool threadPool;
     private PipelineStore store;
     private Client client;
 
     @Before
-    public void init() {
-        threadPool = new ThreadPool("test");
-        client = mock(Client.class);
-
+    public void init() throws Exception {
+        Settings settings = Settings.EMPTY;
         ClusterService clusterService = mock(ClusterService.class);
-        ScriptService scriptService = mock(ScriptService.class);
-        when(client.searchScroll(any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
-        Environment environment = mock(Environment.class);
-        store = new PipelineStore(Settings.EMPTY, () -> client, threadPool, environment, clusterService, () -> scriptService, Collections.emptyMap());
-    }
+        TransportService transportService = mock(TransportService.class);
 
-    @After
-    public void cleanup() {
-        threadPool.shutdown();
+        client = mock(Client.class);
+        when(client.search(any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
+        when(client.searchScroll(any())).thenReturn(expectedSearchReponse(Collections.emptyList()));
+        store = new PipelineStore(settings, clusterService, transportService);
+        store.setClient(client);
+        store.start();
     }
 
     public void testUpdatePipeline() throws Exception {
-        List<SearchHit> hits = new ArrayList<>();
+        List<InternalSearchHit> hits = new ArrayList<>();
         hits.add(new InternalSearchHit(0, "1", new Text("type"), Collections.emptyMap())
                 .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
         );
@@ -112,38 +104,9 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(store.get("2"), nullValue());
     }
 
-    public void testPipelineUpdater() throws Exception {
-        List<SearchHit> hits = new ArrayList<>();
-        hits.add(new InternalSearchHit(0, "1", new Text("type"), Collections.emptyMap())
-                        .sourceRef(new BytesArray("{\"description\": \"_description1\"}"))
-        );
-        when(client.search(any())).thenReturn(expectedSearchReponse(hits));
-        when(client.get(any())).thenReturn(expectedGetResponse(true));
-        assertThat(store.get("1"), nullValue());
-
-        store.startUpdateWorker();
-        assertBusy(() -> {
-            assertThat(store.get("1"), notNullValue());
-            assertThat(store.get("1").getId(), equalTo("1"));
-            assertThat(store.get("1").getDescription(), equalTo("_description1"));
-        });
-
-        hits.add(new InternalSearchHit(0, "2", new Text("type"), Collections.emptyMap())
-                        .sourceRef(new BytesArray("{\"description\": \"_description2\"}"))
-        );
-        assertBusy(() -> {
-            assertThat(store.get("1"), notNullValue());
-            assertThat(store.get("1").getId(), equalTo("1"));
-            assertThat(store.get("1").getDescription(), equalTo("_description1"));
-            assertThat(store.get("2"), notNullValue());
-            assertThat(store.get("2").getId(), equalTo("2"));
-            assertThat(store.get("2").getDescription(), equalTo("_description2"));
-        });
-    }
-
     public void testGetReference() throws Exception {
         // fill the store up for the test:
-        List<SearchHit> hits = new ArrayList<>();
+        List<InternalSearchHit> hits = new ArrayList<>();
         hits.add(new InternalSearchHit(0, "foo", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
         hits.add(new InternalSearchHit(0, "bar", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
         hits.add(new InternalSearchHit(0, "foobar", new Text("type"), Collections.emptyMap()).sourceRef(new BytesArray("{\"description\": \"_description\"}")));
@@ -183,7 +146,7 @@ public class PipelineStoreTests extends ESTestCase {
         assertThat(result.get(1).getPipeline().getId(), equalTo("bar"));
     }
 
-    ActionFuture<SearchResponse> expectedSearchReponse(List<SearchHit> hits) {
+    static ActionFuture<SearchResponse> expectedSearchReponse(List<InternalSearchHit> hits) {
         return new PlainActionFuture<SearchResponse>() {
 
             @Override
@@ -194,7 +157,7 @@ public class PipelineStoreTests extends ESTestCase {
         };
     }
 
-    ActionFuture<GetResponse> expectedGetResponse(boolean exists) {
+    static ActionFuture<GetResponse> expectedGetResponse(boolean exists) {
         return new PlainActionFuture<GetResponse>() {
             @Override
             public GetResponse get() throws InterruptedException, ExecutionException {
@@ -203,7 +166,7 @@ public class PipelineStoreTests extends ESTestCase {
         };
     }
 
-    GetRequest eqGetRequest(String index, String type, String id) {
+    static GetRequest eqGetRequest(String index, String type, String id) {
         return Matchers.argThat(new GetRequestMatcher(index, type, id));
     }
 

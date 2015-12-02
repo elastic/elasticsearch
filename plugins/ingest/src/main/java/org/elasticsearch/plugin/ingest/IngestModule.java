@@ -35,7 +35,6 @@ import org.elasticsearch.ingest.processor.split.SplitProcessor;
 import org.elasticsearch.ingest.processor.trim.TrimProcessor;
 import org.elasticsearch.ingest.processor.uppercase.UppercaseProcessor;
 import org.elasticsearch.plugin.ingest.rest.IngestRestFilter;
-import org.elasticsearch.plugin.ingest.transport.simulate.SimulateExecutionService;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -47,9 +46,7 @@ public class IngestModule extends AbstractModule {
     @Override
     protected void configure() {
         binder().bind(IngestRestFilter.class).asEagerSingleton();
-        binder().bind(PipelineExecutionService.class).asEagerSingleton();
-        binder().bind(PipelineStore.class).asEagerSingleton();
-        binder().bind(SimulateExecutionService.class).asEagerSingleton();
+        binder().bind(PipelineStoreBootstrapper.class).asEagerSingleton();
 
         addProcessor(GeoIpProcessor.TYPE, (environment, templateService) -> new GeoIpProcessor.Factory(environment.configFile()));
         addProcessor(GrokProcessor.TYPE, (environment, templateService) -> new GrokProcessor.Factory(environment.configFile()));

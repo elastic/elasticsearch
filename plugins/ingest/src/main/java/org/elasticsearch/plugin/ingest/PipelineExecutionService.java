@@ -21,7 +21,6 @@ package org.elasticsearch.plugin.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestDocument;
@@ -37,7 +36,6 @@ public class PipelineExecutionService {
     private final PipelineStore store;
     private final ThreadPool threadPool;
 
-    @Inject
     public PipelineExecutionService(PipelineStore store, ThreadPool threadPool) {
         this.store = store;
         this.threadPool = threadPool;

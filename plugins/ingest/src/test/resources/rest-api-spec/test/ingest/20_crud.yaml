@@ -1,10 +1,6 @@
 ---
 "Test basic pipeline crud":
   - do:
-      cluster.health:
-          wait_for_status: green
-
-  - do:
       ingest.put_pipeline:
         id: "my_pipeline"
         body:  >
@@ -24,14 +20,6 @@
   - match: { _version: 1 }
   - match: { _id: "my_pipeline" }
 
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
-
   - do:
       ingest.get_pipeline:
         id: "my_pipeline"
@@ -47,14 +35,6 @@
   - match: { _id: "my_pipeline" }
   - match: { found: true }
 
-  # Simulate a Thread.sleep(), because pipeline are updated in the background
-  - do:
-      catch: request_timeout
-      cluster.health:
-        wait_for_nodes: 99
-        timeout: 2s
-  - match: { "timed_out": true }
-
   - do:
       catch: missing
       ingest.get_pipeline:
@@ -62,10 +42,6 @@
 
 ---
 "Test invalid config":
-  - do:
-      cluster.health:
-          wait_for_status: green
-
   - do:
       catch: param
       ingest.put_pipeline:

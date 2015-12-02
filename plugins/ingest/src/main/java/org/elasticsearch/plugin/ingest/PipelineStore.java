@@ -30,76 +30,59 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterService;
-import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.common.SearchScrollIterator;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
-import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.inject.Provider;
+import org.elasticsearch.common.component.AbstractComponent;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.TemplateService;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.plugin.ingest.transport.delete.DeletePipelineRequest;
 import org.elasticsearch.plugin.ingest.transport.put.PutPipelineRequest;
-import org.elasticsearch.script.*;
+import org.elasticsearch.plugin.ingest.transport.reload.ReloadPipelinesAction;
+import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.TransportService;
 
 import java.io.Closeable;
 import java.io.IOException;
 import java.util.*;
 
-public class PipelineStore extends AbstractLifecycleComponent {
+public class PipelineStore extends AbstractComponent implements Closeable {
 
     public final static String INDEX = ".ingest";
     public final static String TYPE = "pipeline";
 
-    private final ThreadPool threadPool;
-    private final Environment environment;
+    private Client client;
     private final TimeValue scrollTimeout;
-    private final ClusterService clusterService;
-    private final Provider<Client> clientProvider;
-    private final TimeValue pipelineUpdateInterval;
-    private final Provider<ScriptService> scriptServiceProvider;
+    private final ReloadPipelinesAction reloadPipelinesAction;
     private final Pipeline.Factory factory = new Pipeline.Factory();
-    private volatile Map<String, Processor.Factory> processorFactoryRegistry;
-    private final Map<String, ProcessorFactoryProvider> processorFactoryProviders;
+    private Map<String, Processor.Factory> processorFactoryRegistry;
 
-    private volatile Client client;
+    private volatile boolean started = false;
     private volatile Map<String, PipelineDefinition> pipelines = new HashMap<>();
 
-    @Inject
-    public PipelineStore(Settings settings, Provider<Client> clientProvider, ThreadPool threadPool,
-                         Environment environment, ClusterService clusterService, Provider<ScriptService> scriptServiceProvider,
-                         Map<String, ProcessorFactoryProvider> processorFactoryProviders) {
+    public PipelineStore(Settings settings, ClusterService clusterService, TransportService transportService) {
         super(settings);
-        this.threadPool = threadPool;
-        this.environment = environment;
-        this.clusterService = clusterService;
-        this.clientProvider = clientProvider;
-        this.scriptServiceProvider = scriptServiceProvider;
         this.scrollTimeout = settings.getAsTime("ingest.pipeline.store.scroll.timeout", TimeValue.timeValueSeconds(30));
-        this.pipelineUpdateInterval = settings.getAsTime("ingest.pipeline.store.update.interval", TimeValue.timeValueSeconds(1));
-        this.processorFactoryProviders = processorFactoryProviders;
-
-        clusterService.add(new PipelineStoreListener());
+        this.reloadPipelinesAction = new ReloadPipelinesAction(settings, this, clusterService, transportService);
     }
 
-    @Override
-    protected void doStart() {
-        // TODO this will be better when #15203 gets in:
+    public void setClient(Client client) {
+        this.client = client;
+    }
+
+    public void buildProcessorFactoryRegistry(Map<String, ProcessorFactoryProvider> processorFactoryProviders, Environment environment, ScriptService scriptService) {
         Map<String, Processor.Factory> processorFactories = new HashMap<>();
-        TemplateService templateService = new InternalTemplateService(scriptServiceProvider.get());
+        TemplateService templateService = new InternalTemplateService(scriptService);
         for (Map.Entry<String, ProcessorFactoryProvider> entry : processorFactoryProviders.entrySet()) {
             Processor.Factory processorFactory = entry.getValue().get(environment, templateService);
             processorFactories.put(entry.getKey(), processorFactory);
@@ -108,35 +91,31 @@ public class PipelineStore extends AbstractLifecycleComponent {
     }
 
     @Override
-    protected void doStop() {
-    }
-
-    @Override
-    protected void doClose() {
-        // TODO: When org.elasticsearch.node.Node can close Closable instances we should remove this code
+    public void close() throws IOException {
+        stop("closing");
+        // TODO: When org.elasticsearch.node.Node can close Closable instances we should try to remove this code,
+        // since any wired closable should be able to close itself
         List<Closeable> closeables = new ArrayList<>();
         for (Processor.Factory factory : processorFactoryRegistry.values()) {
             if (factory instanceof Closeable) {
                 closeables.add((Closeable) factory);
             }
         }
-        try {
-            IOUtils.close(closeables);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
+        IOUtils.close(closeables);
     }
 
     /**
      * Deletes the pipeline specified by id in the request.
      */
     public void delete(DeletePipelineRequest request, ActionListener<DeleteResponse> listener) {
+        ensureReady();
+
         DeleteRequest deleteRequest = new DeleteRequest(request);
         deleteRequest.index(PipelineStore.INDEX);
         deleteRequest.type(PipelineStore.TYPE);
         deleteRequest.id(request.id());
         deleteRequest.refresh(true);
-        client().delete(deleteRequest, listener);
+        client.delete(deleteRequest, handleWriteResponseAndReloadPipelines(listener));
     }
 
     /**
@@ -145,6 +124,8 @@ public class PipelineStore extends AbstractLifecycleComponent {
      * @throws IllegalArgumentException If the pipeline holds incorrect configuration
      */
     public void put(PutPipelineRequest request, ActionListener<IndexResponse> listener) throws IllegalArgumentException {
+        ensureReady();
+
         try {
             // validates the pipeline and processor configuration:
             Map<String, Object> pipelineConfig = XContentHelper.convertToMap(request.source(), false).v2();
@@ -159,13 +140,15 @@ public class PipelineStore extends AbstractLifecycleComponent {
         indexRequest.id(request.id());
         indexRequest.source(request.source());
         indexRequest.refresh(true);
-        client().index(indexRequest, listener);
+        client.index(indexRequest, handleWriteResponseAndReloadPipelines(listener));
     }
 
     /**
      * Returns the pipeline by the specified id
      */
     public Pipeline get(String id) {
+        ensureReady();
+
         PipelineDefinition ref = pipelines.get(id);
         if (ref != null) {
             return ref.getPipeline();
@@ -179,6 +162,8 @@ public class PipelineStore extends AbstractLifecycleComponent {
     }
 
     public List<PipelineDefinition> getReference(String... ids) {
+        ensureReady();
+
         List<PipelineDefinition> result = new ArrayList<>(ids.length);
         for (String id : ids) {
             if (Regex.isSimpleMatchPattern(id)) {
@@ -197,11 +182,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
         return result;
     }
 
-    Pipeline constructPipeline(String id, Map<String, Object> config) throws Exception {
-        return factory.create(id, config, processorFactoryRegistry);
-    }
-
-    synchronized void updatePipelines() throws Exception {
+    public synchronized void updatePipelines() throws Exception {
         // note: this process isn't fast or smart, but the idea is that there will not be many pipelines,
         // so for that reason the goal is to keep the update logic simple.
 
@@ -210,9 +191,15 @@ public class PipelineStore extends AbstractLifecycleComponent {
         for (SearchHit hit : readAllPipelines()) {
             String pipelineId = hit.getId();
             BytesReference pipelineSource = hit.getSourceRef();
-            PipelineDefinition previous = newPipelines.get(pipelineId);
-            if (previous != null) {
-                if (previous.getSource().equals(pipelineSource)) {
+            PipelineDefinition current = newPipelines.get(pipelineId);
+            if (current != null) {
+                // If we first read from a primary shard copy and then from a replica copy,
+                // and a write did not yet make it into the replica shard
+                // then the source is not equal but we don't update because the current pipeline is the latest:
+                if (current.getVersion() > hit.getVersion()) {
+                    continue;
+                }
+                if (current.getSource().equals(pipelineSource)) {
                     continue;
                 }
             }
@@ -224,7 +211,7 @@ public class PipelineStore extends AbstractLifecycleComponent {
 
         int removed = 0;
         for (String existingPipelineId : pipelines.keySet()) {
-            if (!existPipeline(existingPipelineId)) {
+            if (pipelineExists(existingPipelineId) == false) {
                 newPipelines.remove(existingPipelineId);
                 removed++;
             }
@@ -238,17 +225,46 @@ public class PipelineStore extends AbstractLifecycleComponent {
         }
     }
 
-    void startUpdateWorker() {
-        threadPool.schedule(pipelineUpdateInterval, ThreadPool.Names.GENERIC, new Updater());
+    private Pipeline constructPipeline(String id, Map<String, Object> config) throws Exception {
+        return factory.create(id, config, processorFactoryRegistry);
     }
 
-    boolean existPipeline(String pipelineId) {
+    boolean pipelineExists(String pipelineId) {
         GetRequest request = new GetRequest(PipelineStore.INDEX, PipelineStore.TYPE, pipelineId);
-        GetResponse response = client().get(request).actionGet();
-        return response.isExists();
+        try {
+            GetResponse response = client.get(request).actionGet();
+            return response.isExists();
+        } catch (IndexNotFoundException e) {
+            // the ingest index doesn't exist, so the pipeline doesn't either:
+            return false;
+        }
     }
 
-    Iterable<SearchHit> readAllPipelines() {
+    synchronized void start() throws Exception {
+        if (started) {
+            logger.debug("Pipeline already started");
+        } else {
+            updatePipelines();
+            started = true;
+            logger.debug("Pipeline store started with [{}] pipelines", pipelines.size());
+        }
+    }
+
+    synchronized void stop(String reason) {
+        if (started) {
+            started = false;
+            pipelines = new HashMap<>();
+            logger.debug("Pipeline store stopped, reason [{}]", reason);
+        } else {
+            logger.debug("Pipeline alreadt stopped");
+        }
+    }
+
+    public boolean isStarted() {
+        return started;
+    }
+
+    private Iterable<SearchHit> readAllPipelines() {
         // TODO: the search should be replaced with an ingest API when it is available
         SearchSourceBuilder sourceBuilder = new SearchSourceBuilder();
         sourceBuilder.version(true);
@@ -256,40 +272,32 @@ public class PipelineStore extends AbstractLifecycleComponent {
         SearchRequest searchRequest = new SearchRequest(PipelineStore.INDEX);
         searchRequest.source(sourceBuilder);
         searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
-        return SearchScrollIterator.createIterator(client(), scrollTimeout, searchRequest);
+        return SearchScrollIterator.createIterator(client, scrollTimeout, searchRequest);
     }
 
-    private Client client() {
-        if (client == null) {
-            client = clientProvider.get();
+    private void ensureReady() {
+        if (started == false) {
+            throw new IllegalStateException("pipeline store isn't ready yet");
         }
-        return client;
     }
 
-    class Updater implements Runnable {
-
-        @Override
-        public void run() {
-            try {
-                updatePipelines();
-            } catch (Exception e) {
-                logger.error("pipeline store update failure", e);
-            } finally {
-                startUpdateWorker();
+    @SuppressWarnings("unchecked")
+    private <T> ActionListener<T> handleWriteResponseAndReloadPipelines(ActionListener<T> listener) {
+        return new ActionListener<T>() {
+            @Override
+            public void onResponse(T result) {
+                try {
+                    reloadPipelinesAction.reloadPipelinesOnAllNodes(reloadResult -> listener.onResponse(result));
+                } catch (Throwable e) {
+                    listener.onFailure(e);
+                }
             }
-        }
 
-    }
-
-    class PipelineStoreListener implements ClusterStateListener {
-
-        @Override
-        public void clusterChanged(ClusterChangedEvent event) {
-            if (event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK) == false) {
-                startUpdateWorker();
-                clusterService.remove(this);
+            @Override
+            public void onFailure(Throwable e) {
+                listener.onFailure(e);
             }
-        }
+        };
     }
 
 }

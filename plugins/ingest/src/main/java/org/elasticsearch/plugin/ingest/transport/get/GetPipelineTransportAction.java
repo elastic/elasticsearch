@@ -28,6 +28,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.plugin.ingest.PipelineDefinition;
 import org.elasticsearch.plugin.ingest.PipelineStore;
+import org.elasticsearch.plugin.ingest.PipelineStoreBootstrapper;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
@@ -40,9 +41,9 @@ public class GetPipelineTransportAction extends HandledTransportAction<GetPipeli
     private final PipelineStore pipelineStore;
 
     @Inject
-    public GetPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStore pipelineStore) {
+    public GetPipelineTransportAction(Settings settings, ThreadPool threadPool, TransportService transportService, ActionFilters actionFilters, IndexNameExpressionResolver indexNameExpressionResolver, PipelineStoreBootstrapper bootstrapper) {
         super(settings, GetPipelineAction.NAME, threadPool, transportService, actionFilters, indexNameExpressionResolver, GetPipelineRequest::new);
-        this.pipelineStore = pipelineStore;
+        this.pipelineStore = bootstrapper.getPipelineStore();
     }
 
     @Override

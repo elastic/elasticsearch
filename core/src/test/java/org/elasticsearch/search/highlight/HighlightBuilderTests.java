@@ -19,10 +19,10 @@
 
 package org.elasticsearch.search.highlight;
 
-import org.elasticsearch.common.ParseFieldMatcher;
-import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
+import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -52,7 +52,6 @@ import org.elasticsearch.index.query.QueryShardContext;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.TermQueryParser;
 import org.elasticsearch.indices.query.IndicesQueriesRegistry;
-import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.highlight.HighlightBuilder.Field;
 import org.elasticsearch.search.highlight.SearchContextHighlight.FieldOptions;
 import org.elasticsearch.test.ESTestCase;
@@ -149,6 +148,7 @@ public class HighlightBuilderTests extends ESTestCase {
         context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
+            System.out.println(highlightBuilder);
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
             if (randomBoolean()) {
                 builder.prettyPrint();
@@ -159,7 +159,8 @@ public class HighlightBuilderTests extends ESTestCase {
 
             XContentParser parser = XContentHelper.createParser(builder.bytes());
             context.reset(parser);
-            HighlightBuilder secondHighlightBuilder = HighlightBuilder.fromXContent(context);
+            parser.nextToken();
+            HighlightBuilder secondHighlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
             assertNotSame(highlightBuilder, secondHighlightBuilder);
             assertEquals(highlightBuilder, secondHighlightBuilder);
             assertEquals(highlightBuilder.hashCode(), secondHighlightBuilder.hashCode());
@@ -179,7 +180,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
         context.reset(parser);
         try {
-            HighlightBuilder.fromXContent(context);
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("cannot parse array with name [bad_fieldname]", e.getMessage());
@@ -196,7 +197,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
         context.reset(parser);
         try {
-            HighlightBuilder.fromXContent(context);
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("cannot parse array with name [bad_fieldname]", e.getMessage());
@@ -216,7 +217,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
         context.reset(parser);
         try {
-            HighlightBuilder.fromXContent(context);
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("unexpected fieldname [bad_fieldname]", e.getMessage());
@@ -233,7 +234,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
         context.reset(parser);
         try {
-            HighlightBuilder.fromXContent(context);
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("unexpected fieldname [bad_fieldname]", e.getMessage());
@@ -253,7 +254,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
         context.reset(parser);
         try {
-            HighlightBuilder.fromXContent(context);
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("cannot parse object with name [bad_fieldname]", e.getMessage());
@@ -270,7 +271,7 @@ public class HighlightBuilderTests extends ESTestCase {
 
         context.reset(parser);
         try {
-            HighlightBuilder.fromXContent(context);
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
             fail("expected a parsing exception");
         } catch (ParsingException e) {
             assertEquals("cannot parse object with name [bad_fieldname]", e.getMessage());
@@ -354,7 +355,7 @@ public class HighlightBuilderTests extends ESTestCase {
         XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
 
         context.reset(parser);
-        HighlightBuilder highlightBuilder = HighlightBuilder.fromXContent(context);
+        HighlightBuilder highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
         assertArrayEquals("setting tags_schema 'styled' should alter pre_tags", HighlightBuilder.DEFAULT_STYLED_PRE_TAG,
                 highlightBuilder.preTags());
         assertArrayEquals("setting tags_schema 'styled' should alter post_tags", HighlightBuilder.DEFAULT_STYLED_POST_TAGS,
@@ -366,7 +367,7 @@ public class HighlightBuilderTests extends ESTestCase {
         parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
 
         context.reset(parser);
-        highlightBuilder = HighlightBuilder.fromXContent(context);
+        highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
         assertArrayEquals("setting tags_schema 'default' should alter pre_tags", HighlightBuilder.DEFAULT_PRE_TAGS,
                 highlightBuilder.preTags());
         assertArrayEquals("setting tags_schema 'default' should alter post_tags", HighlightBuilder.DEFAULT_POST_TAGS,
@@ -379,11 +380,40 @@ public class HighlightBuilderTests extends ESTestCase {
 
         context.reset(parser);
         try {
-            highlightBuilder = HighlightBuilder.fromXContent(context);
+            HighlightBuilder.PROTOTYPE.fromXContent(context);
             fail("setting unknown tag schema should throw exception");
         } catch (IllegalArgumentException e) {
             assertEquals("Unknown tag schema [somthing_else]", e.getMessage());
         }
+    }
+
+    /**
+     * test parsing empty highlight or empty fields blocks
+     */
+    public void testParsingEmptyStructure() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{ }";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        HighlightBuilder highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+        assertEquals("expected plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+
+        highlightElement = "{ \"fields\" : { } }";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+        assertEquals("defining no field should return plain HighlightBuilder", new HighlightBuilder(), highlightBuilder);
+
+        highlightElement = "{ \"fields\" : { \"foo\" : { } } }";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        highlightBuilder = HighlightBuilder.PROTOTYPE.fromXContent(context);
+        assertEquals("expected HighlightBuilder with field", new HighlightBuilder().field(new Field("foo")), highlightBuilder);
+        System.out.println(Math.log(1/(double)(1+1)) + 1.0);
     }
 
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {

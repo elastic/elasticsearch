@@ -18,62 +18,103 @@
  */
 package org.elasticsearch.gradle.precommit
 
-import org.gradle.api.DefaultTask
-import org.gradle.api.GradleException
-import org.gradle.api.InvalidUserDataException
-import org.gradle.api.Project
-import org.gradle.api.Task
+import org.gradle.api.*
 import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.InputDirectory
 import org.gradle.api.tasks.InputFiles
-import org.gradle.api.tasks.StopActionException
 import org.gradle.api.tasks.TaskAction
-import org.gradle.api.tasks.VerificationTask
 
 import java.nio.file.Files
 import java.security.MessageDigest
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
-class DependencyLicensesTask extends DefaultTask {
-    static final String SHA_EXTENSION = '.sha1'
+/**
+ * A task to check licenses for dependencies.
+ *
+ * There are two parts to the check:
+ * <ul>
+ *   <li>LICENSE and NOTICE files</li>
+ *   <li>SHA checksums for each dependency jar</li>
+ * </ul>
+ *
+ * The directory to find the license and sha files in defaults to the dir @{code licenses}
+ * in the project directory for this task. You can override this directory:
+ * <pre>
+ *   dependencyLicenses {
+ *     licensesDir = project.file('mybetterlicensedir')
+ *   }
+ * </pre>
+ *
+ * The jar files to check default to the dependencies from the default configuration. You
+ * can override this, for example, to only check compile dependencies:
+ * <pre>
+ *   dependencyLicenses {
+ *     dependencies = project.configurations.compile
+ *   }
+ * </pre>
+ *
+ * Every jar must have a {@code .sha1} file in the licenses dir. These can be managed
+ * automatically using the {@code updateShas} helper task that is created along
+ * with this task. It will add {@code .sha1} files for new jars that are in dependencies
+ * and remove old {@code .sha1} files that are no longer needed.
+ *
+ * Every jar must also have a LICENSE and NOTICE file. However, multiple jars can share
+ * LICENSE and NOTICE files by mapping a pattern to the same name.
+ * <pre>
+ *   dependencyLicenses {
+ *     mapping from: &#47;lucene-.*&#47;, to: 'lucene'
+ *   }
+ * </pre>
+ */
+public class DependencyLicensesTask extends DefaultTask {
+    private static final String SHA_EXTENSION = '.sha1'
 
-    static Task configure(Project project, Closure closure) {
-        DependencyLicensesTask task = project.tasks.create(type: DependencyLicensesTask, name: 'dependencyLicenses')
-        UpdateShasTask update = project.tasks.create(type: UpdateShasTask, name: 'updateShas')
-        update.parentTask = task
-        task.configure(closure)
-        project.check.dependsOn(task)
-        return task
-    }
-
+    // TODO: we should be able to default this to eg compile deps, but we need to move the licenses
+    // check from distribution to core (ie this should only be run on java projects)
+    /** A collection of jar files that should be checked. */
     @InputFiles
-    FileCollection dependencies
+    public FileCollection dependencies
 
+    /** The directory to find the license and sha files in. */
     @InputDirectory
-    File licensesDir = new File(project.projectDir, 'licenses')
+    public File licensesDir = new File(project.projectDir, 'licenses')
 
-    LinkedHashMap<String, String> mappings = new LinkedHashMap<>()
+    /** A map of patterns to prefix, used to find the LICENSE and NOTICE file. */
+    private LinkedHashMap<String, String> mappings = new LinkedHashMap<>()
 
+    /**
+     * Add a mapping from a regex pattern for the jar name, to a prefix to find
+     * the LICENSE and NOTICE file for that jar.
+     */
     @Input
-    void mapping(Map<String, String> props) {
-        String from = props.get('from')
+    public void mapping(Map<String, String> props) {
+        String from = props.remove('from')
         if (from == null) {
             throw new InvalidUserDataException('Missing "from" setting for license name mapping')
         }
-        String to = props.get('to')
+        String to = props.remove('to')
         if (to == null) {
             throw new InvalidUserDataException('Missing "to" setting for license name mapping')
+        }
+        if (props.isEmpty() == false) {
+            throw new InvalidUserDataException("Unknown properties for mapping on dependencyLicenses: ${props.keySet()}")
         }
         mappings.put(from, to)
     }
 
     @TaskAction
-    void checkDependencies() {
-        // TODO: empty license dir (or error when dir exists and no deps)
+    public void checkDependencies() {
+        // TODO REMOVE THIS DIRTY FIX FOR #15168
+        if (licensesDir.exists() == false) {
+            return
+        }
         if (licensesDir.exists() == false && dependencies.isEmpty() == false) {
             throw new GradleException("Licences dir ${licensesDir} does not exist, but there are dependencies")
+        }
+        if (licensesDir.exists() && dependencies.isEmpty()) {
+            throw new GradleException("Licenses dir ${licensesDir} exists, but there are no dependencies")
         }
 
         // order is the same for keys and values iteration since we use a linked hashmap
@@ -127,7 +168,7 @@ class DependencyLicensesTask extends DefaultTask {
         }
     }
 
-    void checkSha(File jar, String jarName, Set<File> shaFiles) {
+    private void checkSha(File jar, String jarName, Set<File> shaFiles) {
         File shaFile = new File(licensesDir, jarName + SHA_EXTENSION)
         if (shaFile.exists() == false) {
             throw new GradleException("Missing SHA for ${jarName}. Run 'gradle updateSHAs' to create")
@@ -143,7 +184,7 @@ class DependencyLicensesTask extends DefaultTask {
         shaFiles.remove(shaFile)
     }
 
-    void checkFile(String name, String jarName, Map<String, Integer> counters, String type) {
+    private void checkFile(String name, String jarName, Map<String, Integer> counters, String type) {
         String fileName = "${name}-${type}"
         Integer count = counters.get(fileName)
         if (count == null) {
@@ -158,10 +199,12 @@ class DependencyLicensesTask extends DefaultTask {
         counters.put(fileName, count + 1)
     }
 
-    static class UpdateShasTask extends DefaultTask {
-        DependencyLicensesTask parentTask
+    /** A helper task to update the sha files in the license dir. */
+    public static class UpdateShasTask extends DefaultTask {
+        private DependencyLicensesTask parentTask
+
         @TaskAction
-        void updateShas() {
+        public void updateShas() {
             Set<File> shaFiles = new HashSet<File>()
             parentTask.licensesDir.eachFile {
                 String name = it.getName()

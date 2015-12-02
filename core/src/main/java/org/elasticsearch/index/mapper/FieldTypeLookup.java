@@ -27,6 +27,7 @@ import java.util.Collection;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -56,7 +57,11 @@ class FieldTypeLookup implements Iterable<MappedFieldType> {
      * from the provided fields. If a field already exists, the field type will be updated
      * to use the new mappers field type.
      */
-    public FieldTypeLookup copyAndAddAll(Collection<FieldMapper> newFieldMappers) {
+    public FieldTypeLookup copyAndAddAll(String type, Collection<FieldMapper> newFieldMappers) {
+        Objects.requireNonNull(type, "type must not be null");
+        if (MapperService.DEFAULT_MAPPING.equals(type)) {
+            throw new IllegalArgumentException("Default mappings should not be added to the lookup");
+        }
         CopyOnWriteHashMap<String, MappedFieldTypeReference> fullName = this.fullNameToFieldType;
         CopyOnWriteHashMap<String, MappedFieldTypeReference> indexName = this.indexNameToFieldType;
 

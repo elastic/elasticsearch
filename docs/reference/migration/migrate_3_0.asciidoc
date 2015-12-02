@@ -468,3 +468,7 @@ response is output by default.
 Finally, the API for org.elasticsearch.monitor.os.OsStats has changed. The `getLoadAverage` method has been removed. The
 value for this can now be obtained from `OsStats.Cpu#getLoadAverage`. Additionally, the recent CPU usage can be obtained
 from `OsStats.Cpu#getPercent`.
+
+=== Fields option
+Only stored fields are retrievable with this option.
+The fields option won't be able to load non stored fields from _source anymore.

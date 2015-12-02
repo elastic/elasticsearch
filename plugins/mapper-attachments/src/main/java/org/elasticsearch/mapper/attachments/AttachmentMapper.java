@@ -624,7 +624,7 @@ public class AttachmentMapper extends FieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name());
+        builder.startObject(simpleName());
         builder.field("type", CONTENT_TYPE);
         if (indexCreatedBefore2x) {
             builder.field("path", pathType.name().toLowerCase(Locale.ROOT));

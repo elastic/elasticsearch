@@ -170,12 +170,12 @@ public class MetaDataCreateIndexService extends AbstractComponent {
         updatedSettingsBuilder.put(request.settings()).normalizePrefix(IndexMetaData.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
 
-        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]", Priority.URGENT, new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(request, listener) {
-
-            @Override
-            protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
-                return new ClusterStateUpdateResponse(acknowledged);
-            }
+        clusterService.submitStateUpdateTask("create-index [" + request.index() + "], cause [" + request.cause() + "]",
+                new AckedClusterStateUpdateTask<ClusterStateUpdateResponse>(Priority.URGENT, request, listener) {
+                    @Override
+                    protected ClusterStateUpdateResponse newResponse(boolean acknowledged) {
+                        return new ClusterStateUpdateResponse(acknowledged);
+                    }
 
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {

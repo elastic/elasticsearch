@@ -56,7 +56,7 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
     }
 
     public void removeTemplates(final RemoveRequest request, final RemoveListener listener) {
-        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("remove-index-template [" + request.name + "]", new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
             public TimeValue timeout() {
@@ -143,7 +143,8 @@ public class MetaDataIndexTemplateService extends AbstractComponent {
         }
         final IndexTemplateMetaData template = templateBuilder.build();
 
-        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]", Priority.URGENT, new ClusterStateUpdateTask() {
+        clusterService.submitStateUpdateTask("create-index-template [" + request.name + "], cause [" + request.cause + "]",
+                new ClusterStateUpdateTask(Priority.URGENT) {
 
             @Override
             public TimeValue timeout() {

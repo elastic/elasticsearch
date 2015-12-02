@@ -31,34 +31,24 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.mapper.DocumentMapper;
-import org.elasticsearch.index.mapper.DocumentMapperParser;
-import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.index.mapper.ParseContext.Document;
-import org.elasticsearch.index.mapper.core.CompletionFieldMapper;
-import org.elasticsearch.index.mapper.core.DateFieldMapper;
-import org.elasticsearch.index.mapper.core.LongFieldMapper;
-import org.elasticsearch.index.mapper.core.StringFieldMapper;
-import org.elasticsearch.index.mapper.core.TokenCountFieldMapper;
+import org.elasticsearch.index.mapper.core.*;
 import org.elasticsearch.index.mapper.geo.BaseGeoPointFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.VersionUtils;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Map;
 import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
-import static org.elasticsearch.index.mapper.MapperBuilders.doc;
-import static org.elasticsearch.index.mapper.MapperBuilders.rootObject;
-import static org.elasticsearch.index.mapper.MapperBuilders.stringField;
+import static org.elasticsearch.index.mapper.MapperBuilders.*;
 import static org.elasticsearch.test.StreamsUtils.copyToBytesFromClasspath;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -524,6 +514,32 @@ public class MultiFieldTests extends ESSingleNodeTestCase {
             fail("expected mapping parse failure");
         } catch (MapperParsingException e) {
             assertTrue(e.getMessage().contains("cannot be used in multi field"));
+        }
+    }
+
+    public void testMultiFieldWithDot() throws IOException {
+        XContentBuilder mapping = jsonBuilder();
+        mapping.startObject()
+                .startObject("my_type")
+                .startObject("properties")
+                .startObject("city")
+                .field("type", "string")
+                .startObject("fields")
+                .startObject("raw.foo")
+                .field("type", "string")
+                .field("index", "not_analyzed")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+
+        MapperService mapperService = createIndex("test").mapperService();
+        try {
+            mapperService.documentMapperParser().parse(mapping.string());
+            fail("this should throw an exception because one field contains a dot");
+        } catch (MapperParsingException e) {
+            assertThat(e.getMessage(), equalTo("Field name [raw.foo] which is a multi field of [city] cannot contain '.'"));
         }
     }
 }

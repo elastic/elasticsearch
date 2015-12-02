@@ -111,7 +111,6 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
             assertThat("same shape's hashcode returns different values if called multiple times", firstShape.hashCode(),
                     equalTo(firstShape.hashCode()));
             assertThat("different shapes should not be equal", mutate(firstShape), not(equalTo(firstShape)));
-            assertThat("different shapes should have different hashcode", mutate(firstShape).hashCode(), not(equalTo(firstShape.hashCode())));
 
             SB secondShape = copyShape(firstShape);
             assertTrue("shape is not equal to self", secondShape.equals(secondShape));

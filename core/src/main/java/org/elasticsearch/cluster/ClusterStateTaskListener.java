@@ -16,22 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.elasticsearch.index.fieldvisitor;
+package org.elasticsearch.cluster;
 
-import org.apache.lucene.index.FieldInfo;
+import java.util.List;
 
-import java.io.IOException;
+public interface ClusterStateTaskListener {
 
-/**
- */
-public class AllFieldsVisitor extends FieldsVisitor {
+    /**
+     * A callback called when execute fails.
+     */
+    void onFailure(String source, Throwable t);
 
-    public AllFieldsVisitor() {
-        super(true);
+    /**
+     * called when the task was rejected because the local node is no longer master
+     */
+    default void onNoLongerMaster(String source) {
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
     }
 
-    @Override
-    public Status needsField(FieldInfo fieldInfo) throws IOException {
-        return Status.YES;
+    /**
+     * Called when the result of the {@link ClusterStateTaskExecutor#execute(ClusterState, List)} have been processed
+     * properly by all listeners.
+     */
+    default void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
     }
 }

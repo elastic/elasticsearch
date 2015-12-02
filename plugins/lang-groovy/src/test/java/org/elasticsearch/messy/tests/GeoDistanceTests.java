@@ -739,7 +739,7 @@ public class GeoDistanceTests extends ESIntegTestCase {
         for (int i = 0; i < 10; ++i) {
             final double originLat = randomLat();
             final double originLon = randomLon();
-            final String distance = DistanceUnit.KILOMETERS.toString(randomInt(10000));
+            final String distance = DistanceUnit.KILOMETERS.toString(randomIntBetween(1, 10000));
             for (GeoDistance geoDistance : Arrays.asList(GeoDistance.ARC, GeoDistance.SLOPPY_ARC)) {
                 logger.info("Now testing GeoDistance={}, distance={}, origin=({}, {})", geoDistance, distance, originLat, originLon);
                 GeoDistanceQueryBuilder qb = QueryBuilders.geoDistanceQuery("location").point(originLat, originLon).distance(distance).geoDistance(geoDistance);

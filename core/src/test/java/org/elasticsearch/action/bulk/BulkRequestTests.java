@@ -21,6 +21,7 @@ package org.elasticsearch.action.bulk;
 
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.delete.DeleteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -36,9 +37,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class BulkRequestTests extends ESTestCase {
     public void testSimpleBulk1() throws Exception {
@@ -170,5 +169,40 @@ public class BulkRequestTests extends ESTestCase {
         BulkRequest bulkRequest = new BulkRequest();
         bulkRequest.add(bulkAction.getBytes(StandardCharsets.UTF_8), 0, bulkAction.length(), null, null);
         assertThat(bulkRequest.numberOfActions(), equalTo(9));
+    }
+
+    // issue 7361
+    public void testBulkRequestWithRefresh() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        // We force here a "id is missing" validation error
+        bulkRequest.add(new DeleteRequest("index", "type", null).refresh(true));
+        // We force here a "type is missing" validation error
+        bulkRequest.add(new DeleteRequest("index", null, "id"));
+        bulkRequest.add(new DeleteRequest("index", "type", "id").refresh(true));
+        bulkRequest.add(new UpdateRequest("index", "type", "id").doc("{}").refresh(true));
+        bulkRequest.add(new IndexRequest("index", "type", "id").source("{}").refresh(true));
+        ActionRequestValidationException validate = bulkRequest.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.validationErrors(), not(empty()));
+        assertThat(validate.validationErrors(), contains(
+                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
+                "id is missing",
+                "type is missing",
+                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
+                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.",
+                "Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead."));
+    }
+
+    // issue 15120
+    public void testBulkNoSource() throws Exception {
+        BulkRequest bulkRequest = new BulkRequest();
+        bulkRequest.add(new UpdateRequest("index", "type", "id"));
+        bulkRequest.add(new IndexRequest("index", "type", "id"));
+        ActionRequestValidationException validate = bulkRequest.validate();
+        assertThat(validate, notNullValue());
+        assertThat(validate.validationErrors(), not(empty()));
+        assertThat(validate.validationErrors(), contains(
+                "script or doc is missing",
+                "source is missing"));
     }
 }

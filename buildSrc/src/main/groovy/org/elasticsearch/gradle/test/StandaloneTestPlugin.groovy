@@ -45,6 +45,7 @@ class StandaloneTestPlugin implements Plugin<Project> {
             classpath = project.sourceSets.test.runtimeClasspath
             testClassesDir project.sourceSets.test.output.classesDir
         }
+        test.mustRunAfter(project.precommit)
         project.check.dependsOn(test)
     }
 }

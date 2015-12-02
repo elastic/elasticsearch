@@ -58,6 +58,7 @@ class RestIntegTestTask extends RandomizedTestingTask {
             integTest.testClassesDir = test.testClassesDir
             integTest.mustRunAfter(test)
         }
+        integTest.mustRunAfter(project.precommit)
         project.check.dependsOn(integTest)
         RestSpecHack.configureDependencies(project)
         project.afterEvaluate {

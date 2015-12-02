@@ -46,9 +46,10 @@ import java.util.List;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
 /**
- * A bulk request holds an ordered {@link IndexRequest}s and {@link DeleteRequest}s and allows to executes
- * it in a single batch.
+ * A bulk request holds an ordered {@link IndexRequest}s, {@link DeleteRequest}s and {@link UpdateRequest}s
+ * and allows to executes it in a single batch.
  *
+ * Note that we only support refresh on the bulk request not per item.
  * @see org.elasticsearch.client.Client#bulk(BulkRequest)
  */
 public class BulkRequest extends ActionRequest<BulkRequest> implements CompositeIndicesRequest {
@@ -89,6 +90,12 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         return add(request, null);
     }
 
+    /**
+     * Add a request to the current BulkRequest.
+     * @param request Request to add
+     * @param payload Optional payload
+     * @return the current bulk request
+     */
     public BulkRequest add(ActionRequest request, @Nullable Object payload) {
         if (request instanceof IndexRequest) {
             add((IndexRequest) request, payload);
@@ -127,7 +134,8 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
     BulkRequest internalAdd(IndexRequest request, @Nullable Object payload) {
         requests.add(request);
         addPayload(payload);
-        sizeInBytes += request.source().length() + REQUEST_OVERHEAD;
+        // lack of source is validated in validate() method
+        sizeInBytes += (request.source() != null ? request.source().length() : 0) + REQUEST_OVERHEAD;
         return this;
     }
 
@@ -478,8 +486,14 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
         if (requests.isEmpty()) {
             validationException = addValidationError("no requests added", validationException);
         }
-        for (int i = 0; i < requests.size(); i++) {
-            ActionRequestValidationException ex = requests.get(i).validate();
+        for (ActionRequest request : requests) {
+            // We first check if refresh has been set
+            if ((request instanceof DeleteRequest && ((DeleteRequest)request).refresh()) ||
+                    (request instanceof UpdateRequest && ((UpdateRequest)request).refresh()) ||
+                    (request instanceof IndexRequest && ((IndexRequest)request).refresh())) {
+                    validationException = addValidationError("Refresh is not supported on an item request, set the refresh flag on the BulkRequest instead.", validationException);
+            }
+            ActionRequestValidationException ex = request.validate();
             if (ex != null) {
                 if (validationException == null) {
                     validationException = new ActionRequestValidationException();

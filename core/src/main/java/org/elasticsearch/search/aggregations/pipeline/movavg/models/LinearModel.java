@@ -40,6 +40,7 @@ import java.util.Map;
  */
 public class LinearModel extends MovAvgModel {
 
+    private static final LinearModel PROTOTYPE = new LinearModel();
     protected static final ParseField NAME_FIELD = new ParseField("linear");
 
 
@@ -85,7 +86,7 @@ public class LinearModel extends MovAvgModel {
     public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
         @Override
         public MovAvgModel readResult(StreamInput in) throws IOException {
-            return new LinearModel();
+            return PROTOTYPE.readFrom(in);
         }
 
         @Override
@@ -93,6 +94,17 @@ public class LinearModel extends MovAvgModel {
             return NAME_FIELD.getPreferredName();
         }
     };
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        return builder;
+    }
+
+    @Override
+    public MovAvgModel readFrom(StreamInput in) throws IOException {
+        return new LinearModel();
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -120,5 +132,21 @@ public class LinearModel extends MovAvgModel {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             return builder;
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return 0;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        return true;
     }
 }

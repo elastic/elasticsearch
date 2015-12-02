@@ -23,6 +23,7 @@ import com.carrotsearch.hppc.ObjectFloatHashMap;
 import com.carrotsearch.hppc.ObjectHashSet;
 import com.carrotsearch.hppc.ObjectSet;
 import com.carrotsearch.hppc.cursors.ObjectCursor;
+
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
@@ -78,7 +79,11 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.dfs.DfsPhase;
 import org.elasticsearch.search.dfs.DfsSearchResult;
-import org.elasticsearch.search.fetch.*;
+import org.elasticsearch.search.fetch.FetchPhase;
+import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.QueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ScrollQueryFetchSearchResult;
+import org.elasticsearch.search.fetch.ShardFetchRequest;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsContext.FieldDataField;
 import org.elasticsearch.search.fetch.fielddata.FieldDataFieldsFetchSubPhase;
@@ -86,7 +91,13 @@ import org.elasticsearch.search.fetch.script.ScriptFieldsContext.ScriptField;
 import org.elasticsearch.search.highlight.HighlightBuilder;
 import org.elasticsearch.search.internal.*;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
-import org.elasticsearch.search.query.*;
+import org.elasticsearch.search.internal.ShardSearchLocalRequest;
+import org.elasticsearch.search.internal.ShardSearchRequest;
+import org.elasticsearch.search.query.QueryPhase;
+import org.elasticsearch.search.query.QuerySearchRequest;
+import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.QuerySearchResultProvider;
+import org.elasticsearch.search.query.ScrollQuerySearchResult;
 import org.elasticsearch.search.warmer.IndexWarmersMetaData;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -742,7 +753,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     // ignore
                 }
                 XContentLocation location = completeAggregationsParser != null ? completeAggregationsParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
+                throw new SearchParseException(context, "failed to parse aggregation source [" + sSource + "]", location, e);
             }
         }
         if (source.suggest() != null) {

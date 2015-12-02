@@ -260,7 +260,7 @@ public class WatchTests extends ESTestCase {
         ConditionRegistry conditionRegistry = registry(new ExecutableAlwaysCondition(logger));
         InputRegistry inputRegistry = registry(new ExecutableNoneInput(logger));
         TransformRegistry transformRegistry = transformRegistry();
-        ExecutableActions actions =  new ExecutableActions(Collections.EMPTY_LIST);
+        ExecutableActions actions =  new ExecutableActions(Collections.emptyList());
         ActionRegistry actionRegistry = registry(actions, transformRegistry);
 
         XContentBuilder builder = XContentFactory.jsonBuilder();

@@ -178,6 +178,6 @@ public class CapturingTransport implements Transport {
 
     @Override
     public List<String> getLocalAddresses() {
-        return Collections.EMPTY_LIST;
+        return Collections.emptyList();
     }
 }

@@ -31,7 +31,7 @@ import java.util.Map;
  */
 public class SignificanceHeuristicStreams {
 
-    private static Map<String, Stream> STREAMS = Collections.EMPTY_MAP;
+    private static Map<String, Stream> STREAMS = Collections.emptyMap();
 
     static {
         HashMap<String, Stream> map = new HashMap<>();

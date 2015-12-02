@@ -3,14 +3,14 @@
 
 === Processors
 
-==== Add processor
-Adds one or more fields and associates them with the specified values. If a field already exists,
+==== Set processor
+Sets one or more fields and associates them with the specified values. If a field already exists,
 its value will be replaced with the provided one.
 
 [source,js]
 --------------------------------------------------
 {
-  "add": {
+  "set": {
     "fields": {
       "field": 582.1
     }

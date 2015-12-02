@@ -106,6 +106,10 @@ public class DependencyLicensesTask extends DefaultTask {
 
     @TaskAction
     public void checkDependencies() {
+        // TODO REMOVE THIS DIRTY FIX FOR #15168
+        if (licensesDir.exists() == false) {
+            return
+        }
         if (licensesDir.exists() == false && dependencies.isEmpty() == false) {
             throw new GradleException("Licences dir ${licensesDir} does not exist, but there are dependencies")
         }

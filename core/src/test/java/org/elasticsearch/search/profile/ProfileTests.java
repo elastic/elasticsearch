@@ -91,7 +91,7 @@ public class ProfileTests extends ESTestCase {
         List<ProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_WEIGHT.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
@@ -110,7 +110,7 @@ public class ProfileTests extends ESTestCase {
         List<ProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_WEIGHT.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));
@@ -145,7 +145,7 @@ public class ProfileTests extends ESTestCase {
         List<ProfileResult> results = profiler.getQueryTree();
         assertEquals(1, results.size());
         Map<String, Long> breakdown = results.get(0).getTimeBreakdown();
-        assertThat(breakdown.get(ProfileBreakdown.TimingType.WEIGHT.toString()).longValue(), greaterThan(0L));
+        assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_WEIGHT.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.BUILD_SCORER.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.NEXT_DOC.toString()).longValue(), greaterThan(0L));
         assertThat(breakdown.get(ProfileBreakdown.TimingType.ADVANCE.toString()).longValue(), equalTo(0L));

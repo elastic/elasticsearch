@@ -33,7 +33,7 @@ public final class ProfileBreakdown {
 
     /** Enumeration of all supported timing types. */
     public enum TimingType {
-        WEIGHT,
+        BUILD_WEIGHT,
         BUILD_SCORER,
         NEXT_DOC,
         ADVANCE,

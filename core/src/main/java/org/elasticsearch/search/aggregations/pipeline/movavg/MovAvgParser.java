@@ -28,8 +28,6 @@ import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregatorFactory;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModel;
 import org.elasticsearch.search.aggregations.pipeline.movavg.models.MovAvgModelParserMapper;
-import org.elasticsearch.search.aggregations.support.format.ValueFormat;
-import org.elasticsearch.search.aggregations.support.format.ValueFormatter;
 import org.elasticsearch.search.internal.SearchContext;
 
 import java.io.IOException;
@@ -65,11 +63,11 @@ public class MovAvgParser implements PipelineAggregator.Parser {
         String[] bucketsPaths = null;
         String format = null;
 
-        GapPolicy gapPolicy = GapPolicy.SKIP;
-        int window = 5;
+        GapPolicy gapPolicy = null;
+        Integer window = null;
         Map<String, Object> settings = null;
-        String model = "simple";
-        int predict = 0;
+        String model = null;
+        Integer predict = null;
         Boolean minimize = null;
 
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
@@ -86,8 +84,8 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                 } else if (context.parseFieldMatcher().match(currentFieldName, PREDICT)) {
                     predict = parser.intValue();
                     if (predict <= 0) {
-                        throw new SearchParseException(context, "[" + currentFieldName + "] value must be a positive, "
-                                + "non-zero integer.  Value supplied was [" + predict + "] in [" + pipelineAggregatorName + "].",
+                        throw new SearchParseException(context, "[" + currentFieldName + "] value must be a positive integer."
+                                + "  Value supplied was [" + predict + "] in [" + pipelineAggregatorName + "].",
                                 parser.getTokenLocation());
                     }
                 } else {
@@ -144,43 +142,44 @@ public class MovAvgParser implements PipelineAggregator.Parser {
                     + "] for movingAvg aggregation [" + pipelineAggregatorName + "]", parser.getTokenLocation());
         }
 
-        ValueFormatter formatter = null;
+        MovAvgPipelineAggregator.Factory factory = new MovAvgPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths);
         if (format != null) {
-            formatter = ValueFormat.Patternable.Number.format(format).formatter();
-        } else {
-            formatter = ValueFormatter.RAW;
+            factory.format(format);
         }
-
-        MovAvgModel.AbstractModelParser modelParser = movAvgModelParserMapper.get(model);
-        if (modelParser == null) {
-            throw new SearchParseException(context, "Unknown model [" + model + "] specified.  Valid options are:"
-                    + movAvgModelParserMapper.getAllNames().toString(), parser.getTokenLocation());
+        if (gapPolicy != null) {
+            factory.gapPolicy(gapPolicy);
         }
-
-        MovAvgModel movAvgModel;
-        try {
-            movAvgModel = modelParser.parse(settings, pipelineAggregatorName, window, context.parseFieldMatcher());
-        } catch (ParseException exception) {
-            throw new SearchParseException(context, "Could not parse settings for model [" + model + "].", null, exception);
+        if (window != null) {
+            factory.window(window);
         }
-
-        // If the user doesn't set a preference for cost minimization, ask what the model prefers
-        if (minimize == null) {
-            minimize = movAvgModel.minimizeByDefault();
-        } else if (minimize && !movAvgModel.canBeMinimized()) {
-            // If the user asks to minimize, but this model doesn't support it, throw exception
-            throw new SearchParseException(context, "The [" + model + "] model cannot be minimized.", null);
+        if (predict != null) {
+            factory.predict(predict);
         }
+        if (model != null) {
+            MovAvgModel.AbstractModelParser modelParser = movAvgModelParserMapper.get(model);
+            if (modelParser == null) {
+                throw new SearchParseException(context,
+                        "Unknown model [" + model + "] specified.  Valid options are:" + movAvgModelParserMapper.getAllNames().toString(),
+                        parser.getTokenLocation());
+            }
 
-
-        return new MovAvgPipelineAggregator.Factory(pipelineAggregatorName, bucketsPaths, formatter, gapPolicy, window, predict,
-                movAvgModel, minimize);
+            MovAvgModel movAvgModel;
+            try {
+                movAvgModel = modelParser.parse(settings, pipelineAggregatorName, window, context.parseFieldMatcher());
+            } catch (ParseException exception) {
+                throw new SearchParseException(context, "Could not parse settings for model [" + model + "].", null, exception);
+            }
+            factory.model(movAvgModel);
+        }
+        if (minimize != null) {
+            factory.minimize(minimize);
+        }
+        return factory;
     }
 
-    // NORELEASE implement this method when refactoring this aggregation
     @Override
     public PipelineAggregatorFactory getFactoryPrototype() {
-        return null;
+        return new MovAvgPipelineAggregator.Factory(null, null);
     }
 
 }

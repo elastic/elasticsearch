@@ -32,13 +32,16 @@ import java.text.ParseException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Calculate a exponentially weighted moving average
  */
 public class EwmaModel extends MovAvgModel {
 
+    private static final EwmaModel PROTOTYPE = new EwmaModel();
     protected static final ParseField NAME_FIELD = new ParseField("ewma");
+    public static final double DEFAULT_ALPHA = 0.3;
 
     /**
      * Controls smoothing of data.  Also known as "level" value.
@@ -47,6 +50,10 @@ public class EwmaModel extends MovAvgModel {
      * mean of the series).
      */
     private final double alpha;
+
+    public EwmaModel() {
+        this(DEFAULT_ALPHA);
+    }
 
     public EwmaModel(double alpha) {
         this.alpha = alpha;
@@ -97,7 +104,7 @@ public class EwmaModel extends MovAvgModel {
     public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
         @Override
         public MovAvgModel readResult(StreamInput in) throws IOException {
-            return new EwmaModel(in.readDouble());
+            return PROTOTYPE.readFrom(in);
         }
 
         @Override
@@ -107,9 +114,40 @@ public class EwmaModel extends MovAvgModel {
     };
 
     @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
+        builder.field("alpha", alpha);
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public MovAvgModel readFrom(StreamInput in) throws IOException {
+        return new EwmaModel(in.readDouble());
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(STREAM.getName());
         out.writeDouble(alpha);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(alpha);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        EwmaModel other = (EwmaModel) obj;
+        return Objects.equals(alpha, other.alpha);
     }
 
     public static class SingleExpModelParser extends AbstractModelParser {
@@ -123,7 +161,7 @@ public class EwmaModel extends MovAvgModel {
         public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
                                  ParseFieldMatcher parseFieldMatcher) throws ParseException {
 
-            double alpha = parseDoubleParam(settings, "alpha", 0.3);
+            double alpha = parseDoubleParam(settings, "alpha", DEFAULT_ALPHA);
             checkUnrecognizedParams(settings);
             return new EwmaModel(alpha);
         }

@@ -98,7 +98,10 @@ public final class GrokProcessor implements Processor {
         public GrokProcessor create(Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(config, "field");
             String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern");
+            Map<String, String> customPatternBank = ConfigurationUtils.readOptionalMap(config, "pattern_definitions");
+
             Map<String, String> patternBank = new HashMap<>();
+
             Path patternsDirectory = grokConfigDirectory.resolve("patterns");
             try (DirectoryStream<Path> stream = Files.newDirectoryStream(patternsDirectory)) {
                 for (Path patternFilePath : stream) {
@@ -108,6 +111,10 @@ public final class GrokProcessor implements Processor {
                         }
                     }
                 }
+            }
+
+            if (customPatternBank != null) {
+                patternBank.putAll(customPatternBank);
             }
 
             Grok grok = new Grok(patternBank, matchPattern);

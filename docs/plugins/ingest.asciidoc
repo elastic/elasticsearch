@@ -245,6 +245,7 @@ TIME (?!<[0-9])%{HOUR}:%{MINUTE}(?::%{SECOND})(?![0-9])
 | Name                   | Required  | Default             | Description
 | `match_field`          | yes       | -                   | The field to use for grok expression parsing
 | `match_pattern`        | yes       | -                   | The grok expression to match and extract named captures with
+| `pattern_definitions`  | no        | -                   | A map of pattern-name and pattern tuples defining custom patterns to be used by the current processor. Patterns matching existing names will override the pre-existing definition.
 |======
 
 Here is an example of using the provided patterns to extract out and name structured fields from a string field in
@@ -294,6 +295,28 @@ This pipeline will insert these named captures as new fields within the document
   "duration": "0.043"
 }
 --------------------------------------------------
+
+An example of a pipeline specifying custom pattern definitions:
+
+[source,js]
+--------------------------------------------------
+{
+  "description" : "...",
+  "processors": [
+    {
+      "grok": {
+        "match_field": "message",
+        "match_pattern": "my %{FAVORITE_DOG:dog} is colored %{RGB:color}"
+        "pattern_definitions" : {
+          "FAVORITE_DOG" : "beagle",
+          "RGB" : "RED|GREEN|BLUE"
+        }
+      }
+    }
+  ]
+}
+--------------------------------------------------
+
 
 ==== Geoip processor
 

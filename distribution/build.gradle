@@ -20,6 +20,7 @@
 import org.apache.tools.ant.filters.FixCrLfFilter
 import org.apache.tools.ant.taskdefs.condition.Os
 import org.elasticsearch.gradle.precommit.DependencyLicensesTask
+import org.elasticsearch.gradle.precommit.UpdateShasTask
 import org.elasticsearch.gradle.test.RunTask
 import org.elasticsearch.gradle.EmptyDirTask
 import org.elasticsearch.gradle.MavenFilteringHack
@@ -293,12 +294,15 @@ configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
 
 // TODO: dependency checks should really be when building the jar itself, which would remove the need
 // for this hackery and instead we can do this inside the BuildPlugin
-task check(group: 'Verification', description: 'Runs all checks.') {} // dummy task!
-DependencyLicensesTask.configure(project) {
+task dependencyLicenses(type: DependencyLicensesTask) {
   dependsOn = [dependencyFiles]
   dependencies = dependencyFiles
   mapping from: /lucene-.*/, to: 'lucene'
   mapping from: /jackson-.*/, to: 'jackson'
+}
+task check(group: 'Verification', description: 'Runs all checks.', dependsOn: dependencyLicenses) {} // dummy task!
+task updateShas(type: UpdateShasTask) {
+  parentTask = dependencyLicenses
 }
 
 RunTask.configure(project)

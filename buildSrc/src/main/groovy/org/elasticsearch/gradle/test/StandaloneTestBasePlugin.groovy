@@ -56,6 +56,7 @@ class StandaloneTestBasePlugin implements Plugin<Project> {
                 plusConfigurations = [project.configurations.testRuntime]
             }
         }
-        PrecommitTasks.configure(project)
+        PrecommitTasks.create(project, false)
+        project.check.dependsOn(project.precommit)
     }
 }

@@ -62,7 +62,7 @@ class BuildPlugin implements Plugin<Project> {
         configureCompile(project)
 
         configureTest(project)
-        PrecommitTasks.configure(project)
+        configurePrecommit(project)
     }
 
     /** Performs checks on the build environment and prints information about the build environment. */
@@ -415,5 +415,12 @@ class BuildPlugin implements Plugin<Project> {
             include '**/*Tests.class'
         }
         return test
+    }
+
+    private static configurePrecommit(Project project) {
+        Task precommit = PrecommitTasks.create(project, true)
+        project.check.dependsOn(precommit)
+        project.test.mustRunAfter(precommit)
+        project.dependencyLicenses.dependencies = project.configurations.runtime - project.configurations.provided
     }
 }

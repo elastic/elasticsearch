@@ -79,14 +79,15 @@ public class GceComputeServiceImpl extends AbstractLifecycleComponent<GceCompute
                         return list.execute();
                     }
                 });
-                if (instanceList.isEmpty()) {
-                    return Collections.EMPTY_LIST;
-                }
-                return instanceList.getItems();
+                // assist type inference
+                List<Instance> items = instanceList.isEmpty() ? Collections.emptyList() : instanceList.getItems();
+                return items;
             } catch (PrivilegedActionException e) {
                 logger.warn("Problem fetching instance list for zone {}", zoneId);
                 logger.debug("Full exception:", e);
-                return Collections.EMPTY_LIST;
+                // assist type inference
+                List<Instance> items = Collections.emptyList();
+                return items;
             }
         }).reduce(new ArrayList<>(), (a, b) -> {
             a.addAll(b);

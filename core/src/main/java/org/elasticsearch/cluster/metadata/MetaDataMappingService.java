@@ -219,7 +219,7 @@ public class MetaDataMappingService extends AbstractComponent {
                                 IndexService indexService;
                                 if (indicesService.hasIndex(index) == false) {
                                     indicesToClose.add(index);
-                                    indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.EMPTY_LIST);
+                                    indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
                                     // add mappings for all types, we need them for cross-type validation
                                     for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
                                         indexService.mapperService().merge(mapping.value.type(), mapping.value.source(), false, request.updateAllTypes());

@@ -121,12 +121,12 @@ public class Template extends Script {
 
     @SuppressWarnings("unchecked")
     public static Script parse(Map<String, Object> config, boolean removeMatchedEntries, ParseFieldMatcher parseFieldMatcher) {
-        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(config, removeMatchedEntries, parseFieldMatcher);
+        return new TemplateParser(Collections.emptyMap(), MustacheScriptEngineService.NAME).parse(config, removeMatchedEntries, parseFieldMatcher);
     }
 
     @SuppressWarnings("unchecked")
     public static Template parse(XContentParser parser, ParseFieldMatcher parseFieldMatcher) throws IOException {
-        return new TemplateParser(Collections.EMPTY_MAP, MustacheScriptEngineService.NAME).parse(parser, parseFieldMatcher);
+        return new TemplateParser(Collections.emptyMap(), MustacheScriptEngineService.NAME).parse(parser, parseFieldMatcher);
     }
 
     @Deprecated

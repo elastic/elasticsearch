@@ -78,7 +78,7 @@ public abstract class BucketMetricsPipelineAggregator extends SiblingPipelineAgg
                 }
             }
         }
-        return buildAggregation(Collections.EMPTY_LIST, metaData());
+        return buildAggregation(Collections.emptyList(), metaData());
     }
 
     /**

@@ -112,3 +112,7 @@ java.lang.System#setProperty(java.lang.String,java.lang.String)
 java.lang.System#clearProperty(java.lang.String)
 java.lang.System#getProperties() @ Use BootstrapInfo.getSystemProperties for a read-only view
 
+@defaultMessage Avoid unchecked warnings by using Collections#empty(List|Map|Set) methods
+java.util.Collections#EMPTY_LIST
+java.util.Collections#EMPTY_MAP
+java.util.Collections#EMPTY_SET

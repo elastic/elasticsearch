@@ -294,7 +294,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent<Rep
         if (readOnly()) {
             throw new RepositoryException(this.repositoryName, "cannot delete snapshot from a readonly repository");
         }
-        List<String> indices = Collections.EMPTY_LIST;
+        List<String> indices = Collections.emptyList();
         Snapshot snapshot = null;
         try {
             snapshot = readSnapshot(snapshotId);

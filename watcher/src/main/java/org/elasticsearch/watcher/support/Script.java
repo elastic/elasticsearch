@@ -56,7 +56,7 @@ public class Script implements ToXContent {
     }
 
     public Map<String, Object> params() {
-        return params != null ? params : Collections.EMPTY_MAP;
+        return params != null ? params : Collections.emptyMap();
     }
 
     @Override

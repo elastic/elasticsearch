@@ -132,7 +132,7 @@ public class TriggeredWatchStore extends AbstractComponent {
     public void putAll(final List<TriggeredWatch> triggeredWatches, final ActionListener<List<Integer>> listener) throws Exception {
 
         if (triggeredWatches.isEmpty()) {
-            listener.onResponse(Collections.EMPTY_LIST);
+            listener.onResponse(Collections.emptyList());
             return;
         }
 

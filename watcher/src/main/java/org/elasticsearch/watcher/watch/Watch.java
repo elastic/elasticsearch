@@ -230,7 +230,7 @@ public class Watch implements TriggerEngine.Job, ToXContent {
             this.secretService = secretService;
             this.defaultInput = new ExecutableNoneInput(logger);
             this.defaultCondition = new ExecutableAlwaysCondition(logger);
-            this.defaultActions = new ExecutableActions(Collections.EMPTY_LIST);
+            this.defaultActions = new ExecutableActions(Collections.emptyList());
             this.clock = clock;
         }
 

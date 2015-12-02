@@ -51,7 +51,7 @@ public class TextTemplate implements ToXContent {
     }
 
     public Map<String, Object> getParams() {
-        return params != null ? params : Collections.EMPTY_MAP;
+        return params != null ? params : Collections.emptyMap();
     }
 
     @Override

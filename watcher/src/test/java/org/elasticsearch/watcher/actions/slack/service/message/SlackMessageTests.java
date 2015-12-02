@@ -450,7 +450,7 @@ public class SlackMessageTests extends ESTestCase {
 
         SlackMessage.Template template = templateBuilder.build();
 
-        SlackMessage message = template.render("_w1", "_a1", engine, Collections.EMPTY_MAP, defaults);
+        SlackMessage message = template.render("_w1", "_a1", engine, Collections.emptyMap(), defaults);
         assertThat(message, notNullValue());
         if (template.from != null) {
             assertThat(message.from, is(template.from.getTemplate()));

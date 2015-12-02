@@ -76,7 +76,7 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
     private final Transport transport;
     private final ShieldLicenseState licenseState;
     private final boolean alwaysAllowBoundAddresses;
-    private Map<String, ShieldIpFilterRule[]> rules = Collections.EMPTY_MAP;
+    private Map<String, ShieldIpFilterRule[]> rules = Collections.emptyMap();
     private HttpServerTransport httpServerTransport = null;
 
     @Inject
@@ -156,7 +156,7 @@ public class IPFilter extends AbstractLifecycleComponent<IPFilter> {
         boolean isHttpFilterEnabled = settings.getAsBoolean(IP_FILTER_ENABLED_HTTP_SETTING, isIpFilterEnabled);
 
         if (!isIpFilterEnabled && !isHttpFilterEnabled) {
-            return Collections.EMPTY_MAP;
+            return Collections.emptyMap();
         }
 
         Map<String, ShieldIpFilterRule[]> profileRules = new HashMap<>();

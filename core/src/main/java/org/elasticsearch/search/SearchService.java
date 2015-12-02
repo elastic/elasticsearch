@@ -96,7 +96,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.SearchContext.Lifetime;
 import org.elasticsearch.search.internal.ShardSearchLocalRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
-import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QueryPhase;
 import org.elasticsearch.search.query.QuerySearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
@@ -755,7 +754,7 @@ public class SearchService extends AbstractLifecycleComponent<SearchService> imp
                     // ignore
                 }
                 XContentLocation location = completeAggregationsParser != null ? completeAggregationsParser.getTokenLocation() : null;
-                throw new SearchParseException(context, "failed to parse rescore source [" + sSource + "]", location, e);
+                throw new SearchParseException(context, "failed to parse aggregation source [" + sSource + "]", location, e);
             }
         }
         if (source.suggest() != null) {

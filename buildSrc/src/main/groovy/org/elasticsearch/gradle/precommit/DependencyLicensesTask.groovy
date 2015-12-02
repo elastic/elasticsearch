@@ -106,16 +106,15 @@ public class DependencyLicensesTask extends DefaultTask {
 
     @TaskAction
     public void checkDependencies() {
-        // TODO REMOVE THIS DIRTY FIX FOR #15168
-        if (licensesDir.exists() == false) {
-            return
-        }
-        if (licensesDir.exists() == false && dependencies.isEmpty() == false) {
+        if (dependencies.isEmpty()) {
+            if (licensesDir.exists()) {
+                throw new GradleException("Licenses dir ${licensesDir} exists, but there are no dependencies")
+            }
+            return // no dependencies to check
+        } else if (licensesDir.exists() == false) {
             throw new GradleException("Licences dir ${licensesDir} does not exist, but there are dependencies")
         }
-        if (licensesDir.exists() && dependencies.isEmpty()) {
-            throw new GradleException("Licenses dir ${licensesDir} exists, but there are no dependencies")
-        }
+
 
         // order is the same for keys and values iteration since we use a linked hashmap
         List<String> mapped = new ArrayList<>(mappings.values())

@@ -23,9 +23,9 @@ that connects to a cluster.
 *Important:*
 
 ______________________________________________________________________________________________________________________________________________________________
-Please note that you are encouraged to use the same version on client
-and cluster sides. You may hit some incompatibility issues when mixing
-major versions.
+You may use the Java client as long as the major version matches. You should upgrade to use a matching version at your earliest convenience. You should upgrade the client before upgrading the cluster. You may not use a client that differs across major versions.
+
+These recommendations come from the relative rigor of testing. We have thousands of tests that run on the same version. We have maybe a hundred that test using a more modern version of the client against an old version of the cluster. There are no tests using an old version of the client with a more modern cluster.
 ______________________________________________________________________________________________________________________________________________________________
 
 

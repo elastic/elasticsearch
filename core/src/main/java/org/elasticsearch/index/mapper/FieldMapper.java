@@ -360,7 +360,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof FieldMapper) {
@@ -614,7 +614,7 @@ public abstract class FieldMapper extends Mapper {
         }
 
         // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
-        public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        public void merge(Mapper mergeWith, MergeResult mergeResult) {
             FieldMapper mergeWithMultiField = (FieldMapper) mergeWith;
 
             List<FieldMapper> newFieldMappers = null;

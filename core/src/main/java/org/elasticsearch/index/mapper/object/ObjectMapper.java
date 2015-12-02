@@ -464,7 +464,7 @@ public class ObjectMapper extends Mapper implements AllFieldMapper.IncludeInAll,
     }
 
     @Override
-    public void merge(final Mapper mergeWith, final MergeResult mergeResult) throws MergeMappingException {
+    public void merge(final Mapper mergeWith, final MergeResult mergeResult) {
         if (!(mergeWith instanceof ObjectMapper)) {
             mergeResult.addConflict("Can't merge a non object mapping [" + mergeWith.name() + "] with an object mapping [" + name() + "]");
             return;

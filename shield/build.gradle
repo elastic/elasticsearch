@@ -27,6 +27,8 @@ compileTestJava.options.compilerArgs << "-Xlint:-deprecation,-rawtypes,-serial,-
 // no integ tests...
 integTest.enabled = false
 
+dependencyLicenses.enabled = false
+
 // TODO: standardize packaging config for plugins
 bundlePlugin {
   from(projectDir) {

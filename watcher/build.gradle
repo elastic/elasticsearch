@@ -59,6 +59,8 @@ bundlePlugin {
   }
 }
 
+dependencyLicenses.enabled = false
+
 // TODO: don't publish test artifacts just to run messy tests, fix the tests!
 // https://github.com/elastic/x-plugins/issues/724
 configurations {

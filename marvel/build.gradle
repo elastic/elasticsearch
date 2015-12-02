@@ -49,6 +49,8 @@ integTest {
   }
 }
 
+dependencyLicenses.enabled = false
+
 bundlePlugin {
   from(projectDir) {
     include 'LICENSE.txt'

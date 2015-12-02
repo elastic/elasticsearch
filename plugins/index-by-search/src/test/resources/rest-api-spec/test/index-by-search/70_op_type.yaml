@@ -1,0 +1,109 @@
+---
+"op_type defaults to index":
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           1
+        body:         { "company": "cat" }
+  - do:
+      index:
+        index:        test
+        type:         dest
+        id:           1
+        body:         { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: test
+            type:  src
+          index:
+            index:   test
+            type:    dest
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:cat
+  - match: { hits.total: 1 }
+
+---
+"op_type can be set to index":
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           1
+        body:         { "company": "cat" }
+  - do:
+      index:
+        index:        test
+        type:         dest
+        id:           1
+        body:         { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:   test
+            type:    src
+          index:
+            index:   test
+            type:    dest
+            op_type: index
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:cat
+  - match: { hits.total: 1 }
+
+---
+"op_type can be set to create":
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           1
+        body:         { "company": "cat" }
+  - do:
+      index:
+        index:        test
+        type:         dest
+        id:           1
+        body:         { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:   test
+            type:    src
+          index:
+            index:   test
+            type:    dest
+            op_type: create
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:dog
+  - match: { hits.total: 1 }

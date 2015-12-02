@@ -32,7 +32,12 @@ import org.elasticsearch.search.aggregations.pipeline.movavg.MovAvgParser;
 
 import java.io.IOException;
 import java.text.ParseException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 
 /**
  * Calculate a triple exponential weighted moving average
@@ -40,6 +45,13 @@ import java.util.*;
 public class HoltWintersModel extends MovAvgModel {
 
     protected static final ParseField NAME_FIELD = new ParseField("holt_winters");
+    public static final double DEFAULT_ALPHA = 0.3;
+    public static final double DEFAULT_BETA = 0.1;
+    public static final double DEFAULT_GAMMA = 0.3;
+    public static final int DEFAULT_PERIOD = 1;
+    public static final SeasonalityType DEFAULT_SEASONALITY_TYPE = SeasonalityType.ADDITIVE;
+    public static final boolean DEFAULT_PAD = false;
+    private static final HoltWintersModel PROTOTYPE = new HoltWintersModel();
 
     /**
      * Controls smoothing of data.  Also known as "level" value.
@@ -155,6 +167,9 @@ public class HoltWintersModel extends MovAvgModel {
         }
     }
 
+    public HoltWintersModel() {
+        this(DEFAULT_ALPHA, DEFAULT_BETA, DEFAULT_GAMMA, DEFAULT_PERIOD, DEFAULT_SEASONALITY_TYPE, DEFAULT_PAD);
+    }
 
     public HoltWintersModel(double alpha, double beta, double gamma, int period, SeasonalityType seasonalityType, boolean pad) {
         this.alpha = alpha;
@@ -269,8 +284,8 @@ public class HoltWintersModel extends MovAvgModel {
             s += vs[i];
             b += (vs[i + period] - vs[i]) / period;
         }
-        s /= (double) period;
-        b /= (double) period;
+        s /= period;
+        b /= period;
         last_s = s;
 
         // Calculate first seasonal
@@ -320,14 +335,7 @@ public class HoltWintersModel extends MovAvgModel {
     public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
         @Override
         public MovAvgModel readResult(StreamInput in) throws IOException {
-            double alpha = in.readDouble();
-            double beta = in.readDouble();
-            double gamma = in.readDouble();
-            int period = in.readVInt();
-            SeasonalityType type = SeasonalityType.readFrom(in);
-            boolean pad = in.readBoolean();
-
-            return new HoltWintersModel(alpha, beta, gamma, period, type, pad);
+            return PROTOTYPE.readFrom(in);
         }
 
         @Override
@@ -335,6 +343,26 @@ public class HoltWintersModel extends MovAvgModel {
             return NAME_FIELD.getPreferredName();
         }
     };
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        builder.startObject(MovAvgParser.SETTINGS.getPreferredName());
+        builder.field("alpha", alpha);
+        builder.field("beta", beta);
+        builder.field("gamma", gamma);
+        builder.field("period", period);
+        builder.field("pad", pad);
+        builder.field("type", seasonalityType.getName());
+        builder.endObject();
+        return builder;
+    }
+
+    @Override
+    public MovAvgModel readFrom(StreamInput in) throws IOException {
+        return new HoltWintersModel(in.readDouble(), in.readDouble(), in.readDouble(), in.readVInt(), SeasonalityType.readFrom(in),
+                in.readBoolean());
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -345,6 +373,28 @@ public class HoltWintersModel extends MovAvgModel {
         out.writeVInt(period);
         seasonalityType.writeTo(out);
         out.writeBoolean(pad);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(alpha, beta, gamma, period, seasonalityType, pad);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        HoltWintersModel other = (HoltWintersModel) obj;
+        return Objects.equals(alpha, other.alpha) 
+                && Objects.equals(beta, other.beta)
+                && Objects.equals(gamma, other.gamma)
+                && Objects.equals(period, other.period)
+                && Objects.equals(seasonalityType, other.seasonalityType)
+                && Objects.equals(pad, other.pad);
     }
 
     public static class HoltWintersModelParser extends AbstractModelParser {
@@ -358,10 +408,10 @@ public class HoltWintersModel extends MovAvgModel {
         public MovAvgModel parse(@Nullable Map<String, Object> settings, String pipelineName, int windowSize,
                                  ParseFieldMatcher parseFieldMatcher) throws ParseException {
 
-            double alpha = parseDoubleParam(settings, "alpha", 0.3);
-            double beta = parseDoubleParam(settings, "beta", 0.1);
-            double gamma = parseDoubleParam(settings, "gamma", 0.3);
-            int period = parseIntegerParam(settings, "period", 1);
+            double alpha = parseDoubleParam(settings, "alpha", DEFAULT_ALPHA);
+            double beta = parseDoubleParam(settings, "beta", DEFAULT_BETA);
+            double gamma = parseDoubleParam(settings, "gamma", DEFAULT_GAMMA);
+            int period = parseIntegerParam(settings, "period", DEFAULT_PERIOD);
 
             if (windowSize < 2 * period) {
                 throw new ParseException("Field [window] must be at least twice as large as the period when " +
@@ -369,7 +419,7 @@ public class HoltWintersModel extends MovAvgModel {
                         + (2 * period), 0);
             }
 
-            SeasonalityType seasonalityType = SeasonalityType.ADDITIVE;
+            SeasonalityType seasonalityType = DEFAULT_SEASONALITY_TYPE;
 
             if (settings != null) {
                 Object value = settings.get("type");

@@ -38,6 +38,7 @@ import java.util.Map;
  */
 public class SimpleModel extends MovAvgModel {
 
+    private static final SimpleModel PROTOTYPE = new SimpleModel();
     protected static final ParseField NAME_FIELD = new ParseField("simple");
 
 
@@ -78,7 +79,7 @@ public class SimpleModel extends MovAvgModel {
     public static final MovAvgModelStreams.Stream STREAM = new MovAvgModelStreams.Stream() {
         @Override
         public MovAvgModel readResult(StreamInput in) throws IOException {
-            return new SimpleModel();
+            return PROTOTYPE.readFrom(in);
         }
 
         @Override
@@ -86,6 +87,17 @@ public class SimpleModel extends MovAvgModel {
             return NAME_FIELD.getPreferredName();
         }
     };
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
+        return builder;
+    }
+
+    @Override
+    public MovAvgModel readFrom(StreamInput in) throws IOException {
+        return new SimpleModel();
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -113,5 +125,21 @@ public class SimpleModel extends MovAvgModel {
             builder.field(MovAvgParser.MODEL.getPreferredName(), NAME_FIELD.getPreferredName());
             return builder;
         }
+    }
+
+    @Override
+    public int hashCode() {
+        return 0;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj == null) {
+            return false;
+        }
+        if (getClass() != obj.getClass()) {
+            return false;
+        }
+        return true;
     }
 }

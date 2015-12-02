@@ -192,12 +192,7 @@ public class ShieldPlugin extends Plugin {
         }
         if (clientMode == false) {
             module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
-            module.addIndexEventListener(new IndexEventListener() {
-                @Override
-                public void afterIndexCreated(IndexService indexService) {
-                    failIfShieldQueryCacheIsNotActive(indexService.getIndexSettings().getSettings(), false);
-                }
-            });
+            failIfShieldQueryCacheIsNotActive(module.getSettings(), false);
         }
     }
 

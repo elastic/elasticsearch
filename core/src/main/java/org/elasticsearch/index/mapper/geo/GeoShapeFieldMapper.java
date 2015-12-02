@@ -193,7 +193,8 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 } else if (Names.COERCE.equals(fieldName)) {
                     builder.coerce(nodeBooleanValue(fieldNode));
                     iterator.remove();
-                } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)) {
+                } else if (Names.STRATEGY_POINTS_ONLY.equals(fieldName)
+                    && builder.fieldType().strategyName.equals(SpatialStrategy.TERM.getStrategyName()) == false) {
                     builder.fieldType().setPointsOnly(XContentMapValues.nodeBooleanValue(fieldNode));
                     iterator.remove();
                 }
@@ -284,6 +285,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
             termStrategy = new TermQueryPrefixTreeStrategy(prefixTree, names().indexName());
             termStrategy.setDistErrPct(distanceErrorPct());
             defaultStrategy = resolveStrategy(strategyName);
+            defaultStrategy.setPointsOnly(pointsOnly);
         }
 
         @Override
@@ -347,6 +349,9 @@ public class GeoShapeFieldMapper extends FieldMapper {
         public void setStrategyName(String strategyName) {
             checkIfFrozen();
             this.strategyName = strategyName;
+            if (this.strategyName.equals(SpatialStrategy.TERM)) {
+                this.pointsOnly = true;
+            }
         }
 
         public boolean pointsOnly() {
@@ -406,7 +411,6 @@ public class GeoShapeFieldMapper extends FieldMapper {
 
         public PrefixTreeStrategy resolveStrategy(String strategyName) {
             if (SpatialStrategy.RECURSIVE.getStrategyName().equals(strategyName)) {
-                recursiveStrategy.setPointsOnly(pointsOnly());
                 return recursiveStrategy;
             }
             if (SpatialStrategy.TERM.getStrategyName().equals(strategyName)) {
@@ -446,7 +450,7 @@ public class GeoShapeFieldMapper extends FieldMapper {
                 }
                 shape = shapeBuilder.build();
             }
-            if (fieldType().defaultStrategy() instanceof RecursivePrefixTreeStrategy && fieldType().pointsOnly() && !(shape instanceof Point)) {
+            if (fieldType().pointsOnly() && !(shape instanceof Point)) {
                 throw new MapperParsingException("[{" + fieldType().names().fullName() + "}] is configured for points only but a " +
                         ((shape instanceof JtsGeometry) ? ((JtsGeometry)shape).getGeom().getGeometryType() : shape.getClass()) + " was found");
             }

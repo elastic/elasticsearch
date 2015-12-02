@@ -165,7 +165,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             }
         }); // sort for priority ordering
         // First, handle primaries, they must find a place to be allocated on here
-        Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
+        RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
         while (unassignedIterator.hasNext()) {
             MutableShardRouting shard = unassignedIterator.next();
 
@@ -187,8 +187,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             if (shardState.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard started state", shard);
                 allocation.setHasPendingAsyncFetch();
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
+                unassignedIterator.removeAndIgnore();
                 continue;
             }
             shardState.processAllocation(allocation);
@@ -316,8 +315,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                 // if we are restoring this shard we still can allocate
                 if (shard.restoreSource() == null) {
                     // we can't really allocate, so ignore it and continue
-                    unassignedIterator.remove();
-                    routingNodes.ignoredUnassigned().add(shard);
+                    unassignedIterator.removeAndIgnore();
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}][{}]: not allocating, number_of_allocated_shards_found [{}], required_number [{}]", shard.index(), shard.id(), numberOfAllocationsFound, requiredAllocation);
                     }
@@ -347,8 +345,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
-                    unassignedIterator.remove();
+                    unassignedIterator.initialize(node.nodeId(), highestVersion);
 
                     // found a node, so no throttling, no "no", and break out of the loop
                     throttledNodes.clear();
@@ -367,20 +364,18 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                     // we found a match
                     changed = true;
                     // make sure we create one with the version from the recovered state
-                    allocation.routingNodes().assign(new MutableShardRouting(shard, highestVersion), node.nodeId());
-                    unassignedIterator.remove();
+                    unassignedIterator.initialize(node.nodeId(), highestVersion);
                 }
             } else {
                 if (logger.isDebugEnabled()) {
                     logger.debug("[{}][{}]: throttling allocation [{}] to [{}] on primary allocation", shard.index(), shard.id(), shard, throttledNodes);
                 }
                 // we are throttling this, but we have enough to allocate to this node, ignore it for now
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
+                unassignedIterator.removeAndIgnore();
             }
         }
 
-        if (!routingNodes.hasUnassigned()) {
+        if (routingNodes.unassigned().isEmpty()) {
             return changed;
         }
 
@@ -410,8 +405,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
 
             if (!canBeAllocatedToAtLeastOneNode) {
                 logger.trace("{}: ignoring allocation, can't be allocated on any node", shard);
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
+                unassignedIterator.removeAndIgnore();
                 continue;
             }
 
@@ -424,8 +418,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
             if (shardStores.hasData() == false) {
                 logger.trace("{}: ignoring allocation, still fetching shard stores", shard);
                 allocation.setHasPendingAsyncFetch();
-                unassignedIterator.remove();
-                routingNodes.ignoredUnassigned().add(shard);
+                unassignedIterator.removeAndIgnore();
                 continue; // still fetching
             }
             shardStores.processAllocation(allocation);
@@ -516,16 +509,14 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                         logger.debug("[{}][{}]: throttling allocation [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }
                     // we are throttling this, but we have enough to allocate to this node, ignore it for now
-                    unassignedIterator.remove();
-                    routingNodes.ignoredUnassigned().add(shard);
+                    unassignedIterator.removeAndIgnore();
                 } else {
                     if (logger.isDebugEnabled()) {
                         logger.debug("[{}][{}]: allocating [{}] to [{}] in order to reuse its unallocated persistent store with total_size [{}]", shard.index(), shard.id(), shard, lastDiscoNodeMatched, new ByteSizeValue(lastSizeMatched));
                     }
                     // we found a match
                     changed = true;
-                    allocation.routingNodes().assign(shard, lastNodeMatched.nodeId());
-                    unassignedIterator.remove();
+                    unassignedIterator.initialize(lastNodeMatched.nodeId(), shard.version());
                 }
             } else if (hasReplicaData == false) {
                 // if we didn't manage to find *any* data (regardless of matching sizes), check if the allocation
@@ -541,8 +532,7 @@ public class LocalGatewayAllocator extends AbstractComponent implements GatewayA
                      * see {@link org.elasticsearch.cluster.routing.RoutingService#clusterChanged(ClusterChangedEvent)}).
                      */
                     changed = true;
-                    unassignedIterator.remove();
-                    routingNodes.ignoredUnassigned().add(shard);
+                    unassignedIterator.removeAndIgnore();
                 }
             }
         }

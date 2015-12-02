@@ -300,7 +300,7 @@ public class RoutingTable implements Iterable<IndexRoutingTable> {
                     indexBuilder.addShard(refData, shardRoutingEntry);
                 }
             }
-            for (MutableShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.ignoredUnassigned())) {
+            for (MutableShardRouting shardRoutingEntry : Iterables.concat(routingNodes.unassigned(), routingNodes.unassigned().ignored())) {
                 String index = shardRoutingEntry.index();
                 IndexRoutingTable.Builder indexBuilder = indexRoutingTableBuilders.get(index);
                 if (indexBuilder == null) {

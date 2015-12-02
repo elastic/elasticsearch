@@ -177,7 +177,7 @@ public class AllocationService extends AbstractComponent {
         changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
 
         // now allocate all the unassigned to available nodes
-        if (allocation.routingNodes().hasUnassigned()) {
+        if (allocation.routingNodes().unassigned().isEmpty() == false) {
             changed |= shardsAllocators.allocateUnassigned(allocation);
             // elect primaries again, in case this is needed with unassigned allocation
             changed |= electPrimariesAndUnassignedDanglingReplicas(allocation);
@@ -487,18 +487,7 @@ public class AllocationService extends AbstractComponent {
                         // so we give a chance for other allocations and won't create poison failed allocations
                         // that can keep other shards from being allocated (because of limits applied on how many
                         // shards we can start per node)
-                        List<MutableShardRouting> shardsToMove = Lists.newArrayList();
-                        for (Iterator<MutableShardRouting> unassignedIt = routingNodes.unassigned().iterator(); unassignedIt.hasNext(); ) {
-                            MutableShardRouting unassignedShardRouting = unassignedIt.next();
-                            if (unassignedShardRouting.shardId().equals(failedShard.shardId())) {
-                                unassignedIt.remove();
-                                shardsToMove.add(unassignedShardRouting);
-                            }
-                        }
-                        if (!shardsToMove.isEmpty()) {
-                            routingNodes.unassigned().addAll(shardsToMove);
-                        }
-
+                        routingNodes.unassigned().moveToEnd(failedShard.shardId());
                         node.moveToUnassigned(unassignedInfo);
                         break;
                     }

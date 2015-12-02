@@ -80,10 +80,21 @@ public class CompressorFactory {
 
         XContentType contentType = XContentFactory.xContentType(bytes);
         if (contentType == null) {
+            if (isAncient(bytes)) {
+                throw new IllegalStateException("unsupported compression: index was created before v2.0.0.beta1 and wasn't upgraded?");
+            }
             throw new NotXContentException("Compressor detection can only be called on some xcontent bytes or compressed xcontent bytes");
         }
 
         return null;
+    }
+
+    /** true if the bytes were compressed with LZF: only used before elasticsearch 2.0 */
+    private static boolean isAncient(BytesReference bytes) {
+        return bytes.length() >= 3 &&
+               bytes.get(0) == 'Z' &&
+               bytes.get(1) == 'V' &&
+               (bytes.get(2) == 0 || bytes.get(2) == 1);
     }
 
     public static Compressor compressor(ChannelBuffer buffer) {

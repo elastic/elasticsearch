@@ -280,46 +280,6 @@ public class OldIndexBackwardsCompatibilityIT extends ESIntegTestCase {
         }
     }
 
-    public void testHandlingOfUnsupportedDanglingIndexes() throws Exception {
-        setupCluster();
-        Collections.shuffle(unsupportedIndexes, getRandom());
-        for (String index : unsupportedIndexes) {
-            assertUnsupportedIndexHandling(index);
-        }
-    }
-
-    /**
-     * Waits for the index to show up in the cluster state in closed state
-     */
-    void ensureClosed(final String index) throws InterruptedException {
-        assertTrue(awaitBusy(() -> {
-                            ClusterState state = client().admin().cluster().prepareState().get().getState();
-                            return state.metaData().hasIndex(index) && state.metaData().index(index).getState() == IndexMetaData.State.CLOSE;
-                        }
-                )
-        );
-    }
-
-    /**
-     * Checks that the given index cannot be opened due to incompatible version
-     */
-    void assertUnsupportedIndexHandling(String index) throws Exception {
-        long startTime = System.currentTimeMillis();
-        logger.info("--> Testing old index " + index);
-        String indexName = loadIndex(index);
-        // force reloading dangling indices with a cluster state republish
-        client().admin().cluster().prepareReroute().get();
-        ensureClosed(indexName);
-        try {
-            client().admin().indices().prepareOpen(indexName).get();
-            fail("Shouldn't be able to open an old index");
-        } catch (IllegalStateException ex) {
-            assertThat(ex.getMessage(), containsString("was created before v2.0.0.beta1 and wasn't upgraded"));
-        }
-        unloadIndex(indexName);
-        logger.info("--> Done testing " + index + ", took " + ((System.currentTimeMillis() - startTime) / 1000.0) + " seconds");
-    }
-
     void assertOldIndexWorks(String index) throws Exception {
         Version version = extractVersion(index);
         String indexName = loadIndex(index);

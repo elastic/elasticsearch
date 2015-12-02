@@ -23,7 +23,6 @@ import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.deflate.DeflateCompressor;
-import org.elasticsearch.common.compress.lzf.LZFCompressor;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -42,7 +41,6 @@ public class CompressorFactory {
 
     static {
         compressors = new Compressor[] {
-                new LZFCompressor(),
                 new DeflateCompressor()
         };
         defaultCompressor = new DeflateCompressor();

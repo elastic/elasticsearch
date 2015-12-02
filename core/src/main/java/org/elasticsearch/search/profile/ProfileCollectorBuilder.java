@@ -47,19 +47,16 @@ public class ProfileCollectorBuilder {
      * @return           A wrapped collector if profiling is enabled, the original otherwise
      */
     public Collector wrap(Collector collector, String reason) {
-
         if (profile) {
+            final List<InternalProfileCollector> children;
             if (currentCollector == null) {
-                collector = new InternalProfileCollector(collector, reason, Collections.emptyList());
+                children = Collections.emptyList();
             } else {
-                final Collector child = currentCollector;
-                collector = new InternalProfileCollector(collector, reason,
-                        Collections.singletonList((InternalProfileCollector) child));
+                children = Collections.singletonList((InternalProfileCollector) currentCollector);
             }
-
+            collector = new InternalProfileCollector(collector, reason, children);
             currentCollector = collector;
         }
-
         return collector;
     }
 
@@ -73,7 +70,7 @@ public class ProfileCollectorBuilder {
      * @param collector     The collector to wrap
      * @param reason        The "hint" about what this collector is used for
      * @param subCollectors The sub-collectors that are inside the multicollector
-     * @return
+     * @return              A wrapped collector if profiling is enabled, the original otherwise
      */
     public Collector wrapMultiCollector(Collector collector, String reason, List<Collector> subCollectors) {
         if (!(collector instanceof MultiCollector)) {
@@ -83,24 +80,23 @@ public class ProfileCollectorBuilder {
         }
 
         if (profile) {
-            final List<InternalProfileCollector> children = new AbstractList<InternalProfileCollector>() {
-                @Override
-                public InternalProfileCollector get(int index) {
-                    return (InternalProfileCollector) subCollectors.get(index);
-                }
-                @Override
-                public int size() {
-                    return subCollectors.size();
-                }
-            };
-
+            final List<InternalProfileCollector> children;
             if (currentCollector == null) {
-                collector = new InternalProfileCollector(collector, reason, Collections.emptyList());
+                children = Collections.emptyList();
             } else {
-                collector = new InternalProfileCollector(collector, reason, children);
+                children = new AbstractList<InternalProfileCollector>() {
+                    @Override
+                    public InternalProfileCollector get(int index) {
+                        return (InternalProfileCollector) subCollectors.get(index);
+                    }
+                    @Override
+                    public int size() {
+                        return subCollectors.size();
+                    }
+                };
             }
+            collector = new InternalProfileCollector(collector, reason, children);
         }
-
         return collector;
     }
 }

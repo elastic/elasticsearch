@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static java.lang.Math.min;
 import static org.elasticsearch.index.VersionType.EXTERNAL;
 
 import org.elasticsearch.action.ActionListener;
@@ -71,6 +72,13 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
     class AsyncIndexBySearchAction extends AbstractAsyncScrollAction<IndexBySearchRequest, IndexBySearchResponse> {
         public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
             super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(), listener, request.size());
+            if (request.size() != -1) {
+                /*
+                 * Don't use larger batches than the maximum request size because
+                 * that'd be silly.
+                 */
+                request.search().source().size(min(request.size(), request.search().source().size()));
+            }
         }
 
         @Override

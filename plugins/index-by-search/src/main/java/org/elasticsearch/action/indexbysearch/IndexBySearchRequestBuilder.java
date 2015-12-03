@@ -19,8 +19,6 @@
 
 package org.elasticsearch.action.indexbysearch;
 
-import static java.lang.Math.min;
-
 import org.elasticsearch.action.Action;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.index.IndexAction;
@@ -59,20 +57,5 @@ public class IndexBySearchRequestBuilder
     public IndexBySearchRequestBuilder size(int size) {
         request.size(size);
         return this;
-    }
-
-    @Override
-    protected IndexBySearchRequest beforeExecute(IndexBySearchRequest request) {
-        if (request.size() != -1) {
-            /*
-             * Don't use larger batches than the maximum request size because
-             * that'd be silly.
-             */
-            search.setSize(min(request.size(), search.request().source().size()));
-        }
-        // Force syncing the source into the request
-        // search.request().source(search.internalBuilder());
-        // TODO figure out
-        return request;
     }
 }

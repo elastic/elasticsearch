@@ -11,6 +11,6 @@ your application to Elasticsearch 2.2.
 
 ==== Field stats API
 
-The field stats' response format has been changed for number based and date fields. The `min_value` and
+The field stats response format has been changed for number based and date fields. The `min_value` and
 `max_value` elements now return values as number and the new `min_value_as_string` and `max_value_as_string`
 return the values as string.

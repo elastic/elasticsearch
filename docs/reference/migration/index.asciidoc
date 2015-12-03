@@ -15,6 +15,7 @@ As a general rule:
   performed by <<rolling-upgrades,upgrading one node at a time>>.
 
 See <<setup-upgrade>> for more info.
+--
 
 include::migrate_2_2.asciidoc[]
 

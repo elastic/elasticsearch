@@ -98,11 +98,7 @@ public class AllocationService extends AbstractComponent {
     }
 
     public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, ShardRouting failedShard) {
-        return applyFailedShard(clusterState, new FailedRerouteAllocation.FailedShard(failedShard, null, null));
-    }
-
-    public RoutingAllocation.Result applyFailedShard(ClusterState clusterState, FailedRerouteAllocation.FailedShard failedShard) {
-        return applyFailedShards(clusterState, Collections.singletonList(failedShard));
+        return applyFailedShards(clusterState, Collections.singletonList(new FailedRerouteAllocation.FailedShard(failedShard, null, null)));
     }
 
     /**

@@ -90,10 +90,6 @@ public class MetaDataMappingService extends AbstractComponent {
      * and generate a single cluster change event out of all of those.
      */
     ClusterState executeRefresh(final ClusterState currentState, final List<RefreshTask> allTasks) throws Exception {
-        if (allTasks.isEmpty()) {
-            return currentState;
-        }
-
         // break down to tasks per index, so we can optimize the on demand index service creation
         // to only happen for the duration of a single index processing of its respective events
         Map<String, List<RefreshTask>> tasksPerIndex = new HashMap<>();

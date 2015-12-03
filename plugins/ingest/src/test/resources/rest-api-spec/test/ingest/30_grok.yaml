@@ -46,3 +46,100 @@
   - match: { _source.status: 400 }
   - match: { _source.msg: "foo" }
 
+---
+"Test Grok Pipeline With Custom Pattern":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "pattern" : "<%{MY_PATTERN:msg}>",
+                  "pattern_definitions" : {
+                    "MY_PATTERN" : "foo"
+                  }
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline"
+        body: {field1: "<foo>"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.msg: "foo" }
+
+---
+"Test Grok Pipeline With Custom Pattern Sharing Same Name As Another":
+  - do:
+      cluster.health:
+          wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "pattern" : "<%{NUMBER:msg}>",
+                  "pattern_definitions" : {
+                    "NUMBER" : "foo"
+                  }
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  # Simulate a Thread.sleep(), because pipeline are updated in the background
+  - do:
+      catch: request_timeout
+      cluster.health:
+        wait_for_nodes: 99
+        timeout: 2s
+  - match: { "timed_out": true }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline"
+        body: {field1: "<foo>"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.msg: "foo" }

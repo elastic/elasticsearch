@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -53,4 +54,16 @@ public class GrokProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getGrok(), notNullValue());
     }
 
+    public void testCreateWithCustomPatterns() throws Exception {
+        GrokProcessor.Factory factory = new GrokProcessor.Factory(configDir);
+
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("pattern", "%{MY_PATTERN:name}!");
+        config.put("pattern_definitions", Collections.singletonMap("MY_PATTERN", "foo"));
+        GrokProcessor processor = factory.create(config);
+        assertThat(processor.getMatchField(), equalTo("_field"));
+        assertThat(processor.getGrok(), notNullValue());
+        assertThat(processor.getGrok().match("foo!"), equalTo(true));
+    }
 }

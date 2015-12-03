@@ -68,9 +68,7 @@ class PrecommitTasks {
         if (mainForbidden != null) {
             mainForbidden.configure {
                 bundledSignatures += 'jdk-system-out'
-                signaturesURLs += [
-                        getClass().getResource('/forbidden/core-signatures.txt'),
-                        getClass().getResource('/forbidden/third-party-signatures.txt')]
+                signaturesURLs += getClass().getResource('/forbidden/core-signatures.txt')
             }
         }
         Task testForbidden = project.tasks.findByName('forbiddenApisTest')

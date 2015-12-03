@@ -51,7 +51,7 @@ subprojects {
    *                            Rest test config                               *
    *****************************************************************************/
   apply plugin: 'elasticsearch.rest-test'
-  integTest {
+  project.integTest {
     includePackaged true
   }
 
@@ -305,7 +305,7 @@ task updateShas(type: UpdateShasTask) {
   parentTask = dependencyLicenses
 }
 
-RunTask.configure(project)
+task run(type: RunTask) {}
 
 /**
  * Build some variables that are replaced in the packages. This includes both

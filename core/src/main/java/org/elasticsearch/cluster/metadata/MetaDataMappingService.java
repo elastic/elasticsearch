@@ -20,8 +20,6 @@
 package org.elasticsearch.cluster.metadata;
 
 import com.carrotsearch.hppc.cursors.ObjectCursor;
-import com.google.common.collect.Maps;
-import com.google.common.collect.Sets;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingClusterStateUpdateRequest;
@@ -48,7 +46,6 @@ import org.elasticsearch.percolator.PercolatorService;
 import java.io.IOException;
 import java.util.*;
 
-import static com.google.common.collect.Maps.newHashMap;
 /**
  * Service responsible for submitting mapping changes
  */
@@ -80,7 +77,7 @@ public class MetaDataMappingService extends AbstractComponent {
     class RefreshTaskExecutor extends ClusterStateTaskExecutor<RefreshTask> {
         @Override
         public BatchResult<RefreshTask> execute(ClusterState currentState, List<RefreshTask> tasks) throws Exception {
-            ClusterState newClusterState = executeRefreshOrUpdate(currentState, tasks);
+            ClusterState newClusterState = executeRefresh(currentState, tasks);
             return BatchResult.<RefreshTask>builder().successes(tasks).build(newClusterState);
         }
     }
@@ -90,24 +87,24 @@ public class MetaDataMappingService extends AbstractComponent {
      * as possible so we won't create the same index all the time for example for the updates on the same mapping
      * and generate a single cluster change event out of all of those.
      */
-    ClusterState executeRefreshOrUpdate(final ClusterState currentState, List<RefreshTask> allTasks) throws Exception {
+    ClusterState executeRefresh(final ClusterState currentState, final List<RefreshTask> allTasks) throws Exception {
         if (allTasks.isEmpty()) {
             return currentState;
         }
 
         // break down to tasks per index, so we can optimize the on demand index service creation
         // to only happen for the duration of a single index processing of its respective events
-        Map<String, List<RefreshTask>> tasksPerIndex = Maps.newHashMap();
-        for (RefreshTask task : allTasks) {
-            if (task.index == null) {
-                logger.debug("ignoring a mapping task of type [{}] with a null index.", task);
+        Map<String, List<RefreshTask>> tasksPerIndex = new HashMap<>();
+        for (RefreshTask refreshTask : allTasks) {
+            if (refreshTask.index == null) {
+                logger.debug("ignoring a mapping task of type [{}] with a null index.", refreshTask);
             }
-            List<RefreshTask> indexTasks = tasksPerIndex.get(task.index);
+            List<RefreshTask> indexTasks = tasksPerIndex.get(refreshTask.index);
             if (indexTasks == null) {
                 indexTasks = new ArrayList<>();
-                tasksPerIndex.put(task.index, indexTasks);
+                tasksPerIndex.put(refreshTask.index, indexTasks);
             }
-            indexTasks.add(task);
+            indexTasks.add(refreshTask);
         }
 
         boolean dirty = false;
@@ -215,7 +212,9 @@ public class MetaDataMappingService extends AbstractComponent {
         @Override
         public BatchResult<PutMappingClusterStateUpdateRequest> execute(ClusterState currentState, List<PutMappingClusterStateUpdateRequest> tasks) throws Exception {
             Set<String> indicesToClose = new HashSet<>();
+            BatchResult.Builder<PutMappingClusterStateUpdateRequest> builder = BatchResult.builder();
             try {
+                // precreate incoming indices;
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     // failures here mean something is broken with our cluster state - fail all tasks by letting exceptions bubble up
                     for (String index : request.indices()) {
@@ -238,7 +237,6 @@ public class MetaDataMappingService extends AbstractComponent {
                         }
                     }
                 }
-                BatchResult.Builder<PutMappingClusterStateUpdateRequest> builder = BatchResult.builder();
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     try {
                         currentState = applyRequest(currentState, request);
@@ -257,8 +255,8 @@ public class MetaDataMappingService extends AbstractComponent {
         }
 
         private ClusterState applyRequest(ClusterState currentState, PutMappingClusterStateUpdateRequest request) throws IOException {
-            Map<String, DocumentMapper> newMappers = newHashMap();
-            Map<String, DocumentMapper> existingMappers = newHashMap();
+            Map<String, DocumentMapper> newMappers = new HashMap<>();
+            Map<String, DocumentMapper> existingMappers = new HashMap<>();
             for (String index : request.indices()) {
                 IndexService indexService = indicesService.indexServiceSafe(index);
                 // try and parse it (no need to add it here) so we can bail early in case of parsing exception
@@ -312,7 +310,7 @@ public class MetaDataMappingService extends AbstractComponent {
                 throw new InvalidTypeNameException("Document mapping type name can't start with '_'");
             }
 
-            final Map<String, MappingMetaData> mappings = newHashMap();
+            final Map<String, MappingMetaData> mappings = new HashMap<>();
             for (Map.Entry<String, DocumentMapper> entry : newMappers.entrySet()) {
                 String index = entry.getKey();
                 // do the actual merge here on the master, and update the mapping source

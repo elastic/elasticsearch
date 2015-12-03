@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.elasticsearch.mapper.attachments;
+package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
@@ -31,6 +31,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
+import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -44,37 +45,50 @@ import java.nio.file.Path;
 public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings indexSettings) {
-        return newMapperService(new Index("test"), Settings.builder()
-                .put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT)
-                .put("path.home", tempDir)
-                .put(indexSettings)
-                .build());
+        return newMapperService(tempDir, indexSettings, Version.CURRENT);
+
     }
 
-    private static MapperService newMapperService(Index index, Settings indexSettings) {
+    public static MapperService newMapperService(Path tempDir, Settings indexSettings, Version version) {
+        return newMapperService(tempDir, indexSettings, null, null, version);
+
+    }
+
+    public static MapperService newMapperService(Path tempDir, Settings indexSettings, String contentType, Mapper.TypeParser typeParser) {
+        return newMapperService(tempDir, indexSettings, contentType, typeParser, Version.CURRENT);
+    }
+
+    private static MapperService newMapperService(Path tempDir, Settings indexSettings, String contentType, Mapper.TypeParser typeParser, Version version) {
         IndicesModule indicesModule = new IndicesModule();
-        indicesModule.registerMapper(AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+        if (contentType != null && typeParser != null) {
+            indicesModule.registerMapper(contentType, typeParser);
+        }
+        Settings settings = Settings.builder()
+            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+            .put("path.home", tempDir)
+            .put(indexSettings)
+            .build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
-        return new MapperService(index,
-                                 indexSettings, 
-                                 newAnalysisService(indexSettings),
-                                 newSimilarityLookupService(indexSettings), 
-                                 null,
-                                 mapperRegistry);
+        return new MapperService(new Index("test"),
+            settings,
+            newAnalysisService(settings),
+            newSimilarityLookupService(settings),
+            null,
+            mapperRegistry);
     }
 
-    private  static AnalysisService newAnalysisService(Settings indexSettings) {
+    private static AnalysisService newAnalysisService(Settings indexSettings) {
         Injector parentInjector = new ModulesBuilder().add(new SettingsModule(indexSettings), new EnvironmentModule(new Environment(indexSettings))).createInjector();
         Index index = new Index("test");
         Injector injector = new ModulesBuilder().add(
-                new IndexSettingsModule(index, indexSettings),
-                new IndexNameModule(index),
-                new AnalysisModule(indexSettings, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
+            new IndexSettingsModule(index, indexSettings),
+            new IndexNameModule(index),
+            new AnalysisModule(indexSettings, parentInjector.getInstance(IndicesAnalysisService.class))).createChildInjector(parentInjector);
 
         return injector.getInstance(AnalysisService.class);
     }
 
-    private  static SimilarityLookupService newSimilarityLookupService(Settings indexSettings) {
+    private static SimilarityLookupService newSimilarityLookupService(Settings indexSettings) {
         return new SimilarityLookupService(new Index("test"), indexSettings);
     }
 }

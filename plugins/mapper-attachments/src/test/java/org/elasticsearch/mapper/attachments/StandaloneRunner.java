@@ -32,7 +32,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.ParseContext;
-import org.elasticsearch.mapper.attachments.AttachmentMapper;
+import org.elasticsearch.index.mapper.core.MapperTestUtils;
 
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -86,7 +86,7 @@ public class StandaloneRunner extends CliTool {
             this.size = size;
             this.url = url;
             this.base64text = base64text;
-            DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(PathUtils.get("."), Settings.EMPTY).documentMapperParser(); // use CWD b/c it won't be used
+            DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(PathUtils.get("."), Settings.EMPTY, AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser()).documentMapperParser(); // use CWD b/c it won't be used
 
             String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/standalone/standalone-mapping.json");
             docMapper = mapperParser.parse(mapping);

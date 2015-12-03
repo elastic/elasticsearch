@@ -29,6 +29,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.ParseContext;
+import org.elasticsearch.index.mapper.core.MapperTestUtils;
 import org.junit.Test;
 
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
@@ -42,7 +43,7 @@ import static org.hamcrest.Matchers.*;
 public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
 
     public void testSimpleMappings() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
@@ -71,7 +72,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
         DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(),
             Settings.builder()
                 .put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id)
-            .build()).documentMapperParser();
+            .build(), AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
@@ -86,7 +87,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
      * test for https://github.com/elastic/elasticsearch-mapper-attachments/issues/179
      */
     public void testSimpleMappingsWithAllFields() throws Exception {
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser()).documentMapperParser();
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/simple/test-mapping-all-fields.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);
         byte[] html = copyToBytesFromClasspath("/org/elasticsearch/index/mapper/attachment/test/sample-files/testXHTML.html");
@@ -132,7 +133,7 @@ public class SimpleAttachmentMapperTests extends AttachmentUnitTestCase {
                 .endObject();
 
         byte[] mapping = mappingBuilder.bytes().toBytes();
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY);
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
         DocumentMapper docMapper = mapperService.parse("mail", new CompressedXContent(mapping), true);
         // this should not throw an exception
         mapperService.parse("mail", new CompressedXContent(docMapper.mapping().toString()), true);

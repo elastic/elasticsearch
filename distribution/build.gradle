@@ -39,11 +39,35 @@ buildscript {
   }
 }
 
-allprojects {
-  project.ext {
-    // this is common configuration for distributions, but we also add it here for the license check to use
-    dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+// this is common configuration for distributions, but we also add it here for the license check to use
+ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+
+/*****************************************************************************
+ *                                  Modules                                  *
+ *****************************************************************************/
+
+task buildModules(type: Copy) {
+  into 'build/modules'
+} 
+
+// we create the buildModules task above so the distribution subprojects can
+// depend on it, but we don't actually configure it until projects are evaluated
+// so it can depend on the bundling of plugins (ie modules must have been configured)
+project.gradle.projectsEvaluated {
+  project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+    buildModules {
+      dependsOn(module.bundlePlugin)
+      into(module.name) {
+        from { zipTree(module.bundlePlugin.outputs.files.singleFile) }
+      }
+    }
   }
+}
+
+// make sure we have a clean task since we aren't a java project, but we have tasks that
+// put stuff in the build dir
+task clean(type: Delete) {
+  delete 'build'
 }
 
 subprojects {
@@ -52,7 +76,11 @@ subprojects {
    *****************************************************************************/
   apply plugin: 'elasticsearch.rest-test'
   integTest {
+    dependsOn(project.assemble)
     includePackaged true
+    cluster {
+      distribution = project.name
+    }
   }
 
   /*****************************************************************************
@@ -81,7 +109,12 @@ subprojects {
     libFiles = copySpec {
       into 'lib'
       from project(':core').jar
-      from dependencyFiles
+      from project(':distribution').dependencyFiles
+    }
+
+    modulesFiles = copySpec {
+      into 'modules'
+      from project(':distribution').buildModules
     }
 
     configFiles = copySpec {
@@ -233,6 +266,7 @@ configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
     user 'root'
     permissionGroup 'root'
     with libFiles
+    with modulesFiles
     with copySpec {
       with commonFiles
       if (project.name == 'deb') {

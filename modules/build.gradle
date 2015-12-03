@@ -17,15 +17,11 @@
  * under the License.
  */
 
-task buildTar(type: Tar) {
-  baseName = 'elasticsearch'
-  extension = 'tar.gz'
-  with archivesFiles
-  with modulesFiles
-  compression = Compression.GZIP
-}
+subprojects {
+  apply plugin: 'elasticsearch.esplugin'
 
-artifacts {
-  'default' buildTar
-  archives buildTar
+  esplugin {
+    // for local ES plugins, the name of the plugin is the same as the directory
+    name project.name
+  }
 }

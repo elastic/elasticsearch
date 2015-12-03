@@ -17,8 +17,6 @@
  * under the License.
  */
 
-import org.elasticsearch.gradle.precommit.DependencyLicensesTask
-
 subprojects {
   group = 'org.elasticsearch.plugin'
 

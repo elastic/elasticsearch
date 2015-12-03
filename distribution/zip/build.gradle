@@ -17,9 +17,10 @@
  * under the License.
  */
 
-task buildZip(type: Zip, dependsOn: dependencyFiles) {
+task buildZip(type: Zip) {
   baseName = 'elasticsearch'
   with archivesFiles
+  with modulesFiles
 }
 
 artifacts {

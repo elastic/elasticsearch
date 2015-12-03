@@ -17,15 +17,15 @@
  * under the License.
  */
 
-task buildTar(type: Tar) {
+task buildZip(type: Zip, dependsOn: dependencyFiles) {
   baseName = 'elasticsearch'
-  extension = 'tar.gz'
   with archivesFiles
-  with modulesFiles
-  compression = Compression.GZIP
 }
 
 artifacts {
-  'default' buildTar
-  archives buildTar
+  'default' buildZip
+  archives buildZip
 }
+
+integTest.dependsOn buildZip
+

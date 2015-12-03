@@ -208,21 +208,14 @@ public class MetaDataMappingService extends AbstractComponent {
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     // failures here mean something is broken with our cluster state - fail all tasks by letting exceptions bubble up
                     for (String index : request.indices()) {
-                        if (currentState.metaData().hasIndex(index)) {
+                        final IndexMetaData indexMetaData = currentState.metaData().index(index);
+                        if (indexMetaData != null  && indicesService.hasIndex(index) == false) {
                             // if we don't have the index, we will throw exceptions later;
-                            if (indicesService.hasIndex(index) == false || indicesToClose.contains(index)) {
-                                final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                                IndexService indexService;
-                                if (indicesService.hasIndex(index) == false) {
-                                    indicesToClose.add(index);
-                                    indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
-                                    // add mappings for all types, we need them for cross-type validation
-                                    for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
-                                        indexService.mapperService().merge(mapping.value.type(), mapping.value.source(), false, request.updateAllTypes());
-                                    }
-                                } else {
-                                    indexService = indicesService.indexService(index);
-                                }
+                            indicesToClose.add(index);
+                            IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
+                            // add mappings for all types, we need them for cross-type validation
+                            for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
+                                indexService.mapperService().merge(mapping.value.type(), mapping.value.source(), false, request.updateAllTypes());
                             }
                         }
                     }

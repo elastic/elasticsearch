@@ -53,6 +53,10 @@ OFFICIAL PLUGINS
     - repository-azure
     - repository-s3
     - store-smb
+    - license
+    - marvel
+    - shield
+    - watcher
 
 
 OPTIONS

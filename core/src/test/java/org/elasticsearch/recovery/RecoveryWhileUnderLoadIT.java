@@ -230,13 +230,13 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
 
     @Test
     public void recoverWhileRelocating() throws Exception {
-        final int numShards = between(2, 10);
+        final int numShards = between(2, 5);
         final int numReplicas = 0;
         logger.info("--> creating test index ...");
         int allowNodes = 2;
         assertAcked(prepareCreate("test", 3, settingsBuilder().put(SETTING_NUMBER_OF_SHARDS, numShards).put(SETTING_NUMBER_OF_REPLICAS, numReplicas).put(TranslogConfig.INDEX_TRANSLOG_DURABILITY, Translog.Durabilty.ASYNC)));
 
-        final int numDocs = scaledRandomIntBetween(200, 20000);
+        final int numDocs = scaledRandomIntBetween(200, 9999);
 
         try (BackgroundIndexer indexer = new BackgroundIndexer("test", "type", client(), numDocs)) {
 

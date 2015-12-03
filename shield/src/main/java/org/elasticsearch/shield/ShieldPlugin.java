@@ -18,6 +18,7 @@ import org.elasticsearch.env.Environment;
 import org.elasticsearch.http.HttpServerModule;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestModule;
 import org.elasticsearch.shield.action.ShieldActionFilter;
@@ -51,7 +52,6 @@ import org.elasticsearch.shield.transport.netty.ShieldNettyHttpServerTransport;
 import org.elasticsearch.shield.transport.netty.ShieldNettyTransport;
 import org.elasticsearch.transport.TransportModule;
 
-import java.io.Closeable;
 import java.nio.file.Path;
 import java.util.*;
 import java.security.AccessController;
@@ -180,13 +180,6 @@ public class ShieldPlugin extends Plugin {
     }
 
     @Override
-    public void onIndexService(IndexService indexService) {
-        if (enabled && clientMode == false) {
-            failIfShieldQueryCacheIsNotActive(indexService.getIndexSettings().getSettings(), false);
-        }
-    }
-
-    @Override
     public void onIndexModule(IndexModule module) {
         if (enabled == false) {
             return;
@@ -199,6 +192,7 @@ public class ShieldPlugin extends Plugin {
         }
         if (clientMode == false) {
             module.registerQueryCache(ShieldPlugin.OPT_OUT_QUERY_CACHE, OptOutQueryCache::new);
+            failIfShieldQueryCacheIsNotActive(module.getSettings(), false);
         }
     }
 

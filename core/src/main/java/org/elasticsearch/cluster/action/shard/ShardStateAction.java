@@ -151,7 +151,6 @@ public class ShardStateAction extends AbstractComponent {
             BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
             List<FailedRerouteAllocation.FailedShard> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             for (ShardRoutingEntry task : tasks) {
-                task.processed = true;
                 shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
             }
             ClusterState maybeUpdatedState = currentState;
@@ -201,7 +200,6 @@ public class ShardStateAction extends AbstractComponent {
             BatchResult.Builder<ShardRoutingEntry> builder = BatchResult.builder();
             List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             for (ShardRoutingEntry task : tasks) {
-                task.processed = true;
                 shardRoutingsToBeApplied.add(task.shardRouting);
             }
             ClusterState maybeUpdatedState = currentState;
@@ -249,8 +247,6 @@ public class ShardStateAction extends AbstractComponent {
         String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
         String message;
         Throwable failure;
-
-        volatile boolean processed; // state field, no need to serialize
 
         public ShardRoutingEntry() {
         }

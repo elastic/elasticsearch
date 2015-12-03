@@ -35,15 +35,12 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.*;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.ingest.processor.ConfigurationUtils.readList;
 import static org.elasticsearch.ingest.processor.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.processor.ConfigurationUtils.readStringProperty;
 
@@ -231,11 +228,12 @@ public final class GeoIpProcessor implements Processor {
 
             try (Stream<Path> databaseFiles = Files.list(geoIpConfigDirectory)) {
                 Map<String, DatabaseReader> databaseReaders = new HashMap<>();
+                PathMatcher pathMatcher = geoIpConfigDirectory.getFileSystem().getPathMatcher("glob:**.mmdb");
                 // Use iterator instead of forEach otherwise IOException needs to be caught twice...
                 Iterator<Path> iterator = databaseFiles.iterator();
                 while (iterator.hasNext()) {
                     Path databasePath = iterator.next();
-                    if (Files.isRegularFile(databasePath)) {
+                    if (Files.isRegularFile(databasePath) && pathMatcher.matches(databasePath)) {
                         try (InputStream inputStream = Files.newInputStream(databasePath, StandardOpenOption.READ)) {
                             databaseReaders.put(databasePath.getFileName().toString(), new DatabaseReader.Builder(inputStream).build());
                         }

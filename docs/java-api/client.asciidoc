@@ -173,11 +173,21 @@ Client client = TransportClient.builder().settings(settings).build();
 
 Or using `elasticsearch.yml` file as shown in <<node-client>>
 
-The client allows sniffing the rest of the cluster, which adds data nodes
-into its list of machines to use. In this case, note that the IP addresses
-used will be the ones that the other nodes were started with (the
-"publish" address). In order to enable it, set the
-`client.transport.sniff` to `true`:
+The Transport client comes with a cluster sniffing feature which
+allows it to dynamically add new hosts and remove old ones.
+When sniffing is enabled the nodes specified during client construction via
+addTransportAddress are connected to first. After this, the client will search
+the cluster state for available data nodes, replacing its internal node list
+with only those data nodes. This list is refreshed every five seconds by default.
+Note that the IP addresses the sniffer connects to are the ones that the
+other nodes were started with (the "publish" address).
+
+Keep in mind that list might possibly not include the original node it connected to
+if that node is not a data node. If, for instance, you initially connect to a
+master node, after sniffing no further requests will go to that master node,
+but rather to any data nodes instead.
+
+In order to enable sniffing, set `client.transport.sniff` to `true`:
 
 [source,java]
 --------------------------------------------------

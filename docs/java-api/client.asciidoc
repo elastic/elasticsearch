@@ -175,17 +175,19 @@ Or using `elasticsearch.yml` file as shown in <<node-client>>
 
 The Transport client comes with a cluster sniffing feature which
 allows it to dynamically add new hosts and remove old ones.
-When sniffing is enabled the nodes specified during client construction via
-addTransportAddress are connected to first. After this, the client will search
-the cluster state for available data nodes, replacing its internal node list
-with only those data nodes. This list is refreshed every five seconds by default.
-Note that the IP addresses the sniffer connects to are the ones that the
-other nodes were started with (the "publish" address).
+When sniffing is enabled the the transport client will connect to the nodes in its
+internal node list, which is built via calls to addTransportAddres.
+After this, the client will call the internal cluster state API on those nodes
+to discover available data nodes. The internal node list of the client will
+be replaced with those data nodes only. This list is refreshed every five seconds by default.
+Note that the IP addresses the sniffer connects to are the ones declared as the 'publish'
+address in those node's elasticsearch config.
 
 Keep in mind that list might possibly not include the original node it connected to
 if that node is not a data node. If, for instance, you initially connect to a
 master node, after sniffing no further requests will go to that master node,
-but rather to any data nodes instead.
+but rather to any data nodes instead. The reason the transport excludes non-data
+nodes is to avoid sending search traffic to master only nodes.
 
 In order to enable sniffing, set `client.transport.sniff` to `true`:
 

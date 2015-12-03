@@ -60,7 +60,12 @@ class ClusterFormationTasks {
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro) {
         String elasticsearchVersion = VersionProperties.elasticsearch
-        String packaging = distro == 'tar' ? 'tar.gz' : distro
+        String packaging = distro
+        if (distro == 'tar') {
+            packaging = 'tar.gz'
+        } else if (distro == 'integ-test-zip') {
+            packaging = 'zip'
+        }
         project.configurations {
             elasticsearchDistro
         }
@@ -138,6 +143,7 @@ class ClusterFormationTasks {
           by the source tree. If it isn't then Bad Things(TM) will happen. */
         Task extract
         switch (node.config.distribution) {
+            case 'integ-test-zip':
             case 'zip':
                 extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
                     from { project.zipTree(project.configurations.elasticsearchDistro.singleFile) }

@@ -136,7 +136,7 @@ subprojects {
 /*****************************************************************************
  *                         Zip and tgz configuration                         *
  *****************************************************************************/
-configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
+configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' || it.name == 'integ-test-zip' }) {
   project.ext.archivesFiles = copySpec {
     into("elasticsearch-${version}") {
       with libFiles

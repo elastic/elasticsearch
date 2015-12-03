@@ -85,7 +85,7 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     /**
-     * Batch method to apply all the queued refresh or update operations. The idea is to try and batch as much
+     * Batch method to apply all the queued refresh operations. The idea is to try and batch as much
      * as possible so we won't create the same index all the time for example for the updates on the same mapping
      * and generate a single cluster change event out of all of those.
      */

@@ -26,6 +26,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.MutableShardRouting;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.allocation.RerouteExplanation;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -221,12 +222,11 @@ public class AllocateAllocationCommand implements AllocationCommand {
             throw new ElasticsearchIllegalArgumentException("[allocate] allocation of " + shardId + " on node " + discoNode + " is not allowed, reason: " + decision);
         }
         // go over and remove it from the unassigned
-        for (Iterator<MutableShardRouting> it = allocation.routingNodes().unassigned().iterator(); it.hasNext(); ) {
+        for (RoutingNodes.UnassignedShards.UnassignedIterator it = allocation.routingNodes().unassigned().iterator(); it.hasNext(); ) {
             if (it.next() != shardRouting) {
                 continue;
             }
-            it.remove();
-            allocation.routingNodes().assign(shardRouting, routingNode.nodeId());
+            it.initialize(routingNode.nodeId(), shardRouting.version());
             if (shardRouting.primary()) {
                 // we need to clear the post allocation flag, since its an explicit allocation of the primary shard
                 // and we want to force allocate it (and create a new index for it)

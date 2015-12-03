@@ -95,7 +95,7 @@ public class RoutingServiceTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.routingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         ClusterState prevState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
@@ -125,7 +125,7 @@ public class RoutingServiceTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
+        assertThat(clusterState.routingNodes().unassigned().size() > 0, equalTo(false));
         // remove node2 and reroute
         ClusterState prevState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
@@ -271,7 +271,7 @@ public class RoutingServiceTests extends ElasticsearchAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
         // starting replicas
         clusterState = ClusterState.builder(clusterState).routingResult(allocation.applyStartedShards(clusterState, clusterState.routingNodes().shardsWithState(INITIALIZING))).build();
-        assertThat(clusterState.routingNodes().hasUnassigned(), equalTo(false));
+        assertEquals(clusterState.routingNodes().unassigned().size(), 0);
         // remove node2 and reroute
         ClusterState prevState = clusterState;
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).remove("node2")).build();
@@ -338,15 +338,14 @@ public class RoutingServiceTests extends ElasticsearchAllocationTestCase {
         @Override
         public boolean allocateUnassigned(RoutingAllocation allocation) {
             final RoutingNodes routingNodes = allocation.routingNodes();
-            final Iterator<MutableShardRouting> unassignedIterator = routingNodes.unassigned().iterator();
+            final RoutingNodes.UnassignedShards.UnassignedIterator unassignedIterator = routingNodes.unassigned().iterator();
             boolean changed = false;
             while (unassignedIterator.hasNext()) {
                 MutableShardRouting shard = unassignedIterator.next();
                 for (ShardRouting shardToDelay : delayedShards) {
                     if (isSameShard(shard, shardToDelay)) {
                         changed = true;
-                        unassignedIterator.remove();
-                        routingNodes.ignoredUnassigned().add(shard);
+                        unassignedIterator.removeAndIgnore();
                     }
                 }
             }

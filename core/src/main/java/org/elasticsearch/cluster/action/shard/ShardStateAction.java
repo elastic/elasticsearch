@@ -35,14 +35,12 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.*;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.concurrent.BlockingQueue;
 
 import static org.elasticsearch.cluster.routing.ShardRouting.readShardRoutingEntry;
 
@@ -58,8 +56,6 @@ public class ShardStateAction extends AbstractComponent {
     private final ClusterService clusterService;
     private final AllocationService allocationService;
     private final RoutingService routingService;
-
-    private final BlockingQueue<ShardRoutingEntry> startedShardsQueue = ConcurrentCollections.newBlockingQueue();
 
     @Inject
     public ShardStateAction(Settings settings, ClusterService clusterService, TransportService transportService,
@@ -139,7 +135,6 @@ public class ShardStateAction extends AbstractComponent {
             BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
             List<FailedRerouteAllocation.FailedShard> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             for (ShardRoutingEntry task : tasks) {
-                task.processed = true;
                 shardRoutingsToBeApplied.add(new FailedRerouteAllocation.FailedShard(task.shardRouting, task.message, task.failure));
             }
             ClusterState maybeUpdatedState = currentState;
@@ -174,60 +169,57 @@ public class ShardStateAction extends AbstractComponent {
         }
     }
 
+    private final ShardStartedClusterStateHandler shardStartedClusterStateHandler =
+            new ShardStartedClusterStateHandler();
+
     private void shardStartedOnMaster(final ShardRoutingEntry shardRoutingEntry) {
         logger.debug("received shard started for {}", shardRoutingEntry);
-        // buffer shard started requests, and the state update tasks will simply drain it
-        // this is to optimize the number of "started" events we generate, and batch them
-        // possibly, we can do time based batching as well, but usually, we would want to
-        // process started events as fast as possible, to make shards available
-        startedShardsQueue.add(shardRoutingEntry);
 
-        clusterService.submitStateUpdateTask("shard-started (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.message + "]",
-                new ClusterStateUpdateTask() {
-                    @Override
-                    public Priority priority() {
-                        return Priority.URGENT;
-                    }
+        clusterService.submitStateUpdateTask(
+                "shard-started (" + shardRoutingEntry.shardRouting + "), reason [" + shardRoutingEntry.message + "]",
+                shardRoutingEntry,
+                BasicClusterStateTaskConfig.create(Priority.URGENT),
+                shardStartedClusterStateHandler,
+                shardStartedClusterStateHandler);
+    }
 
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
+    class ShardStartedClusterStateHandler extends ClusterStateTaskExecutor<ShardRoutingEntry> implements ClusterStateTaskListener {
+        @Override
+        public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
+            BatchResult.Builder<ShardRoutingEntry> builder = BatchResult.builder();
+            List<ShardRouting> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
+            for (ShardRoutingEntry task : tasks) {
+                shardRoutingsToBeApplied.add(task.shardRouting);
+            }
+            ClusterState maybeUpdatedState = currentState;
+            try {
+                RoutingAllocation.Result result =
+                    allocationService.applyStartedShards(currentState, shardRoutingsToBeApplied, true);
+                if (result.changed()) {
+                    maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
+                }
+                builder.successes(tasks);
+            } catch (Throwable t) {
+                builder.failures(tasks, t);
+            }
 
-                        if (shardRoutingEntry.processed) {
-                            return currentState;
-                        }
+            return builder.build(maybeUpdatedState);
+        }
 
-                        List<ShardRoutingEntry> shardRoutingEntries = new ArrayList<>();
-                        startedShardsQueue.drainTo(shardRoutingEntries);
+        @Override
+        public void onFailure(String source, Throwable t) {
+            logger.error("unexpected failure during [{}]", t, source);
+        }
 
-                        // nothing to process (a previous event has processed it already)
-                        if (shardRoutingEntries.isEmpty()) {
-                            return currentState;
-                        }
+        @Override
+        public void onNoLongerMaster(String source) {
+            onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+        }
 
-                        List<ShardRouting> shardRoutingToBeApplied = new ArrayList<>(shardRoutingEntries.size());
+        @Override
+        public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
 
-                        // mark all entries as processed
-                        for (ShardRoutingEntry entry : shardRoutingEntries) {
-                            entry.processed = true;
-                            shardRoutingToBeApplied.add(entry.shardRouting);
-                        }
-
-                        if (shardRoutingToBeApplied.isEmpty()) {
-                            return currentState;
-                        }
-
-                        RoutingAllocation.Result routingResult = allocationService.applyStartedShards(currentState, shardRoutingToBeApplied, true);
-                        if (!routingResult.changed()) {
-                            return currentState;
-                        }
-                        return ClusterState.builder(currentState).routingResult(routingResult).build();
-                    }
-
-                    @Override
-                    public void onFailure(String source, Throwable t) {
-                        logger.error("unexpected failure during [{}]", t, source);
-                    }
-                });
+        }
     }
 
     private class ShardFailedTransportHandler implements TransportRequestHandler<ShardRoutingEntry> {
@@ -254,8 +246,6 @@ public class ShardStateAction extends AbstractComponent {
         String indexUUID = IndexMetaData.INDEX_UUID_NA_VALUE;
         String message;
         Throwable failure;
-
-        volatile boolean processed; // state field, no need to serialize
 
         public ShardRoutingEntry() {
         }

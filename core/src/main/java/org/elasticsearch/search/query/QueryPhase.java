@@ -165,22 +165,12 @@ public class QueryPhase implements SearchPhase {
             final int totalNumDocs = searcher.getIndexReader().numDocs();
             int numDocs = Math.min(searchContext.from() + searchContext.size(), totalNumDocs);
 
-            Collector collector;
             ProfileCollectorBuilder collectorBuilder = new ProfileCollectorBuilder(doProfile);
-            Callable<TopDocs> topDocsCallable;
 
             assert query == searcher.rewrite(query); // already rewritten
 
             if (searchContext.size() == 0) { // no matter what the value of from is
-                final TotalHitCountCollector totalHitCountCollector = new TotalHitCountCollector();
-                collector = totalHitCountCollector;
-                collector = collectorBuilder.wrap(collector, CollectorResult.REASON_SEARCH_COUNT);
-                topDocsCallable = new Callable<TopDocs>() {
-                    @Override
-                    public TopDocs call() throws Exception {
-                        return new TopDocs(totalHitCountCollector.getTotalHits(), Lucene.EMPTY_SCORE_DOCS, 0);
-                    }
-                };
+                collectorBuilder.addTotalHitCountCollector();
             } else {
                 // Perhaps have a dedicated scroll phase?
                 final ScrollContext scrollContext = searchContext.scrollContext();
@@ -219,55 +209,22 @@ public class QueryPhase implements SearchPhase {
                 }
                 assert numDocs > 0;
                 if (searchContext.sort() != null) {
-                    topDocsCollector = TopFieldCollector.create(searchContext.sort(), numDocs,
-                            (FieldDoc) lastEmittedDoc, true, searchContext.trackScores(), searchContext.trackScores());
+                    collectorBuilder.addTopFieldCollector(searchContext.sort(), numDocs,
+                            (FieldDoc) lastEmittedDoc, true, searchContext.trackScores(),
+                            searchContext.trackScores(), scrollContext, searchType);
                 } else {
                     rescore = !searchContext.rescore().isEmpty();
                     for (RescoreSearchContext rescoreContext : searchContext.rescore()) {
                         numDocs = Math.max(rescoreContext.window(), numDocs);
                     }
-                    topDocsCollector = TopScoreDocCollector.create(numDocs, lastEmittedDoc);
+                    collectorBuilder.addTopScoreDocCollector(numDocs, lastEmittedDoc, scrollContext, searchType);
                 }
-                collector = topDocsCollector;
-                collector = collectorBuilder.wrap(collector, CollectorResult.REASON_SEARCH_TOP_HITS);
-                topDocsCallable = new Callable<TopDocs>() {
-                    @Override
-                    public TopDocs call() throws Exception {
-                        TopDocs topDocs = topDocsCollector.topDocs();
-                        if (scrollContext != null) {
-                            if (scrollContext.totalHits == -1) {
-                                // first round
-                                scrollContext.totalHits = topDocs.totalHits;
-                                scrollContext.maxScore = topDocs.getMaxScore();
-                            } else {
-                                // subsequent round: the total number of hits and
-                                // the maximum score were computed on the first round
-                                topDocs.totalHits = scrollContext.totalHits;
-                                topDocs.setMaxScore(scrollContext.maxScore);
-                            }
-                            switch (searchType) {
-                            case QUERY_AND_FETCH:
-                            case DFS_QUERY_AND_FETCH:
-                                // for (DFS_)QUERY_AND_FETCH, we already know the last emitted doc
-                                if (topDocs.scoreDocs.length > 0) {
-                                    // set the last emitted doc
-                                    scrollContext.lastEmittedDoc = topDocs.scoreDocs[topDocs.scoreDocs.length - 1];
-                                }
-                                break;
-                            default:
-                                break;
-                            }
-                        }
-                        return topDocs;
-                    }
-                };
             }
 
             final boolean terminateAfterSet = searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER;
             if (terminateAfterSet) {
                 // throws Lucene.EarlyTerminationException when given count is reached
-                collector = Lucene.wrapCountBasedEarlyTerminatingCollector(collector, searchContext.terminateAfter());
-                collector = collectorBuilder.wrap(collector, CollectorResult.REASON_SEARCH_TERMINATE_AFTER_COUNT);
+                collectorBuilder.addEarlyTerminatingCollector(searchContext.terminateAfter());
             }
 
             if (searchContext.parsedPostFilter() != null) {
@@ -275,24 +232,20 @@ public class QueryPhase implements SearchPhase {
                 // to any scoped collectors, also, it will only be applied to the main collector
                 // since that is where the filter should only work
                 final Weight filterWeight = searcher.createNormalizedWeight(searchContext.parsedPostFilter().query(), false);
-                collector = new FilteredCollector(collector, filterWeight);
-                collector = collectorBuilder.wrap(collector, CollectorResult.REASON_SEARCH_POST_FILTER);
+                collectorBuilder.addFilteredCollector(filterWeight);
             }
 
             // plug in additional collectors, like aggregations
             final List<Collector> subCollectors = new ArrayList<>();
-            subCollectors.add(collector);
             subCollectors.addAll(searchContext.queryCollectors().values());
-            collector = MultiCollector.wrap(subCollectors);
-            collector = collectorBuilder.wrapMultiCollector(collector, CollectorResult.REASON_SEARCH_MULTI, subCollectors);
+            collectorBuilder.addMultiCollector(subCollectors);
 
             // apply the minimum score after multi collector so we filter aggs as well
             if (searchContext.minimumScore() != null) {
-                collector = new MinimumScoreCollector(collector, searchContext.minimumScore());
-                collector = collectorBuilder.wrap(collector, CollectorResult.REASON_SEARCH_MIN_SCORE);
+                collectorBuilder.addMinimumScoreCollector(searchContext.minimumScore());
             }
 
-            if (collector.getClass() == TotalHitCountCollector.class) {
+            if (collectorBuilder.getCollectorClass() == TotalHitCountCollector.class) {
                 // Optimize counts in simple cases to return in constant time
                 // instead of using a collector
                 while (true) {
@@ -308,40 +261,34 @@ public class QueryPhase implements SearchPhase {
                 }
 
                 if (query.getClass() == MatchAllDocsQuery.class) {
-                    collector = null;
-                    topDocsCallable = new Callable<TopDocs>() {
-                        @Override
-                        public TopDocs call() throws Exception {
-                            int count = searcher.getIndexReader().numDocs();
-                            return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
-                        }
-                    };
+                    collectorBuilder.disableCollection();
+                    collectorBuilder.setTopDocsCallable(() -> {
+                        int count = searcher.getIndexReader().numDocs();
+                        return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
+                    });
                 } else if (query.getClass() == TermQuery.class && searcher.getIndexReader().hasDeletions() == false) {
                     final Term term = ((TermQuery) query).getTerm();
-                    collector = null;
-                    topDocsCallable = new Callable<TopDocs>() {
-                        @Override
-                        public TopDocs call() throws Exception {
-                            int count = 0;
-                            for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
-                                count += context.reader().docFreq(term);
-                            }
-                            return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
+                    collectorBuilder.disableCollection();
+                    collectorBuilder.setTopDocsCallable(() -> {
+                        int count = 0;
+                        for (LeafReaderContext context : searcher.getIndexReader().leaves()) {
+                            count += context.reader().docFreq(term);
                         }
-                    };
+                        return new TopDocs(count, Lucene.EMPTY_SCORE_DOCS, 0);
+                    });
                 }
             }
 
             final boolean timeoutSet = searchContext.timeoutInMillis() != SearchService.NO_TIMEOUT.millis();
-            if (timeoutSet && collector != null) { // collector might be null if no collection is actually needed
+            if (timeoutSet) {
                 // TODO: change to use our own counter that uses the scheduler in ThreadPool
                 // throws TimeLimitingCollector.TimeExceededException when timeout has reached
-                collector = Lucene.wrapTimeLimitingCollector(collector, searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
-                collector = collectorBuilder.wrap(collector, CollectorResult.REASON_SEARCH_TIMEOUT);
+                collectorBuilder.addTimeLimitingCollector(searchContext.timeEstimateCounter(), searchContext.timeoutInMillis());
             }
 
             try {
-                if (collector != null) {
+                if (collectorBuilder.isCollectionEnabled()) {
+                    Collector collector = collectorBuilder.buildCollector();
                     if (doProfile) {
                         searchContext.getProfilers().getCurrent().setCollector((InternalProfileCollector) collector);
                     }
@@ -360,6 +307,7 @@ public class QueryPhase implements SearchPhase {
                 queryResult.terminatedEarly(false);
             }
 
+            Callable<TopDocs> topDocsCallable = collectorBuilder.buildTopDocsCallable();
             queryResult.topDocs(topDocsCallable.call());
 
             if (doProfile) {

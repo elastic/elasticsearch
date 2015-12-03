@@ -87,11 +87,8 @@ public class AggregationPhase implements SearchPhase {
                 }
                 context.aggregations().aggregators(aggregators);
                 if (!collectors.isEmpty()) {
-                    Collector collector = BucketCollector.wrap(collectors);
-                    ((BucketCollector)collector).preCollection();
-
-                    // TODO: report on child aggs as well
-                    collector = collectorBuilder.wrap(collector, CollectorResult.REASON_AGGREGATION);
+                    collectorBuilder.addBucketCollector(collectors, CollectorResult.REASON_AGGREGATION);
+                    final Collector collector = collectorBuilder.buildCollector();
                     context.queryCollectors().put(AggregationPhase.class, collector);
                 }
             } catch (IOException e) {
@@ -122,11 +119,11 @@ public class AggregationPhase implements SearchPhase {
 
         // optimize the global collector based execution
         if (!globals.isEmpty()) {
-            BucketCollector globalsCollector = BucketCollector.wrap(globals);
-            Query query = Queries.newMatchAllQuery();
-            Query searchFilter = context.searchFilter(context.types());
             boolean doProfile = context.getProfilers() != null;
             ProfileCollectorBuilder collectorBuilder = new ProfileCollectorBuilder(doProfile);
+
+            Query query = Queries.newMatchAllQuery();
+            Query searchFilter = context.searchFilter(context.types());
 
             if (searchFilter != null) {
                 BooleanQuery filtered = new BooleanQuery.Builder()
@@ -136,12 +133,12 @@ public class AggregationPhase implements SearchPhase {
                 query = filtered;
             }
             try {
-                final Collector collector = collectorBuilder.wrap(globalsCollector, CollectorResult.REASON_AGGREGATION_GLOBAL);
+                collectorBuilder.addBucketCollector(globals, CollectorResult.REASON_AGGREGATION_GLOBAL);
+                final Collector collector = collectorBuilder.buildCollector();
                 if (doProfile) {
                     // start a new profile with this collector
                     context.getProfilers().addProfiler().setCollector((InternalProfileCollector)collector);
                 }
-                globalsCollector.preCollection();
                 context.searcher().search(query, collector);
             } catch (Exception e) {
                 throw new QueryPhaseExecutionException(context, "Failed to execute global aggregators", e);

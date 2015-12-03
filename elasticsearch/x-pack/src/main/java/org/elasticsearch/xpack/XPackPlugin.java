@@ -5,6 +5,7 @@
  */
 package org.elasticsearch.xpack;
 
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionModule;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -24,6 +25,8 @@ import org.elasticsearch.shield.authz.AuthorizationModule;
 import org.elasticsearch.transport.TransportModule;
 import org.elasticsearch.watcher.WatcherPlugin;
 
+import java.security.AccessController;
+import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 
@@ -32,6 +35,36 @@ public class XPackPlugin extends Plugin {
     public static final String NAME = "x-pack";
 
     private final static ESLogger logger = Loggers.getLogger(XPackPlugin.class);
+
+    // TODO: clean up this library to not ask for write access to all system properties!
+    static {
+        // invoke this clinit in unbound with permissions to access all system properties
+        SecurityManager sm = System.getSecurityManager();
+        if (sm != null) {
+            sm.checkPermission(new SpecialPermission());
+        }
+        try {
+            AccessController.doPrivileged(new PrivilegedAction<Void>() {
+                @Override
+                public Void run() {
+                    try {
+                        Class.forName("com.unboundid.util.Debug");
+                    } catch (ClassNotFoundException e) {
+                        throw new RuntimeException(e);
+                    }
+                    return null;
+                }
+            });
+            // TODO: fix gradle to add all shield resources (plugin metadata) to test classpath
+            // of watcher plugin, which depends on it directly. This prevents these plugins
+            // from being initialized correctly by the test framework, and means we have to
+            // have this leniency.
+        } catch (ExceptionInInitializerError bogus) {
+            if (bogus.getCause() instanceof SecurityException == false) {
+                throw bogus; // some other bug
+            }
+        }
+    }
 
     protected final Settings settings;
     protected LicensePlugin licensePlugin;

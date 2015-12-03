@@ -101,13 +101,6 @@ forbiddenPatterns {
   exclude '**/*.p12'
 }
 
-bundlePlugin {
-  from(project(':x-plugins').projectDir) {
-    include 'LICENSE.txt'
-    include 'NOTICE.txt'
-  }
-}
-
 // TODO: standardize packaging config for plugins
 bundlePlugin {
   from(projectDir) {
@@ -120,7 +113,7 @@ bundlePlugin {
   from('shield/config/shield') {
     into 'config'
   }
-  from('shield/bin/watcher') {
+  from('watcher/bin/watcher') {
     into 'bin'
   }
 

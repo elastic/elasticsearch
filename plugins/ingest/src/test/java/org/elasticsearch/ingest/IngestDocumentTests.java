@@ -551,4 +551,28 @@ public class IngestDocumentTests extends ESTestCase {
             assertThat("iteration: " + i, copy, not(sameInstance(map)));
         }
     }
+
+    public void testDeepCopyDoesNotChangeProvidedMap() {
+        Map<String, Object> myPreciousMap = new HashMap<>();
+        myPreciousMap.put("field2", "value2");
+
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", new HashMap<>());
+        ingestDocument.setFieldValue("field1", myPreciousMap);
+        ingestDocument.removeField("field1.field2");
+
+        assertThat(myPreciousMap.size(), equalTo(1));
+        assertThat(myPreciousMap.get("field2"), equalTo("value2"));
+    }
+
+    public void testDeepCopyDoesNotChangeProvidedList() {
+        List<String> myPreciousList = new ArrayList<>();
+        myPreciousList.add("value");
+
+        IngestDocument ingestDocument = new IngestDocument("_index", "_type", "_id", new HashMap<>());
+        ingestDocument.setFieldValue("field1", myPreciousList);
+        ingestDocument.removeField("field1.0");
+
+        assertThat(myPreciousList.size(), equalTo(1));
+        assertThat(myPreciousList.get(0), equalTo("value"));
+    }
 }

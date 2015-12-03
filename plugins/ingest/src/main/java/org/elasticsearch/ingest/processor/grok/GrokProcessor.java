@@ -23,7 +23,11 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
+import java.io.BufferedReader;
+import java.io.IOException;
 import java.io.InputStream;
+import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -75,6 +79,22 @@ public final class GrokProcessor implements Processor {
             this.grokConfigDirectory = configDirectory.resolve("ingest").resolve("grok");
         }
 
+        static void loadBankFromStream(Map<String, String> patternBank, InputStream inputStream) throws IOException {
+            String line;
+            BufferedReader br = new BufferedReader(new InputStreamReader(inputStream, StandardCharsets.UTF_8));
+            while ((line = br.readLine()) != null) {
+                String trimmedLine = line.replaceAll("^\\s+", "");
+                if (trimmedLine.startsWith("#") || trimmedLine.length() == 0) {
+                    continue;
+                }
+
+                String[] parts = trimmedLine.split("\\s+", 2);
+                if (parts.length == 2) {
+                    patternBank.put(parts[0], parts[1]);
+                }
+            }
+        }
+
         public GrokProcessor create(Map<String, Object> config) throws Exception {
             String matchField = ConfigurationUtils.readStringProperty(config, "field");
             String matchPattern = ConfigurationUtils.readStringProperty(config, "pattern");
@@ -84,7 +104,7 @@ public final class GrokProcessor implements Processor {
                 for (Path patternFilePath : stream) {
                     if (Files.isRegularFile(patternFilePath)) {
                         try(InputStream is = Files.newInputStream(patternFilePath, StandardOpenOption.READ)) {
-                            PatternUtils.loadBankFromStream(patternBank, is);
+                            loadBankFromStream(patternBank, is);
                         }
                     }
                 }

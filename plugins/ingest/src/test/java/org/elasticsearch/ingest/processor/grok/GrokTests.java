@@ -40,7 +40,7 @@ public class GrokTests extends ESTestCase {
         Map<String, String> patternBank = new HashMap<>();
 
         for (InputStream is : inputStreams) {
-            PatternUtils.loadBankFromStream(patternBank, is);
+            GrokProcessor.Factory.loadBankFromStream(patternBank, is);
         }
 
         return patternBank;

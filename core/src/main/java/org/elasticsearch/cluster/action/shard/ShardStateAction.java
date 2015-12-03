@@ -152,7 +152,7 @@ public class ShardStateAction extends AbstractComponent {
     class ShardFailedClusterStateHandler implements ClusterStateTaskExecutor<ShardRoutingEntry>, ClusterStateTaskListener {
         @Override
         public BatchResult<ShardRoutingEntry> execute(ClusterState currentState, List<ShardRoutingEntry> tasks) throws Exception {
-            BatchResult.Builder<ShardRoutingEntry> builder = BatchResult.builder();
+            BatchResult.Builder<ShardRoutingEntry> batchResultBuilder = BatchResult.builder();
             List<FailedRerouteAllocation.FailedShard> shardRoutingsToBeApplied = new ArrayList<>(tasks.size());
             for (ShardRoutingEntry task : tasks) {
                 task.processed = true;
@@ -164,11 +164,11 @@ public class ShardStateAction extends AbstractComponent {
                 if (result.changed()) {
                     maybeUpdatedState = ClusterState.builder(currentState).routingResult(result).build();
                 }
-                builder.successes(tasks);
+                batchResultBuilder.successes(tasks);
             } catch (Throwable t) {
-                builder.failures(tasks, t);
+                batchResultBuilder.failures(tasks, t);
             }
-            return builder.build(maybeUpdatedState);
+            return batchResultBuilder.build(maybeUpdatedState);
         }
 
         @Override

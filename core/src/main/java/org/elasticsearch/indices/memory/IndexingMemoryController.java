@@ -294,26 +294,16 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return System.nanoTime();
     }
 
-    /** ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.  returns Boolean.TRUE if
-     *  it did deactive, Boolean.FALSE if it did not, and null if the shard is unknown */
-    protected Boolean checkIdle(IndexShard shard, long inactiveTimeNS) {
-        String ignoreReason;
-        if (shard != null) {
-            try {
-                return shard.checkIdle(inactiveTimeNS);
-            } catch (EngineClosedException e) {
-                // ignore
-                ignoreReason = "EngineClosedException";
-            } catch (FlushNotAllowedEngineException e) {
-                // ignore
-                ignoreReason = "FlushNotAllowedEngineException";
-            }
-        } else {
-            ignoreReason = "shard not found";
+    /**
+     * ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.
+     * return false if the shard is not idle, otherwise true
+     */
+    protected boolean checkIdle(IndexShard shard, long inactiveTimeNS) {
+        try {
+            return shard.checkIdle(inactiveTimeNS);
+        } catch (EngineClosedException | FlushNotAllowedEngineException e) {
+            logger.trace("ignore [{}] while marking shard {} as inactive", e.getClass().getSimpleName(), shard.shardId());
+            return true;
         }
-        if (ignoreReason != null) {
-            logger.trace("ignore [{}] while marking shard {} as inactive", ignoreReason, shard.shardId());
-        }
-        return null;
     }
 }

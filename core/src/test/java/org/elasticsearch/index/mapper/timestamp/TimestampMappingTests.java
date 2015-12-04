@@ -41,6 +41,7 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentMapperParser;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -557,7 +558,6 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
     public void testMergingConflicts() throws Exception {
         String mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", true)
-                .startObject("fielddata").field("format", "doc_values").endObject()
                 .field("store", "yes")
                 .field("index", "analyzed")
                 .field("path", "foo")
@@ -565,9 +565,9 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
         Settings indexSettings = Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, Version.V_1_4_2.id).build();
-        DocumentMapperParser parser = createIndex("test", indexSettings).mapperService().documentMapperParser();
+        MapperService mapperService = createIndex("test", indexSettings).mapperService();
 
-        DocumentMapper docMapper = parser.parse(mapping);
+        DocumentMapper docMapper = mapperService.merge("type", new CompressedXContent(mapping), true, false);
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
                 .startObject("_timestamp").field("enabled", false)
@@ -579,20 +579,32 @@ public class TimestampMappingTests extends ESSingleNodeTestCase {
                 .endObject()
                 .endObject().endObject().string();
 
-        MergeResult mergeResult = docMapper.merge(parser.parse(mapping).mapping(), true, false);
-        List<String> expectedConflicts = new ArrayList<>(Arrays.asList(
-            "mapper [_timestamp] has different [index] values",
-            "mapper [_timestamp] has different [store] values",
-            "Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02",
-            "Cannot update path in _timestamp value. Value is foo path in merged mapping is bar"));
-
-        for (String conflict : mergeResult.buildConflicts()) {
-            assertTrue("found unexpected conflict [" + conflict + "]", expectedConflicts.remove(conflict));
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("mapper [_timestamp] has different [index] values"));
+            assertThat(e.getMessage(), containsString("mapper [_timestamp] has different [store] values"));
         }
-        assertTrue("missing conflicts: " + Arrays.toString(expectedConflicts.toArray()), expectedConflicts.isEmpty());
+
         assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getLoading(), equalTo(MappedFieldType.Loading.LAZY));
         assertTrue(docMapper.timestampFieldMapper().enabled());
-        assertThat(docMapper.timestampFieldMapper().fieldType().fieldDataType().getFormat(indexSettings), equalTo("doc_values"));
+
+        mapping = XContentFactory.jsonBuilder().startObject().startObject("type")
+                .startObject("_timestamp").field("enabled", true)
+                .field("store", "yes")
+                .field("index", "analyzed")
+                .field("path", "bar")
+                .field("default", "1970-01-02")
+                .endObject()
+                .endObject().endObject().string();
+        try {
+            mapperService.merge("type", new CompressedXContent(mapping), false, false);
+            fail();
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Cannot update default in _timestamp value. Value is 1970-01-01 now encountering 1970-01-02"));
+            assertThat(e.getMessage(), containsString("Cannot update path in _timestamp value. Value is foo path in merged mapping is bar"));
+        }
     }
 
     public void testBackcompatMergingConflictsForIndexValues() throws Exception {

@@ -6,7 +6,7 @@ dependencies {
   testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
 }
 
-ext.pluginsCount = 4 // we install xplugins explicitly
+ext.pluginsCount = 1 // we install xpack explicitly
 project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
   // need to get a non-decorated project object, so must re-lookup the project by path
   integTest.cluster.plugin(subproj.name, project(subproj.path))

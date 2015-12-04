@@ -140,14 +140,15 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         if (index().version() == Versions.NOT_SET) {
             /*
              * Not set means just don't set it on the index request. That
-             * doesn't work properly with some VersionTypes.
+             * doesn't work properly with some VersionTypes so lets just set it
+             * to something simple.
              */
             index().versionType(VersionType.INTERNAL);
             return;
         }
         if (destinationSameAsSource()) {
-            // Should be external_exact which is just like internal but preserves version number
-            index().versionType(VersionType.INTERNAL);
+            // Only writes on versions == and writes the version number
+            index().versionType(VersionType.EXTERNAL_EXACT);
             return;
         }
         index().opType(OpType.CREATE);

@@ -1,5 +1,5 @@
 ---
-"Preserve external version if version_type=external":
+"Preserve external version on copy version_type=external":
   - do:
       index:
         index:        test
@@ -24,14 +24,88 @@
           source:
             index: test
           index:
-            version_type: external  # TODO this should just preserve by default
-            index: target
+            index: test
   - do:
       indices.refresh: {}
 
   - do:
       get:
-        index: target
+        index: test
         type:  test
         id:    1
   - match: { _version: 4 }
+
+---
+"Preserve external version on reindex by default":
+  - do:
+      index:
+        index:        test
+        type:         test
+        id:           1
+        version:      4
+        version_type: external
+        body:         { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        type:  test
+        id:    1
+  - match: { _version: 4 }
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: test
+          index:
+            index: test
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        type:  test
+        id:    1
+  - match: { _version: 4 }
+
+---
+"Can set version to internal on reindex to increment version":
+  - do:
+      index:
+        index:        test
+        type:         test
+        id:           1
+        version:      4
+        version_type: external
+        body:         { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        type:  test
+        id:    1
+  - match: { _version: 4 }
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:        test
+          index:
+            index:        test
+            version_type: internal
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        type:  test
+        id:    1
+  - match: { _version: 5 }

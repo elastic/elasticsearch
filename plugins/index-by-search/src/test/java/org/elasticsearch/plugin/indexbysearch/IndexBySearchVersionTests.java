@@ -41,20 +41,49 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 public class IndexBySearchVersionTests extends IndexBySearchTestCase {
     private static final int MAX_MUTATIONS = 50;
 
-    public void testExternalVersioningPreservesVersion() throws Exception {
+    public void testExternalVersioningPreservesVersionWhenCopying() throws Exception {
         indexRandom(true, client().prepareIndex("test", "source", "test").setVersionType(EXTERNAL).setVersion(4)
                 .setSource("foo", "bar"));
 
         assertEquals(4, client().prepareGet("test", "source", "test").get().getVersion());
 
         IndexBySearchRequestBuilder copy = newIndexBySearch();
+        copy.search().setIndices("test").setTypes("source");
         copy.index().setIndex("test").setType("dest").setVersionType(EXTERNAL);
         assertThat(copy.get(), responseMatcher().indexed(1));
         refresh();
         assertEquals(4, client().prepareGet("test", "dest", "test").get().getVersion());
     }
 
-    public void testInternalVersioningDoesntCopy() throws Exception {
+    public void testVersionPreservedWhenReindexingByDefault() throws Exception {
+        indexRandom(true, client().prepareIndex("test", "test", "test").setVersionType(EXTERNAL).setVersion(4)
+                .setSource("foo", "bar"));
+
+        assertEquals(4, client().prepareGet("test", "test", "test").get().getVersion());
+
+        IndexBySearchRequestBuilder copy = newIndexBySearch();
+        copy.search().setIndices("test").setTypes("test");
+        copy.index().setIndex("test").setType("test");
+        assertThat(copy.get(), responseMatcher().indexed(1));
+        refresh();
+        assertEquals(4, client().prepareGet("test", "test", "test").get().getVersion());
+    }
+
+    public void testVersionIncrementedWhenReindexingWithInternalVersioning() throws Exception {
+        indexRandom(true, client().prepareIndex("test", "test", "test").setVersionType(EXTERNAL).setVersion(4)
+                .setSource("foo", "bar"));
+
+        assertEquals(4, client().prepareGet("test", "test", "test").get().getVersion());
+
+        IndexBySearchRequestBuilder copy = newIndexBySearch();
+        copy.search().setIndices("test").setTypes("test");
+        copy.index().setIndex("test").setType("test").setVersionType(INTERNAL);
+        assertThat(copy.get(), responseMatcher().indexed(1));
+        refresh();
+        assertEquals(5, client().prepareGet("test", "test", "test").get().getVersion());
+    }
+
+    public void testInternalVersioningDoesntCopyIfNotFound() throws Exception {
         indexRandom(true, client().prepareIndex("test", "source", "test").setSource("foo", "bar"));
 
         IndexBySearchRequestBuilder copy = newIndexBySearch();
@@ -63,7 +92,6 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
         refresh();
         assertHitCount(client().prepareSearch("test").setTypes("dest").get(), 0);
     }
-
 
     public void testVersionNotSetAlwaysOverwrites() throws Exception {
         indexRandom(true, client().prepareIndex("test", "source", "test").setSource("foo", "bar"),

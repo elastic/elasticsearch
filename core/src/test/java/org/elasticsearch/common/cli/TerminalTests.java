@@ -26,9 +26,6 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 
-/**
- *
- */
 public class TerminalTests extends CliToolTestCase {
     public void testVerbosity() throws Exception {
         CaptureOutputTerminal terminal = new CaptureOutputTerminal(Terminal.Verbosity.SILENT);
@@ -58,10 +55,17 @@ public class TerminalTests extends CliToolTestCase {
             assertFalse(output.isEmpty());
             assertTrue(output.get(0), output.get(0).contains("NoSuchFileException")); // exception class
             assertTrue(output.get(0), output.get(0).contains("/path/to/some/file")); // message
-            assertEquals(1, output.size());
+            assertEquals("missing stacktrace warning", 2, output.size());
+            assertTrue(output.get(1).contains("The stacktrace was omitted"));
 
-            // TODO: we should test stack trace is printed in debug mode...except debug is a sysprop instead of
-            // a command line param...maybe it should be VERBOSE instead of a separate debug prop?
+            terminal = new CaptureOutputTerminal(Terminal.Verbosity.VERBOSE);
+            terminal.printError(e);
+            output = terminal.getTerminalOutput();
+            assertFalse(output.isEmpty());
+            assertTrue(output.get(0), output.get(0).contains("NoSuchFileException")); // exception class
+            assertTrue(output.get(0), output.get(0).contains("/path/to/some/file")); // message
+            assertTrue(output.get(0), output.get(0).contains(TerminalTests.class.getPackage().getName()));
+            assertEquals(1, output.size()); // stack trace shows up in one "line" (just one string in the capture list)
         }
     }
 

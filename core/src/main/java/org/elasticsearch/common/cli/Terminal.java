@@ -31,16 +31,14 @@ import java.util.Locale;
 @SuppressForbidden(reason = "System#out")
 public abstract class Terminal {
 
-    public static final String DEBUG_SYSTEM_PROPERTY = "es.cli.debug";
-
     public static final Terminal DEFAULT = ConsoleTerminal.supported() ? new ConsoleTerminal() : new SystemTerminal();
 
-    public static enum Verbosity {
+    public enum Verbosity {
         SILENT(0), NORMAL(1), VERBOSE(2);
 
         private final int level;
 
-        private Verbosity(int level) {
+        Verbosity(int level) {
             this.level = level;
         }
 
@@ -60,7 +58,6 @@ public abstract class Terminal {
     }
 
     private Verbosity verbosity = Verbosity.NORMAL;
-    private final boolean isDebugEnabled;
 
     public Terminal() {
         this(Verbosity.NORMAL);
@@ -68,7 +65,6 @@ public abstract class Terminal {
 
     public Terminal(Verbosity verbosity) {
         this.verbosity = verbosity;
-        this.isDebugEnabled = "true".equals(System.getProperty(DEBUG_SYSTEM_PROPERTY, "false"));
     }
 
     public void verbosity(Verbosity verbosity) {
@@ -116,9 +112,12 @@ public abstract class Terminal {
     }
 
     public void printError(Throwable t) {
-        printError("%s", t.toString());
-        if (isDebugEnabled) {
+
+        if (this.verbosity.enabled(Verbosity.VERBOSE)) {
             printStackTrace(t);
+        } else {
+            printError(t.toString());
+            printError("The stacktrace was omitted. Use -v to see it.");
         }
     }
 

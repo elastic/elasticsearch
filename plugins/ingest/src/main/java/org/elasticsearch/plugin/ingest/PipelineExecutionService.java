@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
@@ -58,12 +57,7 @@ public class PipelineExecutionService {
             String routing = indexRequest.routing();
             String parent = indexRequest.parent();
             String timestamp = indexRequest.timestamp();
-            String ttl = null;
-            if (indexRequest.ttl() != -1) {
-                // At this point we don't know the original string ttl that was specified,
-                // so we covert the ttl which is a long to a string using 'ms' as unit:
-                ttl = TimeValue.timeValueMillis(indexRequest.ttl()).toString();
-            }
+            String ttl = indexRequest.ttl() == null ? null : indexRequest.ttl().toString();
             Map<String, Object> sourceAsMap = indexRequest.sourceAsMap();
             IngestDocument ingestDocument = new IngestDocument(index, type, id, routing, parent, timestamp, ttl, sourceAsMap);
             try {
@@ -77,11 +71,7 @@ public class PipelineExecutionService {
                 indexRequest.routing(ingestDocument.getMetadata(IngestDocument.MetaData.ROUTING));
                 indexRequest.parent(ingestDocument.getMetadata(IngestDocument.MetaData.PARENT));
                 indexRequest.timestamp(ingestDocument.getMetadata(IngestDocument.MetaData.TIMESTAMP));
-                String ttlStr = ingestDocument.getMetadata(IngestDocument.MetaData.TTL);
-                if (ttlStr != null) {
-                    TimeValue timeValue = TimeValue.parseTimeValue(ttlStr, null, "ttl");
-                    indexRequest.ttl(timeValue.millis());
-                }
+                indexRequest.ttl(ingestDocument.getMetadata(IngestDocument.MetaData.TTL));
                 listener.onResponse(ingestDocument);
             } catch (Throwable e) {
                 listener.onFailure(e);

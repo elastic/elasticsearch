@@ -223,7 +223,7 @@ public class RecoveryWhileUnderLoadIT extends ESIntegTestCase {
     }
 
     public void testRecoverWhileRelocating() throws Exception {
-        final int numShards = between(2, 10);
+        final int numShards = between(2, 5);
         final int numReplicas = 0;
         logger.info("--> creating test index ...");
         int allowNodes = 2;

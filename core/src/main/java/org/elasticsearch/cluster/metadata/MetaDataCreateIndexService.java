@@ -299,7 +299,7 @@ public class MetaDataCreateIndexService extends AbstractComponent {
                     // Set up everything, now locally create the index to see that things are ok, and apply
                     final IndexMetaData tmpImd = IndexMetaData.builder(request.index()).settings(actualIndexSettings).build();
                     // create the index here (on the master) to validate it can be created, as well as adding the mapping
-                    indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.EMPTY_LIST);
+                    indicesService.createIndex(nodeServicesProvider, tmpImd, Collections.emptyList());
                     indexCreated = true;
                     // now add the mappings
                     IndexService indexService = indicesService.indexServiceSafe(request.index());

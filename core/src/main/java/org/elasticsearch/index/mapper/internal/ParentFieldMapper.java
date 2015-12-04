@@ -38,7 +38,6 @@ import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -372,7 +371,7 @@ public class ParentFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         super.merge(mergeWith, mergeResult);
         ParentFieldMapper fieldMergeWith = (ParentFieldMapper) mergeWith;
         if (Objects.equals(parentType, fieldMergeWith.parentType) == false) {

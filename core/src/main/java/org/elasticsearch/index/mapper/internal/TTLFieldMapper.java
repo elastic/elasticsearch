@@ -32,7 +32,6 @@ import org.elasticsearch.index.analysis.NumericLongAnalyzer;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.ParseContext;
@@ -259,7 +258,7 @@ public class TTLFieldMapper extends MetadataFieldMapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         TTLFieldMapper ttlMergeWith = (TTLFieldMapper) mergeWith;
         if (((TTLFieldMapper) mergeWith).enabledState != Defaults.ENABLED_STATE) {//only do something if actually something was set for the document mapper that we merge with
             if (this.enabledState == EnabledAttributeMapper.ENABLED && ((TTLFieldMapper) mergeWith).enabledState == EnabledAttributeMapper.DISABLED) {

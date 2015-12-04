@@ -20,6 +20,8 @@
 package org.elasticsearch.action.admin.indices.template.put;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.action.admin.indices.alias.Alias;
+import org.elasticsearch.cluster.metadata.AliasValidator;
 import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.cluster.metadata.MetaDataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetaDataIndexTemplateService;
@@ -28,13 +30,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 import static org.hamcrest.CoreMatchers.containsString;
+import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.instanceOf;
 
 public class MetaDataIndexTemplateServiceTests extends ESTestCase {
@@ -68,6 +67,17 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
         assertThat(throwables.get(0).getMessage(), containsString("index must have 1 or more primary shards"));
     }
 
+    public void testIndexTemplateWithAliasNameEqualToTemplatePattern() {
+        PutRequest request = new PutRequest("api", "foobar_template");
+        request.template("foobar");
+        request.aliases(Collections.singleton(new Alias("foobar")));
+
+        List<Throwable> errors = putTemplate(request);
+        assertThat(errors.size(), equalTo(1));
+        assertThat(errors.get(0), instanceOf(IllegalArgumentException.class));
+        assertThat(errors.get(0).getMessage(), equalTo("Alias [foobar] cannot be the same as the template pattern [foobar]"));
+    }
+
     private static List<Throwable> putTemplate(PutRequest request) {
         MetaDataCreateIndexService createIndexService = new MetaDataCreateIndexService(
                 Settings.EMPTY,
@@ -79,7 +89,7 @@ public class MetaDataIndexTemplateServiceTests extends ESTestCase {
                 new HashSet<>(),
                 null,
                 null);
-        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, null);
+        MetaDataIndexTemplateService service = new MetaDataIndexTemplateService(Settings.EMPTY, null, createIndexService, new AliasValidator(Settings.EMPTY));
 
         final List<Throwable> throwables = new ArrayList<>();
         service.putTemplate(request, new MetaDataIndexTemplateService.PutListener() {

@@ -245,7 +245,7 @@ public abstract class NumberFieldMapper extends FieldMapper implements AllFieldM
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         super.merge(mergeWith, mergeResult);
         if (!this.getClass().equals(mergeWith.getClass())) {
             return;

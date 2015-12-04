@@ -37,7 +37,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
@@ -69,12 +68,10 @@ public class MetaDataMappingService extends AbstractComponent {
     static class RefreshTask {
         final String index;
         final String indexUUID;
-        final String[] types;
 
-        RefreshTask(String index, final String indexUUID, String[] types) {
+        RefreshTask(String index, final String indexUUID) {
             this.index = index;
             this.indexUUID = indexUUID;
-            this.types = types;
         }
     }
 
@@ -87,15 +84,11 @@ public class MetaDataMappingService extends AbstractComponent {
     }
 
     /**
-     * Batch method to apply all the queued refresh or update operations. The idea is to try and batch as much
+     * Batch method to apply all the queued refresh operations. The idea is to try and batch as much
      * as possible so we won't create the same index all the time for example for the updates on the same mapping
      * and generate a single cluster change event out of all of those.
      */
     ClusterState executeRefresh(final ClusterState currentState, final List<RefreshTask> allTasks) throws Exception {
-        if (allTasks.isEmpty()) {
-            return currentState;
-        }
-
         // break down to tasks per index, so we can optimize the on demand index service creation
         // to only happen for the duration of a single index processing of its respective events
         Map<String, List<RefreshTask>> tasksPerIndex = new HashMap<>();
@@ -120,13 +113,16 @@ public class MetaDataMappingService extends AbstractComponent {
             // the tasks lists to iterate over, filled with the list of mapping tasks, trying to keep
             // the latest (based on order) update mapping one per node
             List<RefreshTask> allIndexTasks = entry.getValue();
-            List<RefreshTask> tasks = new ArrayList<>();
+            boolean hasTaskWithRightUUID = false;
             for (RefreshTask task : allIndexTasks) {
-                if (!indexMetaData.isSameUUID(task.indexUUID)) {
+                if (indexMetaData.isSameUUID(task.indexUUID)) {
+                    hasTaskWithRightUUID = true;
+                } else {
                     logger.debug("[{}] ignoring task [{}] - index meta data doesn't match task uuid", index, task);
-                    continue;
                 }
-                tasks.add(task);
+            }
+            if (hasTaskWithRightUUID == false) {
+                continue;
             }
 
             // construct the actual index if needed, and make sure the relevant mappings are there
@@ -134,24 +130,17 @@ public class MetaDataMappingService extends AbstractComponent {
             IndexService indexService = indicesService.indexService(index);
             if (indexService == null) {
                 // we need to create the index here, and add the current mapping to it, so we can merge
-                indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.EMPTY_LIST);
+                indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
                 removeIndex = true;
-                Set<String> typesToIntroduce = new HashSet<>();
-                for (RefreshTask task : tasks) {
-                    Collections.addAll(typesToIntroduce, task.types);
-                }
-                for (String type : typesToIntroduce) {
-                    // only add the current relevant mapping (if exists)
-                    if (indexMetaData.getMappings().containsKey(type)) {
-                        // don't apply the default mapping, it has been applied when the mapping was created
-                        indexService.mapperService().merge(type, indexMetaData.getMappings().get(type).source(), false, true);
-                    }
+                for (ObjectCursor<MappingMetaData> metaData : indexMetaData.getMappings().values()) {
+                    // don't apply the default mapping, it has been applied when the mapping was created
+                    indexService.mapperService().merge(metaData.value.type(), metaData.value.source(), false, true);
                 }
             }
 
             IndexMetaData.Builder builder = IndexMetaData.builder(indexMetaData);
             try {
-                boolean indexDirty = processIndexMappingTasks(tasks, indexService, builder);
+                boolean indexDirty = refreshIndexMapping(indexService, builder);
                 if (indexDirty) {
                     mdBuilder.put(builder);
                     dirty = true;
@@ -169,38 +158,28 @@ public class MetaDataMappingService extends AbstractComponent {
         return ClusterState.builder(currentState).metaData(mdBuilder).build();
     }
 
-    private boolean processIndexMappingTasks(List<RefreshTask> tasks, IndexService indexService, IndexMetaData.Builder builder) {
+    private boolean refreshIndexMapping(IndexService indexService, IndexMetaData.Builder builder) {
         boolean dirty = false;
         String index = indexService.index().name();
-        // keep track of what we already refreshed, no need to refresh it again...
-        Set<String> processedRefreshes = new HashSet<>();
-        for (RefreshTask refreshTask : tasks) {
-            try {
-                List<String> updatedTypes = new ArrayList<>();
-                for (String type : refreshTask.types) {
-                    if (processedRefreshes.contains(type)) {
-                        continue;
-                    }
-                    DocumentMapper mapper = indexService.mapperService().documentMapper(type);
-                    if (mapper == null) {
-                        continue;
-                    }
-                    if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
-                        updatedTypes.add(type);
-                        builder.putMapping(new MappingMetaData(mapper));
-                    }
-                    processedRefreshes.add(type);
+        try {
+            List<String> updatedTypes = new ArrayList<>();
+            for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {
+                final String type = mapper.type();
+                if (!mapper.mappingSource().equals(builder.mapping(type).source())) {
+                    updatedTypes.add(type);
                 }
-
-                if (updatedTypes.isEmpty()) {
-                    continue;
-                }
-
-                logger.warn("[{}] re-syncing mappings with cluster state for types [{}]", index, updatedTypes);
-                dirty = true;
-            } catch (Throwable t) {
-                logger.warn("[{}] failed to refresh-mapping in cluster state, types [{}]", index, refreshTask.types);
             }
+
+            // if a single type is not up-to-date, re-send everything
+            if (updatedTypes.isEmpty() == false) {
+                logger.warn("[{}] re-syncing mappings with cluster state because of types [{}]", index, updatedTypes);
+                dirty = true;
+                for (DocumentMapper mapper : indexService.mapperService().docMappers(true)) {
+                    builder.putMapping(new MappingMetaData(mapper));
+                }
+            }
+        } catch (Throwable t) {
+            logger.warn("[{}] failed to refresh-mapping in cluster state", t, index);
         }
         return dirty;
     }
@@ -208,9 +187,9 @@ public class MetaDataMappingService extends AbstractComponent {
     /**
      * Refreshes mappings if they are not the same between original and parsed version
      */
-    public void refreshMapping(final String index, final String indexUUID, final String... types) {
-        final RefreshTask refreshTask = new RefreshTask(index, indexUUID, types);
-        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "][" + Arrays.toString(types) + "]",
+    public void refreshMapping(final String index, final String indexUUID) {
+        final RefreshTask refreshTask = new RefreshTask(index, indexUUID);
+        clusterService.submitStateUpdateTask("refresh-mapping [" + index + "]",
             refreshTask,
             ClusterStateTaskConfig.build(Priority.HIGH),
             refreshExecutor,
@@ -228,26 +207,14 @@ public class MetaDataMappingService extends AbstractComponent {
                 for (PutMappingClusterStateUpdateRequest request : tasks) {
                     // failures here mean something is broken with our cluster state - fail all tasks by letting exceptions bubble up
                     for (String index : request.indices()) {
-                        if (currentState.metaData().hasIndex(index)) {
+                        final IndexMetaData indexMetaData = currentState.metaData().index(index);
+                        if (indexMetaData != null  && indicesService.hasIndex(index) == false) {
                             // if we don't have the index, we will throw exceptions later;
-                            if (indicesService.hasIndex(index) == false || indicesToClose.contains(index)) {
-                                final IndexMetaData indexMetaData = currentState.metaData().index(index);
-                                IndexService indexService;
-                                if (indicesService.hasIndex(index) == false) {
-                                    indicesToClose.add(index);
-                                    indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.EMPTY_LIST);
-                                    // make sure to add custom default mapping if exists
-                                    if (indexMetaData.getMappings().containsKey(MapperService.DEFAULT_MAPPING)) {
-                                        indexService.mapperService().merge(MapperService.DEFAULT_MAPPING, indexMetaData.getMappings().get(MapperService.DEFAULT_MAPPING).source(), false, request.updateAllTypes());
-                                    }
-                                } else {
-                                    indexService = indicesService.indexService(index);
-                                }
-                                // only add the current relevant mapping (if exists and not yet added)
-                                if (indexMetaData.getMappings().containsKey(request.type()) &&
-                                        !indexService.mapperService().hasMapping(request.type())) {
-                                    indexService.mapperService().merge(request.type(), indexMetaData.getMappings().get(request.type()).source(), false, request.updateAllTypes());
-                                }
+                            indicesToClose.add(index);
+                            IndexService indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
+                            // add mappings for all types, we need them for cross-type validation
+                            for (ObjectCursor<MappingMetaData> mapping : indexMetaData.getMappings().values()) {
+                                indexService.mapperService().merge(mapping.value.type(), mapping.value.source(), false, request.updateAllTypes());
                             }
                         }
                     }
@@ -287,7 +254,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true, request.updateAllTypes());
                         // if we have conflicts, throw an exception
                         if (mergeResult.hasConflicts()) {
-                            throw new MergeMappingException(mergeResult.buildConflicts());
+                            throw new IllegalArgumentException("Merge failed with failures {" + Arrays.toString(mergeResult.buildConflicts()) + "}");
                         }
                     } else {
                         // TODO: can we find a better place for this validation?

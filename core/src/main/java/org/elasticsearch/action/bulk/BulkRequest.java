@@ -300,7 +300,7 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                 String parent = null;
                 String[] fields = defaultFields;
                 String timestamp = null;
-                Long ttl = null;
+                TimeValue ttl = null;
                 String opType = null;
                 long version = Versions.MATCH_ANY;
                 VersionType versionType = VersionType.INTERNAL;
@@ -333,9 +333,9 @@ public class BulkRequest extends ActionRequest<BulkRequest> implements Composite
                                 timestamp = parser.text();
                             } else if ("_ttl".equals(currentFieldName) || "ttl".equals(currentFieldName)) {
                                 if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
-                                    ttl = TimeValue.parseTimeValue(parser.text(), null, currentFieldName).millis();
+                                    ttl = TimeValue.parseTimeValue(parser.text(), null, currentFieldName);
                                 } else {
-                                    ttl = parser.longValue();
+                                    ttl = new TimeValue(parser.longValue());
                                 }
                             } else if ("op_type".equals(currentFieldName) || "opType".equals(currentFieldName)) {
                                 opType = parser.text();

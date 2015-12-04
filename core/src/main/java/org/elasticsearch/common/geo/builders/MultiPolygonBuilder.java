@@ -89,6 +89,4 @@ public class MultiPolygonBuilder extends ShapeBuilder {
             return new XShapeCollection<>(shapes, SPATIAL_CONTEXT);
         //note: ShapeCollection is probably faster than a Multi* geom.
     }
-
-
 }

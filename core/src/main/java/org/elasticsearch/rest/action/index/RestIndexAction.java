@@ -74,7 +74,7 @@ public class RestIndexAction extends BaseRestHandler {
         indexRequest.parent(request.param("parent")); // order is important, set it after routing, so it will set the routing
         indexRequest.timestamp(request.param("timestamp"));
         if (request.hasParam("ttl")) {
-            indexRequest.ttl(request.paramAsTime("ttl", null).millis());
+            indexRequest.ttl(request.param("ttl"));
         }
         indexRequest.source(request.content());
         indexRequest.timeout(request.paramAsTime("timeout", IndexRequest.DEFAULT_TIMEOUT));

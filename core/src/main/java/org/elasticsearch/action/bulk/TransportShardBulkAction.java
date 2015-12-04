@@ -335,7 +335,7 @@ public class TransportShardBulkAction extends TransportReplicationAction<BulkSha
             indexRequest.process(clusterState.metaData(), mappingMd, allowIdGeneration, request.index());
         }
 
-        return executeIndexRequestOnPrimary(request, indexRequest, indexShard);
+        return executeIndexRequestOnPrimary(indexRequest, indexShard);
     }
 
     private WriteResult<DeleteResponse> shardDeleteOperation(BulkShardRequest request, DeleteRequest deleteRequest, IndexShard indexShard) {

@@ -24,7 +24,6 @@ import org.elasticsearch.action.admin.indices.mapping.put.PutMappingResponse;
 import org.elasticsearch.client.Client;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.index.mapper.MapperParsingException;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.HashMap;
@@ -150,9 +149,9 @@ public class UpdateMappingOnClusterIT extends ESIntegTestCase {
         try {
             client().admin().indices().preparePutMapping(INDEX).setType(TYPE).setSource(mappingUpdate).get();
             fail();
-        } catch (MergeMappingException e) {
+        } catch (IllegalArgumentException e) {
             for (String errorMessage : errorMessages) {
-                assertThat(e.getDetailedMessage(), containsString(errorMessage));
+                assertThat(e.getMessage(), containsString(errorMessage));
             }
         }
         compareMappingOnNodes(mappingsBeforeUpdateResponse);

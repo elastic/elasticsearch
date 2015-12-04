@@ -54,6 +54,6 @@ public class IndexSettingsModule extends AbstractModule {
                 .put(settings)
                 .build();
         IndexMetaData metaData = IndexMetaData.builder(index.getName()).settings(build).build();
-        return new IndexSettings(metaData, Settings.EMPTY, Collections.EMPTY_LIST);
+        return new IndexSettings(metaData, Settings.EMPTY, Collections.emptyList());
     }
 }

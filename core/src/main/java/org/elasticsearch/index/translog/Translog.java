@@ -166,7 +166,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                 current = createWriter(checkpoint.generation + 1);
                 this.lastCommittedTranslogFileGeneration = translogGeneration.translogFileGeneration;
             } else {
-                this.recoveredTranslogs = Collections.EMPTY_LIST;
+                this.recoveredTranslogs = Collections.emptyList();
                 IOUtils.rm(location);
                 logger.debug("wipe translog location - creating new translog");
                 Files.createDirectories(location);
@@ -582,7 +582,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      * and updated with any future translog.
      */
     public static final class View implements Closeable {
-        public static final Translog.View EMPTY_VIEW = new View(Collections.EMPTY_LIST, null);
+        public static final Translog.View EMPTY_VIEW = new View(Collections.emptyList(), null);
 
         boolean closed;
         // last in this list is always FsTranslog.current

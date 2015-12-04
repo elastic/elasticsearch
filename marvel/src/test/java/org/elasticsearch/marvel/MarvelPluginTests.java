@@ -50,7 +50,7 @@ public class MarvelPluginTests extends MarvelIntegTestCase {
             assertNotNull(nodeInfo.getPlugins());
 
             boolean found = false;
-            for (PluginInfo plugin : nodeInfo.getPlugins().getInfos()) {
+            for (PluginInfo plugin : nodeInfo.getPlugins().getPluginInfos()) {
                 assertNotNull(plugin);
 
                 if (MarvelPlugin.NAME.equals(plugin.getName())) {

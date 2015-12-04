@@ -560,7 +560,7 @@ public class OldCompletionFieldMapper extends FieldMapper {
 
     @Override
     protected void doMerge(Mapper mergeWith, boolean updateAllTypes) {
-        super.merge(mergeWith, updateAllTypes);
+        super.doMerge(mergeWith, updateAllTypes);
         OldCompletionFieldMapper fieldMergeWith = (OldCompletionFieldMapper) mergeWith;
         this.maxInputLength = fieldMergeWith.maxInputLength;
     }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.xcontent.XContentFactory;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.index.mapper.core.LongFieldMapper;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -38,6 +37,7 @@ import java.io.IOException;
 import java.util.LinkedHashMap;
 
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
 
@@ -122,15 +122,15 @@ public class UpdateMappingTests extends ESSingleNodeTestCase {
         try {
             mapperService.merge("type", new CompressedXContent(update.string()), false, false);
             fail();
-        } catch (MergeMappingException e) {
-            // expected
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Merge failed"));
         }
 
         try {
             mapperService.merge("type", new CompressedXContent(update.string()), false, false);
             fail();
-        } catch (MergeMappingException e) {
-            // expected
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), containsString("Merge failed"));
         }
 
         assertTrue(mapperService.documentMapper("type").mapping().root().getMapper("foo") instanceof LongFieldMapper);

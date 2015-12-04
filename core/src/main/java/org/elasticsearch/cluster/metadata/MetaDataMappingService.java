@@ -37,7 +37,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.NodeServicesProvider;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.mapper.MergeMappingException;
 import org.elasticsearch.index.mapper.MergeResult;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.InvalidTypeNameException;
@@ -255,7 +254,7 @@ public class MetaDataMappingService extends AbstractComponent {
                         MergeResult mergeResult = existingMapper.merge(newMapper.mapping(), true, request.updateAllTypes());
                         // if we have conflicts, throw an exception
                         if (mergeResult.hasConflicts()) {
-                            throw new MergeMappingException(mergeResult.buildConflicts());
+                            throw new IllegalArgumentException("Merge failed with failures {" + Arrays.toString(mergeResult.buildConflicts()) + "}");
                         }
                     } else {
                         // TODO: can we find a better place for this validation?

@@ -253,7 +253,7 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
                 // simulate first
                 MergeResult result = oldMapper.merge(mapper.mapping(), true, updateAllTypes);
                 if (result.hasConflicts()) {
-                    throw new MergeMappingException(result.buildConflicts());
+                    throw new IllegalArgumentException("Merge failed with failures {" + Arrays.toString(result.buildConflicts()) + "}");
                 }
                 // then apply for real
                 result = oldMapper.merge(mapper.mapping(), false, updateAllTypes);

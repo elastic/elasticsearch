@@ -2,13 +2,12 @@ apply plugin: 'elasticsearch.rest-test'
 
 dependencies {
   testCompile project(path: ':x-plugins:elasticsearch:x-pack', configuration: 'runtime')
-  testCompile project(path: ':plugins:lang-groovy', configuration: 'runtime')
+  testCompile project(path: ':modules:lang-groovy', configuration: 'runtime')
 }
 
 integTest {
   cluster {
     plugin 'x-pack', project(':x-plugins:elasticsearch:x-pack')
-    plugin 'groovy', project(':plugins:lang-groovy')
     systemProperty 'es.script.inline', 'on'
     systemProperty 'es.shield.enabled', 'false'
   }

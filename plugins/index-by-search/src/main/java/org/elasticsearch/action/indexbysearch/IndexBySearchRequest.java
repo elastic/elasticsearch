@@ -30,6 +30,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexRequest.OpType;
+import org.elasticsearch.action.indexbysearch.AbstractAsyncScrollAction.AsyncScrollActionRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -38,7 +39,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
-public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
+public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> implements AsyncScrollActionRequest {
     private static final TimeValue DEFAULT_SCROLL_TIMEOUT = TimeValue.timeValueMinutes(5);
     private static final int DEFAULT_SIZE = 100;
 
@@ -61,6 +62,19 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
      * hits and is the default.
      */
     private int size = -1;
+
+    /**
+     * Should failure messages be saved in the list of failures and count
+     * against the failuresBeforeAbort? Defaults to false.
+     */
+    private boolean saveVersionConflicts = false;
+
+    /**
+     * How many failures to record before we abort? More than this many failures
+     * might be returned because we record all failures in the bulk batch and
+     * then abort.
+     */
+    private int failuresBeforeAbort = 0;
 
     public IndexBySearchRequest() {
     }
@@ -100,15 +114,33 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         return e;
     }
 
-    /**
-     * Maximum number of processed documents.
-     */
+    @Override
     public int size() {
         return size;
     }
 
     public IndexBySearchRequest size(int size) {
         this.size = size;
+        return this;
+    }
+
+    @Override
+    public int failuresBeforeAbort() {
+        return failuresBeforeAbort;
+    }
+
+    public IndexBySearchRequest failuresBeforeAbort(int failuresBeforeAbort) {
+        this.failuresBeforeAbort = failuresBeforeAbort;
+        return this;
+    }
+
+    @Override
+    public boolean saveVersionConflicts() {
+        return saveVersionConflicts;
+    }
+
+    public IndexBySearchRequest saveVersionConflicts(boolean saveVersionConflicts) {
+        this.saveVersionConflicts = saveVersionConflicts;
         return this;
     }
 

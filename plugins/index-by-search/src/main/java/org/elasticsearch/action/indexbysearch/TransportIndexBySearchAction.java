@@ -71,7 +71,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
      */
     class AsyncIndexBySearchAction extends AbstractAsyncScrollAction<IndexBySearchRequest, IndexBySearchResponse> {
         public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
-            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(), listener, request.size());
+            super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(), listener);
         }
 
         @Override
@@ -153,7 +153,8 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
 
         @Override
         protected IndexBySearchResponse buildResponse(long took) {
-            return new IndexBySearchResponse(took, indexed(), created());
+            // NOCOMMIT return the failures
+            return new IndexBySearchResponse(took, created(), updated(), versionConflicts());
         }
     }
 }

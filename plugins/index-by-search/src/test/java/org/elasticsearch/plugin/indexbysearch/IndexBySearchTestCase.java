@@ -49,21 +49,22 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
         return new IndexBySearchResponseMatcher();
     }
 
-    public class IndexBySearchResponseMatcher extends TypeSafeMatcher<IndexBySearchResponse> {
-        private Matcher<Long> indexedMatcher = equalTo(0l);
+    public static class IndexBySearchResponseMatcher extends TypeSafeMatcher<IndexBySearchResponse> {
+        private Matcher<Long> updatedMatcher = equalTo(0l);
         private Matcher<Long> createdMatcher = equalTo(0l);
+        private Matcher<Long> versionConflictsMatcher = equalTo(0l);
 
-        public IndexBySearchResponseMatcher indexed(Matcher<Long> indexedMatcher) {
-            this.indexedMatcher = indexedMatcher;
+        public IndexBySearchResponseMatcher updated(Matcher<Long> updatedMatcher) {
+            this.updatedMatcher = updatedMatcher;
             return this;
         }
 
-        public IndexBySearchResponseMatcher indexed(long indexed) {
-            return indexed(equalTo(indexed));
+        public IndexBySearchResponseMatcher updated(long updated) {
+            return updated(equalTo(updated));
         }
 
-        public IndexBySearchResponseMatcher created(Matcher<Long> createdMatcher) {
-            this.createdMatcher = createdMatcher;
+        public IndexBySearchResponseMatcher created(Matcher<Long> updatedMatcher) {
+            this.createdMatcher = updatedMatcher;
             return this;
         }
 
@@ -71,12 +72,24 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
             return created(equalTo(created));
         }
 
+        public IndexBySearchResponseMatcher versionConflicts(Matcher<Long> versionConflictsMatcher) {
+            this.versionConflictsMatcher = versionConflictsMatcher;
+            return this;
+        }
+
+        public IndexBySearchResponseMatcher versionConflicts(long versionConflicts) {
+            return versionConflicts(equalTo(versionConflicts));
+        }
+
         @Override
         protected boolean matchesSafely(IndexBySearchResponse item) {
-            if (indexedMatcher != null && indexedMatcher.matches(item.indexed()) == false) {
+            if (updatedMatcher != null && updatedMatcher.matches(item.updated()) == false) {
                 return false;
             }
             if (createdMatcher != null && createdMatcher.matches(item.created()) == false) {
+                return false;
+            }
+            if (versionConflictsMatcher != null && versionConflictsMatcher.matches(item.versionConflicts()) == false) {
                 return false;
             }
             return true;
@@ -84,16 +97,9 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
 
         @Override
         public void describeTo(Description description) {
-            boolean started = false;
-            if (indexedMatcher != null) {
-                description.appendText("indexed matches ").appendDescriptionOf(indexedMatcher);
-            }
-            if (createdMatcher != null) {
-                if (started) {
-                    description.appendText(" and ");
-                }
-                description.appendText("created matches ").appendDescriptionOf(createdMatcher);
-            }
+            description.appendText("indexed matches ").appendDescriptionOf(updatedMatcher);
+            description.appendText(" and created matches ").appendDescriptionOf(createdMatcher);
+            description.appendText(" and versionConflicts matches ").appendDescriptionOf(versionConflictsMatcher);
         }
     }
 }

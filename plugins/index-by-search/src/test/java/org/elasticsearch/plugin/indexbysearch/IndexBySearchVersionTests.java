@@ -50,7 +50,7 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("test").setTypes("source");
         copy.index().setIndex("test").setType("dest").setVersionType(EXTERNAL);
-        assertThat(copy.get(), responseMatcher().indexed(1));
+        assertThat(copy.get(), responseMatcher().created(1));
         refresh();
         assertEquals(4, client().prepareGet("test", "dest", "test").get().getVersion());
     }
@@ -64,7 +64,7 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("test").setTypes("test");
         copy.index().setIndex("test").setType("test");
-        assertThat(copy.get(), responseMatcher().indexed(1));
+        assertThat(copy.get(), responseMatcher().updated(1));
         refresh();
         assertEquals(4, client().prepareGet("test", "test", "test").get().getVersion());
     }
@@ -78,7 +78,7 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("test").setTypes("test");
         copy.index().setIndex("test").setType("test").setVersionType(INTERNAL);
-        assertThat(copy.get(), responseMatcher().indexed(1));
+        assertThat(copy.get(), responseMatcher().updated(1));
         refresh();
         assertEquals(5, client().prepareGet("test", "test", "test").get().getVersion());
     }
@@ -88,7 +88,7 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
 
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.index().setIndex("test").setType("dest").setVersionType(INTERNAL);
-        assertThat(copy.get(), responseMatcher().indexed(0).created(0));
+        assertThat(copy.get(), responseMatcher().versionConflicts(1));
         refresh();
         assertHitCount(client().prepareSearch("test").setTypes("dest").get(), 0);
     }
@@ -100,7 +100,7 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("test").setTypes("source");
         copy.index().setIndex("test").setType("dest").setVersion(Versions.NOT_SET);
-        assertThat(copy.get(), responseMatcher().indexed(1));
+        assertThat(copy.get(), responseMatcher().updated(1));
         refresh();
         assertEquals("bar", client().prepareGet("test", "dest", "test").get().getSource().get("foo"));
     }
@@ -135,9 +135,9 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
                             reindex.index().setVersionType(VersionType.EXTERNAL);
                         }
                         IndexBySearchResponse response = reindex.get();
-                        logger.debug("Updated {}", response.indexed());
-                        assertThat(response, responseMatcher().indexed(either(equalTo(0L)).or(equalTo(1L))));
-                        // TODO this always claims 0!
+                        assertThat(response, responseMatcher()
+                                .updated(either(equalTo(0L)).or(equalTo(1L)))
+                                .versionConflicts(either(equalTo(0L)).or(equalTo(1L))));
                         client().admin().indices().prepareRefresh("test").get();
                     } catch (Throwable t) {
                         failure.set(t);

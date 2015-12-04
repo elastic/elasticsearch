@@ -20,8 +20,9 @@
 package org.elasticsearch.action.indexbysearch;
 
 import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.CREATED;
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.INDEXED;
 import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.TOOK;
+import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.UPDATED;
+import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.VERSION_CONFLICTS;
 
 import java.io.IOException;
 
@@ -34,53 +35,63 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 
 public class IndexBySearchResponse extends ActionResponse implements ToXContent {
     private long took;
-    private long indexed;
     private long created;
+    private long updated;
+    private long versionConflicts;
 
     public IndexBySearchResponse() {
     }
 
-    public IndexBySearchResponse(long took, long indexed, long created) {
+    public IndexBySearchResponse(long took, long created, long updated, long versionConflicts) {
         this.took = took;
-        this.indexed = indexed;
         this.created = created;
+        this.updated = updated;
+        this.versionConflicts = versionConflicts;
     }
 
-    public long indexed() {
-        return indexed;
+    public long updated() {
+        return updated;
     }
 
     public long created() {
         return created;
     }
 
+    public long versionConflicts() {
+        return versionConflicts;
+    }
+
     @Override
     public void readFrom(StreamInput in) throws IOException {
         super.readFrom(in);
         took = in.readVLong();
-        indexed = in.readVLong();
+        updated = in.readVLong();
         created = in.readVLong();
+        versionConflicts = in.readVLong();
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeVLong(took);
-        out.writeVLong(indexed);
+        out.writeVLong(updated);
         out.writeVLong(created);
+        out.writeVLong(versionConflicts);
     }
 
     static final class Fields {
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
-        static final XContentBuilderString INDEXED = new XContentBuilderString("indexed");
         static final XContentBuilderString CREATED = new XContentBuilderString("created");
+        static final XContentBuilderString UPDATED = new XContentBuilderString("updated");
+        static final XContentBuilderString VERSION_CONFLICTS = new XContentBuilderString("versionConflicts");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(TOOK, took);
-        builder.field(INDEXED, indexed);
         builder.field(CREATED, created);
+        builder.field(UPDATED, updated);
+        builder.field(VERSION_CONFLICTS, versionConflicts);
         return builder;
     }
 
@@ -89,8 +100,9 @@ public class IndexBySearchResponse extends ActionResponse implements ToXContent 
         StringBuilder builder = new StringBuilder();
         builder.append("IndexBySearchResponse[");
         builder.append("took=").append(took);
-        builder.append(",indexed=").append(indexed);
         builder.append(",created=").append(created);
+        builder.append(",updated=").append(updated);
+        builder.append(",versionConflicts=").append(versionConflicts);
         return builder.append("]").toString();
     }
 }

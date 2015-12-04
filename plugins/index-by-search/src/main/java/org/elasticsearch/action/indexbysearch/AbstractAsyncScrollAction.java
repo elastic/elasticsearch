@@ -23,15 +23,19 @@ import static java.lang.Math.max;
 
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
+import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.TransportBulkAction;
+import org.elasticsearch.action.index.IndexResponse;
+import org.elasticsearch.action.indexbysearch.AbstractAsyncScrollAction.AsyncScrollActionRequest;
 import org.elasticsearch.action.search.ClearScrollRequest;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchRequest;
@@ -51,15 +55,34 @@ import org.elasticsearch.search.SearchHit;
  * still nice because this handles the scrolling while AsyncIndexBySearchAction
  * handles the document building.
  */
-public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>, Response> {
+public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?> & AsyncScrollActionRequest, Response> {
+    public interface AsyncScrollActionRequest {
+        /**
+         * Maximum number of processed documents. -1 means process all
+         * documents.
+         */
+        int size();
+        /**
+         * Should vesion conflicts be saved to the failures list?
+         */
+        boolean saveVersionConflicts();
+        /**
+         * Maximum number of failures to save and not abort. Any more failures
+         * will cause an abort.
+         */
+        int failuresBeforeAbort();
+    }
+
     protected final Request mainRequest;
 
     private final AtomicLong total = new AtomicLong(-1);
     private final AtomicLong startTime = new AtomicLong(-1);
-    private final AtomicLong indexed = new AtomicLong(0);
+    private final AtomicLong updated = new AtomicLong(0);
     private final AtomicLong created = new AtomicLong(0);
     private final AtomicLong deleted = new AtomicLong(0);
+    private final AtomicLong versionConflicts = new AtomicLong(0);
     private final AtomicReference<String> scroll = new AtomicReference<>();
+    private final List<Failure> failures = new CopyOnWriteArrayList<>();
 
     private final ESLogger logger;
     private final TransportSearchAction searchAction;
@@ -68,11 +91,10 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
     private final TransportClearScrollAction clearScroll;
     private final SearchRequest firstSearchRequest;
     private final ActionListener<Response> listener;
-    private final int maximumDocs;
 
     public AbstractAsyncScrollAction(ESLogger logger, TransportSearchAction searchAction, TransportSearchScrollAction scrollAction,
             TransportBulkAction bulkAction, TransportClearScrollAction clearScroll, Request mainRequest, SearchRequest firstSearchRequest,
-            ActionListener<Response> listener, int maximumDocs) {
+            ActionListener<Response> listener) {
         this.logger = logger;
         this.searchAction = searchAction;
         this.scrollAction = scrollAction;
@@ -81,7 +103,6 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
         this.mainRequest = mainRequest;
         this.firstSearchRequest = firstSearchRequest;
         this.listener = listener;
-        this.maximumDocs = maximumDocs;
     }
 
     protected abstract BulkRequest buildBulk(Iterable<SearchHit> docs);
@@ -92,20 +113,33 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
         initialSearch();
     }
 
-    public long indexed() {
-        return indexed.get();
+    /**
+     * Count of documents updated.
+     */
+    public long updated() {
+        return updated.get();
     }
 
+    /**
+     * Count of documents created.
+     */
     public long created() {
         return created.get();
     }
 
+    /**
+     * Count of successful delete operations.
+     */
     public long deleted() {
         return deleted.get();
     }
 
-    public long processed() {
-        return indexed.get() + created.get() + deleted.get();
+    public long versionConflicts() {
+        return versionConflicts.get();
+    }
+
+    public long successfullyProcessed() {
+        return updated.get() + created.get() + deleted.get();
     }
 
     void initialSearch() {
@@ -145,9 +179,9 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
                 return;
             }
             List<SearchHit> docsIterable = Arrays.asList(docs);
-            if (maximumDocs != -1) {
+            if (mainRequest.size() != -1) {
                 // Truncate the docs if we have more than the request size
-                long remaining = max(0, maximumDocs - processed());
+                long remaining = max(0, mainRequest.size() - successfullyProcessed());
                 if (remaining <= docs.length) {
                     if (remaining < docs.length) {
                         docsIterable = docsIterable.subList(0, (int) remaining);
@@ -177,28 +211,37 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
 
     void onBulkResponse(BulkResponse response) {
         try {
-            // TODO error checking
             for (BulkItemResponse item : response) {
                 if (item.isFailed()) {
-                    // TODO something
+                    recordFailure(item.getFailure());
                     continue;
                 }
+
                 switch (item.getOpType()) {
                 case "index":
-                    indexed.incrementAndGet();
+                case "create":
+                    IndexResponse ir = item.getResponse();
+                    if (ir.isCreated()) {
+                        created.incrementAndGet();
+                    } else {
+                        updated.incrementAndGet();
+                    }
                     break;
                 case "delete":
                     deleted.incrementAndGet();
-                    break;
-                case "create":
-                    created.incrementAndGet();
                     break;
                 default:
                     throw new IllegalArgumentException("Unknown op type:  " + item.getOpType());
                 }
             }
 
-            if (maximumDocs != -1 && processed() >= maximumDocs) {
+            if (failures.size() > mainRequest.failuresBeforeAbort()) {
+                // We've accumulated too many failures
+                finishHim(null);
+                return;
+            }
+
+            if (mainRequest.size() != -1 && successfullyProcessed() >= mainRequest.size()) {
                 // We've processed all the requested docs.
                 finishHim(null);
                 return;
@@ -218,6 +261,19 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
             });
         } catch (Throwable t) {
             finishHim(t);
+        }
+    }
+
+    private void recordFailure(Failure failure) {
+        switch (failure.getStatus()) {
+        case CONFLICT:
+            versionConflicts.incrementAndGet();
+            if (mainRequest.saveVersionConflicts()) {
+                failures.add(failure);
+            }
+            return;
+        default:
+            failures.add(failure);
         }
     }
 

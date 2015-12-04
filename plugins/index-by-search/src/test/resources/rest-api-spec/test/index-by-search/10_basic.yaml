@@ -1,5 +1,5 @@
 ---
-"Response format":
+"Response format for created":
   - do:
       index:
         index:   test
@@ -14,11 +14,77 @@
         body:
           source:
             index: test
-            type: [foo, bar]
+            type:  foo
           index:
             index: test
-            type: baz
+            type:  baz
   - match: {created: 1}
+  - match: {updated: 0}
+  - match: {version_conflicts: 0}
+  - is_true: took
+
+---
+"Response format for updated":
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   test
+        type:    baz
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:   test
+            type:    foo
+          index:
+            index:   test
+            type:    baz
+            version: not_set
+  - match: {created: 0}
+  - match: {updated: 1}
+  - match: {version_conflicts: 0}
+  - is_true: took
+
+---
+"Response format for version conflict":
+  - do:
+      index:
+        index:   test
+        type:    foo
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      index:
+        index:   test
+        type:    bar
+        id:      1
+        body:    { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:        test
+            type:         foo
+          index:
+            index:        test
+            type:         bar
+            version_type: external
+  - match: {created: 0}
+  - match: {updated: 0}
+  - match: {version_conflicts: 1}
   - is_true: took
 
 ---

@@ -139,7 +139,7 @@ subprojects {
 /*****************************************************************************
  *                         Zip and tgz configuration                         *
  *****************************************************************************/
-configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' || it.name == 'integ-test-zip' }) {
+configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
   project.ext.archivesFiles = copySpec {
     into("elasticsearch-${version}") {
       with libFiles
@@ -182,7 +182,7 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' || it.name 
  *    directly from the filesystem. It doesn't want to process them through
  *    MavenFilteringHack or any other copy-style action.
  */
-configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
+configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
   integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
   File packagingFiles = new File(buildDir, 'packaging')
   project.ext.packagingFiles = packagingFiles

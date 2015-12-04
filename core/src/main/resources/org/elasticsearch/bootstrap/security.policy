@@ -58,9 +58,6 @@ grant {
   // Allow read/write to all system properties
   permission java.util.PropertyPermission "*", "read,write";
 
-  // needed by lucene SPI currently 
-  permission java.lang.RuntimePermission "getClassLoader";
-
   // needed by Settings
   permission java.lang.RuntimePermission "getenv.*";
 

@@ -46,6 +46,7 @@ import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -277,7 +278,7 @@ public class PluginsService extends AbstractComponent {
     public PluginsInfo info() {
         return info;
     }
-    
+
     // a "bundle" is a group of plugins in a single classloader
     // really should be 1-1, but we are not so fortunate
     static class Bundle {
@@ -292,7 +293,7 @@ public class PluginsService extends AbstractComponent {
         if (!isAccessibleDirectory(pluginsDirectory, logger)) {
             return Collections.emptyList();
         }
-        
+
         List<Bundle> bundles = new ArrayList<>();
         // a special purgatory for plugins that directly depend on each other
         bundles.add(new Bundle());
@@ -304,7 +305,14 @@ public class PluginsService extends AbstractComponent {
                     continue;
                 }
                 logger.trace("--- adding plugin [{}]", plugin.toAbsolutePath());
-                PluginInfo info = PluginInfo.readFromProperties(plugin);
+                final PluginInfo info;
+                try {
+                    info = PluginInfo.readFromProperties(plugin);
+                } catch (NoSuchFileException e) {
+                    throw new IllegalStateException("Existing plugin [" + plugin.getFileName() + "] missing plugin descriptor. " +
+                        "Was the plugin built before 2.0?", e);
+                }
+
                 List<URL> urls = new ArrayList<>();
                 if (info.isJvm()) {
                     // a jvm plugin: gather urls for jar files
@@ -325,7 +333,7 @@ public class PluginsService extends AbstractComponent {
                 bundle.urls.addAll(urls);
             }
         }
-        
+
         return bundles;
     }
 
@@ -343,7 +351,7 @@ public class PluginsService extends AbstractComponent {
             } catch (Exception e) {
                 throw new IllegalStateException("failed to load bundle " + bundle.urls + " due to jar hell", e);
             }
-            
+
             // create a child to load the plugins in this bundle
             ClassLoader loader = URLClassLoader.newInstance(bundle.urls.toArray(new URL[0]), getClass().getClassLoader());
             for (PluginInfo pluginInfo : bundle.plugins) {

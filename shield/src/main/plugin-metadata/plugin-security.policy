@@ -1,4 +1,0 @@
-grant {
-  // needed because of problems in unbound LDAP library
-  permission java.util.PropertyPermission "*", "read,write";
-};

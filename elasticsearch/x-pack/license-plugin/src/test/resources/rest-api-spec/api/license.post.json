@@ -1,0 +1,21 @@
+{
+  "license.post": {
+    "documentation": "https://www.elastic.co/guide/en/shield/current/license-management.html",
+    "methods": ["PUT", "POST"],
+    "url": {
+      "path": "/_license",
+      "paths": ["/_license"],
+      "parts" : {
+      },
+      "params": {
+        "acknowledge": {
+          "type" : "boolean",
+          "description" : "whether the user has acknowledged acknowledge messages (default: false)"
+        }
+      }
+    },
+    "body": {
+      "description" : "licenses to be installed"
+    }
+  }
+}

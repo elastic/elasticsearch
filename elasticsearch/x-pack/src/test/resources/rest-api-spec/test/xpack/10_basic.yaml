@@ -1,0 +1,14 @@
+# Integration tests for Marvel plugin
+#
+"X-Pack loaded":
+    - do:
+        cluster.state: {}
+
+    # Get master node id
+    - set: { master_node: master }
+
+    - do:
+        nodes.info: {}
+
+    - match:  { nodes.$master.plugins.0.name: x-pack  }
+    - match:  { nodes.$master.plugins.0.jvm: true  }

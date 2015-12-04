@@ -1,4 +1,0 @@
-grant {
-  // needed to set expert SSL options, etc
-  permission java.lang.RuntimePermission "setFactory";
-};

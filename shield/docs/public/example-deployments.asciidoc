@@ -1,6 +1,0 @@
-[[example-deployments]]
-== Example Shield Deployments
-
-The examples in this section demonstrate how you might deploy Shield to secure an Elasticsearch cluster.
-
-include::example-deployments/e-commerce.asciidoc[]

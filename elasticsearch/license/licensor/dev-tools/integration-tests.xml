@@ -1,0 +1,122 @@
+<?xml version="1.0"?>
+<project name="commercial-integration-tests">
+
+    <condition property="is_windows">
+        <os family="windows"/>
+    </condition>
+
+    <!-- runs a script (only on unix) -->
+    <macrodef name="run-script">
+        <attribute name="script"/>
+        <attribute name="output"/>
+        <element name="nested" optional="true"/>
+        <sequential>
+            <!-- create a temp CWD, to enforce that commands don't rely on CWD -->
+            <local name="temp.cwd"/>
+            <tempfile property="temp.cwd" destDir="${integ.temp}"/>
+            <mkdir dir="${temp.cwd}"/>
+
+            <!-- print commands we run -->
+            <local name="script.base"/>
+            <basename file="@{script}" property="script.base"/>
+            <!-- crappy way to output, but we need it. make it nice later -->
+            <echoxml><exec script="${script.base}"><nested/></exec></echoxml>
+
+            <exec executable="sh" osfamily="unix" dir="${temp.cwd}" failonerror="false" resultproperty="status" output="@{output}" taskname="${script.base}">
+                <arg value="@{script}"/>
+                <nested/>
+            </exec>
+            <fail message="Failed to execute @{script}">
+                <condition>
+                    <not>
+                        <equals arg1="${status}" arg2="0"/>
+                    </not>
+                </condition>
+            </fail>
+        </sequential>
+    </macrodef>
+
+    <target name="verify-tools" unless="is_windows">
+        <sequential>
+            <delete dir="${integ.scratch}"/>
+            <unzip src="${project.build.directory}/releases/${project.artifactId}-${project.version}-exec.zip" dest="${integ.scratch}"/>
+            <local name="home"/>
+            <property name="home" location="${integ.scratch}/${project.artifactId}-${project.version}"/>
+
+            <!-- verify key pair generator tool -->
+            <run-script script="${home}/bin/key-pair-generator" output="${integ.scratch}/key-pair-gen-help.txt">
+                <nested>
+                    <arg value="-h"/>
+                </nested>
+            </run-script>
+            <run-script script="${home}/bin/key-pair-generator" output="${integ.scratch}/key-pair-gen-out.txt">
+                <nested>
+                    <arg value="-pub"/>
+                    <arg value="${integ.scratch}/public.key"/>
+                    <arg value="-pri"/>
+                    <arg value="${integ.scratch}/private.key"/>
+                </nested>
+            </run-script>
+            <fail message="private key not created by bin/key-pair-generator">
+                <condition>
+                    <not>
+                        <resourceexists>
+                            <file file="${integ.scratch}/private.key"/>
+                        </resourceexists>
+                    </not>
+                </condition>
+            </fail>
+            <fail message="public key not created by bin/key-pair-generator">
+                <condition>
+                    <not>
+                        <resourceexists>
+                            <file file="${integ.scratch}/public.key"/>
+                        </resourceexists>
+                    </not>
+                </condition>
+            </fail>
+
+            <!-- verify license generator tool -->
+            <run-script script="${home}/bin/license-generator" output="${integ.scratch}/license-gen-help.txt">
+                <nested>
+                    <arg value="-h"/>
+                </nested>
+            </run-script>
+            <run-script script="${home}/bin/license-generator" output="${integ.scratch}/signed_license.json">
+                <nested>
+                    <arg value="-lf"/>
+                    <arg value="${basedir}/sample/license_spec.json"/>
+                    <arg value="-pub"/>
+                    <arg value="${integ.scratch}/public.key"/>
+                    <arg value="-pri"/>
+                    <arg value="${integ.scratch}/private.key"/>
+                </nested>
+            </run-script>
+            <fail message="signed license was not created by license-generator">
+                <condition>
+                    <not>
+                        <resourceexists>
+                            <file file="${integ.scratch}/signed_license.json"/>
+                        </resourceexists>
+                    </not>
+                </condition>
+            </fail>
+
+            <!-- verify license verification tool -->
+            <run-script script="${home}/bin/verify-license" output="${integ.scratch}/verify-license-help.txt">
+                <nested>
+                    <arg value="-h"/>
+                </nested>
+            </run-script>
+            <run-script script="${home}/bin/verify-license" output="${integ.scratch}/verify-license-license.txt">
+                <nested>
+                    <arg value="-lf"/>
+                    <arg value="${integ.scratch}/signed_license.json"/>
+                    <arg value="-pub"/>
+                    <arg value="${integ.scratch}/public.key"/>
+                </nested>
+            </run-script>
+            <delete dir="${integ.scratch}"/>
+        </sequential>
+    </target>
+</project>

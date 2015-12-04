@@ -1,9 +1,0 @@
-[[example-watches]]
-== Example Watches
-
-The example watches in this section demonstrate two key Watcher use cases: watching Marvel data
-and watching time series data.
-
-include::example-watches/watching-marvel-data.asciidoc[]
-
-include::example-watches/watching-time-series-data.asciidoc[]

@@ -276,6 +276,10 @@ public class PluginsService extends AbstractComponent {
     // similar in impl to getPluginBundles, but DO NOT try to make them share code.
     // we don't need to inherit all the leniency, and things are different enough.
     static List<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
+        // damn leniency
+        if (Files.notExists(modulesDirectory)) {
+            return Collections.emptyList();
+        }
         List<Bundle> bundles = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(modulesDirectory)) {
             for (Path module : stream) {

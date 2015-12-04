@@ -108,6 +108,12 @@ class ClusterFormationTasks {
         setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
+        // install modules
+        for (Project module : node.config.modules) {
+            String actionName = pluginTaskName('install', module.name, 'Module')
+            setup = configureInstallModuleTask(taskName(task, node, actionName), project, setup, node, module)
+        }
+
         // install plugins
         for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
@@ -290,6 +296,20 @@ class ClusterFormationTasks {
         copyPlugins.into(node.pluginsTmpDir)
         copyPlugins.from(pluginFiles)
         return copyPlugins
+    }
+
+    static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
+        if (node.config.distribution != 'integ-test-zip') {
+            throw new GradleException("Module ${module.path} cannot be installed in cluster which is not using integ-test-zip")
+        }
+        if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
+            throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
+        }
+        Copy installModule = project.tasks.create(name, Copy.class)
+        installModule.dependsOn(setup)
+        installModule.into(new File(node.homeDir, "modules/${module.name}"))
+        installModule.from({ project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile) })
+        return installModule
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {

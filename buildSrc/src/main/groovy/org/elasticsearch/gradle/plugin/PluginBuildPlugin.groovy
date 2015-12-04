@@ -23,6 +23,7 @@ import org.elasticsearch.gradle.test.RestIntegTestTask
 import org.elasticsearch.gradle.test.RunTask
 import org.gradle.api.Project
 import org.gradle.api.Task
+import org.gradle.api.file.FileCollection
 import org.gradle.api.tasks.bundling.Zip
 
 /**
@@ -40,10 +41,16 @@ class PluginBuildPlugin extends BuildPlugin {
             String name = project.pluginProperties.extension.name
             project.jar.baseName = name
             project.bundlePlugin.baseName = name
+
             project.integTest.dependsOn(project.bundlePlugin)
-            project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
             project.tasks.run.dependsOn(project.bundlePlugin)
-            project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+            if (project.path.startsWith(':modules:')) {
+                project.integTest.clusterConfig.module(project)
+                project.tasks.run.clusterConfig.module(project)
+            } else {
+                project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+                project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+            }
         }
         RestIntegTestTask.configure(project)
         RunTask.configure(project)

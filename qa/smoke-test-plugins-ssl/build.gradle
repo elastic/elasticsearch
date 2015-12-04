@@ -1,4 +1,5 @@
 import org.elasticsearch.gradle.LoggedExec
+import org.elasticsearch.gradle.MavenFilteringHack
 
 apply plugin: 'elasticsearch.rest-test'
 
@@ -31,12 +32,11 @@ task createKey(type: LoggedExec) {
 sourceSets.test.resources.srcDir(keystore.parentFile)
 processTestResources.dependsOn(createKey)
 
-// add ES plugins, this loop must be outside of a configuration closure, otherwise it may get executed multiple times
-for (Project subproj : project.rootProject.subprojects) {
-  if (subproj.path.startsWith(':plugins:')) {
-    // need to get a non-decorated project object, so must re-lookup the project by path
-    integTest.clusterConfig.plugin(subproj.name, project(subproj.path))
-  }
+ext.pluginsCount = 4 // we install xplugins explicitly
+project.rootProject.subprojects.findAll { it.path.startsWith(':plugins:') }.each { subproj ->
+  // need to get a non-decorated project object, so must re-lookup the project by path
+  integTest.cluster.plugin(subproj.name, project(subproj.path))
+  pluginsCount += 1
 }
 
 integTest {
@@ -64,5 +64,17 @@ integTest {
       // we just return true, doing an https check is tricky here
       return true
     }
+  }
+}
+
+ext.expansions = [
+  'expected.plugins.count': pluginsCount
+]
+
+processTestResources {
+  from(sourceSets.test.resources.srcDirs) {
+    include '**/*.yaml'
+    inputs.properties(expansions)
+    MavenFilteringHack.filter(it, expansions)
   }
 }

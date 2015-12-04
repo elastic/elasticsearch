@@ -10,7 +10,4 @@
     - do:
         nodes.info: {}
 
-    - match:  { nodes.$master.plugins.13.name: license }
-    - match:  { nodes.$master.plugins.17.name: marvel-agent }
-    - match:  { nodes.$master.plugins.20.name: shield }
-    - match:  { nodes.$master.plugins.23.name: watcher }
+    - length:  { nodes.$master.plugins: ${expected.plugins.count}  }

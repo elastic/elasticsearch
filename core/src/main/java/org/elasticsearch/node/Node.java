@@ -147,7 +147,7 @@ public class Node implements Releasable {
                 tmpEnv.configFile(), Arrays.toString(tmpEnv.dataFiles()), tmpEnv.logsFile(), tmpEnv.pluginsFile());
         }
 
-        this.pluginsService = new PluginsService(tmpSettings, tmpEnv.pluginsFile(), classpathPlugins);
+        this.pluginsService = new PluginsService(tmpSettings, tmpEnv.modulesFile(), tmpEnv.pluginsFile(), classpathPlugins);
         this.settings = pluginsService.updatedSettings();
         // create the environment based on the finalized (processed) view of the settings
         this.environment = new Environment(this.settings());

@@ -89,10 +89,11 @@ public class PluginsService extends AbstractComponent {
     /**
      * Constructs a new PluginService
      * @param settings The settings of the system
+     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public PluginsService(Settings settings, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
+    public PluginsService(Settings settings, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
 
         List<Tuple<PluginInfo, Plugin>> tupleBuilder = new ArrayList<>();
@@ -105,6 +106,16 @@ public class PluginsService extends AbstractComponent {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
             tupleBuilder.add(new Tuple<>(pluginInfo, plugin));
+        }
+
+        // load modules
+        if (modulesDirectory != null) {
+            try {
+                List<Bundle> bundles = getModuleBundles(modulesDirectory);
+                tupleBuilder.addAll(loadBundles(bundles));
+            } catch (IOException ex) {
+                throw new IllegalStateException("Unable to initialize modules", ex);
+            }
         }
 
         // now, find all the ones that are in plugins/
@@ -260,6 +271,36 @@ public class PluginsService extends AbstractComponent {
     static class Bundle {
         List<PluginInfo> plugins = new ArrayList<>();
         List<URL> urls = new ArrayList<>();
+    }
+
+    // similar in impl to getPluginBundles, but DO NOT try to make them share code.
+    // we don't need to inherit all the leniency, and things are different enough.
+    static List<Bundle> getModuleBundles(Path modulesDirectory) throws IOException {
+        List<Bundle> bundles = new ArrayList<>();
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(modulesDirectory)) {
+            for (Path module : stream) {
+                if (FileSystemUtils.isHidden(module)) {
+                    continue; // skip over .DS_Store etc
+                }
+                PluginInfo info = PluginInfo.readFromProperties(module);
+                if (!info.isJvm()) {
+                    throw new IllegalStateException("modules must be jvm plugins: " + info);
+                }
+                if (!info.isIsolated()) {
+                    throw new IllegalStateException("modules must be isolated: " + info);
+                }
+                Bundle bundle = new Bundle();
+                bundle.plugins.add(info);
+                // gather urls for jar files
+                try (DirectoryStream<Path> jarStream = Files.newDirectoryStream(module, "*.jar")) {
+                    for (Path jar : jarStream) {
+                        bundle.urls.add(jar.toUri().toURL());
+                    }
+                }
+                bundles.add(bundle);
+            }
+        }
+        return bundles;
     }
 
     static List<Bundle> getPluginBundles(Path pluginsDirectory) throws IOException {

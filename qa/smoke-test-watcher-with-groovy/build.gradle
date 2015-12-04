@@ -9,8 +9,6 @@ integTest {
   cluster {
     plugin 'license', project(':x-plugins:license:plugin')
     plugin 'watcher', project(':x-plugins:watcher')
-    // TODO: fix this once modules are not allowed to be installed with bin/plugin...
-    plugin 'groovy', project(':modules:lang-groovy')
     systemProperty 'es.script.inline', 'on'
   }
 }

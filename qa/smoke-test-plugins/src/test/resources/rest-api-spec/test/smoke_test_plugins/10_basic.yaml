@@ -10,5 +10,4 @@
     - do:
         nodes.info: {}
 
-    - length:  { nodes.$master.modules: ${expected.modules.count}  }
     - length:  { nodes.$master.plugins: ${expected.plugins.count}  }

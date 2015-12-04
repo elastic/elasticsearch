@@ -42,6 +42,7 @@ buildscript {
 // this is common configuration for distributions, but we also add it here for the license check to use
 ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
 
+
 /*****************************************************************************
  *                                  Modules                                  *
  *****************************************************************************/
@@ -50,6 +51,9 @@ task buildModules(type: Copy) {
   into 'build/modules'
 } 
 
+ext.restTestExpansions = [
+  'expected.modules.count': 0,
+]
 // we create the buildModules task above so the distribution subprojects can
 // depend on it, but we don't actually configure it until projects are evaluated
 // so it can depend on the bundling of plugins (ie modules must have been configured)
@@ -64,6 +68,7 @@ project.gradle.projectsEvaluated {
     configure(subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
       distribution.integTest.mustRunAfter(module.integTest)      
     }
+    restTestExpansions['expected.modules.count'] += 1
   }
 }
 
@@ -80,10 +85,15 @@ subprojects {
   apply plugin: 'elasticsearch.rest-test'
   project.integTest {
     dependsOn(project.assemble)
-    includePackaged true
+    includePackaged project.name == 'integ-test-zip'
     cluster {
       distribution = project.name
     }
+  }
+  
+  processTestResources {
+    inputs.properties(project(':distribution').restTestExpansions)
+    MavenFilteringHack.filter(it, project(':distribution').restTestExpansions)
   }
 
   /*****************************************************************************

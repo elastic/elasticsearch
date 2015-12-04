@@ -18,14 +18,9 @@
  */
 
 grant {
-  // needed to generate runtime classes
-  permission java.lang.RuntimePermission "createClassLoader";
-  // needed by IndyInterface
+  // needed because of problems in ClientConfiguration
+  // TODO: get this fixed in aws sdk
+  // NOTE: no tests fail without this, but we know the problem
+  // exists in AWS sdk, and tests here are not thorough
   permission java.lang.RuntimePermission "getClassLoader";
-  // needed by groovy engine
-  permission java.lang.RuntimePermission "accessClassInPackage.sun.reflect";
-  // needed by GroovyScriptEngineService to close its classloader (why?)
-  permission java.lang.RuntimePermission "closeClassLoader";
-  // Allow executing groovy scripts with codesource of /untrusted
-  permission groovy.security.GroovyCodeSourcePermission "/untrusted";
 };

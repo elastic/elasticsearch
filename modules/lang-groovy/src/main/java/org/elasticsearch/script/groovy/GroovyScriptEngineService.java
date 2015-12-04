@@ -172,13 +172,15 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
             }
             String fake = MessageDigests.toHexString(MessageDigests.sha1().digest(script.getBytes(StandardCharsets.UTF_8)));
             // same logic as GroovyClassLoader.parseClass() but with a different codesource string:
-            GroovyCodeSource gcs = AccessController.doPrivileged(new PrivilegedAction<GroovyCodeSource>() {
-                public GroovyCodeSource run() {
-                    return new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
+            return AccessController.doPrivileged(new PrivilegedAction<Object>() {
+                public Class<?> run() {
+                    GroovyCodeSource gcs = new GroovyCodeSource(script, fake, BootstrapInfo.UNTRUSTED_CODEBASE);
+                    gcs.setCachable(false);
+                    // TODO: we could be more complicated and paranoid, and move this to separate block, to
+                    // sandbox the compilation process itself better.
+                    return loader.parseClass(gcs);
                 }
             });
-            gcs.setCachable(false);
-            return loader.parseClass(gcs);
         } catch (Throwable e) {
             if (logger.isTraceEnabled()) {
                 logger.trace("exception compiling Groovy script:", e);
@@ -293,7 +295,14 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         @Override
         public Object run() {
             try {
-                return script.run();
+                // NOTE: we truncate the stack because IndyInterface has security issue (needs getClassLoader)
+                // we don't do a security check just as a tradeoff, it cannot really escalate to anything.
+                return AccessController.doPrivileged(new PrivilegedAction<Object>() {
+                    @Override
+                    public Object run() {
+                        return script.run();
+                    }
+                });
             } catch (Throwable e) {
                 if (logger.isTraceEnabled()) {
                     logger.trace("failed to run " + compiledScript, e);

@@ -20,4 +20,6 @@
 grant {
   // needed to generate runtime classes
   permission java.lang.RuntimePermission "createClassLoader";
+  // needed by PySystemState init (TODO: see if we can avoid this)
+  permission java.lang.RuntimePermission "getClassLoader";
 };

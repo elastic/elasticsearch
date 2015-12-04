@@ -37,6 +37,7 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.node.info.NodesInfoResponse;
 import org.elasticsearch.plugins.PluginInfo;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.action.admin.indices.alias.exists.AliasesExistResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexResponse;
@@ -735,7 +736,7 @@ public class ElasticsearchAssertions {
 
         Assert.assertThat(response.getNodesMap().get(nodeId), notNullValue());
 
-        PluginsInfo plugins = response.getNodesMap().get(nodeId).getPlugins();
+        PluginsAndModules plugins = response.getNodesMap().get(nodeId).getPlugins();
         Assert.assertThat(plugins, notNullValue());
 
         List<String> pluginNames = FluentIterable.from(plugins.getInfos()).filter(jvmPluginPredicate).transform(nameFunction).toList();
@@ -782,20 +783,18 @@ public class ElasticsearchAssertions {
         }
     }
 
-<<<<<<< HEAD:core/src/test/java/org/elasticsearch/test/hamcrest/ElasticsearchAssertions.java
     private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
         @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isJvm();
         }
     };
-=======
+
     private static List<String> filterAndMap(PluginsInfo pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
         return pluginsInfo.getPluginInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
     }
 
     private static Predicate<PluginInfo> jvmPluginPredicate = p -> p.isJvm();
->>>>>>> 7160c5e... list modules separately in pluginservice:test-framework/src/main/java/org/elasticsearch/test/hamcrest/ElasticsearchAssertions.java
 
     private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
         @Override

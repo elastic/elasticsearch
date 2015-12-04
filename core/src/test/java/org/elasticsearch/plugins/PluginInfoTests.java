@@ -21,7 +21,7 @@ package org.elasticsearch.plugins;
 
 import com.google.common.base.Function;
 import org.elasticsearch.Version;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -273,7 +273,7 @@ public class PluginInfoTests extends ESTestCase {
     }
 
     public void testPluginListSorted() {
-        PluginsInfo pluginsInfo = new PluginsInfo();
+        PluginsAndModules pluginsInfo = new PluginsAndModules();
         pluginsInfo.addPlugin(new PluginInfo("c", "foo", true, "dummy", true, "dummyclass", true));
         pluginsInfo.addPlugin(new PluginInfo("b", "foo", true, "dummy", true, "dummyclass", true));
         pluginsInfo.addPlugin(new PluginInfo("e", "foo", true, "dummy", true, "dummyclass", true));

@@ -34,11 +34,11 @@ import java.util.List;
 /**
  * Information about plugins and modules
  */
-public class PluginsInfo implements Streamable, ToXContent {
+public class PluginsAndModules implements Streamable, ToXContent {
     private List<PluginInfo> plugins;
     private List<PluginInfo> modules;
 
-    public PluginsInfo() {
+    public PluginsAndModules() {
         plugins = new ArrayList<>();
         modules = new ArrayList<>();
     }

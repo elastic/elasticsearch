@@ -223,7 +223,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
                 throw requestBlockException;
             }
 
-            logger.trace("resolving shards for [{}] based on cluster state version [{}]", actionName, clusterState.version());
+            if (logger.isTraceEnabled()) {
+                logger.trace("resolving shards for [{}] based on cluster state version [{}]", actionName, clusterState.version());
+            }
             ShardsIterator shardIt = shards(clusterState, request, concreteIndices);
             nodeIds = new HashMap<>();
 
@@ -300,7 +302,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         }
 
         protected void onNodeResponse(DiscoveryNode node, int nodeIndex, NodeResponse response) {
-            logger.trace("received response for [{}] from node [{}]", actionName, node.id());
+            if (logger.isTraceEnabled()) {
+                logger.trace("received response for [{}] from node [{}]", actionName, node.id());
+            }
 
             // this is defensive to protect against the possibility of double invocation
             // the current implementation of TransportService#sendRequest guards against this
@@ -351,7 +355,9 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
         public void messageReceived(final NodeRequest request, TransportChannel channel) throws Exception {
             List<ShardRouting> shards = request.getShards();
             final int totalShards = shards.size();
-            logger.trace("[{}] executing operation on [{}] shards", actionName, totalShards);
+            if (logger.isTraceEnabled()) {
+                logger.trace("[{}] executing operation on [{}] shards", actionName, totalShards);
+            }
             final Object[] shardResultOrExceptions = new Object[totalShards];
 
             int shardIndex = -1;
@@ -375,10 +381,14 @@ public abstract class TransportBroadcastByNodeAction<Request extends BroadcastRe
 
         private void onShardOperation(final NodeRequest request, final Object[] shardResults, final int shardIndex, final ShardRouting shardRouting) {
             try {
-                logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}]  executing operation for shard [{}]", actionName, shardRouting.shortSummary());
+                }
                 ShardOperationResult result = shardOperation(request.indicesLevelRequest, shardRouting);
                 shardResults[shardIndex] = result;
-                logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
+                if (logger.isTraceEnabled()) {
+                    logger.trace("[{}]  completed operation for shard [{}]", actionName, shardRouting.shortSummary());
+                }
             } catch (Throwable t) {
                 BroadcastShardOperationFailedException e = new BroadcastShardOperationFailedException(shardRouting.shardId(), "operation " + actionName + " failed", t);
                 e.setIndex(shardRouting.getIndex());

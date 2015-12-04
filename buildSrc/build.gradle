@@ -80,3 +80,13 @@ eclipse {
     defaultOutputDir = new File(file('build'), 'eclipse')
   }
 }
+
+task copyEclipseSettings(type: Copy) {
+  from project.file('src/main/resources/eclipse.settings')
+  into '.settings'
+}
+// otherwise .settings is not nuked entirely
+tasks.cleanEclipse {
+  delete '.settings'
+}
+tasks.eclipse.dependsOn(cleanEclipse, copyEclipseSettings)

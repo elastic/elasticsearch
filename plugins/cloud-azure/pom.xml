@@ -33,27 +33,28 @@ governing permissions and limitations under the License. -->
     </properties>
 
     <dependencies>
-        <!-- Azure API -->
+        <!-- Azure API: repository - azure storage -->
         <dependency>
             <groupId>com.microsoft.azure</groupId>
             <artifactId>azure-storage</artifactId>
             <version>2.0.0</version>
         </dependency>
+        <!-- Azure API: discovery - azure management -->
         <dependency>
             <groupId>com.microsoft.azure</groupId>
-            <artifactId>azure-management-compute</artifactId>
-            <version>0.7.0</version>
+            <artifactId>azure-svc-mgmt-compute</artifactId>
+            <version>0.9.0</version>
+        </dependency>
+        <dependency>
+            <groupId>com.microsoft.azure</groupId>
+            <artifactId>azure-core</artifactId>
+            <version>0.9.0</version>
             <exclusions>
                 <exclusion>
                     <groupId>stax</groupId>
                     <artifactId>stax-api</artifactId>
                 </exclusion>
             </exclusions>
-        </dependency>
-        <dependency>
-            <groupId>com.microsoft.azure</groupId>
-            <artifactId>azure-management</artifactId>
-            <version>0.7.0</version>
         </dependency>
         <!-- We need to force here the compile scope as it was defined as test scope in plugins/pom.xml -->
         <!-- TODO: remove this dependency when we will have a REST Test module -->

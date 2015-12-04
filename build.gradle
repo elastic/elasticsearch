@@ -109,6 +109,7 @@ subprojects {
     "org.elasticsearch:rest-api-spec:${version}": ':rest-api-spec',
     "org.elasticsearch:elasticsearch:${version}": ':core',
     "org.elasticsearch:test-framework:${version}": ':test-framework',
+    "org.elasticsearch.distribution.integ-test-zip:elasticsearch:${version}": ':distribution:integ-test-zip',
     "org.elasticsearch.distribution.zip:elasticsearch:${version}": ':distribution:zip',
     "org.elasticsearch.distribution.tar:elasticsearch:${version}": ':distribution:tar',
     "org.elasticsearch.distribution.rpm:elasticsearch:${version}": ':distribution:rpm',

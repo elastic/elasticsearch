@@ -27,7 +27,7 @@ import org.gradle.api.tasks.Input
 class ClusterConfiguration {
 
     @Input
-    String distribution = 'zip'
+    String distribution = 'integ-test-zip'
 
     @Input
     int numNodes = 1
@@ -71,6 +71,8 @@ class ClusterConfiguration {
 
     LinkedHashMap<String, Object> plugins = new LinkedHashMap<>()
 
+    List<Project> modules = new ArrayList<>()
+
     LinkedHashMap<String, Object[]> setupCommands = new LinkedHashMap<>()
 
     @Input
@@ -91,6 +93,12 @@ class ClusterConfiguration {
     @Input
     void plugin(String name, Project pluginProject) {
         plugins.put(name, pluginProject)
+    }
+
+    /** Add a module to the cluster. The project must be an esplugin and have a single zip default artifact. */
+    @Input
+    void module(Project moduleProject) {
+        modules.add(moduleProject)
     }
 
     @Input

@@ -336,8 +336,6 @@ public class DocumentMapper implements ToXContent {
 
     private void addMappers(Collection<ObjectMapper> objectMappers, Collection<FieldMapper> fieldMappers, boolean updateAllTypes) {
         assert mappingLock.isWriteLockedByCurrentThread();
-        // first ensure we don't have any incompatible new fields
-        mapperService.checkNewMappersCompatibility(objectMappers, fieldMappers, updateAllTypes);
 
         // update mappers for this document type
         Map<String, ObjectMapper> builder = new HashMap<>(this.objectMappers);
@@ -356,6 +354,7 @@ public class DocumentMapper implements ToXContent {
 
     public MergeResult merge(Mapping mapping, boolean simulate, boolean updateAllTypes) {
         try (ReleasableLock lock = mappingWriteLock.acquire()) {
+            mapperService.checkMappersCompatibility(type, mapping, updateAllTypes);
             final MergeResult mergeResult = new MergeResult(simulate, updateAllTypes);
             this.mapping.merge(mapping, mergeResult);
             if (simulate == false) {

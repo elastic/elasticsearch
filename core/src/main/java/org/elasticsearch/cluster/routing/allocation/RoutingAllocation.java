@@ -52,29 +52,33 @@ public class RoutingAllocation {
 
         private final RoutingTable routingTable;
 
+        private final MetaData metaData;
+
         private RoutingExplanations explanations = new RoutingExplanations();
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
-         *
          * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
          * @param routingTable the {@link RoutingTable} this Result references
+         * @param metaData the {@link MetaData} this Result references
          */
-        public Result(boolean changed, RoutingTable routingTable) {
+        public Result(boolean changed, RoutingTable routingTable, MetaData metaData) {
             this.changed = changed;
             this.routingTable = routingTable;
+            this.metaData = metaData;
         }
 
         /**
          * Creates a new {@link RoutingAllocation.Result}
-         * 
          * @param changed a flag to determine whether the actual {@link RoutingTable} has been changed
          * @param routingTable the {@link RoutingTable} this Result references
+         * @param metaData the {@link MetaData} this Result references
          * @param explanations Explanation for the reroute actions
          */
-        public Result(boolean changed, RoutingTable routingTable, RoutingExplanations explanations) {
+        public Result(boolean changed, RoutingTable routingTable, MetaData metaData, RoutingExplanations explanations) {
             this.changed = changed;
             this.routingTable = routingTable;
+            this.metaData = metaData;
             this.explanations = explanations;
         }
 
@@ -83,6 +87,14 @@ public class RoutingAllocation {
          */
         public boolean changed() {
             return this.changed;
+        }
+
+        /**
+         * Get the {@link MetaData} referenced by this result
+         * @return referenced {@link MetaData}
+         */
+        public MetaData metaData() {
+            return metaData;
         }
 
         /**

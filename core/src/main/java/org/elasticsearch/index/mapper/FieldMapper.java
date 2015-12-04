@@ -307,7 +307,6 @@ public abstract class FieldMapper extends Mapper {
         if (ref.get().equals(fieldType()) == false) {
             throw new IllegalStateException("Cannot overwrite field type reference to unequal reference");
         }
-        ref.incrementAssociatedMappers();
         this.fieldTypeRef = ref;
     }
 
@@ -360,7 +359,7 @@ public abstract class FieldMapper extends Mapper {
     }
 
     @Override
-    public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+    public void merge(Mapper mergeWith, MergeResult mergeResult) {
         if (!this.getClass().equals(mergeWith.getClass())) {
             String mergedType = mergeWith.getClass().getSimpleName();
             if (mergeWith instanceof FieldMapper) {
@@ -380,11 +379,6 @@ public abstract class FieldMapper extends Mapper {
             return;
         }
 
-        boolean strict = this.fieldTypeRef.getNumAssociatedMappers() > 1 && mergeResult.updateAllTypes() == false;
-        fieldType().checkCompatibility(fieldMergeWith.fieldType(), subConflicts, strict);
-        for (String conflict : subConflicts) {
-            mergeResult.addConflict(conflict);
-        }
         multiFields.merge(mergeWith, mergeResult);
 
         if (mergeResult.simulate() == false && mergeResult.hasConflicts() == false) {
@@ -614,7 +608,7 @@ public abstract class FieldMapper extends Mapper {
         }
 
         // No need for locking, because locking is taken care of in ObjectMapper#merge and DocumentMapper#merge
-        public void merge(Mapper mergeWith, MergeResult mergeResult) throws MergeMappingException {
+        public void merge(Mapper mergeWith, MergeResult mergeResult) {
             FieldMapper mergeWithMultiField = (FieldMapper) mergeWith;
 
             List<FieldMapper> newFieldMappers = null;

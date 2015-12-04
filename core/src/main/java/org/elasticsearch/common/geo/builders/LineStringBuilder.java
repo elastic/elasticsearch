@@ -34,8 +34,6 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
 
     public static final GeoShapeType TYPE = GeoShapeType.LINESTRING;
 
-    protected boolean translated = false;
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();

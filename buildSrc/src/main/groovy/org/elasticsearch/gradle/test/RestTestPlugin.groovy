@@ -18,23 +18,19 @@
  */
 package org.elasticsearch.gradle.test
 
-import com.carrotsearch.gradle.junit4.RandomizedTestingTask
 import org.gradle.api.Plugin
 import org.gradle.api.Project
 
-/** Configures the build to have a rest integration test.  */
-class RestTestPlugin implements Plugin<Project> {
+/** A plugin to add rest integration tests. Used for qa projects.  */
+public class RestTestPlugin implements Plugin<Project> {
 
     @Override
-    void apply(Project project) {
+    public void apply(Project project) {
         project.pluginManager.apply(StandaloneTestBasePlugin)
 
-        RandomizedTestingTask integTest = RestIntegTestTask.configure(project)
-        RestSpecHack.configureDependencies(project)
-        integTest.configure {
-            classpath = project.sourceSets.test.runtimeClasspath
-            testClassesDir project.sourceSets.test.output.classesDir
-            cluster.distribution = 'zip' // rest tests should run with the real zip
-        }
+        RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
+        integTest.cluster.distribution = 'zip' // rest tests should run with the real zip
+        integTest.mustRunAfter(project.precommit)
+        project.check.dependsOn(integTest)
     }
 }

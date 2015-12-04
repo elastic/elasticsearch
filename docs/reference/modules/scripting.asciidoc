@@ -425,8 +425,10 @@ curl -XPOST localhost:9200/_search -d '{
       "functions": [
         {
           "script_score": {
-            "id": "my_script",
-            "lang" : "native"
+            "script": {
+                "id": "my_script",
+                "lang" : "native"
+            }
           }
         }
       ]

@@ -836,7 +836,9 @@ public class ClusterServiceIT extends ESIntegTestCase {
 
         // assert each executor executed the correct number of tasks
         for (TaskExecutor executor : executors) {
-            assertEquals((int)counts.get(executor), executor.counter.get());
+            if (counts.containsKey(executor)) {
+                assertEquals((int) counts.get(executor), executor.counter.get());
+            }
         }
 
         // assert the correct number of clusterStateProcessed events were triggered

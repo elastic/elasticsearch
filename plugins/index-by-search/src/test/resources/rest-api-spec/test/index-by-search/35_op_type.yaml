@@ -1,0 +1,256 @@
+# This test relies on settings verion: 2, version_type: external on the source
+# of the copy and then uses op_type to control whether or not the operation
+# overwrites.
+
+---
+"op_type defaults to create when copying to a new index":
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           1
+        body:         { "company": "cat" }
+        version:      2
+        version_type: external
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           2
+        body:         { "company": "cow" }
+  - do:
+      index:
+        index:        test
+        type:         dest
+        id:           1
+        body:         { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: test
+            type:  src
+          index:
+            index:   test
+            type:    dest
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:dog
+  - match: { hits.total: 1 }
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:cow
+  - match: { hits.total: 1 }
+
+---
+"op_type defaults to create when copying to a new type":
+  - do:
+      index:
+        index:        src
+        type:         test
+        id:           1
+        body:         { "company": "cat" }
+        version:      2
+        version_type: external
+  - do:
+      index:
+        index:        src
+        type:         test
+        id:           2
+        body:         { "company": "cow" }
+  - do:
+      index:
+        index:        dest
+        type:         test
+        id:           1
+        body:         { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: src
+            type:  test
+          index:
+            index:   dest
+            type:    test
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: dest
+        type:  test
+        q:     company:dog
+  - match: { hits.total: 1 }
+  - do:
+      search:
+        index: dest
+        type:  test
+        q:     company:cow
+  - match: { hits.total: 1 }
+
+---
+"op_type can be set to create":
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           1
+        body:         { "company": "cat" }
+        version:      2
+        version_type: external
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           2
+        body:         { "company": "cow" }
+  - do:
+      index:
+        index:        test
+        type:         dest
+        id:           1
+        body:         { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:   test
+            type:    src
+          index:
+            index:   test
+            type:    dest
+            op_type: create
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:dog
+  - match: { hits.total: 1 }
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:cow
+  - match: { hits.total: 1 }
+
+---
+"setting version_type suppresses default op_type when copying to external index":
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           1
+        body:         { "company": "cat" }
+        version:      2
+        version_type: external
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           2
+        body:         { "company": "cow" }
+  - do:
+      index:
+        index:        test
+        type:         dest
+        id:           1
+        body:         { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:        test
+            type:         src
+          index:
+            index:        test
+            type:         dest
+            version_type: external
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:cat
+  - match: { hits.total: 1 }
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:cow
+  - match: { hits.total: 1 }
+
+---
+"setting version:not_set suppresses default op_type when copying to external index":
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           1
+        body:         { "company": "cat" }
+        version:      2
+        version_type: external
+  - do:
+      index:
+        index:        test
+        type:         src
+        id:           2
+        body:         { "company": "cow" }
+  - do:
+      index:
+        index:        test
+        type:         dest
+        id:           1
+        body:         { "company": "dog" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index:        test
+            type:         src
+          index:
+            index:        test
+            type:         dest
+            version:      not_set
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:cat
+  - match: { hits.total: 1 }
+  - do:
+      search:
+        index: test
+        type:  dest
+        q:     company:cow
+  - match: { hits.total: 1 }

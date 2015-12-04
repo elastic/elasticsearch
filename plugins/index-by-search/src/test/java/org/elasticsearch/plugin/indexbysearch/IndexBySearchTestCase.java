@@ -45,20 +45,30 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
         return IndexBySearchAction.INSTANCE.newRequestBuilder(client());
     }
 
-    protected void assertResponse(IndexBySearchResponse response, long expectedIndexed, long expectedCreated) {
-        assertThat(response, responseMatcher().indexed(equalTo(expectedIndexed)));
-    }
-
     public IndexBySearchResponseMatcher responseMatcher() {
         return new IndexBySearchResponseMatcher();
     }
 
     public class IndexBySearchResponseMatcher extends TypeSafeMatcher<IndexBySearchResponse> {
-        private Matcher<Long> indexedMatcher;
+        private Matcher<Long> indexedMatcher = equalTo(0l);
+        private Matcher<Long> createdMatcher = equalTo(0l);
 
         public IndexBySearchResponseMatcher indexed(Matcher<Long> indexedMatcher) {
             this.indexedMatcher = indexedMatcher;
             return this;
+        }
+
+        public IndexBySearchResponseMatcher indexed(long indexed) {
+            return indexed(equalTo(indexed));
+        }
+
+        public IndexBySearchResponseMatcher created(Matcher<Long> createdMatcher) {
+            this.createdMatcher = createdMatcher;
+            return this;
+        }
+
+        public IndexBySearchResponseMatcher created(long created) {
+            return created(equalTo(created));
         }
 
         @Override
@@ -66,13 +76,23 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
             if (indexedMatcher != null && indexedMatcher.matches(item.indexed()) == false) {
                 return false;
             }
+            if (createdMatcher != null && createdMatcher.matches(item.created()) == false) {
+                return false;
+            }
             return true;
         }
 
         @Override
         public void describeTo(Description description) {
+            boolean started = false;
             if (indexedMatcher != null) {
                 description.appendText("indexed matches ").appendDescriptionOf(indexedMatcher);
+            }
+            if (createdMatcher != null) {
+                if (started) {
+                    description.appendText(" and ");
+                }
+                description.appendText("created matches ").appendDescriptionOf(createdMatcher);
             }
         }
     }

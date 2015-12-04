@@ -49,7 +49,7 @@ public class IndexBySearchBasicTests extends IndexBySearchTestCase {
         // Copy all the docs
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.index().setIndex(destinationIndex).setType("dest_all");
-        assertResponse(copy.get(), 4, 0);
+        assertThat(copy.get(), responseMatcher().created(4));
         refresh();
         assertHitCount(client().prepareSearch(destinationIndex).setTypes("dest_all").setSize(0).get(), 4);
 
@@ -57,7 +57,7 @@ public class IndexBySearchBasicTests extends IndexBySearchTestCase {
         copy = newIndexBySearch();
         copy.search().setQuery(termQuery("foo", "no_match"));
         copy.index().setIndex(destinationIndex).setType("dest_none");
-        assertResponse(copy.get(), 0, 0);
+        assertThat(copy.get(), responseMatcher().created(0));
         refresh();
         assertHitCount(client().prepareSearch(destinationIndex).setTypes("dest_none").setSize(0).get(), 0);
 
@@ -65,7 +65,7 @@ public class IndexBySearchBasicTests extends IndexBySearchTestCase {
         copy = newIndexBySearch();
         copy.search().setTypes("source").setQuery(termQuery("foo", "a"));
         copy.index().setIndex(destinationIndex).setType("dest_half");
-        assertResponse(copy.get(), 2, 0);
+        assertThat(copy.get(), responseMatcher().created(2));
         refresh();
         assertHitCount(client().prepareSearch(destinationIndex).setTypes("dest_half").setSize(0).get(), 2);
 
@@ -74,7 +74,7 @@ public class IndexBySearchBasicTests extends IndexBySearchTestCase {
         copy.search().setTypes("source");
         copy.index().setIndex(destinationIndex).setType("dest_size_one");
         copy.size(1);
-        assertResponse(copy.get(), 1, 0);
+        assertThat(copy.get(), responseMatcher().created(1));
         refresh();
         assertHitCount(client().prepareSearch(destinationIndex).setTypes("dest_size_one").setSize(0).get(), 1);
     }
@@ -92,7 +92,7 @@ public class IndexBySearchBasicTests extends IndexBySearchTestCase {
         // Copy all the docs
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.index().setIndex("test").setType("dest_all");
-        assertResponse(copy.get(), max, 0);
+        assertThat(copy.get(), responseMatcher().created(max));
         refresh();
         assertHitCount(client().prepareSearch("test").setTypes("dest_all").setSize(0).get(), max);
 
@@ -103,7 +103,7 @@ public class IndexBySearchBasicTests extends IndexBySearchTestCase {
         // Use a small batch size so we have to use more than one batch
         copy.search().setSize(5);
         copy.size(half); // The real "size" of the request.
-        assertResponse(copy.get(), half, 0);
+        assertThat(copy.get(), responseMatcher().created(half));
         refresh();
         assertHitCount(client().prepareSearch("test").setTypes("dest_half").setSize(0).get(), half);
     }

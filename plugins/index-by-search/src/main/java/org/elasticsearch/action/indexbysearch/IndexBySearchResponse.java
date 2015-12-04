@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.CREATED;
 import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.INDEXED;
 import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.TOOK;
 
@@ -34,17 +35,23 @@ import org.elasticsearch.common.xcontent.XContentBuilderString;
 public class IndexBySearchResponse extends ActionResponse implements ToXContent {
     private long took;
     private long indexed;
+    private long created;
 
     public IndexBySearchResponse() {
     }
 
-    public IndexBySearchResponse(long took, long indexed) {
+    public IndexBySearchResponse(long took, long indexed, long created) {
         this.took = took;
         this.indexed = indexed;
+        this.created = created;
     }
 
     public long indexed() {
         return indexed;
+    }
+
+    public long created() {
+        return created;
     }
 
     @Override
@@ -52,6 +59,7 @@ public class IndexBySearchResponse extends ActionResponse implements ToXContent 
         super.readFrom(in);
         took = in.readVLong();
         indexed = in.readVLong();
+        created = in.readVLong();
     }
 
     @Override
@@ -59,17 +67,20 @@ public class IndexBySearchResponse extends ActionResponse implements ToXContent 
         super.writeTo(out);
         out.writeVLong(took);
         out.writeVLong(indexed);
+        out.writeVLong(created);
     }
 
     static final class Fields {
         static final XContentBuilderString TOOK = new XContentBuilderString("took");
         static final XContentBuilderString INDEXED = new XContentBuilderString("indexed");
+        static final XContentBuilderString CREATED = new XContentBuilderString("created");
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.field(TOOK, took);
         builder.field(INDEXED, indexed);
+        builder.field(CREATED, created);
         return builder;
     }
 
@@ -79,6 +90,7 @@ public class IndexBySearchResponse extends ActionResponse implements ToXContent 
         builder.append("IndexBySearchResponse[");
         builder.append("took=").append(took);
         builder.append(",indexed=").append(indexed);
+        builder.append(",created=").append(created);
         return builder.append("]").toString();
     }
 }

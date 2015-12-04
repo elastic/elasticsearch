@@ -21,6 +21,8 @@ package org.elasticsearch.plugin.indexbysearch;
 
 import static org.apache.lucene.util.TestUtil.randomSimpleString;
 import static org.elasticsearch.index.VersionType.EXTERNAL;
+import static org.elasticsearch.index.VersionType.INTERNAL;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -46,18 +48,22 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
         assertEquals(4, client().prepareGet("test", "source", "test").get().getVersion());
 
         IndexBySearchRequestBuilder copy = newIndexBySearch();
-        // copy.index().setIndex("test").setType("dest_internal").setVersionType(INTERNAL);
-        // assertResponse(copy.get(), 1, 0);
-        // refresh();
-        // assertEquals(1, client().prepareGet("test", "dest_internal",
-        // "test").get().getVersion());
-
-        copy = newIndexBySearch();
-        copy.index().setIndex("test").setType("dest_external").setVersionType(EXTERNAL);
-        assertResponse(copy.get(), 1, 0);
+        copy.index().setIndex("test").setType("dest").setVersionType(EXTERNAL);
+        assertThat(copy.get(), responseMatcher().indexed(1));
         refresh();
-        assertEquals(4, client().prepareGet("test", "dest_external", "test").get().getVersion());
+        assertEquals(4, client().prepareGet("test", "dest", "test").get().getVersion());
     }
+
+    public void testInternalVersioningDoesntCopy() throws Exception {
+        indexRandom(true, client().prepareIndex("test", "source", "test").setSource("foo", "bar"));
+
+        IndexBySearchRequestBuilder copy = newIndexBySearch();
+        copy.index().setIndex("test").setType("dest").setVersionType(INTERNAL);
+        assertThat(copy.get(), responseMatcher().indexed(0).created(0));
+        refresh();
+        assertHitCount(client().prepareSearch("test").setTypes("dest").get(), 0);
+    }
+
 
     public void testVersionNotSetAlwaysOverwrites() throws Exception {
         indexRandom(true, client().prepareIndex("test", "source", "test").setSource("foo", "bar"),
@@ -66,7 +72,7 @@ public class IndexBySearchVersionTests extends IndexBySearchTestCase {
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setIndices("test").setTypes("source");
         copy.index().setIndex("test").setType("dest").setVersion(Versions.NOT_SET);
-        assertResponse(copy.get(), 1, 0);
+        assertThat(copy.get(), responseMatcher().indexed(1));
         refresh();
         assertEquals("bar", client().prepareGet("test", "dest", "test").get().getSource().get("foo"));
     }

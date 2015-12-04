@@ -29,6 +29,7 @@ import java.util.Arrays;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.index.IndexRequest.OpType;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -131,23 +132,25 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
             search().source().size(min(size(), search().source().size()));
         }
         if (index().versionType() == null) {
-            index.versionType(defaultVersionType());
+            setupDefaultVersionType();
         }
     }
 
-    VersionType defaultVersionType() {
+    void setupDefaultVersionType() {
         if (index().version() == Versions.NOT_SET) {
             /*
              * Not set means just don't set it on the index request. That
              * doesn't work properly with some VersionTypes.
              */
-            return VersionType.INTERNAL;
+            index().versionType(VersionType.INTERNAL);
+            return;
         }
         if (destinationSameAsSource()) {
-            return VersionType.INTERNAL;
-        } else {
-            return VersionType.EXTERNAL;
+            // Should be external_exact which is just like internal but preserves version number
+            index().versionType(VersionType.INTERNAL);
+            return;
         }
+        index().opType(OpType.CREATE);
     }
 
     /**

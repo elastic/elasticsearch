@@ -142,7 +142,7 @@ POST /twitter,blog/_index_by_search
 // AUTOSENSE
 
 NOTE: This request makes no effort to prevent writing duplicates so if it
-writes two documents with the same type and id then only one will make it.
+sees two documents with the same type and id then only one will make it.
 
 Its also possible to limit the number of processed documents by setting
 `size`. This will only copy a single document from `twitter` to
@@ -193,7 +193,9 @@ This request supports no query string parameters beyond the standard
 parameters like `pretty`.
 
 [float]
-=== Preserving external versioning
+=== Versioning
+
+NOCOMMIT rewrite this into a versioning cookbook
 
 You can preserve the version numbers of the documents by specifying
 `"version_type": "external"` on the `index` portion of the body. This is

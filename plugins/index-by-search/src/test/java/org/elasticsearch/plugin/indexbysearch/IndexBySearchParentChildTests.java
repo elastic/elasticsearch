@@ -43,7 +43,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.search().setQuery(findsCity);
         copy.index().setIndex("test").setType("dest_city");
-        assertResponse(copy.get(), 1, 0);
+        assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
         // Make sure parent/child is intact on that type
@@ -53,7 +53,7 @@ public class IndexBySearchParentChildTests extends IndexBySearchTestCase {
         copy = newIndexBySearch();
         copy.search().setQuery(findsNeighborhood);
         copy.index().setIndex("test").setType("dest_neighborhood");
-        assertResponse(copy.get(), 1, 0);
+        assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
         // Make sure parent/child is intact on that type

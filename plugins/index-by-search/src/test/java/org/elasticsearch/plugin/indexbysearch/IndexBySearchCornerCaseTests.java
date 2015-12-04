@@ -44,7 +44,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         // Copy the child to a new type
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.index().setIndex("test").setType("dest");
-        assertResponse(copy.get(), 1, 0);
+        assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
         // Make sure timestamp is intact on the copy
@@ -64,7 +64,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         // Copy the child to a new type
         IndexBySearchRequestBuilder copy = newIndexBySearch();
         copy.index().setIndex("test").setType("dest");
-        assertResponse(copy.get(), 1, 0);
+        assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
         // Make sure the ttl is intact on the copy
@@ -113,7 +113,7 @@ public class IndexBySearchCornerCaseTests extends IndexBySearchTestCase {
         if (specification != null) {
             copy.index().setRouting(specification);
         }
-        assertResponse(copy.get(), 1, 0);
+        assertThat(copy.get(), responseMatcher().created(1));
         refresh();
 
         // Make sure routing is intact on the copy

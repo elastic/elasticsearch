@@ -153,7 +153,7 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
 
         @Override
         protected IndexBySearchResponse buildResponse(long took) {
-            return new IndexBySearchResponse(took, indexed());
+            return new IndexBySearchResponse(took, indexed(), created());
         }
     }
 }

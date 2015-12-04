@@ -18,7 +18,7 @@
           index:
             index: test
             type: baz
-  - match: {indexed: 1}
+  - match: {created: 1}
   - is_true: took
 
 ---

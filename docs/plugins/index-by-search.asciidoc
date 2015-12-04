@@ -195,18 +195,93 @@ parameters like `pretty`.
 [float]
 === Versioning
 
-NOCOMMIT rewrite this into a versioning cookbook
+Just as the {ref}/docs-index.html[Index API] supports optimistic concurrency
+control, so does index-by-search. Its has two default behaviors, depending on
+how you use it.
 
-You can preserve the version numbers of the documents by specifying
-`"version_type": "external"` on the `index` portion of the body. This is
-most important if your documents were created with
-`version_type=external`. Example:
+"Reindexing" defaults to `"version_type": "external_exact"` meaning that
+documents are only touched if their version number matches the version number
+the document has when the scan snapshots it. Index-by-search thinks you are
+"reindexing" when you set the source and destination to the same things. Like
+this:
+
 [source,js]
 --------------------------------------------------
 POST /_index_by_search
 {
   "source": {
-    "index": "src"
+    "index": "test"
+  }
+  "index": {
+    "index": "test"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+or this:
+
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "source": {
+    "index": "test_index",
+    "type": "test_type"
+  }
+  "index": {
+    "index": "test_index",
+    "type": "test_type"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+All other index-by-search operations default to `"op_type": "create"` meaning
+that existing documents aren't modified but documents not found in the
+destination are created.
+
+These defaults were chosen because they cover common use cases and are simple
+to think about. "Reindexing" was designed to `touch` documents so they pick up
+mapping changes like new fields. The other default was chosen because its
+simple to explain. There are many other configurations though.
+
+[float]
+==== Always write the document
+
+You cause index-by-search to always write the documents it sees by setting
+`"version": "not_set"` like so:
+
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "source": {
+    "index": "source"
+  }
+  "index": {
+    "index": "dest",
+    "version": "not_set"
+  }
+}
+--------------------------------------------------
+// AUTOSENSE
+
+This will cause Elasticsearch to totally ignore optimistic concurrency control
+by sending all the index requests without a version.
+
+[float]
+==== Preserve external versions on copy
+
+You cause index-by-search to preserve external versions on copy style
+operations by setting `"version_type": "external"` like so:
+
+[source,js]
+--------------------------------------------------
+POST /_index_by_search
+{
+  "source": {
+    "index": "source"
   }
   "index": {
     "index": "dest",
@@ -215,6 +290,11 @@ POST /_index_by_search
 }
 --------------------------------------------------
 // AUTOSENSE
+
+This will cause Elasticsearch to send all the index requests as though they
+were index operations received with `version_type=external` on the url. This
+also has the side effect of overwriting documents that have version numbers
+less than the version number in the source index.
 
 [float]
 === Routing

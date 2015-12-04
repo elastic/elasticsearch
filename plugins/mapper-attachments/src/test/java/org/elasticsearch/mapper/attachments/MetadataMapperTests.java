@@ -44,7 +44,7 @@ public class MetadataMapperTests extends AttachmentUnitTestCase {
                                              .put(this.testSettings)
                                              .put(otherSettings)
                                              .build();
-        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), settings, AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser()).documentMapperParser();
+        DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(createTempDir(), settings, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/metadata/test-mapping.json");
         DocumentMapper docMapper = mapperParser.parse(mapping);

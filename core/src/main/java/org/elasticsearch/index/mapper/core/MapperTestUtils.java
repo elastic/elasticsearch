@@ -31,7 +31,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNameModule;
 import org.elasticsearch.index.analysis.AnalysisModule;
 import org.elasticsearch.index.analysis.AnalysisService;
-import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.settings.IndexSettingsModule;
 import org.elasticsearch.index.similarity.SimilarityLookupService;
@@ -45,29 +44,18 @@ import java.nio.file.Path;
 public class MapperTestUtils {
 
     public static MapperService newMapperService(Path tempDir, Settings indexSettings) {
-        return newMapperService(tempDir, indexSettings, Version.CURRENT);
-
-    }
-
-    public static MapperService newMapperService(Path tempDir, Settings indexSettings, Version version) {
-        return newMapperService(tempDir, indexSettings, null, null, version);
-
-    }
-
-    public static MapperService newMapperService(Path tempDir, Settings indexSettings, String contentType, Mapper.TypeParser typeParser) {
-        return newMapperService(tempDir, indexSettings, contentType, typeParser, Version.CURRENT);
-    }
-
-    private static MapperService newMapperService(Path tempDir, Settings indexSettings, String contentType, Mapper.TypeParser typeParser, Version version) {
         IndicesModule indicesModule = new IndicesModule();
-        if (contentType != null && typeParser != null) {
-            indicesModule.registerMapper(contentType, typeParser);
-        }
-        Settings settings = Settings.builder()
-            .put(IndexMetaData.SETTING_VERSION_CREATED, version)
+        return newMapperService(tempDir, indexSettings, indicesModule);
+    }
+
+    public static MapperService newMapperService(Path tempDir, Settings indexSettings, IndicesModule indicesModule) {
+        Settings.Builder settingsBuilder = Settings.builder()
             .put("path.home", tempDir)
-            .put(indexSettings)
-            .build();
+            .put(indexSettings);
+        if (indexSettings.get(IndexMetaData.SETTING_VERSION_CREATED) == null) {
+            settingsBuilder.put(IndexMetaData.SETTING_VERSION_CREATED, Version.CURRENT);
+        }
+        Settings settings = settingsBuilder.build();
         MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
         return new MapperService(new Index("test"),
             settings,

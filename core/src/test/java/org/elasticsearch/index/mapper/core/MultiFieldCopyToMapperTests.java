@@ -21,6 +21,7 @@
 package org.elasticsearch.index.mapper.core;
 
 import org.elasticsearch.Version;
+import org.elasticsearch.cluster.metadata.IndexMetaData;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -57,7 +58,7 @@ public class MultiFieldCopyToMapperTests extends ESTestCase {
             .endObject()
             .endObject();
         Version indexVersion = randomVersion();
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, indexVersion);
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.builder().put(IndexMetaData.SETTING_VERSION_CREATED, indexVersion).build());
         if (indexVersion.after(Version.V_2_1_0) ||
             (indexVersion.after(Version.V_2_0_1) && indexVersion.before(Version.V_2_1_0))) {
             try {

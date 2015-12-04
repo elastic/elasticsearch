@@ -45,6 +45,7 @@ import static org.elasticsearch.common.cli.CliToolConfig.Builder.cmd;
 import static org.elasticsearch.common.cli.CliToolConfig.Builder.option;
 import static org.elasticsearch.common.io.Streams.copy;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.mapper.attachments.AttachmentUnitTestCase.getIndicesModuleWithRegisteredAttachmentMapper;
 import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 
 /**
@@ -86,7 +87,7 @@ public class StandaloneRunner extends CliTool {
             this.size = size;
             this.url = url;
             this.base64text = base64text;
-            DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(PathUtils.get("."), Settings.EMPTY, AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser()).documentMapperParser(); // use CWD b/c it won't be used
+            DocumentMapperParser mapperParser = MapperTestUtils.newMapperService(PathUtils.get("."), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser(); // use CWD b/c it won't be used
 
             String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/standalone/standalone-mapping.json");
             docMapper = mapperParser.parse(mapping);

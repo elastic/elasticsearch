@@ -48,7 +48,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
 
     @Before
     public void setupMapperParser() throws Exception {
-        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser()).documentMapperParser();
+        mapperParser = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper()).documentMapperParser();
 
     }
 
@@ -91,7 +91,7 @@ public class MultifieldAttachmentMapperTests extends AttachmentUnitTestCase {
         String bytes = Base64.encodeBytes(originalText.getBytes(StandardCharsets.ISO_8859_1));
         threadPool = new ThreadPool("testing-only");
 
-        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, AttachmentMapper.CONTENT_TYPE, new AttachmentMapper.TypeParser());
+        MapperService mapperService = MapperTestUtils.newMapperService(createTempDir(), Settings.EMPTY, getIndicesModuleWithRegisteredAttachmentMapper());
 
         String mapping = copyToStringFromClasspath("/org/elasticsearch/index/mapper/attachment/test/unit/multifield/multifield-mapping.json");
 

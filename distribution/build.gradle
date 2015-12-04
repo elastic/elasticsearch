@@ -56,10 +56,13 @@ task buildModules(type: Copy) {
 project.gradle.projectsEvaluated {
   project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
     buildModules {
-      dependsOn(module.bundlePlugin)
+      dependsOn module.bundlePlugin
       into(module.name) {
         from { zipTree(module.bundlePlugin.outputs.files.singleFile) }
       }
+    }
+    configure(subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+      distribution.integTest.mustRunAfter(module.integTest)      
     }
   }
 }

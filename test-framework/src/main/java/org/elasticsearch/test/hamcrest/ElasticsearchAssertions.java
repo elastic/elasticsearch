@@ -761,7 +761,7 @@ public class ElasticsearchAssertions {
 
         boolean anyHaveUrls =
                 plugins
-                        .getInfos()
+                        .getPluginInfos()
                         .stream()
                         .filter(jvmPluginPredicate.and(sitePluginPredicate.negate()))
                         .map(urlFunction)
@@ -792,7 +792,7 @@ public class ElasticsearchAssertions {
     }
 
     private static List<String> filterAndMap(PluginsInfo pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
-        return pluginsInfo.getInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
+        return pluginsInfo.getPluginInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
     }
 
     private static Predicate<PluginInfo> jvmPluginPredicate = p -> p.isJvm();

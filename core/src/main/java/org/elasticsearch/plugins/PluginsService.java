@@ -25,7 +25,6 @@ import org.apache.lucene.analysis.util.TokenizerFactory;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
-import org.apache.lucene.util.IOUtils;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
 import org.elasticsearch.bootstrap.JarHell;
@@ -39,10 +38,7 @@ import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.shard.IndexEventListener;
 
-import java.io.Closeable;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -69,7 +65,7 @@ import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 public class PluginsService extends AbstractComponent {
 
     /**
-     * We keep around a list of plugins
+     * We keep around a list of plugins and modules
      */
     private final List<Tuple<PluginInfo, Plugin>> plugins;
     private final PluginsInfo info;
@@ -95,8 +91,9 @@ public class PluginsService extends AbstractComponent {
      */
     public PluginsService(Settings settings, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
+        info = new PluginsInfo();
 
-        List<Tuple<PluginInfo, Plugin>> tupleBuilder = new ArrayList<>();
+        List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
 
         // first we load plugins that are on the classpath. this is for tests and transport clients
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
@@ -105,14 +102,19 @@ public class PluginsService extends AbstractComponent {
             if (logger.isTraceEnabled()) {
                 logger.trace("plugin loaded from classpath [{}]", pluginInfo);
             }
-            tupleBuilder.add(new Tuple<>(pluginInfo, plugin));
+            pluginsLoaded.add(new Tuple<>(pluginInfo, plugin));
+            info.addPlugin(pluginInfo);
         }
 
         // load modules
         if (modulesDirectory != null) {
             try {
                 List<Bundle> bundles = getModuleBundles(modulesDirectory);
-                tupleBuilder.addAll(loadBundles(bundles));
+                List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(bundles);
+                pluginsLoaded.addAll(loaded);
+                for (Tuple<PluginInfo, Plugin> module : loaded) {
+                    info.addModule(module.v1());
+                }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
@@ -122,17 +124,17 @@ public class PluginsService extends AbstractComponent {
         if (pluginsDirectory != null) {
             try {
                 List<Bundle> bundles = getPluginBundles(pluginsDirectory);
-                tupleBuilder.addAll(loadBundles(bundles));
+                List<Tuple<PluginInfo, Plugin>> loaded = loadBundles(bundles);
+                pluginsLoaded.addAll(loaded);
+                for (Tuple<PluginInfo, Plugin> plugin : loaded) {
+                    info.addPlugin(plugin.v1());
+                }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
         }
 
-        plugins = Collections.unmodifiableList(tupleBuilder);
-        info = new PluginsInfo();
-        for (Tuple<PluginInfo, Plugin> tuple : plugins) {
-            info.add(tuple.v1());
-        }
+        plugins = Collections.unmodifiableList(pluginsLoaded);
 
         // We need to build a List of jvm and site plugins for checking mandatory plugins
         Map<String, Plugin> jvmPlugins = new HashMap<>();

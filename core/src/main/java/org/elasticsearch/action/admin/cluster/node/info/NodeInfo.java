@@ -217,7 +217,8 @@ public class NodeInfo extends BaseNodeResponse {
             http = HttpInfo.readHttpInfo(in);
         }
         if (in.readBoolean()) {
-            plugins = PluginsInfo.readPluginsInfo(in);
+            plugins = new PluginsInfo();
+            plugins.readFrom(in);
         }
     }
 

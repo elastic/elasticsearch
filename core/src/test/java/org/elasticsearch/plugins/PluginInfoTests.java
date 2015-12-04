@@ -259,14 +259,14 @@ public class PluginInfoTests extends ESTestCase {
     }
 
     public void testPluginListSorted() {
-        PluginsInfo pluginsInfo = new PluginsInfo(5);
-        pluginsInfo.add(new PluginInfo("c", "foo", true, "dummy", true, "dummyclass", true));
-        pluginsInfo.add(new PluginInfo("b", "foo", true, "dummy", true, "dummyclass", true));
-        pluginsInfo.add(new PluginInfo("e", "foo", true, "dummy", true, "dummyclass", true));
-        pluginsInfo.add(new PluginInfo("a", "foo", true, "dummy", true, "dummyclass", true));
-        pluginsInfo.add(new PluginInfo("d", "foo", true, "dummy", true, "dummyclass", true));
+        PluginsInfo pluginsInfo = new PluginsInfo();
+        pluginsInfo.addPlugin(new PluginInfo("c", "foo", true, "dummy", true, "dummyclass", true));
+        pluginsInfo.addPlugin(new PluginInfo("b", "foo", true, "dummy", true, "dummyclass", true));
+        pluginsInfo.addPlugin(new PluginInfo("e", "foo", true, "dummy", true, "dummyclass", true));
+        pluginsInfo.addPlugin(new PluginInfo("a", "foo", true, "dummy", true, "dummyclass", true));
+        pluginsInfo.addPlugin(new PluginInfo("d", "foo", true, "dummy", true, "dummyclass", true));
 
-        final List<PluginInfo> infos = pluginsInfo.getInfos();
+        final List<PluginInfo> infos = pluginsInfo.getPluginInfos();
         List<String> names = infos.stream().map((input) -> input.getName()).collect(Collectors.toList());
         assertThat(names, contains("a", "b", "c", "d", "e"));
     }

@@ -20,7 +20,6 @@
 task buildZip(type: Zip) {
   baseName = 'elasticsearch'
   with archivesFiles
-  with modulesFiles
 }
 
 artifacts {

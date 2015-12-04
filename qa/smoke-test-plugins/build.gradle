@@ -23,12 +23,6 @@ apply plugin: 'elasticsearch.rest-test'
 
 ext.modulesCount = 0
 project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { subproj ->
-  integTest {
-    cluster {
-      // need to get a non-decorated project object, so must re-lookup the project by path
-      module project(subproj.path)
-    }
-  }
   modulesCount += 1
 }
 

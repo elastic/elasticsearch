@@ -157,6 +157,9 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' || it.name 
       from('../src/main/resources') {
         include 'bin/*.exe'
       }
+      if (project.name != 'integ-test-zip') {
+        with modulesFiles
+      }
     }
   }
 }

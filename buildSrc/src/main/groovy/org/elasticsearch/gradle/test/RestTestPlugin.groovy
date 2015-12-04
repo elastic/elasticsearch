@@ -34,6 +34,7 @@ class RestTestPlugin implements Plugin<Project> {
         integTest.configure {
             classpath = project.sourceSets.test.runtimeClasspath
             testClassesDir project.sourceSets.test.output.classesDir
+            cluster.distribution = 'zip' // rest tests should run with the real zip
         }
     }
 }

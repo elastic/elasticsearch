@@ -74,7 +74,7 @@ public class ClusterStatsNodes implements ToXContent, Streamable {
             versions.add(nodeResponse.nodeInfo().getVersion());
             process.addNodeStats(nodeResponse.nodeStats());
             jvm.addNodeInfoStats(nodeResponse.nodeInfo(), nodeResponse.nodeStats());
-            plugins.addAll(nodeResponse.nodeInfo().getPlugins().getInfos());
+            plugins.addAll(nodeResponse.nodeInfo().getPlugins().getPluginInfos());
 
             // now do the stats that should be deduped by hardware (implemented by ip deduping)
             TransportAddress publishAddress = nodeResponse.nodeInfo().getTransport().address().publishAddress();

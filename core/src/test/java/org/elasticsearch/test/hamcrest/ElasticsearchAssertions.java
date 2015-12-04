@@ -782,12 +782,20 @@ public class ElasticsearchAssertions {
         }
     }
 
+<<<<<<< HEAD:core/src/test/java/org/elasticsearch/test/hamcrest/ElasticsearchAssertions.java
     private static Predicate<PluginInfo> jvmPluginPredicate = new Predicate<PluginInfo>() {
         @Override
         public boolean apply(PluginInfo pluginInfo) {
             return pluginInfo.isJvm();
         }
     };
+=======
+    private static List<String> filterAndMap(PluginsInfo pluginsInfo, Predicate<PluginInfo> predicate, Function<PluginInfo, String> function) {
+        return pluginsInfo.getPluginInfos().stream().filter(predicate).map(function).collect(Collectors.toList());
+    }
+
+    private static Predicate<PluginInfo> jvmPluginPredicate = p -> p.isJvm();
+>>>>>>> 7160c5e... list modules separately in pluginservice:test-framework/src/main/java/org/elasticsearch/test/hamcrest/ElasticsearchAssertions.java
 
     private static Predicate<PluginInfo> sitePluginPredicate = new Predicate<PluginInfo>() {
         @Override

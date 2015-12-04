@@ -27,10 +27,12 @@ import org.elasticsearch.index.mapper.object.RootObjectMapper;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.unmodifiableMap;
@@ -41,7 +43,9 @@ import static java.util.Collections.unmodifiableMap;
  */
 public final class Mapping implements ToXContent {
 
-    public static final List<String> LEGACY_INCLUDE_IN_OBJECT = Arrays.asList("_all", "_id", "_parent", "_routing", "_timestamp", "_ttl");
+    // Set of fields that were included into the root object mapper before 2.0
+    public static final Set<String> LEGACY_INCLUDE_IN_OBJECT = Collections.unmodifiableSet(new HashSet<>(
+            Arrays.asList("_all", "_id", "_parent", "_routing", "_timestamp", "_ttl")));
 
     final Version indexCreated;
     final RootObjectMapper root;

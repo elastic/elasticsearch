@@ -173,6 +173,7 @@ class NodeInfo {
     static File homeDir(File baseDir, String distro) {
         String path
         switch (distro) {
+            case 'integ-test-zip':
             case 'zip':
             case 'tar':
                 path = "elasticsearch-${VersionProperties.elasticsearch}"
@@ -188,8 +189,8 @@ class NodeInfo {
     }
 
     static File confDir(File baseDir, String distro) {
-        String Path
         switch (distro) {
+            case 'integ-test-zip':
             case 'zip':
             case 'tar':
                 return new File(homeDir(baseDir, distro), 'config')

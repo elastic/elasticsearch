@@ -41,10 +41,16 @@ public class PluginBuildPlugin extends BuildPlugin {
             String name = project.pluginProperties.extension.name
             project.jar.baseName = name
             project.bundlePlugin.baseName = name
+
             project.integTest.dependsOn(project.bundlePlugin)
-            project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
             project.tasks.run.dependsOn(project.bundlePlugin)
-            project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+            if (project.path.startsWith(':modules:')) {
+                project.integTest.clusterConfig.module(project)
+                project.tasks.run.clusterConfig.module(project)
+            } else {
+                project.integTest.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+                project.tasks.run.clusterConfig.plugin(name, project.bundlePlugin.outputs.files)
+            }
         }
         createIntegTestTask(project)
         createBundleTask(project)

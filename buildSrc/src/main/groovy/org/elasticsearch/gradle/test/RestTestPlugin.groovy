@@ -29,6 +29,7 @@ public class RestTestPlugin implements Plugin<Project> {
         project.pluginManager.apply(StandaloneTestBasePlugin)
 
         RestIntegTestTask integTest = project.tasks.create('integTest', RestIntegTestTask.class)
+        integTest.cluster.distribution = 'zip' // rest tests should run with the real zip
         integTest.mustRunAfter(project.precommit)
         project.check.dependsOn(integTest)
     }

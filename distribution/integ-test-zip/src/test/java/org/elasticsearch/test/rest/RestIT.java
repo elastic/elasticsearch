@@ -17,15 +17,22 @@
  * under the License.
  */
 
-task buildZip(type: Zip) {
-  baseName = 'elasticsearch'
-  with archivesFiles
+package org.elasticsearch.test.rest;
+
+import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
+
+import org.elasticsearch.test.rest.parser.RestTestParseException;
+
+import java.io.IOException;
+
+/** Rest integration test. runs against external cluster in 'mvn verify' */
+public class RestIT extends ESRestTestCase {
+    public RestIT(RestTestCandidate testCandidate) {
+        super(testCandidate);
+    }
+    // we run them all sequentially: start simple!
+    @ParametersFactory
+    public static Iterable<Object[]> parameters() throws IOException, RestTestParseException {
+        return createParameters(0, 1);
+    }
 }
-
-artifacts {
-  'default' buildZip
-  archives buildZip
-}
-
-integTest.dependsOn buildZip
-

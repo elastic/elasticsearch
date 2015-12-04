@@ -39,11 +39,38 @@ buildscript {
   }
 }
 
-allprojects {
-  project.ext {
-    // this is common configuration for distributions, but we also add it here for the license check to use
-    dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+// this is common configuration for distributions, but we also add it here for the license check to use
+ext.dependencyFiles = project(':core').configurations.runtime.copyRecursive().exclude(module: 'slf4j-api')
+
+/*****************************************************************************
+ *                                  Modules                                  *
+ *****************************************************************************/
+
+task buildModules(type: Copy) {
+  into 'build/modules'
+} 
+
+// we create the buildModules task above so the distribution subprojects can
+// depend on it, but we don't actually configure it until projects are evaluated
+// so it can depend on the bundling of plugins (ie modules must have been configured)
+project.gradle.projectsEvaluated {
+  project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { Project module ->
+    buildModules {
+      dependsOn module.bundlePlugin
+      into(module.name) {
+        from { zipTree(module.bundlePlugin.outputs.files.singleFile) }
+      }
+    }
+    configure(subprojects.findAll { it.name != 'integ-test-zip' }) { Project distribution ->
+      distribution.integTest.mustRunAfter(module.integTest)      
+    }
   }
+}
+
+// make sure we have a clean task since we aren't a java project, but we have tasks that
+// put stuff in the build dir
+task clean(type: Delete) {
+  delete 'build'
 }
 
 subprojects {
@@ -52,7 +79,11 @@ subprojects {
    *****************************************************************************/
   apply plugin: 'elasticsearch.rest-test'
   project.integTest {
+    dependsOn(project.assemble)
     includePackaged true
+    cluster {
+      distribution = project.name
+    }
   }
 
   /*****************************************************************************
@@ -81,7 +112,12 @@ subprojects {
     libFiles = copySpec {
       into 'lib'
       from project(':core').jar
-      from dependencyFiles
+      from project(':distribution').dependencyFiles
+    }
+
+    modulesFiles = copySpec {
+      into 'modules'
+      from project(':distribution').buildModules
     }
 
     configFiles = copySpec {
@@ -103,7 +139,7 @@ subprojects {
 /*****************************************************************************
  *                         Zip and tgz configuration                         *
  *****************************************************************************/
-configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
+configure(subprojects.findAll { ['zip', 'tar', 'integ-test-zip'].contains(it.name) }) {
   project.ext.archivesFiles = copySpec {
     into("elasticsearch-${version}") {
       with libFiles
@@ -120,6 +156,9 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
       }
       from('../src/main/resources') {
         include 'bin/*.exe'
+      }
+      if (project.name != 'integ-test-zip') {
+        with modulesFiles
       }
     }
   }
@@ -143,7 +182,7 @@ configure(subprojects.findAll { it.name == 'zip' || it.name == 'tar' }) {
  *    directly from the filesystem. It doesn't want to process them through
  *    MavenFilteringHack or any other copy-style action.
  */
-configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
+configure(subprojects.findAll { ['deb', 'rpm'].contains(it.name) }) {
   integTest.enabled = Os.isFamily(Os.FAMILY_WINDOWS) == false
   File packagingFiles = new File(buildDir, 'packaging')
   project.ext.packagingFiles = packagingFiles
@@ -233,6 +272,7 @@ configure(subprojects.findAll { it.name == 'deb' || it.name == 'rpm' }) {
     user 'root'
     permissionGroup 'root'
     with libFiles
+    with modulesFiles
     with copySpec {
       with commonFiles
       if (project.name == 'deb') {

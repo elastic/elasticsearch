@@ -17,7 +17,7 @@
  * under the License.
  */
 
-task buildTar(type: Tar, dependsOn: dependencyFiles) {
+task buildTar(type: Tar) {
   baseName = 'elasticsearch'
   extension = 'tar.gz'
   with archivesFiles
@@ -27,9 +27,4 @@ task buildTar(type: Tar, dependsOn: dependencyFiles) {
 artifacts {
   'default' buildTar
   archives buildTar
-}
-
-integTest {
-  dependsOn buildTar
-  clusterConfig.distribution = 'tar'
 }

@@ -71,7 +71,7 @@ public abstract class Plugin {
     }
 
     /**
-     * Called before a new index is created on a node. The given module can be used to regsiter index-leve
+     * Called before a new index is created on a node. The given module can be used to register index-level
      * extensions.
      */
     public void onIndexModule(IndexModule indexModule) {}

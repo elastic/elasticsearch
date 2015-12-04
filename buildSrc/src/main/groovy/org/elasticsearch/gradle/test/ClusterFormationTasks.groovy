@@ -60,7 +60,12 @@ class ClusterFormationTasks {
     /** Adds a dependency on the given distribution */
     static void configureDistributionDependency(Project project, String distro) {
         String elasticsearchVersion = VersionProperties.elasticsearch
-        String packaging = distro == 'tar' ? 'tar.gz' : distro
+        String packaging = distro
+        if (distro == 'tar') {
+            packaging = 'tar.gz'
+        } else if (distro == 'integ-test-zip') {
+            packaging = 'zip'
+        }
         project.configurations {
             elasticsearchDistro
         }
@@ -103,6 +108,12 @@ class ClusterFormationTasks {
         setup = configureExtraConfigFilesTask(taskName(task, node, 'extraConfig'), project, setup, node)
         setup = configureCopyPluginsTask(taskName(task, node, 'copyPlugins'), project, setup, node)
 
+        // install modules
+        for (Project module : node.config.modules) {
+            String actionName = pluginTaskName('install', module.name, 'Module')
+            setup = configureInstallModuleTask(taskName(task, node, actionName), project, setup, node, module)
+        }
+
         // install plugins
         for (Map.Entry<String, Object> plugin : node.config.plugins.entrySet()) {
             String actionName = pluginTaskName('install', plugin.getKey(), 'Plugin')
@@ -138,6 +149,7 @@ class ClusterFormationTasks {
           by the source tree. If it isn't then Bad Things(TM) will happen. */
         Task extract
         switch (node.config.distribution) {
+            case 'integ-test-zip':
             case 'zip':
                 extract = project.tasks.create(name: name, type: Copy, dependsOn: extractDependsOn) {
                     from { project.zipTree(project.configurations.elasticsearchDistro.singleFile) }
@@ -284,6 +296,20 @@ class ClusterFormationTasks {
         copyPlugins.into(node.pluginsTmpDir)
         copyPlugins.from(pluginFiles)
         return copyPlugins
+    }
+
+    static Task configureInstallModuleTask(String name, Project project, Task setup, NodeInfo node, Project module) {
+        if (node.config.distribution != 'integ-test-zip') {
+            throw new GradleException("Module ${module.path} not allowed be installed distributions other than integ-test-zip because they should already have all modules bundled!")
+        }
+        if (module.plugins.hasPlugin(PluginBuildPlugin) == false) {
+            throw new GradleException("Task ${name} cannot include module ${module.path} which is not an esplugin")
+        }
+        Copy installModule = project.tasks.create(name, Copy.class)
+        installModule.dependsOn(setup)
+        installModule.into(new File(node.homeDir, "modules/${module.name}"))
+        installModule.from({ project.zipTree(module.tasks.bundlePlugin.outputs.files.singleFile) })
+        return installModule
     }
 
     static Task configureInstallPluginTask(String name, Project project, Task setup, NodeInfo node, Object plugin) {

@@ -93,11 +93,11 @@ public class IndexingMemoryControllerTests extends ESSingleNodeTestCase {
         }
 
         @Override
-        protected Boolean checkIdle(IndexShard shard) {
+        protected boolean checkIdle(IndexShard shard) {
             final TimeValue inactiveTime = settings.getAsTime(IndexShard.INDEX_SHARD_INACTIVE_TIME_SETTING, TimeValue.timeValueMinutes(5));
             Long ns = lastIndexTimeNanos.get(shard);
             if (ns == null) {
-                return null;
+                return true;
             } else if (currentTimeInNanos() - ns >= inactiveTime.nanos()) {
                 indexingBuffers.put(shard, INACTIVE);
                 translogBuffers.put(shard, INACTIVE);

@@ -131,7 +131,7 @@ public class MultiLineStringBuilder extends ShapeBuilder {
     public MultiLineStringBuilder readFrom(StreamInput in) throws IOException {
         MultiLineStringBuilder multiLineStringBuilder = new MultiLineStringBuilder();
         int size = in.readVInt();
-        for (int i=0; i < size; i++) {
+        for (int i = 0; i < size; i++) {
             multiLineStringBuilder.linestring(LineStringBuilder.PROTOTYPE.readFrom(in));
         }
         return multiLineStringBuilder;

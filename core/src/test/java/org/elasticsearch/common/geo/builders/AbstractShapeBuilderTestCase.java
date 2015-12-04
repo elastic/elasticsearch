@@ -69,7 +69,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     /**
      * mutate the given shape so the returned shape is different
      */
-    protected abstract SB mutate(SB original) throws IOException;
+    protected abstract SB createMutation(SB original) throws IOException;
 
     /**
      * Test that creates new shape from a random test shape and checks both for equality
@@ -95,10 +95,11 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     /**
      * Test serialization and deserialization of the test shape.
      */
+    @SuppressWarnings("unchecked")
     public void testSerialization() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB testShape = createTestShapeBuilder();
-            SB deserializedShape = copyShape(testShape);
+            SB deserializedShape = (SB) copyShape(testShape);
             assertEquals(testShape, deserializedShape);
             assertEquals(testShape.hashCode(), deserializedShape.hashCode());
             assertNotSame(testShape, deserializedShape);
@@ -108,6 +109,7 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
     /**
      * Test equality and hashCode properties
      */
+    @SuppressWarnings("unchecked")
     public void testEqualsAndHashcode() throws IOException {
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             SB firstShape = createTestShapeBuilder();
@@ -116,15 +118,15 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
             assertTrue("shape is not equal to self", firstShape.equals(firstShape));
             assertThat("same shape's hashcode returns different values if called multiple times", firstShape.hashCode(),
                     equalTo(firstShape.hashCode()));
-            assertThat("different shapes should not be equal", mutate(firstShape), not(equalTo(firstShape)));
+            assertThat("different shapes should not be equal", createMutation(firstShape), not(equalTo(firstShape)));
 
-            SB secondShape = copyShape(firstShape);
+            SB secondShape = (SB) copyShape(firstShape);
             assertTrue("shape is not equal to self", secondShape.equals(secondShape));
             assertTrue("shape is not equal to its copy", firstShape.equals(secondShape));
             assertTrue("equals is not symmetric", secondShape.equals(firstShape));
             assertThat("shape copy's hashcode is different from original hashcode", secondShape.hashCode(), equalTo(firstShape.hashCode()));
 
-            SB thirdShape = copyShape(secondShape);
+            SB thirdShape = (SB) copyShape(secondShape);
             assertTrue("shape is not equal to self", thirdShape.equals(thirdShape));
             assertTrue("shape is not equal to its copy", secondShape.equals(thirdShape));
             assertThat("shape copy's hashcode is different from original hashcode", secondShape.hashCode(), equalTo(thirdShape.hashCode()));
@@ -135,14 +137,12 @@ public abstract class AbstractShapeBuilderTestCase<SB extends ShapeBuilder> exte
         }
     }
 
-    protected SB copyShape(SB original) throws IOException {
+    static ShapeBuilder copyShape(ShapeBuilder original) throws IOException {
         try (BytesStreamOutput output = new BytesStreamOutput()) {
             original.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(StreamInput.wrap(output.bytes()), namedWriteableRegistry)) {
                 ShapeBuilder prototype = (ShapeBuilder) namedWriteableRegistry.getPrototype(ShapeBuilder.class, original.getWriteableName());
-                @SuppressWarnings("unchecked")
-                SB copy = (SB) prototype.readFrom(in);
-                return copy;
+                return prototype.readFrom(in);
             }
         }
     }

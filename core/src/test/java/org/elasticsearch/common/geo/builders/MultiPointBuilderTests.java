@@ -28,16 +28,18 @@ import java.io.IOException;
 
 public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPointBuilder> {
 
-    static final MultiPointBuilderTests PROTOTYPE = new MultiPointBuilderTests();
-
     @Override
     protected MultiPointBuilder createTestShapeBuilder() {
-        return (MultiPointBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.MULTIPOINT);
+        return createRandomShape();
     }
 
     @Override
-    protected MultiPointBuilder mutate(MultiPointBuilder original) throws IOException {
-        MultiPointBuilder mutation = copyShape(original);
+    protected MultiPointBuilder createMutation(MultiPointBuilder original) throws IOException {
+        return mutate(original);
+    }
+
+    static MultiPointBuilder mutate(MultiPointBuilder original) throws IOException {
+        MultiPointBuilder mutation = (MultiPointBuilder) copyShape(original);
         Coordinate[] coordinates = original.coordinates(false);
         Coordinate coordinate = randomFrom(coordinates);
         if (randomBoolean()) {
@@ -54,5 +56,9 @@ public class MultiPointBuilderTests extends AbstractShapeBuilderTestCase<MultiPo
             }
         }
         return mutation.points(coordinates);
+    }
+
+    static MultiPointBuilder createRandomShape() {
+        return (MultiPointBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.MULTIPOINT);
     }
 }

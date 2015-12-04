@@ -29,20 +29,18 @@ import java.io.IOException;
 
 public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBuilder> {
 
-    static final PolygonBuilderTests PROTOTYPE = new PolygonBuilderTests();
-
     @Override
     protected PolygonBuilder createTestShapeBuilder() {
-        PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON);
-        pgb.orientation = randomFrom(Orientation.values());
-        // NORELEASE translated might have been changed by createShape, but won't survive xContent->Parse roundtrip
-        pgb.shell().translated(false);
-        return pgb;
+        return createRandomShape();
     }
 
     @Override
-    protected PolygonBuilder mutate(PolygonBuilder original) throws IOException {
-        PolygonBuilder mutation = copyShape(original);
+    protected PolygonBuilder createMutation(PolygonBuilder original) throws IOException {
+        return mutate(original);
+    }
+
+    static PolygonBuilder mutate(PolygonBuilder original) throws IOException {
+        PolygonBuilder mutation = (PolygonBuilder) copyShape(original);
         return mutatePolygonBuilder(mutation);
     }
 
@@ -74,5 +72,11 @@ public class PolygonBuilderTests extends AbstractShapeBuilderTestCase<PolygonBui
             }
         }
         return pb;
+    }
+
+    static PolygonBuilder createRandomShape() {
+        PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON);
+        pgb.orientation = randomFrom(Orientation.values());
+        return pgb;
     }
 }

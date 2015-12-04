@@ -24,17 +24,27 @@ import com.vividsolutions.jts.geom.Coordinate;
 import org.elasticsearch.test.geo.RandomShapeGenerator;
 import org.elasticsearch.test.geo.RandomShapeGenerator.ShapeType;
 
-public class PointBuilderTests extends AbstractShapeBuilderTestCase<PointBuilder> {
+import java.io.IOException;
 
-    final static PointBuilderTests PROTOTYPE = new PointBuilderTests();
+public class PointBuilderTests extends AbstractShapeBuilderTestCase<PointBuilder> {
 
     @Override
     protected PointBuilder createTestShapeBuilder() {
-        return (PointBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POINT);
+        return createRandomShape();
     }
 
     @Override
-    protected PointBuilder mutate(PointBuilder original) {
+    protected PointBuilder createMutation(PointBuilder original) throws IOException {
+        return mutate(original);
+    }
+
+    static PointBuilder mutate(PointBuilder original) {
         return new PointBuilder().coordinate(new Coordinate(original.longitude() / 2, original.latitude() / 2));
     }
+
+    static PointBuilder createRandomShape() {
+        return (PointBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POINT);
+    }
+
+
 }

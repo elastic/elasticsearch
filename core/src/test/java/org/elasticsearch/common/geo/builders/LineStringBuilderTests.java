@@ -28,20 +28,18 @@ import java.io.IOException;
 
 public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStringBuilder> {
 
-    static final LineStringBuilderTests PROTOTYPE = new LineStringBuilderTests();
-
     @Override
     protected LineStringBuilder createTestShapeBuilder() {
-        LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.LINESTRING);
-        if (randomBoolean()) {
-            lsb.close();
-        }
-        return lsb;
+        return createRandomShape();
     }
 
     @Override
-    protected LineStringBuilder mutate(LineStringBuilder original) throws IOException {
-        LineStringBuilder mutation = copyShape(original);
+    protected LineStringBuilder createMutation(LineStringBuilder original) throws IOException {
+        return mutate(original);
+    }
+
+    static LineStringBuilder mutate(LineStringBuilder original) throws IOException {
+        LineStringBuilder mutation = (LineStringBuilder) copyShape(original);
         Coordinate[] coordinates = original.coordinates(false);
         Coordinate coordinate = randomFrom(coordinates);
         if (randomBoolean()) {
@@ -58,5 +56,13 @@ public class LineStringBuilderTests extends AbstractShapeBuilderTestCase<LineStr
             }
         }
         return mutation.points(coordinates);
+    }
+
+    static LineStringBuilder createRandomShape() {
+        LineStringBuilder lsb = (LineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.LINESTRING);
+        if (randomBoolean()) {
+            lsb.close();
+        }
+        return lsb;
     }
 }

@@ -148,7 +148,7 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
 
     @Override
     public int hashCode() {
-        return Objects.hash(points, translated());
+        return Objects.hash(points);
     }
 
     @Override
@@ -160,8 +160,7 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
             return false;
         }
         LineStringBuilder other = (LineStringBuilder) obj;
-        return Objects.equals(points, other.points) &&
-                (translated() == other.translated());
+        return Objects.equals(points, other.points);
     }
 
     @Override
@@ -170,7 +169,6 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
         for (Coordinate point : points) {
             writeCoordinateTo(point, out);
         }
-        out.writeBoolean(translated());
     }
 
     @Override
@@ -180,7 +178,6 @@ public class LineStringBuilder extends PointCollection<LineStringBuilder> {
         for (int i=0; i < size; i++) {
             lineStringBuilder.point(readCoordinateFrom(in));
         }
-        lineStringBuilder.translated(in.readBoolean());
         return lineStringBuilder;
     }
 }

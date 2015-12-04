@@ -29,20 +29,18 @@ import java.io.IOException;
 
 public class EnvelopeBuilderTests extends AbstractShapeBuilderTestCase<EnvelopeBuilder> {
 
-    static final EnvelopeBuilderTests PROTOTYPE = new EnvelopeBuilderTests();
-
     @Override
     protected EnvelopeBuilder createTestShapeBuilder() {
-        EnvelopeBuilder envelope = new EnvelopeBuilder(randomFrom(Orientation.values()));
-        Rectangle box = RandomShapeGenerator.xRandomRectangle(getRandom(), RandomShapeGenerator.xRandomPoint(getRandom()));
-        envelope.topLeft(box.getMinX(), box.getMaxY())
-                .bottomRight(box.getMaxX(), box.getMinY());
-        return envelope;
+        return createRandomShape();
     }
 
     @Override
-    protected EnvelopeBuilder mutate(EnvelopeBuilder original) throws IOException {
-        EnvelopeBuilder mutation = copyShape(original);
+    protected EnvelopeBuilder createMutation(EnvelopeBuilder original) throws IOException {
+        return mutate(original);
+    }
+
+    static EnvelopeBuilder mutate(EnvelopeBuilder original) throws IOException {
+        EnvelopeBuilder mutation = (EnvelopeBuilder) copyShape(original);
         if (randomBoolean()) {
             // toggle orientation
             mutation.orientation = (original.orientation == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
@@ -64,5 +62,13 @@ public class EnvelopeBuilderTests extends AbstractShapeBuilderTestCase<EnvelopeB
             }
         }
         return mutation;
+    }
+
+    static EnvelopeBuilder createRandomShape() {
+        EnvelopeBuilder envelope = new EnvelopeBuilder(randomFrom(Orientation.values()));
+        Rectangle box = RandomShapeGenerator.xRandomRectangle(getRandom(), RandomShapeGenerator.xRandomPoint(getRandom()));
+        envelope.topLeft(box.getMinX(), box.getMaxY())
+                .bottomRight(box.getMaxX(), box.getMinY());
+        return envelope;
     }
 }

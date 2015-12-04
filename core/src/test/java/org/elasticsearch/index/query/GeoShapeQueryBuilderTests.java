@@ -29,7 +29,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.geo.SpatialStrategy;
 import org.elasticsearch.common.geo.builders.EnvelopeBuilder;
-import org.elasticsearch.common.geo.builders.PolygonBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilder;
 import org.elasticsearch.common.geo.builders.ShapeBuilders;
 import org.elasticsearch.common.xcontent.XContentBuilder;
@@ -60,12 +59,6 @@ public class GeoShapeQueryBuilderTests extends AbstractQueryTestCase<GeoShapeQue
     protected GeoShapeQueryBuilder doCreateTestQueryBuilder() {
         ShapeType shapeType = ShapeType.randomType(getRandom());
         ShapeBuilder shape = RandomShapeGenerator.createShapeWithin(getRandom(), null, shapeType);
-        // NORELEASE PolygonBuilder gets validated on creation, so the shells 'translate'  might get set
-        // this causes problems in the test, because  we can't parse this property in fromXContent
-        // so we switch it to false again.
-        if (shape instanceof PolygonBuilder) {
-            ((PolygonBuilder) shape).shell().translated(false);
-        }
 
         GeoShapeQueryBuilder builder;
         clearShapeFields();

@@ -28,16 +28,18 @@ import java.io.IOException;
 
 public class MultiLineStringBuilderTests extends AbstractShapeBuilderTestCase<MultiLineStringBuilder> {
 
-    static final MultiLineStringBuilderTests PROTOTYPE = new MultiLineStringBuilderTests();
-
     @Override
     protected MultiLineStringBuilder createTestShapeBuilder() {
-        return (MultiLineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.MULTILINESTRING);
+        return createRandomShape();
     }
 
     @Override
-    protected MultiLineStringBuilder mutate(MultiLineStringBuilder original) throws IOException {
-        MultiLineStringBuilder mutation = copyShape(original);
+    protected MultiLineStringBuilder createMutation(MultiLineStringBuilder original) throws IOException {
+        return mutate(original);
+    }
+
+    static MultiLineStringBuilder mutate(MultiLineStringBuilder original) throws IOException {
+        MultiLineStringBuilder mutation = (MultiLineStringBuilder) copyShape(original);
         Coordinate[][] coordinates = mutation.coordinates();
         int lineToChange = randomInt(coordinates.length - 1);
         for (int i = 0; i < coordinates.length; i++) {
@@ -60,5 +62,9 @@ public class MultiLineStringBuilderTests extends AbstractShapeBuilderTestCase<Mu
             }
         }
         return mutation;
+    }
+
+    static MultiLineStringBuilder createRandomShape() {
+        return (MultiLineStringBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.MULTILINESTRING);
     }
 }

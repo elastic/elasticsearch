@@ -241,10 +241,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     class ShardsIndicesStatusChecker implements Runnable {
         @Override
         public synchronized void run() {
-            calcAndSetShardBuffers();
-        }
-
-        private void calcAndSetShardBuffers() {
             List<IndexShard> availableShards = availableShards();
             List<IndexShard> activeShards = new ArrayList<>();
             for (IndexShard shard : availableShards) {

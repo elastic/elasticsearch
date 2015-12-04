@@ -164,7 +164,18 @@ public class PluginsService extends AbstractComponent {
             }
         }
 
-        logger.info("loaded {}, sites {}", jvmPlugins.keySet(), sitePlugins);
+        // we don't log jars in lib/ we really shouldnt log modules,
+        // but for now: just be transparent so we can debug any potential issues
+        Set<String> moduleNames = new HashSet<>();
+        Set<String> jvmPluginNames = new HashSet<>();
+        for (PluginInfo moduleInfo : info.getModuleInfos()) {
+            moduleNames.add(moduleInfo.getName());
+        }
+        for (PluginInfo pluginInfo : info.getPluginInfos()) {
+            jvmPluginNames.add(pluginInfo.getName());
+        }
+
+        logger.info("modules {}, plugins {}, sites {}", moduleNames, jvmPluginNames, sitePlugins);
 
         Map<Plugin, List<OnModuleReference>> onModuleReferences = new HashMap<>();
         for (Plugin plugin : jvmPlugins.values()) {

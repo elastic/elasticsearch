@@ -229,9 +229,9 @@ public abstract class MappedFieldType extends FieldType {
     public abstract String typeName();
 
     /** Checks this type is the same type as other. Adds a conflict if they are different. */
-    public final void checkTypeName(MappedFieldType other, List<String> conflicts) {
+    private final void checkTypeName(MappedFieldType other) {
         if (typeName().equals(other.typeName()) == false) {
-            conflicts.add("mapper [" + names().fullName() + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
+            throw new IllegalArgumentException("mapper [" + names().fullName() + "] cannot be changed from type [" + typeName() + "] to [" + other.typeName() + "]");
         } else if (getClass() != other.getClass()) {
             throw new IllegalStateException("Type names equal for class " + getClass().getSimpleName() + " and " + other.getClass().getSimpleName());
         }
@@ -243,6 +243,8 @@ public abstract class MappedFieldType extends FieldType {
      * Otherwise, only properties which must never change in an index are checked.
      */
     public void checkCompatibility(MappedFieldType other, List<String> conflicts, boolean strict) {
+        checkTypeName(other);
+
         boolean indexed =  indexOptions() != IndexOptions.NONE;
         boolean mergeWithIndexed = other.indexOptions() != IndexOptions.NONE;
         // TODO: should be validating if index options go "up" (but "down" is ok)

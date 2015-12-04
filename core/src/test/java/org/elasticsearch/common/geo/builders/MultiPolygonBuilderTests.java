@@ -38,23 +38,29 @@ public class MultiPolygonBuilderTests extends AbstractShapeBuilderTestCase<Multi
     }
 
     static MultiPolygonBuilder mutate(MultiPolygonBuilder original) throws IOException {
-        MultiPolygonBuilder mutation = (MultiPolygonBuilder) copyShape(original);
+        MultiPolygonBuilder mutation;
         if (randomBoolean()) {
-            // toggle orientation
-            mutation.orientation = (original.orientation == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
+            mutation = new MultiPolygonBuilder(original.orientation() == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
+            for (PolygonBuilder pb : original.polygons()) {
+                mutation.polygon((PolygonBuilder) copyShape(pb));
+            }
         } else {
-            int polyToChange = randomInt(mutation.polygons().size() - 1);
-            PolygonBuilderTests.mutatePolygonBuilder(mutation.polygons().get(polyToChange));
+            mutation = (MultiPolygonBuilder) copyShape(original);
+            if (mutation.polygons().size() > 0) {
+                int polyToChange = randomInt(mutation.polygons().size() - 1);
+                mutation.polygons().set(polyToChange, PolygonBuilderTests.mutatePolygonBuilder(mutation.polygons().get(polyToChange)));
+            } else {
+                mutation.polygon((PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON));
+            }
         }
         return mutation;
     }
 
     static MultiPolygonBuilder createRandomShape() {
         MultiPolygonBuilder mpb = new MultiPolygonBuilder(randomFrom(Orientation.values()));
-        int polys = randomIntBetween(1, 10);
+        int polys = randomIntBetween(0, 10);
         for (int i = 0; i < polys; i++) {
             PolygonBuilder pgb = (PolygonBuilder) RandomShapeGenerator.createShape(getRandom(), ShapeType.POLYGON);
-            pgb.orientation = mpb.orientation;
             mpb.polygon(pgb);
         }
         return mpb;

@@ -26,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
-import java.util.Locale;
 import java.util.Objects;
 
 public class EnvelopeBuilder extends ShapeBuilder {
@@ -35,16 +34,8 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     public static final EnvelopeBuilder PROTOTYPE = new EnvelopeBuilder();
 
-    protected Coordinate topLeft;
-    protected Coordinate bottomRight;
-
-    public EnvelopeBuilder() {
-        this(Orientation.RIGHT);
-    }
-
-    public EnvelopeBuilder(Orientation orientation) {
-        super(orientation);
-    }
+    private Coordinate topLeft;
+    private Coordinate bottomRight;
 
     public EnvelopeBuilder topLeft(Coordinate topLeft) {
         this.topLeft = topLeft;
@@ -53,6 +44,10 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     public EnvelopeBuilder topLeft(double longitude, double latitude) {
         return topLeft(coordinate(longitude, latitude));
+    }
+
+    public Coordinate topLeft() {
+        return this.topLeft;
     }
 
     public EnvelopeBuilder bottomRight(Coordinate bottomRight) {
@@ -64,11 +59,14 @@ public class EnvelopeBuilder extends ShapeBuilder {
         return bottomRight(coordinate(longitude, latitude));
     }
 
+    public Coordinate bottomRight() {
+        return this.bottomRight;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
         builder.startArray(FIELD_COORDINATES);
         toXContent(builder, topLeft);
         toXContent(builder, bottomRight);
@@ -88,7 +86,7 @@ public class EnvelopeBuilder extends ShapeBuilder {
 
     @Override
     public int hashCode() {
-        return Objects.hash(orientation, topLeft, bottomRight);
+        return Objects.hash(topLeft, bottomRight);
     }
 
     @Override
@@ -100,21 +98,19 @@ public class EnvelopeBuilder extends ShapeBuilder {
             return false;
         }
         EnvelopeBuilder other = (EnvelopeBuilder) obj;
-        return Objects.equals(orientation, other.orientation) &&
-                Objects.equals(topLeft, other.topLeft) &&
+        return Objects.equals(topLeft, other.topLeft) &&
                 Objects.equals(bottomRight, other.bottomRight);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        orientation.writeTo(out);
         writeCoordinateTo(topLeft, out);
         writeCoordinateTo(bottomRight, out);
     }
 
     @Override
     public EnvelopeBuilder readFrom(StreamInput in) throws IOException {
-        return new EnvelopeBuilder(Orientation.readFrom(in))
+        return new EnvelopeBuilder()
                 .topLeft(readCoordinateFrom(in))
                 .bottomRight(readCoordinateFrom(in));
     }

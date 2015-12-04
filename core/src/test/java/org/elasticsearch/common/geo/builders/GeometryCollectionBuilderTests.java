@@ -27,7 +27,6 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
 
     @Override
     protected GeometryCollectionBuilder createTestShapeBuilder() {
-        // NORELEASE check of GeometryCollectionBuilder should parse maintain orientation
         GeometryCollectionBuilder geometryCollection = new GeometryCollectionBuilder();
         int shapes = randomIntBetween(0, 8);
         for (int i = 0; i < shapes; i++) {
@@ -68,12 +67,6 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
 
     static GeometryCollectionBuilder mutate(GeometryCollectionBuilder original) throws IOException {
         GeometryCollectionBuilder mutation = (GeometryCollectionBuilder) copyShape(original);
-     // NORELEASE check of GeometryCollectionBuilder should parse maintain orientation
-//        if (randomBoolean()) {
-//            // toggle orientation
-//            mutation.orientation = (mutation.orientation == Orientation.LEFT ? Orientation.RIGHT : Orientation.LEFT);
-//        } else {
-            // change one shape
         if (mutation.shapes.size() > 0) {
             int shapePosition = randomIntBetween(0, mutation.shapes.size() - 1);
             ShapeBuilder shapeToChange = mutation.shapes.get(shapePosition);
@@ -109,7 +102,6 @@ public class GeometryCollectionBuilderTests extends AbstractShapeBuilderTestCase
         } else {
             mutation.shape(RandomShapeGenerator.createShape(getRandom()));
         }
-//        }
         return mutation;
     }
 }

@@ -30,7 +30,6 @@ import org.elasticsearch.common.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Locale;
 import java.util.Objects;
 
 public class GeometryCollectionBuilder extends ShapeBuilder {
@@ -40,14 +39,6 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     public static final GeometryCollectionBuilder PROTOTYPE = new GeometryCollectionBuilder();
 
     protected final ArrayList<ShapeBuilder> shapes = new ArrayList<>();
-
-    public GeometryCollectionBuilder() {
-        this(Orientation.RIGHT);
-    }
-
-    public GeometryCollectionBuilder(Orientation orientation) {
-        super(orientation);
-    }
 
     public GeometryCollectionBuilder shape(ShapeBuilder shape) {
         this.shapes.add(shape);
@@ -110,7 +101,6 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(FIELD_TYPE, TYPE.shapeName());
-        builder.field(FIELD_ORIENTATION, orientation.name().toLowerCase(Locale.ROOT));
         builder.startArray(FIELD_GEOMETRIES);
         for (ShapeBuilder shape : shapes) {
             shape.toXContent(builder, params);
@@ -142,7 +132,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
 
     @Override
     public int hashCode() {
-        return Objects.hash(orientation, shapes);
+        return Objects.hash(shapes);
     }
 
     @Override
@@ -154,12 +144,11 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
             return false;
         }
         GeometryCollectionBuilder other = (GeometryCollectionBuilder) obj;
-        return Objects.equals(orientation, other.orientation) && Objects.equals(shapes, other.shapes);
+        return Objects.equals(shapes, other.shapes);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        orientation.writeTo(out);
         out.writeVInt(shapes.size());
         for (ShapeBuilder shape : shapes) {
             out.writeShape(shape);
@@ -168,7 +157,7 @@ public class GeometryCollectionBuilder extends ShapeBuilder {
 
     @Override
     public GeometryCollectionBuilder readFrom(StreamInput in) throws IOException {
-        GeometryCollectionBuilder geometryCollectionBuilder = new GeometryCollectionBuilder(Orientation.readFrom(in));
+        GeometryCollectionBuilder geometryCollectionBuilder = new GeometryCollectionBuilder();
         int shapes = in.readVInt();
         for (int i = 0; i < shapes; i++) {
             geometryCollectionBuilder.shape(in.readShape());

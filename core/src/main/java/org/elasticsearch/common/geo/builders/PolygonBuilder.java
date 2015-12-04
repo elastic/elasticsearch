@@ -57,6 +57,8 @@ public class PolygonBuilder extends ShapeBuilder {
 
     private static final Coordinate[][] EMPTY = new Coordinate[0][];
 
+    private Orientation orientation = Orientation.RIGHT;
+
     // line string defining the shell of the polygon
     private LineStringBuilder shell;
 
@@ -64,7 +66,7 @@ public class PolygonBuilder extends ShapeBuilder {
     private final ArrayList<LineStringBuilder> holes = new ArrayList<>();
 
     public PolygonBuilder() {
-        this(new ArrayList<Coordinate>(), Orientation.RIGHT);
+        this(Orientation.RIGHT);
     }
 
     public PolygonBuilder(Orientation orientation) {
@@ -72,8 +74,12 @@ public class PolygonBuilder extends ShapeBuilder {
     }
 
     public PolygonBuilder(ArrayList<Coordinate> points, Orientation orientation) {
-        super(orientation);
+        this.orientation = orientation;
         this.shell = new LineStringBuilder().points(points);
+    }
+
+    public Orientation orientation() {
+        return this.orientation;
     }
 
     public PolygonBuilder point(double longitude, double latitude) {

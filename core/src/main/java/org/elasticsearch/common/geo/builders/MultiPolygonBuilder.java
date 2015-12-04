@@ -40,16 +40,31 @@ public class MultiPolygonBuilder extends ShapeBuilder {
 
     private final ArrayList<PolygonBuilder> polygons = new ArrayList<>();
 
+    private Orientation orientation = Orientation.RIGHT;
+
     public MultiPolygonBuilder() {
         this(Orientation.RIGHT);
     }
 
     public MultiPolygonBuilder(Orientation orientation) {
-        super(orientation);
+        this.orientation = orientation;
     }
 
+    public Orientation orientation() {
+        return this.orientation;
+    }
+
+    /**
+     * Add a shallow copy of the polygon to the multipolygon. This will apply the orientation of the
+     * {@link MultiPolygonBuilder} to the polygon if polygon has different orientation.
+     */
     public MultiPolygonBuilder polygon(PolygonBuilder polygon) {
-        this.polygons.add(polygon);
+        PolygonBuilder pb = new PolygonBuilder(this.orientation);
+        pb.points(polygon.shell().coordinates(false));
+        for (LineStringBuilder hole : polygon.holes()) {
+            pb.hole(hole);
+        }
+        this.polygons.add(pb);
         return this;
     }
 
@@ -118,7 +133,7 @@ public class MultiPolygonBuilder extends ShapeBuilder {
         }
         MultiPolygonBuilder other = (MultiPolygonBuilder) obj;
         return Objects.equals(polygons, other.polygons) &&
-                Objects.equals(orientation,  other.orientation);
+                Objects.equals(orientation, other.orientation);
     }
 
     @Override

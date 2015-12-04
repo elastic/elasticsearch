@@ -184,6 +184,10 @@ public class PluginsService extends AbstractComponent {
                 if (!method.getName().equals("onModule")) {
                     continue;
                 }
+                // this is a deprecated final method, so all Plugin subclasses have it
+                if (method.getParameterTypes().length == 1 && method.getParameterTypes()[0].equals(IndexModule.class)) {
+                    continue;
+                }
                 if (method.getParameterTypes().length == 0 || method.getParameterTypes().length > 1) {
                     logger.warn("Plugin: {} implementing onModule with no parameters or more than one parameter", plugin.name());
                     continue;

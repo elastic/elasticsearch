@@ -21,11 +21,6 @@ import org.elasticsearch.gradle.MavenFilteringHack
 
 apply plugin: 'elasticsearch.rest-test'
 
-ext.modulesCount = 0
-project.rootProject.subprojects.findAll { it.path.startsWith(':modules:') }.each { subproj ->
-  modulesCount += 1
-}
-
 ext.pluginsCount = 0
 project.rootProject.subprojects.findAll { it.path.startsWith(':projects:') }.each { subproj ->
   integTest {
@@ -38,7 +33,6 @@ project.rootProject.subprojects.findAll { it.path.startsWith(':projects:') }.eac
 }
 
 ext.expansions = [
-  'expected.modules.count': modulesCount,
   'expected.plugins.count': pluginsCount
 ]
 

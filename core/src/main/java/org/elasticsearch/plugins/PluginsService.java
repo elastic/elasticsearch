@@ -26,7 +26,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.admin.cluster.node.info.PluginsInfo;
+import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.bootstrap.JarHell;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Tuple;
@@ -68,7 +68,7 @@ public class PluginsService extends AbstractComponent {
      * We keep around a list of plugins and modules
      */
     private final List<Tuple<PluginInfo, Plugin>> plugins;
-    private final PluginsInfo info;
+    private final PluginsAndModules info;
 
     private final Map<Plugin, List<OnModuleReference>> onModuleReferences;
 
@@ -91,7 +91,7 @@ public class PluginsService extends AbstractComponent {
      */
     public PluginsService(Settings settings, Path modulesDirectory, Path pluginsDirectory, Collection<Class<? extends Plugin>> classpathPlugins) {
         super(settings);
-        info = new PluginsInfo();
+        info = new PluginsAndModules();
 
         List<Tuple<PluginInfo, Plugin>> pluginsLoaded = new ArrayList<>();
 
@@ -191,7 +191,7 @@ public class PluginsService extends AbstractComponent {
         this.onModuleReferences = Collections.unmodifiableMap(onModuleReferences);
     }
 
-    public List<Tuple<PluginInfo, Plugin>> plugins() {
+    private List<Tuple<PluginInfo, Plugin>> plugins() {
         return plugins;
     }
 
@@ -262,9 +262,9 @@ public class PluginsService extends AbstractComponent {
         }
     }
     /**
-     * Get information about plugins (jvm and site plugins).
+     * Get information about plugins and modules
      */
-    public PluginsInfo info() {
+    public PluginsAndModules info() {
         return info;
     }
     

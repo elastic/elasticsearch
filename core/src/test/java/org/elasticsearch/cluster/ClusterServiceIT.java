@@ -784,11 +784,11 @@ public class ClusterServiceIT extends ESIntegTestCase {
                 return false;
             }
         }
-        int numberOfThreads = randomIntBetween(2, 256);
+        int numberOfThreads = randomIntBetween(2, 8);
         final int tasksSubmittedPerThread = randomIntBetween(1, 1024);
 
         final ConcurrentMap<String, AtomicInteger> counters = new ConcurrentHashMap<>();
-        final CountDownLatch latch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
+        final CountDownLatch updateLatch = new CountDownLatch(numberOfThreads * tasksSubmittedPerThread);
         final ClusterStateTaskListener listener = new AbstractClusterStateTaskListener() {
             @Override
             public void onFailure(String source, Throwable t) {
@@ -799,7 +799,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
             public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
                 counters.putIfAbsent(source, new AtomicInteger());
                 counters.get(source).incrementAndGet();
-                latch.countDown();
+                updateLatch.countDown();
             }
         };
 
@@ -839,7 +839,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
                         clusterService.submitStateUpdateTask(
                             Thread.currentThread().getName(),
                             new Task(),
-                            BasicClusterStateTaskConfig.create(Priority.NORMAL),
+                            BasicClusterStateTaskConfig.create(randomFrom(Priority.values())),
                             executor,
                             listener);
                     }
@@ -855,7 +855,7 @@ public class ClusterServiceIT extends ESIntegTestCase {
         }
 
         // wait until all the cluster state updates have been processed
-        latch.await();
+        updateLatch.await();
 
         // assert the number of executed tasks is correct
         assertEquals(numberOfThreads * tasksSubmittedPerThread, counter.get());

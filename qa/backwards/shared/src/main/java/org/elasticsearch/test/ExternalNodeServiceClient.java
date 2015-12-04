@@ -53,7 +53,7 @@ public class ExternalNodeServiceClient {
     }
 
     public int start(final String args) {
-        return Integer.parseInt(interact("start " + args, "bound to \\[localhost:(\\d+)\\]").group(1), 10);
+        return Integer.parseInt(interact("start " + args, "pid \\[(\\d+)\\]").group(1), 10);
     }
 
     public void stop(int esPort) {

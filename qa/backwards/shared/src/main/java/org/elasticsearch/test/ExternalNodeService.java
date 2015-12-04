@@ -21,24 +21,16 @@ package org.elasticsearch.test;
 
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.NamedThreadFactory;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.SuppressForbidden;
 import org.elasticsearch.common.io.PathUtils;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.logging.ESLoggerFactory;
 import org.elasticsearch.common.logging.support.LoggerMessageFormat;
-import org.elasticsearch.common.unit.TimeValue;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.jboss.netty.bootstrap.ServerBootstrap;
 import org.jboss.netty.buffer.ChannelBuffers;
-import org.jboss.netty.channel.ChannelFactory;
-import org.jboss.netty.channel.ChannelHandlerContext;
-import org.jboss.netty.channel.ChannelPipeline;
-import org.jboss.netty.channel.ChannelPipelineFactory;
-import org.jboss.netty.channel.Channels;
-import org.jboss.netty.channel.ExceptionEvent;
-import org.jboss.netty.channel.MessageEvent;
-import org.jboss.netty.channel.SimpleChannelHandler;
+import org.jboss.netty.channel.*;
 import org.jboss.netty.channel.socket.nio.NioServerSocketChannelFactory;
 import org.jboss.netty.handler.codec.frame.DelimiterBasedFrameDecoder;
 import org.jboss.netty.handler.codec.frame.Delimiters;
@@ -51,33 +43,19 @@ import java.io.InputStreamReader;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.Callable;
+import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
+import static java.lang.Thread.sleep;
 import static java.util.Collections.unmodifiableMap;
-import static org.elasticsearch.common.unit.TimeValue.timeValueSeconds;
 
 /**
  * Service that forks and manages Elasticsearch instances. This should be
@@ -111,7 +89,7 @@ public class ExternalNodeService {
             killAllBackwardsNodes();
             return;
         }
-        Path elasticsearchStable = elasticsearchStable(args[arg++]);
+        Path elasticsearchStable = getPath(args[arg++]);
         boolean block = true;
         if (arg < args.length) {
             block = !"noblock".equals(args[arg++]);
@@ -149,7 +127,7 @@ public class ExternalNodeService {
              */
             try {
                 while (true) {
-                    Thread.sleep(1000);
+                    sleep(1000);
                 }
             } catch (InterruptedException e) {
                 // This is just ctrl-c. Its cool.
@@ -158,7 +136,7 @@ public class ExternalNodeService {
     }
 
     @SuppressForbidden(reason = "we don't have an environment to read from")
-    private static Path elasticsearchStable(String location) {
+    private static Path getPath(String location) {
         return PathUtils.get(location);
     }
 
@@ -354,8 +332,9 @@ public class ExternalNodeService {
                 return;
             }
 
-            message("starting elasticsearch " + version + "...");
+            String pidFile = getPidFile(commandLine);
 
+            message("starting elasticsearch " + version + "...");
             List<String> command = buildStartCommand(versionRoot.toAbsolutePath().normalize(), commandLine);
             StringBuilder startReproduction = new StringBuilder();
             boolean first = true;
@@ -369,55 +348,52 @@ public class ExternalNodeService {
             }
             logger.debug("Starting elasticsearch with {}", startReproduction);
             ProcessBuilder builder = new ProcessBuilder(command);
-            builder.redirectErrorStream(true);
+            builder.inheritIO();
             Process process = null;
-            String port = null;
             String pid = null;
-            BufferedReader stdout = null;
             try {
                 process = builder.start();
-                stdout = new BufferedReader(new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8));
+                pid = getPid(pidFile);
                 message("process forked");
-
-                Matcher m = readUntilMatches(stdout, "pid", ".+\\[node.+ pid\\[(\\d+)\\].*", timeValueSeconds(10));
-                pid = m.group(1);
-                message("pid is [" + pid + "]");
-                m = readUntilMatches(stdout, "transport address", ".+\\[transport .+bound_addresses .*\\{(?:127\\.0\\.0\\.1|\\[::1\\]):(\\d+)\\}.*",
-                        timeValueSeconds(20));
-                port = m.group(1);
-                message("bound to [localhost:" + port + "]");
-                readUntilMatches(stdout, "started", ".+\\] started$", timeValueSeconds(20));
-                runningElasticsearches.put(port, new ProcessInfo(process, pid));
+                runningElasticsearches.put(pid, new ProcessInfo(process, pid));
+                message("pid [" + pid + "]");
                 message("started");
-                process.getInputStream().close();
             } finally {
-                if (process != null && (port == null || !runningElasticsearches.containsKey(port))) {
-                    logger.error("It looks like we failed to launch elasticsearch. Kill -9ing it just to make sure it doesn't linger.");
+                if (pid == null) {
+                    logger.error("It looks like we failed to launch elasticsearch.");
                     logger.error("We tried to start it like this: {}", startReproduction);
-                    // In Java 1.8 this should be destroyForcibly
-                    process.destroy();
-                    if (pid != null) {
-                        try {
-                            new ProcessInfo(null, pid).stop();
-                        } catch (InterruptedException e) {
-                            logger.warn("Failed to stop busted elasticsearch at [{}]", pid);
-                        }
-                    }
-                    if (stdout != null) {
-                        try {
-                            stdout.reset();
-                            CharBuffer lines = CharBuffer.allocate(1024 * 1024);
-                            stdout.read(lines);
-                            lines.flip();
-                            logger.error(
-                                    "We were able to capture some of elasticsearch's output. Hopefully this will be useful in figuring out the failure:\n{}",
-                                    lines.toString());
-                        } catch (IOException e) {
-                            logger.warn("Sadly we couldn't capture any of its output.", e);
-                        }
+                    if (process != null) {
+                        // In Java 1.8 this should be destroyForcibly
+                        process.destroy();
                     }
                 }
             }
+        }
+
+        private String getPid(String pidFile) throws IOException {
+            Path pidPath = getPath(pidFile).toAbsolutePath();
+            long maxTimeInMillis = 10000;
+            long startTime = System.currentTimeMillis();
+            while (System.currentTimeMillis() - startTime < maxTimeInMillis) {
+                if (Files.exists(pidPath)) {
+                    BufferedReader reader = Files.newBufferedReader(pidPath);
+                    String pid = reader.readLine();
+                    reader.close();
+                    if (pid != null) {
+                        return pid;
+                    }
+                }
+            }
+            throw new ElasticsearchException("Could not start external node, pid was not found.");
+        }
+
+        public String getPidFile(Deque<String> commandLine) {
+            for (String param: commandLine) {
+                if (param.contains("pidfile")) {
+                    return param.substring(13, param.length());
+                }
+            }
+            throw new ElasticsearchException("Cannot start external node. pidfile parameter missing.");
         }
 
         private void stop(Deque<String> commandLine) {
@@ -425,23 +401,23 @@ public class ExternalNodeService {
                 message("no port sent!");
                 return;
             }
-            String port = commandLine.pop();
-            ProcessInfo elasticsearch = runningElasticsearches.remove(port);
+            String pid = commandLine.pop();
+            ProcessInfo elasticsearch = runningElasticsearches.remove(pid);
             if (elasticsearch == null) {
-                message("couldn't find elasticsearch bound to localhost:" + port + "!");
+                message("couldn't find elasticsearch with pid " + pid + "!");
                 return;
             }
-            message("killing elasticsearch bound to localhost:" + port);
+            message("killing elasticsearch with pid " + pid);
             try {
                 elasticsearch.stop();
             } catch (InterruptedException e) {
                 message("timed out waiting for elasticsearch to stop!");
-                runningElasticsearches.put(port, elasticsearch);
+                runningElasticsearches.put(pid, elasticsearch);
                 return;
             } catch (IOException e) {
                 message("error waiting for elasticsearch to stop: [" + e.getMessage() + "]");
                 logger.warn("Error waiting for elasticsearch to stop", e);
-                runningElasticsearches.put(port, elasticsearch);
+                runningElasticsearches.put(pid, elasticsearch);
                 return;
             }
             message("killed");
@@ -466,60 +442,6 @@ public class ExternalNodeService {
             command.add("-Des.logger.node=INFO");
             // It'd be nice to conditionally apply these but that can wait.
             return command;
-        }
-
-        private Matcher readUntilMatches(final BufferedReader reader, String description, String pattern, TimeValue timeout) {
-            final Pattern compiled = Pattern.compile(pattern);
-            /*
-             * Use a thread pool here because its relatively simple to timeout
-             * the io.
-             */
-            Future<Matcher> f = readLines.submit(new Callable<Matcher>() {
-                @Override
-                public Matcher call() throws IOException {
-                    ESLogger unformattedLogger = ESLoggerFactory.getLogger("test.external");
-                    reader.mark(1024 * 1024);
-                    String line;
-                    while ((line = reader.readLine()) != null) {
-                        Matcher m = compiled.matcher(line);
-                        if (m.matches()) {
-                            unformattedLogger.debug(line);
-                            return m;
-                        } else {
-                            unformattedLogger.trace(line);
-                        }
-                    }
-                    return null;
-                }
-            });
-            try {
-                Matcher m = f.get(timeout.micros(), TimeUnit.MICROSECONDS);
-                if (m == null) {
-                    throw new ReadFailedException(description);
-                }
-                return m;
-            } catch (TimeoutException e) {
-                FutureUtils.cancel(f);
-                throw new ReadFailedException(description, e);
-            } catch (ExecutionException e) {
-                throw new ReadFailedException(description, e);
-            } catch (InterruptedException e) {
-                Thread.interrupted();
-                throw new ReadFailedException(description, e);
-            }
-        }
-    }
-
-    /**
-     * Thrown when we fail to capture some output from an output stream.
-     */
-    private class ReadFailedException extends RuntimeException {
-        private ReadFailedException(String description) {
-            super("elasticsearch stopped before " + description);
-        }
-
-        private ReadFailedException(String description, Exception cause) {
-            super("failed to capture " + description, cause);
         }
     }
 

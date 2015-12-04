@@ -19,6 +19,13 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static java.lang.Math.max;
+
+import java.util.Arrays;
+import java.util.List;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -37,13 +44,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.ESLogger;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.search.SearchHit;
-
-import java.util.Arrays;
-import java.util.List;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.atomic.AtomicReference;
-
-import static java.lang.Math.max;
 
 /**
  * Abstract base for scrolling across a search and executing bulk actions on all
@@ -111,15 +111,15 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
     void initialSearch() {
         try {
             startTime.set(System.nanoTime());
-            if (logger.isWarnEnabled()) {
-                logger.warn("executing initial scroll against {}{}",
+            if (logger.isDebugEnabled()) {
+                logger.debug("executing initial scroll against {}{}",
                         firstSearchRequest.indices() == null ? "all indices" : firstSearchRequest.indices(),
                         firstSearchRequest.types() == null || firstSearchRequest.types().length == 0 ? "" : firstSearchRequest.types());
             }
             searchAction.execute(firstSearchRequest, new ActionListener<SearchResponse>() {
                 @Override
                 public void onResponse(SearchResponse response) {
-                    logger.warn("[{}] documents match query", response.getHits().getTotalHits());
+                    logger.debug("[{}] documents match query", response.getHits().getTotalHits());
                     total.set(response.getHits().getTotalHits());
                     onScrollResponse(response);
                 }
@@ -139,7 +139,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
         try {
             scroll.set(searchResponse.getScrollId());
             SearchHit[] docs = searchResponse.getHits().getHits();
-            logger.warn("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
+            logger.debug("scroll returned [{}] documents with a scroll id of [{}]", docs.length, searchResponse.getScrollId());
             if (docs.length == 0) {
                 finishHim(null);
                 return;
@@ -155,8 +155,8 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
                 }
             }
             BulkRequest request = buildBulk(docsIterable);
-            if (logger.isWarnEnabled()) {
-                logger.warn("sending [{}] entry, [{}] bulk request", request.requests().size(),
+            if (logger.isDebugEnabled()) {
+                logger.debug("sending [{}] entry, [{}] bulk request", request.requests().size(),
                         new ByteSizeValue(request.estimatedSizeInBytes()));
             }
             bulkAction.execute(request, new ActionListener<BulkResponse>() {
@@ -235,7 +235,7 @@ public abstract class AbstractAsyncScrollAction<Request extends ActionRequest<?>
         clearScroll.execute(clearScrollRequest, new ActionListener<ClearScrollResponse>() {
             @Override
             public void onResponse(ClearScrollResponse response) {
-                logger.warn("Freed [{}] contexts", response.getNumFreed());
+                logger.debug("Freed [{}] contexts", response.getNumFreed());
                 if (failure == null) {
                     long took = System.nanoTime() - startTime.get();
                     took /= 1000000; // Millis instead of nanos

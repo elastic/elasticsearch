@@ -19,9 +19,6 @@
 
 package org.elasticsearch.action.indexbysearch;
 
-import static java.lang.Math.min;
-import static org.elasticsearch.index.VersionType.EXTERNAL;
-
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.TransportBulkAction;
@@ -33,6 +30,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.inject.Inject;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHitField;
@@ -63,6 +61,8 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
         new AsyncIndexBySearchAction(request, listener).start();
     }
 
+
+
     /**
      * Simple implementation of index-by-search scrolling and bulk. There are
      * tons of optimizations that can be done on certain types of index-by-query
@@ -72,13 +72,6 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
     class AsyncIndexBySearchAction extends AbstractAsyncScrollAction<IndexBySearchRequest, IndexBySearchResponse> {
         public AsyncIndexBySearchAction(IndexBySearchRequest request, ActionListener<IndexBySearchResponse> listener) {
             super(logger, searchAction, scrollAction, bulkAction, clearScrollAction, request, request.search(), listener, request.size());
-            if (request.size() != -1) {
-                /*
-                 * Don't use larger batches than the maximum request size because
-                 * that'd be silly.
-                 */
-                request.search().source().size(min(request.size(), request.search().source().size()));
-            }
         }
 
         @Override
@@ -98,11 +91,16 @@ public class TransportIndexBySearchAction extends HandledTransportAction<IndexBy
                     index.type(doc.type());
                 }
                 index.source(doc.sourceRef());
-                if (index.versionType() == EXTERNAL) {
+                if (index.version() == Versions.MATCH_ANY /* The default */) {
                     index.version(doc.version());
+                } else if (index.version() == Versions.NOT_SET) {
+                    /*
+                     * We borrow NOT_SET here to mean
+                     * "don't set the version parameter" so we set it back to
+                     * the default.
+                     */
+                    index.version(Versions.MATCH_ANY);
                 }
-                // TODO if writing back to the same index we can check the
-                // version numbers
 
                 SearchHitField parent = doc.field("_parent");
                 if (parent != null) {

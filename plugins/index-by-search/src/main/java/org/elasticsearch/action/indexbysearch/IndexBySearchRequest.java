@@ -19,6 +19,7 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static java.lang.Math.min;
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 
@@ -31,7 +32,9 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.unit.TimeValue;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 
 public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
@@ -45,6 +48,9 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
 
     /**
      * Prototype for index requests.
+     *
+     * Note that we co-opt version = Versions.NOT_SET to mean
+     * "do not set the version in the index requests that we send for each scroll hit."
      */
     private IndexRequest index;
 
@@ -67,6 +73,9 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         search.source().version(true);
         search.source().sort(fieldSort("_doc"));
         search.source().size(DEFAULT_SIZE);
+
+        // Clear the versionType so we can check if we've parsed it
+        index.versionType(null);
     }
 
     @Override
@@ -90,6 +99,9 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
         return e;
     }
 
+    /**
+     * Maximum number of processed documents.
+     */
     public int size() {
         return size;
     }
@@ -105,6 +117,63 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
 
     public IndexRequest index() {
         return index;
+    }
+
+    public void fillInConditionalDefaults() {
+        if (search.source() == null) {
+            search.source(new SearchSourceBuilder());
+        }
+        if (size() != -1) {
+            /*
+             * Don't use larger batches than the maximum request size because
+             * that'd be silly.
+             */
+            search().source().size(min(size(), search().source().size()));
+        }
+        if (index().versionType() == null) {
+            index.versionType(defaultVersionType());
+        }
+    }
+
+    VersionType defaultVersionType() {
+        if (index().version() == Versions.NOT_SET) {
+            /*
+             * Not set means just don't set it on the index request. That
+             * doesn't work properly with some VersionTypes.
+             */
+            return VersionType.INTERNAL;
+        }
+        if (destinationSameAsSource()) {
+            return VersionType.INTERNAL;
+        } else {
+            return VersionType.EXTERNAL;
+        }
+    }
+
+    /**
+     * Are the source and the destination "the same". Useful for conditional defaults. The rules are:
+     * <ul>
+     *  <li>Is the source exactly one index? No === false<li>
+     *  <li>Is the single source index the same as the destination index? No === false</li>
+     *  <li>Is the destination type null? Yes === true if the source type is also empty, false otherwise</li>
+     *  <li>Is the source exactly one type? No === false</li>
+     *  <li>true if the single source type is the same as the destination type</li>
+     * </ul>
+     */
+    public boolean destinationSameAsSource() {
+        if (search.indices() == null || search.indices().length != 1) {
+            return false;
+        }
+        if (false == search.indices()[0].equals(index.index())) {
+            return false;
+        }
+        if (index.type() == null) {
+            return search.types() == null || search.types().length == 0;
+        }
+        if (search.types().length != 1) {
+            return false;
+        }
+        return search.types()[0].equals(index.type());
     }
 
     @Override
@@ -140,5 +209,19 @@ public class IndexBySearchRequest extends ActionRequest<IndexBySearchRequest> {
             b.append('[').append(index.type()).append(']');
         }
         return b.toString();
+    }
+
+    /**
+     * Parse and set the version on an index request. This is used to handle
+     * index-by-search specific parsing logic for versions.
+     */
+    public static void setVersionOnIndexRequest(IndexRequest indexRequest, String version) {
+        switch (version) {
+        case "not_set":
+            indexRequest.version(Versions.NOT_SET);
+            return;
+        default:
+            throw new IllegalArgumentException("Invalid version: " + version);
+        }
     }
 }

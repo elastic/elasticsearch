@@ -1,3 +1,7 @@
+# This test relies on settings verion: 2, version_type: external on the source
+# of the copy and then uses op_type to control whether or not the operation
+# overwrites.
+
 ---
 "op_type defaults to index":
   - do:
@@ -6,6 +10,8 @@
         type:         src
         id:           1
         body:         { "company": "cat" }
+        version:      2
+        version_type: external
   - do:
       index:
         index:        test
@@ -42,6 +48,8 @@
         type:         src
         id:           1
         body:         { "company": "cat" }
+        version:      2
+        version_type: external
   - do:
       index:
         index:        test
@@ -79,6 +87,8 @@
         type:         src
         id:           1
         body:         { "company": "cat" }
+        version:      2
+        version_type: external
   - do:
       index:
         index:        test

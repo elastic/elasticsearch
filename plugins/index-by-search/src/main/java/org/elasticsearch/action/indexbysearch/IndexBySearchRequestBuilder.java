@@ -58,4 +58,11 @@ public class IndexBySearchRequestBuilder
         request.size(size);
         return this;
     }
+
+    @Override
+    protected IndexBySearchRequest beforeExecute(IndexBySearchRequest request) {
+        request = super.beforeExecute(request);
+        request.fillInConditionalDefaults();
+        return request;
+    }
 }

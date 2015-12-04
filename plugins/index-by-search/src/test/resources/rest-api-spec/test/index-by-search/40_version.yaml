@@ -1,5 +1,5 @@
 ---
-"Preserve external version":
+"Preserve external version by default if copying to another index":
   - do:
       index:
         index:        test
@@ -25,7 +25,44 @@
             index: test
           index:
             index: target
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: target
+        type:  test
+        id:    1
+  - match: { _version: 4 }
+
+---
+"Preserve external version if version_type=external":
+  - do:
+      index:
+        index:        test
+        type:         test
+        id:           1
+        version:      4
+        version_type: external
+        body:         { "text": "test" }
+  - do:
+      indices.refresh: {}
+
+  - do:
+      get:
+        index: test
+        type:  test
+        id:    1
+  - match: { _version: 4 }
+
+  - do:
+      index_by_search:
+        body:
+          source:
+            index: test
+          index:
             version_type: external
+            index: target
   - do:
       indices.refresh: {}
 

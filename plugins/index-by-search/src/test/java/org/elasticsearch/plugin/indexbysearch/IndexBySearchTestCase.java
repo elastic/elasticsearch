@@ -19,19 +19,22 @@
 
 package org.elasticsearch.plugin.indexbysearch;
 
+import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
+import static org.hamcrest.Matchers.equalTo;
+
+import java.util.Collection;
+
 import org.elasticsearch.action.indexbysearch.IndexBySearchAction;
 import org.elasticsearch.action.indexbysearch.IndexBySearchRequestBuilder;
 import org.elasticsearch.action.indexbysearch.IndexBySearchResponse;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
+import org.hamcrest.Description;
+import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
-import java.util.Collection;
-
-import static org.elasticsearch.test.ESIntegTestCase.Scope.SUITE;
-import static org.hamcrest.Matchers.equalTo;
-
-@ClusterScope(scope = SUITE, transportClientRatio = 0) // Required to use plugins?
+@ClusterScope(scope = SUITE, transportClientRatio = 0)
 public class IndexBySearchTestCase extends ESIntegTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -43,6 +46,34 @@ public class IndexBySearchTestCase extends ESIntegTestCase {
     }
 
     protected void assertResponse(IndexBySearchResponse response, long expectedIndexed, long expectedCreated) {
-        assertThat(response.indexed(), equalTo(expectedIndexed));
+        assertThat(response, responseMatcher().indexed(equalTo(expectedIndexed)));
+    }
+
+    public IndexBySearchResponseMatcher responseMatcher() {
+        return new IndexBySearchResponseMatcher();
+    }
+
+    public class IndexBySearchResponseMatcher extends TypeSafeMatcher<IndexBySearchResponse> {
+        private Matcher<Long> indexedMatcher;
+
+        public IndexBySearchResponseMatcher indexed(Matcher<Long> indexedMatcher) {
+            this.indexedMatcher = indexedMatcher;
+            return this;
+        }
+
+        @Override
+        protected boolean matchesSafely(IndexBySearchResponse item) {
+            if (indexedMatcher != null && indexedMatcher.matches(item.indexed()) == false) {
+                return false;
+            }
+            return true;
+        }
+
+        @Override
+        public void describeTo(Description description) {
+            if (indexedMatcher != null) {
+                description.appendText("indexed matches ").appendDescriptionOf(indexedMatcher);
+            }
+        }
     }
 }

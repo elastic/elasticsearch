@@ -69,7 +69,7 @@
             index: dest
 
 ---
-"search from always fails":
+"search from is not supported":
   - do:
       catch: /from is not supported in this context/
       index_by_search:

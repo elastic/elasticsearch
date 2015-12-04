@@ -19,17 +19,17 @@
 
 package org.elasticsearch.action.indexbysearch;
 
+import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.INDEXED;
+import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.TOOK;
+
+import java.io.IOException;
+
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ToXContent;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentBuilderString;
-
-import java.io.IOException;
-
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.INDEXED;
-import static org.elasticsearch.action.indexbysearch.IndexBySearchResponse.Fields.TOOK;
 
 public class IndexBySearchResponse extends ActionResponse implements ToXContent {
     private long took;
@@ -71,5 +71,14 @@ public class IndexBySearchResponse extends ActionResponse implements ToXContent 
         builder.field(TOOK, took);
         builder.field(INDEXED, indexed);
         return builder;
+    }
+
+    @Override
+    public String toString() {
+        StringBuilder builder = new StringBuilder();
+        builder.append("IndexBySearchResponse[");
+        builder.append("took=").append(took);
+        builder.append(",indexed=").append(indexed);
+        return builder.append("]").toString();
     }
 }

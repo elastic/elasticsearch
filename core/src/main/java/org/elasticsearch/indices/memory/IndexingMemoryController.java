@@ -286,33 +286,23 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
         return System.nanoTime();
     }
 
-    /** ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.  returns Boolean.TRUE if
-     *  it did deactive, Boolean.FALSE if it did not, and null if the shard is unknown */
-    protected Boolean checkIdle(IndexShard shard) {
-        String ignoreReason = null; // eclipse compiler does not know it is really final
-        if (shard != null) {
-            try {
-                if (shard.checkIdle()) {
-                    logger.debug("marking shard {} as inactive (inactive_time[{}]) indexing wise",
-                            shard.shardId(),
-                            shard.getInactiveTime());
-                    return Boolean.TRUE;
-                }
-                return Boolean.FALSE;
-            } catch (EngineClosedException e) {
-                // ignore
-                ignoreReason = "EngineClosedException";
-            } catch (FlushNotAllowedEngineException e) {
-                // ignore
-                ignoreReason = "FlushNotAllowedEngineException";
+    /**
+     * ask this shard to check now whether it is inactive, and reduces its indexing and translog buffers if so.
+     * return false if the shard is not idle, otherwise true
+     */
+    protected boolean checkIdle(IndexShard shard) {
+        try {
+            boolean idle = shard.checkIdle();
+            if (idle && logger.isDebugEnabled()) {
+                logger.debug("marking shard {} as inactive (inactive_time[{}]) indexing wise",
+                    shard.shardId(),
+                    shard.getInactiveTime());
             }
-        } else {
-            ignoreReason = "shard not found";
+            return idle;
+        } catch (EngineClosedException | FlushNotAllowedEngineException e) {
+            logger.trace("ignore [{}] while marking shard {} as inactive", e.getClass().getSimpleName(), shard.shardId());
+            return true;
         }
-        if (ignoreReason != null) {
-            logger.trace("ignore [{}] while marking shard {} as inactive", ignoreReason, shard.shardId());
-        }
-        return null;
     }
 
     @Override

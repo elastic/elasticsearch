@@ -90,6 +90,9 @@ The search exists api has been removed in favour of using the search api with
 The deprecated `/_optimize` endpoint has been removed. The `/_forcemerge`
 endpoint should be used in lieu of optimize.
 
+The `GET` HTTP verb for `/_forcemerge` is no longer supported, please use the
+`POST` HTTP verb.
+
 ==== Deprecated queries removed
 
 The following deprecated queries have been removed:

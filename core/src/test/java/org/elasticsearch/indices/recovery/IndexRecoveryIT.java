@@ -143,7 +143,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
                 .setTransientSettings(Settings.builder()
                                 // one chunk per sec..
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, chunkSize, ByteSizeUnit.BYTES)
-                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, chunkSize, ByteSizeUnit.BYTES)
                 )
                 .get().isAcknowledged());
     }
@@ -152,7 +151,6 @@ public class IndexRecoveryIT extends ESIntegTestCase {
         assertTrue(client().admin().cluster().prepareUpdateSettings()
                 .setTransientSettings(Settings.builder()
                                 .put(RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC, "20mb")
-                                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, "512kb")
                 )
                 .get().isAcknowledged());
     }

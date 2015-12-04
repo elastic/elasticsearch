@@ -40,10 +40,6 @@ import java.util.concurrent.TimeUnit;
  */
 public class RecoverySettings extends AbstractComponent implements Closeable {
 
-    public static final String INDICES_RECOVERY_FILE_CHUNK_SIZE = "indices.recovery.file_chunk_size";
-    public static final String INDICES_RECOVERY_TRANSLOG_OPS = "indices.recovery.translog_ops";
-    public static final String INDICES_RECOVERY_TRANSLOG_SIZE = "indices.recovery.translog_size";
-    public static final String INDICES_RECOVERY_COMPRESS = "indices.recovery.compress";
     public static final String INDICES_RECOVERY_CONCURRENT_STREAMS = "indices.recovery.concurrent_streams";
     public static final String INDICES_RECOVERY_CONCURRENT_SMALL_FILE_STREAMS = "indices.recovery.concurrent_small_file_streams";
     public static final String INDICES_RECOVERY_MAX_BYTES_PER_SEC = "indices.recovery.max_bytes_per_sec";
@@ -75,12 +71,6 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
 
     public static final long SMALL_FILE_CUTOFF_BYTES = ByteSizeValue.parseBytesSizeValue("5mb", "SMALL_FILE_CUTOFF_BYTES").bytes();
 
-    private volatile ByteSizeValue fileChunkSize;
-
-    private volatile boolean compress;
-    private volatile int translogOps;
-    private volatile ByteSizeValue translogSize;
-
     private volatile int concurrentStreams;
     private volatile int concurrentSmallFileStreams;
     private final ThreadPoolExecutor concurrentStreamPool;
@@ -94,15 +84,9 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
     private volatile TimeValue internalActionTimeout;
     private volatile TimeValue internalActionLongTimeout;
 
-
     @Inject
     public RecoverySettings(Settings settings, NodeSettingsService nodeSettingsService) {
         super(settings);
-
-        this.fileChunkSize = settings.getAsBytesSize(INDICES_RECOVERY_FILE_CHUNK_SIZE, new ByteSizeValue(512, ByteSizeUnit.KB));
-        this.translogOps = settings.getAsInt(INDICES_RECOVERY_TRANSLOG_OPS, 1000);
-        this.translogSize = settings.getAsBytesSize(INDICES_RECOVERY_TRANSLOG_SIZE, new ByteSizeValue(512, ByteSizeUnit.KB));
-        this.compress = settings.getAsBoolean(INDICES_RECOVERY_COMPRESS, true);
 
         this.retryDelayStateSync = settings.getAsTime(INDICES_RECOVERY_RETRY_DELAY_STATE_SYNC, TimeValue.timeValueMillis(500));
         // doesn't have to be fast as nodes are reconnected every 10s by default (see InternalClusterService.ReconnectToNodes)
@@ -132,8 +116,8 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
             rateLimiter = new SimpleRateLimiter(maxBytesPerSec.mbFrac());
         }
 
-        logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}], translog_ops [{}], and compress [{}]",
-                maxBytesPerSec, concurrentStreams, fileChunkSize, translogSize, translogOps, compress);
+        logger.debug("using max_bytes_per_sec[{}], concurrent_streams [{}], file_chunk_size [{}], translog_size [{}]",
+                maxBytesPerSec, concurrentStreams);
 
         nodeSettingsService.addListener(new ApplySettings());
     }
@@ -142,26 +126,6 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
     public void close() {
         ThreadPool.terminate(concurrentStreamPool, 1, TimeUnit.SECONDS);
         ThreadPool.terminate(concurrentSmallFileStreamPool, 1, TimeUnit.SECONDS);
-    }
-
-    public ByteSizeValue fileChunkSize() {
-        return fileChunkSize;
-    }
-
-    public boolean compress() {
-        return compress;
-    }
-
-    public int translogOps() {
-        return translogOps;
-    }
-
-    public ByteSizeValue translogSize() {
-        return translogSize;
-    }
-
-    public int concurrentStreams() {
-        return concurrentStreams;
     }
 
     public ThreadPoolExecutor concurrentStreamPool() {
@@ -211,30 +175,6 @@ public class RecoverySettings extends AbstractComponent implements Closeable {
                 } else {
                     rateLimiter = new SimpleRateLimiter(maxSizePerSec.mbFrac());
                 }
-            }
-
-            ByteSizeValue fileChunkSize = settings.getAsBytesSize(INDICES_RECOVERY_FILE_CHUNK_SIZE, RecoverySettings.this.fileChunkSize);
-            if (!fileChunkSize.equals(RecoverySettings.this.fileChunkSize)) {
-                logger.info("updating [indices.recovery.file_chunk_size] from [{}] to [{}]", RecoverySettings.this.fileChunkSize, fileChunkSize);
-                RecoverySettings.this.fileChunkSize = fileChunkSize;
-            }
-
-            int translogOps = settings.getAsInt(INDICES_RECOVERY_TRANSLOG_OPS, RecoverySettings.this.translogOps);
-            if (translogOps != RecoverySettings.this.translogOps) {
-                logger.info("updating [indices.recovery.translog_ops] from [{}] to [{}]", RecoverySettings.this.translogOps, translogOps);
-                RecoverySettings.this.translogOps = translogOps;
-            }
-
-            ByteSizeValue translogSize = settings.getAsBytesSize(INDICES_RECOVERY_TRANSLOG_SIZE, RecoverySettings.this.translogSize);
-            if (!translogSize.equals(RecoverySettings.this.translogSize)) {
-                logger.info("updating [indices.recovery.translog_size] from [{}] to [{}]", RecoverySettings.this.translogSize, translogSize);
-                RecoverySettings.this.translogSize = translogSize;
-            }
-
-            boolean compress = settings.getAsBoolean(INDICES_RECOVERY_COMPRESS, RecoverySettings.this.compress);
-            if (compress != RecoverySettings.this.compress) {
-                logger.info("updating [indices.recovery.compress] from [{}] to [{}]", RecoverySettings.this.compress, compress);
-                RecoverySettings.this.compress = compress;
             }
 
             int concurrentStreams = settings.getAsInt(INDICES_RECOVERY_CONCURRENT_STREAMS, RecoverySettings.this.concurrentStreams);

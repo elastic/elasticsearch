@@ -58,13 +58,6 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 @ESIntegTestCase.ClusterScope(numDataNodes = 2, numClientNodes = 0, scope = ESIntegTestCase.Scope.TEST)
 @SuppressCodecs("*") // test relies on exact file extensions
 public class TruncatedRecoveryIT extends ESIntegTestCase {
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal) {
-        Settings.Builder builder = Settings.builder()
-                .put(super.nodeSettings(nodeOrdinal))
-                .put(RecoverySettings.INDICES_RECOVERY_FILE_CHUNK_SIZE, new ByteSizeValue(randomIntBetween(50, 300), ByteSizeUnit.BYTES));
-        return builder.build();
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

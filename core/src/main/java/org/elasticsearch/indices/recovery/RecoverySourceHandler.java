@@ -49,6 +49,7 @@ import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
 
+import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -68,6 +69,7 @@ import java.util.stream.StreamSupport;
  */
 public class RecoverySourceHandler {
 
+    private static final int CHUNK_SIZE = 512 * 1000; // 512KB
     protected final ESLogger logger;
     // Shard that is going to be recovered (the "source")
     private final IndexShard shard;
@@ -79,7 +81,6 @@ public class RecoverySourceHandler {
     private final TransportService transportService;
 
     protected final RecoveryResponse response;
-    private final TransportRequestOptions requestOptions;
 
     private final CancellableThreads cancellableThreads = new CancellableThreads() {
         @Override
@@ -108,12 +109,6 @@ public class RecoverySourceHandler {
         this.shardId = this.request.shardId().id();
 
         this.response = new RecoveryResponse();
-        this.requestOptions = TransportRequestOptions.builder()
-                .withCompress(recoverySettings.compress())
-                .withType(TransportRequestOptions.Type.RECOVERY)
-                .withTimeout(recoverySettings.internalActionTimeout())
-                .build();
-
     }
 
     /**
@@ -218,7 +213,7 @@ public class RecoverySourceHandler {
                     totalSize += md.length();
                 }
                 List<StoreFileMetaData> phase1Files = new ArrayList<>(diff.different.size() + diff.missing.size());
-                phase1Files.addAll(diff.different); 
+                phase1Files.addAll(diff.different);
                 phase1Files.addAll(diff.missing);
                 for (StoreFileMetaData md : phase1Files) {
                     if (request.metadataSnapshot().asMap().containsKey(md.name())) {
@@ -249,7 +244,7 @@ public class RecoverySourceHandler {
                 });
                 // How many bytes we've copied since we last called RateLimiter.pause
                 final AtomicLong bytesSinceLastPause = new AtomicLong();
-                final Function<StoreFileMetaData, OutputStream> outputStreamFactories = (md) -> new RecoveryOutputStream(md, bytesSinceLastPause, translogView);
+                final Function<StoreFileMetaData, OutputStream> outputStreamFactories = (md) -> new BufferedOutputStream(new RecoveryOutputStream(md, bytesSinceLastPause, translogView), CHUNK_SIZE);
                 sendFiles(store, phase1Files.toArray(new StoreFileMetaData[phase1Files.size()]), outputStreamFactories);
                 cancellableThreads.execute(() -> {
                     // Send the CLEAN_FILES request, which takes all of the files that
@@ -432,7 +427,7 @@ public class RecoverySourceHandler {
         }
 
         final TransportRequestOptions recoveryOptions = TransportRequestOptions.builder()
-                .withCompress(recoverySettings.compress())
+                .withCompress(true)
                 .withType(TransportRequestOptions.Type.RECOVERY)
                 .withTimeout(recoverySettings.internalActionLongTimeout())
                 .build();
@@ -451,9 +446,9 @@ public class RecoverySourceHandler {
             size += operation.estimateSize();
             totalOperations++;
 
-            // Check if this request is past the size or bytes threshold, and
+            // Check if this request is past bytes threshold, and
             // if so, send it off
-            if (ops >= recoverySettings.translogOps() || size >= recoverySettings.translogSize().bytes()) {
+            if (size >= CHUNK_SIZE) {
 
                 // don't throttle translog, since we lock for phase3 indexing,
                 // so we need to move it as fast as possible. Note, since we
@@ -548,6 +543,11 @@ public class RecoverySourceHandler {
         }
 
         private void sendNextChunk(long position, BytesArray content, boolean lastChunk) throws IOException {
+            final TransportRequestOptions chunkSendOptions = TransportRequestOptions.builder()
+                .withCompress(false)
+                .withType(TransportRequestOptions.Type.RECOVERY)
+                .withTimeout(recoverySettings.internalActionTimeout())
+                .build();
             cancellableThreads.execute(() -> {
                 // Pause using the rate limiter, if desired, to throttle the recovery
                 final long throttleTimeInNanos;
@@ -577,7 +577,7 @@ public class RecoverySourceHandler {
                                  * see how many translog ops we accumulate while copying files across the network. A future optimization
                                  * would be in to restart file copy again (new deltas) if we have too many translog ops are piling up.
                                  */
-                                throttleTimeInNanos), requestOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
+                                throttleTimeInNanos), chunkSendOptions, EmptyTransportResponseHandler.INSTANCE_SAME).txGet();
             });
             if (shard.state() == IndexShardState.CLOSED) { // check if the shard got closed on us
                 throw new IndexShardClosedException(request.shardId());

@@ -36,6 +36,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
+import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.common.xcontent.*;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.VersionType;
@@ -136,7 +137,7 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     private String parent;
     @Nullable
     private String timestamp;
-    private long ttl = -1;
+    private TimeValue ttl;
 
     private BytesReference source;
 
@@ -222,6 +223,11 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         }
         if (!versionType.validateVersionForWrites(version)) {
             validationException = addValidationError("illegal version value [" + version + "] for version type [" + versionType.name() + "]", validationException);
+        }
+        if (ttl != null) {
+            if (ttl.millis() < 0) {
+                validationException = addValidationError("ttl must not be negative", validationException);
+            }
         }
         return validationException;
     }
@@ -318,22 +324,24 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
     }
 
     /**
-     * Sets the relative ttl value. It musts be > 0 as it makes little sense otherwise. Setting it
-     * to <tt>null</tt> will reset to have no ttl.
+     * Sets the relative ttl value in milliseconds. It musts be greater than 0 as it makes little sense otherwise.
      */
-    public IndexRequest ttl(Long ttl) throws ElasticsearchGenerationException {
-        if (ttl == null) {
-            this.ttl = -1;
-            return this;
-        }
-        if (ttl <= 0) {
-            throw new IllegalArgumentException("TTL value must be > 0. Illegal value provided [" + ttl + "]");
-        }
+    public IndexRequest ttl(long ttl) throws ElasticsearchGenerationException {
+        this.ttl = new TimeValue(ttl);
+        return this;
+    }
+
+    public IndexRequest ttl(String ttl) {
+        this.ttl = TimeValue.parseTimeValue(ttl, null, "ttl");
+        return this;
+    }
+
+    public IndexRequest ttl(TimeValue ttl) {
         this.ttl = ttl;
         return this;
     }
 
-    public long ttl() {
+    public TimeValue ttl() {
         return this.ttl;
     }
 
@@ -665,7 +673,16 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         routing = in.readOptionalString();
         parent = in.readOptionalString();
         timestamp = in.readOptionalString();
-        ttl = in.readLong();
+        if (in.getVersion().before(Version.V_2_2_0)) {
+            long ttl = in.readLong();
+            if (ttl == -1) {
+                this.ttl = null;
+            } else {
+                ttl(ttl);
+            }
+        } else {
+            ttl = in.readBoolean() ? TimeValue.readTimeValue(in) : null;
+        }
         source = in.readBytesReference();
 
         opType = OpType.fromId(in.readByte());
@@ -683,7 +700,20 @@ public class IndexRequest extends ReplicationRequest<IndexRequest> implements Do
         out.writeOptionalString(routing);
         out.writeOptionalString(parent);
         out.writeOptionalString(timestamp);
-        out.writeLong(ttl);
+        if (out.getVersion().before(Version.V_2_2_0)) {
+            if (ttl == null) {
+                out.writeLong(-1);
+            } else {
+                out.writeLong(ttl.millis());
+            }
+        } else {
+            if(ttl == null) {
+                out.writeBoolean(false);
+            } else {
+                out.writeBoolean(true);
+                ttl.writeTo(out);
+            }
+        }
         out.writeBytesReference(source);
         out.writeByte(opType.id());
         out.writeBoolean(refresh);

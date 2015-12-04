@@ -2,7 +2,7 @@
 "Test Hijack and Block Direct Access to Internal Indices":
   - do:
       cluster.health:
-          wait_for_status: green
+          wait_for_status: yellow
 
   - do:
       catch: /not supported/

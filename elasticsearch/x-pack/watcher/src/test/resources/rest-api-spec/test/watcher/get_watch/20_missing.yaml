@@ -2,7 +2,7 @@
 "Test get watch api with missing watch":
   - do:
       cluster.health:
-          wait_for_status: green
+          wait_for_status: yellow
 
 
   - do:

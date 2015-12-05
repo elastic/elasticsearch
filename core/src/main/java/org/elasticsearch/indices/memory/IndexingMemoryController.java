@@ -200,16 +200,16 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     protected List<IndexShard> availableShards() {
-        List<IndexShard> activeShards = new ArrayList<>();
+        List<IndexShard> availableShards = new ArrayList<>();
 
         for (IndexService indexService : indicesService) {
             for (IndexShard shard : indexService) {
                 if (shardAvailable(shard)) {
-                    activeShards.add(shard);
+                    availableShards.add(shard);
                 }
             }
         }
-        return activeShards;
+        return availableShards;
     }
 
     /** returns true if shard exists and is availabe for updates */

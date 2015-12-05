@@ -19,9 +19,12 @@
 package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreFileMetaData;
 import org.elasticsearch.index.translog.Translog;
+import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
 import java.util.List;
@@ -41,7 +44,7 @@ public interface RecoveryTargetHandler {
      * new segments are available, and enables garbage collection of
      * tombstone files. The shard is also moved to the POST_RECOVERY phase during this time
      **/
-    void finalizeRecovery();
+    FinalizeResponse finalizeRecovery();
 
     /**
      * Index a set of translog operations on the target
@@ -70,5 +73,42 @@ public interface RecoveryTargetHandler {
     /** writes a partial file chunk to the target store */
     void writeFileChunk(StoreFileMetaData fileMetaData, long position, BytesReference content,
                         boolean lastChunk, int totalTranslogOps) throws IOException;
+
+     class FinalizeResponse extends TransportResponse {
+        private long localCheckpoint;
+        private String allocationId;
+
+        public FinalizeResponse(String allocationId, long localCheckpoint) {
+            this.localCheckpoint = localCheckpoint;
+            this.allocationId = allocationId;
+        }
+
+        FinalizeResponse() {
+
+        }
+
+        public long getLocalCheckpoint() {
+            return localCheckpoint;
+        }
+
+        public String getAllocationId() {
+            return allocationId;
+        }
+
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            super.writeTo(out);
+            out.writeZLong(localCheckpoint);
+            out.writeString(allocationId);
+        }
+
+        @Override
+        public void readFrom(StreamInput in) throws IOException {
+            super.readFrom(in);
+            localCheckpoint = in.readZLong();
+            allocationId = in.readString();
+        }
+    }
 
 }

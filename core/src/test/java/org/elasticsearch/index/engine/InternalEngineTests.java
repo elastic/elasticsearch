@@ -20,7 +20,6 @@
 package org.elasticsearch.index.engine;
 
 import com.carrotsearch.hppc.cursors.ObjectObjectCursor;
-
 import org.apache.log4j.AppenderSkeleton;
 import org.apache.log4j.Level;
 import org.apache.log4j.LogManager;
@@ -1295,13 +1294,13 @@ public class InternalEngineTests extends ESTestCase {
 
     public void testVersioningCreateExistsExceptionWithFlush() {
         ParsedDocument doc = testParsedDocument("1", "1", "test", null, -1, -1, testDocument(), B_1, null);
-        Engine.Index create = new Engine.Index(newUid("1"), doc, -1, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
+        Engine.Index create = new Engine.Index(newUid("1"), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
         engine.index(create);
         assertThat(create.version(), equalTo(1L));
 
         engine.flush();
 
-        create = new Engine.Index(newUid("1"), doc, -1, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
+        create = new Engine.Index(newUid("1"), doc, SequenceNumbersService.UNASSIGNED_SEQ_NO, Versions.MATCH_DELETED, VersionType.INTERNAL, PRIMARY, 0);
         try {
             engine.index(create);
             fail();
@@ -1520,10 +1519,10 @@ public class InternalEngineTests extends ESTestCase {
                 }
             }
         }
-        assertThat(engine.seqNoStats().getMaxSeqNo(), equalTo(seqNoCount));
-        assertThat(engine.seqNoStats().getLocalCheckpoint(), equalTo(seqNoCount));
-        assertThat(replicaEngine.seqNoStats().getMaxSeqNo(), equalTo(seqNoCount));
-        assertThat(replicaEngine.seqNoStats().getLocalCheckpoint(), equalTo(seqNoCount));
+        assertThat(engine.seqNoService().stats().getMaxSeqNo(), equalTo(seqNoCount));
+        assertThat(engine.seqNoService().stats().getLocalCheckpoint(), equalTo(seqNoCount));
+        assertThat(replicaEngine.seqNoService().stats().getMaxSeqNo(), equalTo(seqNoCount));
+        assertThat(replicaEngine.seqNoService().stats().getLocalCheckpoint(), equalTo(seqNoCount));
     }
 
     // #8603: make sure we can separately log IFD's messages

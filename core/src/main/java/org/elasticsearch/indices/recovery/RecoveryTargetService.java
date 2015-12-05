@@ -58,7 +58,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.unit.TimeValue.timeValueMillis;
 
@@ -300,11 +299,12 @@ public class RecoveryTargetService extends AbstractComponent implements IndexEve
 
         @Override
         public void messageReceived(RecoveryFinalizeRecoveryRequest request, TransportChannel channel) throws Exception {
+            final RecoveryTargetHandler.FinalizeResponse response;
             try (RecoveriesCollection.RecoveryRef recoveryRef = onGoingRecoveries.getRecoverySafe(request.recoveryId(), request.shardId()
             )) {
-                recoveryRef.status().finalizeRecovery();
+                response = recoveryRef.status().finalizeRecovery();
             }
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            channel.sendResponse(response);
         }
     }
 

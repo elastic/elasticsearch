@@ -112,6 +112,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
@@ -348,8 +349,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
      * @param builtInListeners a list of built-in lifecycle {@link IndexEventListener} that should should be used along side with the per-index listeners
      * @throws IndexAlreadyExistsException if the index already exists.
      */
-    public synchronized IndexService createIndex(final NodeServicesProvider nodeServicesProvider, IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners) throws IOException {
-
+    public synchronized IndexService createIndex(final NodeServicesProvider nodeServicesProvider, IndexMetaData indexMetaData, List<IndexEventListener> builtInListeners, Consumer<ShardId> globalCheckpointSyncer) throws IOException {
         if (!lifecycle.started()) {
             throw new IllegalStateException("Can't create an index [" + indexMetaData.getIndex() + "], node is closed");
         }
@@ -369,7 +369,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         };
         finalListeners.add(onStoreClose);
         finalListeners.add(oldShardsStats);
-        final IndexService indexService = createIndexService("create index", nodeServicesProvider, indexMetaData, indicesQueryCache, indicesFieldDataCache, finalListeners, indexingMemoryController);
+        final IndexService indexService = createIndexService("create index", nodeServicesProvider, indexMetaData, indicesQueryCache,
+            indicesFieldDataCache, finalListeners, globalCheckpointSyncer, indexingMemoryController);
         boolean success = false;
         try {
             indexService.getIndexEventListener().afterIndexCreated(indexService);
@@ -386,7 +387,12 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
     /**
      * This creates a new IndexService without registering it
      */
-    private synchronized IndexService createIndexService(final String reason, final NodeServicesProvider nodeServicesProvider, IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache, IndicesFieldDataCache indicesFieldDataCache, List<IndexEventListener> builtInListeners, IndexingOperationListener... indexingOperationListeners) throws IOException {
+    private synchronized IndexService createIndexService(final String reason, final NodeServicesProvider nodeServicesProvider,
+                                                         IndexMetaData indexMetaData, IndicesQueryCache indicesQueryCache,
+                                                         IndicesFieldDataCache indicesFieldDataCache,
+                                                         List<IndexEventListener> builtInListeners,
+                                                         Consumer<ShardId> globalCheckpointSyncer,
+                                                         IndexingOperationListener... indexingOperationListeners) throws IOException {
         final Index index = indexMetaData.getIndex();
         final Predicate<String> indexNameMatcher = (indexExpression) -> indexNameExpressionResolver.matchesIndex(index.getName(), indexExpression, clusterService.state());
         final IndexSettings idxSettings = new IndexSettings(indexMetaData, this.settings, indexNameMatcher, indexScopeSetting);
@@ -404,7 +410,8 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
         for (IndexEventListener listener : builtInListeners) {
             indexModule.addIndexEventListener(listener);
         }
-        return indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, indicesQueryCache, mapperRegistry, indicesFieldDataCache);
+        return indexModule.newIndexService(nodeEnv, this, nodeServicesProvider, indicesQueryCache, mapperRegistry, globalCheckpointSyncer,
+            indicesFieldDataCache);
     }
 
     /**
@@ -420,7 +427,7 @@ public class IndicesService extends AbstractLifecycleComponent<IndicesService> i
             closeables.add(indicesQueryCache);
             // this will also fail if some plugin fails etc. which is nice since we can verify that early
             final IndexService service = createIndexService("metadata verification", nodeServicesProvider,
-                metaData, indicesQueryCache, indicesFieldDataCache, Collections.emptyList());
+                metaData, indicesQueryCache, indicesFieldDataCache, Collections.emptyList(), s -> {});
             for (ObjectCursor<MappingMetaData> typeMapping : metaData.getMappings().values()) {
                 // don't apply the default mapping, it has been applied when the mapping was created
                 service.mapperService().merge(typeMapping.value.type(), typeMapping.value.source(),

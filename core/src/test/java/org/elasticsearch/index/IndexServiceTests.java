@@ -280,6 +280,20 @@ public class IndexServiceTests extends ESSingleNodeTestCase {
         assertNull(indexService.getFsyncTask());
     }
 
+    public void testGlobalCheckpointTaskIsRunning() throws IOException {
+        IndexService indexService = createIndex("test", Settings.EMPTY);
+        IndexService.AsyncGlobalCheckpointTask task = indexService.getGlobalchekcpointTask();
+        assertNotNull(task);
+        assertEquals(IndexSettings.INDEX_SEQ_NO_CHECKPOINT_SYNC_INTERVAL.getDefault(Settings.EMPTY), task.getInterval());
+        assertTrue(task.mustReschedule());
+        assertTrue(task.isScheduled());
+
+        indexService.close("simon says", false);
+        assertFalse(task.isScheduled());
+        assertTrue(task.isClosed());
+    }
+
+
     public void testRefreshActuallyWorks() throws Exception {
         IndexService indexService = createIndex("test", Settings.EMPTY);
         ensureGreen("test");

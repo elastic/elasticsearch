@@ -104,7 +104,8 @@ public class MetaDataIndexAliasesService extends AbstractComponent {
                                     if (indexService == null) {
                                         // temporarily create the index and add mappings so we can parse the filter
                                         try {
-                                            indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData, Collections.emptyList());
+                                            indexService = indicesService.createIndex(nodeServicesProvider, indexMetaData,
+                                                    Collections.emptyList(), shardId -> {});
                                             for (ObjectCursor<MappingMetaData> cursor : indexMetaData.getMappings().values()) {
                                                 MappingMetaData mappingMetaData = cursor.value;
                                                 indexService.mapperService().merge(mappingMetaData.type(), mappingMetaData.source(), MapperService.MergeReason.MAPPING_RECOVERY, false);

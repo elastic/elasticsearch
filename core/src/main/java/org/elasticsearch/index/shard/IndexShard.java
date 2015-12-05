@@ -90,6 +90,7 @@ import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
 import org.elasticsearch.index.search.stats.ShardSearchStats;
+import org.elasticsearch.index.seqno.GlobalCheckpointService;
 import org.elasticsearch.index.seqno.SeqNoStats;
 import org.elasticsearch.index.seqno.SequenceNumbersService;
 import org.elasticsearch.index.similarity.SimilarityService;
@@ -122,11 +123,13 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 
 public class IndexShard extends AbstractIndexShardComponent {
 
@@ -193,6 +196,9 @@ public class IndexShard extends AbstractIndexShardComponent {
     private static final EnumSet<IndexShardState> writeAllowedStatesForReplica = EnumSet.of(IndexShardState.RECOVERING, IndexShardState.POST_RECOVERY, IndexShardState.STARTED, IndexShardState.RELOCATED);
 
     private final IndexSearcherWrapper searcherWrapper;
+
+    private final Consumer<ShardId> globalCheckpointSyncer;
+
     /**
      * True if this shard is still indexing (recently) and false if we've been idle for long enough (as periodically checked by {@link
      * IndexingMemoryController}).
@@ -203,7 +209,8 @@ public class IndexShard extends AbstractIndexShardComponent {
                       MapperService mapperService, SimilarityService similarityService, IndexFieldDataService indexFieldDataService,
                       @Nullable EngineFactory engineFactory,
                       IndexEventListener indexEventListener, IndexSearcherWrapper indexSearcherWrapper, ThreadPool threadPool, BigArrays bigArrays,
-                      Engine.Warmer warmer, List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
+                      Engine.Warmer warmer, Consumer<ShardId> globalCheckpointSyncer,
+                      List<SearchOperationListener> searchOperationListener, List<IndexingOperationListener> listeners) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
         this.shardRouting = shardRouting;
@@ -226,6 +233,7 @@ public class IndexShard extends AbstractIndexShardComponent {
         final List<SearchOperationListener> searchListenersList = new ArrayList<>(searchOperationListener);
         searchListenersList.add(searchStats);
         this.searchOperationListener = new SearchOperationListener.CompositeListener(searchListenersList, logger);
+        this.globalCheckpointSyncer = globalCheckpointSyncer;
         this.getService = new ShardGetService(indexSettings, this, mapperService);
         this.shardWarmerService = new ShardIndexWarmerService(shardId, indexSettings);
         this.shardQueryCache = new ShardRequestCache();
@@ -531,9 +539,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     public Engine.Delete prepareDeleteOnReplica(String type, String id, long seqNo, long version, VersionType versionType) {
-        if (shardRouting.primary() && shardRouting.isRelocationTarget() == false) {
-            throw new IllegalIndexShardStateException(shardId, state, "shard is not a replica");
-        }
+        verifyReplicationTarget();
         final DocumentMapper documentMapper = docMapper(type).getDocumentMapper();
         final MappedFieldType uidFieldType = documentMapper.uidMapper().fieldType();
         final Query uidQuery = uidFieldType.termQuery(Uid.createUid(type, id), null);
@@ -641,7 +647,7 @@ public class IndexShard extends AbstractIndexShardComponent {
     @Nullable
     public SeqNoStats seqNoStats() {
         Engine engine = getEngineOrNull();
-        return engine == null ? null : engine.seqNoStats();
+        return engine == null ? null : engine.seqNoService().stats();
     }
 
     public IndexingStats indexingStats(String... types) {
@@ -1254,6 +1260,71 @@ public class IndexShard extends AbstractIndexShardComponent {
     }
 
     /**
+     * notifies the service of a local checkpoint. see {@link GlobalCheckpointService#updateLocalCheckpoint(String, long)} for details.
+     */
+    public void updateLocalCheckpointForShard(String allocationId, long checkpoint) {
+        verifyPrimary();
+        getEngine().seqNoService().updateLocalCheckpointForShard(allocationId, checkpoint);
+    }
+
+    /**
+     * marks the allocationId as "in sync" with the primary shard. see {@link GlobalCheckpointService#markAllocationIdAsInSync(String, long)} for details.
+     *
+     * @param allocationId    allocationId of the recovering shard
+     * @param localCheckpoint the local checkpoint of the shard in question
+     */
+    public void markAllocationIdAsInSync(String allocationId, long localCheckpoint) {
+        verifyPrimary();
+        getEngine().seqNoService().markAllocationIdAsInSync(allocationId, localCheckpoint);
+        // make sure the in sync shard gets an up to date global checkpoint in the case that there is no ongoing indexing
+        globalCheckpointSyncer.accept(shardId);
+    }
+
+    public long getLocalCheckpoint() {
+        return getEngine().seqNoService().getLocalCheckpoint();
+    }
+
+    public long getGlobalCheckpoint() {
+        return getEngine().seqNoService().getGlobalCheckpoint();
+    }
+
+    /**
+     * checks whether the global checkpoint can be updated based on current knowledge of local checkpoints on the different
+     * shard copies. The checkpoint is updated or more information is required from the replica, a globack checkpoint sync
+     * is initiated.
+     */
+    public void updateGlobalCheckpointOnPrimary() {
+        verifyPrimary();
+        if (getEngine().seqNoService().updateGlobalCheckpointOnPrimary()) {
+            globalCheckpointSyncer.accept(shardId);
+        }
+    }
+
+    /**
+     * updates the global checkpoint on a replica shard (after it has been updated by the primary).
+     */
+    public void updateGlobalCheckpointOnReplica(long checkpoint) {
+        verifyPrimary();
+        getEngine().seqNoService().updateGlobalCheckpointOnReplica(checkpoint);
+    }
+
+    /**
+     * Notifies the service of the current allocation ids in the cluster state.
+     * see {@link GlobalCheckpointService#updateAllocationIdsFromMaster(Set, Set)} for details.
+     *
+     * @param activeAllocationIds       the allocation ids of the currently active shard copies
+     * @param initializingAllocationIds the allocation ids of the currently initializing shard copies
+     */
+    public void updateAllocationIdsFromMaster(Set<String> activeAllocationIds, Set<String> initializingAllocationIds) {
+        verifyPrimary();
+        Engine engine = getEngineOrNull();
+        // if engine is not yet started, we are not ready yet and can just ignore this
+        if (engine != null) {
+            engine.seqNoService().updateAllocationIdsFromMaster(activeAllocationIds, initializingAllocationIds);
+        }
+    }
+
+    /**
      * Should be called for each no-op update operation to increment relevant statistics.
      *
      * @param type the doc type of the update
@@ -1642,6 +1713,11 @@ public class IndexShard extends AbstractIndexShardComponent {
         protected void delete(Engine engine, Engine.Delete engineDelete) {
             IndexShard.this.delete(engine, engineDelete);
         }
+    }
+
+    // for tests
+    Consumer<ShardId> getGlobalCheckpointSyncer() {
+        return globalCheckpointSyncer;
     }
 
 }

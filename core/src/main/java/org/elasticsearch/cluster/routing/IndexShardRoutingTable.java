@@ -184,6 +184,15 @@ public class IndexShardRoutingTable implements Iterable<ShardRouting> {
     }
 
     /**
+     * Returns a {@link List} of all initializing shards, including target shards of relocations
+     *
+     * @return a {@link List} of shards
+     */
+    public List<ShardRouting> getAllInitializingShards() {
+        return this.allInitializingShards;
+    }
+
+    /**
      * Returns a {@link List} of active shards
      *
      * @return a {@link List} of shards

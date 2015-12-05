@@ -292,13 +292,7 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
      */
     protected boolean checkIdle(IndexShard shard) {
         try {
-            boolean idle = shard.checkIdle();
-            if (idle && logger.isDebugEnabled()) {
-                logger.debug("marking shard {} as inactive (inactive_time[{}]) indexing wise",
-                    shard.shardId(),
-                    shard.getInactiveTime());
-            }
-            return idle;
+            return shard.checkIdle();
         } catch (EngineClosedException | FlushNotAllowedEngineException e) {
             logger.trace("ignore [{}] while marking shard {} as inactive", e.getClass().getSimpleName(), shard.shardId());
             return true;

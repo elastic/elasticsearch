@@ -254,7 +254,6 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
             // is actually using (using IW.ramBytesUsed), so that small indices (e.g. Marvel) would not
             // get the same indexing buffer as large indices.  But it quickly gets tricky...
             if (activeShardCount == 0) {
-                logger.debug("no active shards");
                 return;
             }
 

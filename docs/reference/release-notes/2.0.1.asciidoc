@@ -27,7 +27,6 @@ Fielddata::
 * Don't cache top level field data for fields that don't exist {pull}14693[#14693]
 
 Index APIs::
-* Field stats: Fix NPE for index constraint on empty index {pull}14841[#14841]
 * Field stats: Added `format` option for index constraints {pull}14823[#14823] (issue: {issue}14804[#14804])
 
 Mapping::

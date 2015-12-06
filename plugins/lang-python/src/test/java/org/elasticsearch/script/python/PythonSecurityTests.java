@@ -25,7 +25,9 @@ import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 import org.python.core.PyException;
 
+import java.text.DecimalFormatSymbols;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -66,12 +68,12 @@ public class PythonSecurityTests extends ESTestCase {
             doTest(script);
             fail("did not get expected exception");
         } catch (PyException expected) {
-            Throwable cause = expected.getCause();
             // TODO: fix jython localization bugs: https://github.com/elastic/elasticsearch/issues/13967
-            // this is the correct assert:
-            // assertNotNull("null cause for exception: " + expected, cause);
-            assertNotNull("null cause for exception", cause);
-            assertTrue("unexpected exception: " + cause, cause instanceof SecurityException);
+            // we do a gross hack for now
+            DecimalFormatSymbols symbols = DecimalFormatSymbols.getInstance(Locale.getDefault());
+            if (symbols.getZeroDigit() == '0') {
+                assertTrue(expected.toString().contains("cannot import"));
+            }
         }
     }
     
@@ -90,5 +92,17 @@ public class PythonSecurityTests extends ESTestCase {
         assertFailure("from java.net import Socket\nSocket(\"localhost\", 1024)");
         // no files
         assertFailure("from java.io import File\nFile.createTempFile(\"test\", \"tmp\")");
+    }
+    
+    /** Test again from a new thread, python has complex threadlocal configuration */
+    public void testNotOKFromSeparateThread() throws Exception {
+        Thread t = new Thread() {
+            @Override
+            public void run() {
+                assertFailure("from java.lang import Runtime\nRuntime.availableProcessors()");
+            }
+        };
+        t.start();
+        t.join();
     }
 }

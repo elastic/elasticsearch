@@ -23,6 +23,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
+import org.mozilla.javascript.EcmaError;
 import org.mozilla.javascript.WrappedException;
 
 import java.util.HashMap;
@@ -61,14 +62,20 @@ public class JavaScriptSecurityTests extends ESTestCase {
     }
     
     /** assert that a security exception is hit */
-    private void assertFailure(String script) {
+    private void assertFailure(String script, Class<? extends Throwable> exceptionClass) {
         try {
             doTest(script);
             fail("did not get expected exception");
         } catch (WrappedException expected) {
             Throwable cause = expected.getCause();
             assertNotNull(cause);
-            assertTrue("unexpected exception: " + cause, cause instanceof SecurityException);
+            if (exceptionClass.isAssignableFrom(cause.getClass()) == false) {
+                throw new AssertionError("unexpected exception: " + expected, expected);
+            }
+        } catch (EcmaError expected) {
+            if (exceptionClass.isAssignableFrom(expected.getClass()) == false) {
+                throw new AssertionError("unexpected exception: " + expected, expected);
+            }
         }
     }
     
@@ -79,22 +86,22 @@ public class JavaScriptSecurityTests extends ESTestCase {
     }
     
     /** Test some javascripts that should hit security exception */
-    public void testNotOK() {
+    public void testNotOK() throws Exception {
         // sanity check :)
-        assertFailure("java.lang.Runtime.getRuntime().halt(0)");
+        assertFailure("java.lang.Runtime.getRuntime().halt(0)", EcmaError.class);
         // check a few things more restrictive than the ordinary policy
         // no network
-        assertFailure("new java.net.Socket(\"localhost\", 1024)");
+        assertFailure("new java.net.Socket(\"localhost\", 1024)", EcmaError.class);
         // no files
-        assertFailure("java.io.File.createTempFile(\"test\", \"tmp\")");
+        assertFailure("java.io.File.createTempFile(\"test\", \"tmp\")", EcmaError.class);
     }
 
     public void testDefinitelyNotOK() {
         // no mucking with security controller
         assertFailure("var ctx = org.mozilla.javascript.Context.getCurrentContext(); " +
-                      "ctx.setSecurityController(new org.mozilla.javascript.PolicySecurityController());");
+                      "ctx.setSecurityController(new org.mozilla.javascript.PolicySecurityController());", EcmaError.class);
         // no compiling scripts from scripts
         assertFailure("var ctx = org.mozilla.javascript.Context.getCurrentContext(); " +
-                      "ctx.compileString(\"1 + 1\", \"foobar\", 1, null); ");
+                      "ctx.compileString(\"1 + 1\", \"foobar\", 1, null); ", EcmaError.class);
     }
 }

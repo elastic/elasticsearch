@@ -51,6 +51,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
+import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.HashMap;
@@ -65,16 +66,6 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
      * The name of the scripting engine/language.
      */
     public static final String NAME = "groovy";
-    /**
-     * The setting to enable or disable <code>invokedynamic</code> instruction support in Java 7+.
-     * <p>
-     * Note: If this is disabled because <code>invokedynamic</code> is causing issues, then the Groovy
-     * <code>indy</code> jar needs to be replaced by the non-<code>indy</code> variant of it on the classpath (e.g.,
-     * <code>groovy-all-2.4.4-indy.jar</code> should be replaced by <code>groovy-all-2.4.4.jar</code>).
-     * <p>
-     * Defaults to {@code true}.
-     */
-    public static final String GROOVY_INDY_ENABLED = "script.groovy.indy";
     /**
      * The name of the Groovy compiler setting to use associated with activating <code>invokedynamic</code> support.
      */
@@ -96,22 +87,33 @@ public class GroovyScriptEngineService extends AbstractComponent implements Scri
         // Add BigDecimal -> Double transformer
         config.addCompilationCustomizers(new GroovyBigDecimalTransformer(CompilePhase.CONVERSION));
 
-        // Implicitly requires Java 7u60 or later to get valid support
-        if (settings.getAsBoolean(GROOVY_INDY_ENABLED, true)) {
-            // maintain any default optimizations
-            config.getOptimizationOptions().put(GROOVY_INDY_SETTING_NAME, true);
-        }
+        // always enable invokeDynamic, not the crazy softreference-based stuff
+        config.getOptimizationOptions().put(GROOVY_INDY_SETTING_NAME, true);
 
         // Groovy class loader to isolate Groovy-land code
         // classloader created here
-        SecurityManager sm = System.getSecurityManager();
+        final SecurityManager sm = System.getSecurityManager();
         if (sm != null) {
             sm.checkPermission(new SpecialPermission());
         }
         this.loader = AccessController.doPrivileged(new PrivilegedAction<GroovyClassLoader>() {
             @Override
             public GroovyClassLoader run() {
-                return new GroovyClassLoader(getClass().getClassLoader(), config);
+                // snapshot our context (which has permissions for classes), since the script has none
+                final AccessControlContext engineContext = AccessController.getContext();
+                return new GroovyClassLoader(new ClassLoader(getClass().getClassLoader()) {
+                    @Override
+                    protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
+                        if (sm != null) {
+                            try {
+                                engineContext.checkPermission(new ClassPermission(name));
+                            } catch (SecurityException e) {
+                                throw new ClassNotFoundException(name, e);
+                            }
+                        }
+                        return super.loadClass(name, resolve);
+                    }
+                }, config);
             }
         });
     }

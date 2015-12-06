@@ -20,16 +20,22 @@
 package org.elasticsearch.script.groovy;
 
 import org.apache.lucene.util.Constants;
+import org.codehaus.groovy.control.MultipleCompilationErrorsException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.script.CompiledScript;
 import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.test.ESTestCase;
 
+import groovy.lang.MissingPropertyException;
+
 import java.nio.file.Path;
+import java.security.PrivilegedActionException;
 import java.util.AbstractMap;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -48,7 +54,7 @@ public class GroovySecurityTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        se = new GroovyScriptEngineService(Settings.Builder.EMPTY_SETTINGS);
+        se = new GroovyScriptEngineService(Settings.EMPTY);
         // otherwise will exit your VM and other bad stuff
         assumeTrue("test requires security manager to be enabled", System.getSecurityManager() != null);
     }
@@ -62,8 +68,16 @@ public class GroovySecurityTests extends ESTestCase {
     public void testEvilGroovyScripts() throws Exception {
         // Plain test
         assertSuccess("");
-        // field access
+        // field access (via map)
         assertSuccess("def foo = doc['foo'].value; if (foo == null) { return 5; }");
+        // field access (via list)
+        assertSuccess("def foo = mylist[0]; if (foo == null) { return 5; }");
+        // field access (via array)
+        assertSuccess("def foo = myarray[0]; if (foo == null) { return 5; }");
+        // field access (via object)
+        assertSuccess("def foo = myobject.primitive.toString(); if (foo == null) { return 5; }");
+        assertSuccess("def foo = myobject.object.toString(); if (foo == null) { return 5; }");
+        assertSuccess("def foo = myobject.list[0].primitive.toString(); if (foo == null) { return 5; }");
         // List
         assertSuccess("def list = [doc['foo'].value, 3, 4]; def v = list.get(1); list.add(10)");
         // Ranges
@@ -78,35 +92,35 @@ public class GroovySecurityTests extends ESTestCase {
         assertSuccess("def n = [1,2,3]; GroovyCollections.max(n)");
 
         // Fail cases:
-        // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
-        assertFailure("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()");
+        assertFailure("pr = Runtime.getRuntime().exec(\"touch /tmp/gotcha\"); pr.waitFor()", MissingPropertyException.class);
 
-        // AccessControlException[access denied ("java.lang.RuntimePermission" "accessClassInPackage.sun.reflect")]
-        assertFailure("d = new DateTime(); d.getClass().getDeclaredMethod(\"year\").setAccessible(true)");
+        // infamous:
+        assertFailure("java.lang.Math.class.forName(\"java.lang.Runtime\")", PrivilegedActionException.class);
+        // filtered directly by our classloader
+        assertFailure("getClass().getClassLoader().loadClass(\"java.lang.Runtime\").availableProcessors()", PrivilegedActionException.class);
+        // unfortunately, we have access to other classloaders (due to indy mechanism needing getClassLoader permission)
+        // but we can't do much with them directly at least. 
+        assertFailure("myobject.getClass().getClassLoader().loadClass(\"java.lang.Runtime\").availableProcessors()", SecurityException.class);
+        assertFailure("d = new DateTime(); d.getClass().getDeclaredMethod(\"year\").setAccessible(true)", SecurityException.class);
         assertFailure("d = new DateTime(); d.\"${'get' + 'Class'}\"()." +
-                        "\"${'getDeclared' + 'Method'}\"(\"year\").\"${'set' + 'Accessible'}\"(false)");
-        assertFailure("Class.forName(\"org.joda.time.DateTime\").getDeclaredMethod(\"year\").setAccessible(true)");
+                        "\"${'getDeclared' + 'Method'}\"(\"year\").\"${'set' + 'Accessible'}\"(false)", SecurityException.class);
+        assertFailure("Class.forName(\"org.joda.time.DateTime\").getDeclaredMethod(\"year\").setAccessible(true)", MissingPropertyException.class);
 
-        // AccessControlException[access denied ("groovy.security.GroovyCodeSourcePermission" "/groovy/shell")]
-        assertFailure("Eval.me('2 + 2')");
-        assertFailure("Eval.x(5, 'x + 2')");
+        assertFailure("Eval.me('2 + 2')", MissingPropertyException.class);
+        assertFailure("Eval.x(5, 'x + 2')", MissingPropertyException.class);
 
-        // AccessControlException[access denied ("java.lang.RuntimePermission" "accessDeclaredMembers")]
         assertFailure("d = new Date(); java.lang.reflect.Field f = Date.class.getDeclaredField(\"fastTime\");" +
-                " f.setAccessible(true); f.get(\"fastTime\")");
+                " f.setAccessible(true); f.get(\"fastTime\")", MultipleCompilationErrorsException.class);
 
-        // AccessControlException[access denied ("java.io.FilePermission" "<<ALL FILES>>" "execute")]
-        assertFailure("def methodName = 'ex'; Runtime.\"${'get' + 'Runtime'}\"().\"${methodName}ec\"(\"touch /tmp/gotcha2\")");
+        assertFailure("def methodName = 'ex'; Runtime.\"${'get' + 'Runtime'}\"().\"${methodName}ec\"(\"touch /tmp/gotcha2\")", MissingPropertyException.class);
 
-        // AccessControlException[access denied ("java.lang.RuntimePermission" "modifyThreadGroup")]
-        assertFailure("t = new Thread({ println 3 });");
+        assertFailure("t = new Thread({ println 3 });", MultipleCompilationErrorsException.class);
 
         // test a directory we normally have access to, but the groovy script does not.
         Path dir = createTempDir();
         // TODO: figure out the necessary escaping for windows paths here :)
         if (!Constants.WINDOWS) {
-            // access denied ("java.io.FilePermission" ".../tempDir-00N" "read")
-            assertFailure("new File(\"" + dir + "\").exists()");
+            assertFailure("new File(\"" + dir + "\").exists()", MultipleCompilationErrorsException.class);
         }
     }
 
@@ -115,7 +129,17 @@ public class GroovySecurityTests extends ESTestCase {
         Map<String, Object> vars = new HashMap<String, Object>();
         // we add a "mock document" containing a single field "foo" that returns 4 (abusing a jdk class with a getValue() method)
         vars.put("doc", Collections.singletonMap("foo", new AbstractMap.SimpleEntry<Object,Integer>(null, 4)));
+        vars.put("mylist", Arrays.asList("foo"));
+        vars.put("myarray", Arrays.asList("foo"));
+        vars.put("myobject", new MyObject());
+
         se.executable(new CompiledScript(ScriptService.ScriptType.INLINE, "test", "js", se.compile(script)), vars).run();
+    }
+    
+    public static class MyObject {
+        public int getPrimitive() { return 0; }
+        public Object getObject() { return "value"; }
+        public List<Object> getList() { return Arrays.asList(new MyObject()); }
     }
 
     /** asserts that a script runs without exception */
@@ -124,14 +148,16 @@ public class GroovySecurityTests extends ESTestCase {
     }
 
     /** asserts that a script triggers securityexception */
-    private void assertFailure(String script) {
+    private void assertFailure(String script, Class<? extends Throwable> exceptionClass) {
         try {
             doTest(script);
             fail("did not get expected exception");
         } catch (ScriptException expected) {
             Throwable cause = expected.getCause();
             assertNotNull(cause);
-            assertTrue("unexpected exception: " + cause, cause instanceof SecurityException);
+            if (exceptionClass.isAssignableFrom(cause.getClass()) == false) {
+                throw new AssertionError("unexpected exception: " + cause, expected);
+            }
         }
     }
 }

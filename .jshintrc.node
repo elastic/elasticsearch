@@ -1,9 +1,0 @@
-{
-  "extends": "./.jshintrc",
-  "node": true,
-
-  "globals": {
-    "Promise": true,
-    "status": true
-  }
-}

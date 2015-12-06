@@ -29,7 +29,9 @@ import org.jboss.netty.handler.codec.http.HttpMethod;
 
 import java.net.SocketAddress;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
 
 /**
  *
@@ -41,6 +43,7 @@ public class NettyHttpRequest extends HttpRequest {
     private final Map<String, String> params;
     private final String rawPath;
     private final BytesReference content;
+    private final Set<String> consumedParams;
 
     public NettyHttpRequest(org.jboss.netty.handler.codec.http.HttpRequest request, Channel channel) {
         this.request = request;
@@ -60,6 +63,8 @@ public class NettyHttpRequest extends HttpRequest {
             this.rawPath = uri.substring(0, pathEndPos);
             RestUtils.decodeQueryString(uri, pathEndPos + 1, params);
         }
+
+        this.consumedParams = new HashSet<>(params().size());
     }
 
     public org.jboss.netty.handler.codec.http.HttpRequest request() {
@@ -105,6 +110,11 @@ public class NettyHttpRequest extends HttpRequest {
     @Override
     public Map<String, String> params() {
         return params;
+    }
+
+    @Override
+    public boolean allParamsConsumed() {
+        return this.consumedParams.containsAll(this.params().keySet());
     }
 
     @Override
@@ -160,11 +170,13 @@ public class NettyHttpRequest extends HttpRequest {
 
     @Override
     public String param(String key) {
+        this.consumedParams.add(key);
         return params.get(key);
     }
 
     @Override
     public String param(String key, String defaultValue) {
+        this.consumedParams.add(key);
         String value = params.get(key);
         if (value == null) {
             return defaultValue;

@@ -25,6 +25,7 @@ import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.path.PathTrie;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentBuilder;
+import org.elasticsearch.http.HttpException;
 import org.elasticsearch.rest.support.RestUtils;
 
 import java.io.IOException;
@@ -209,7 +210,13 @@ public class RestController extends AbstractLifecycleComponent<RestController> {
     void executeHandler(RestRequest request, RestChannel channel) throws Exception {
         final RestHandler handler = getHandler(request);
         if (handler != null) {
-            handler.handleRequest(request, channel);
+                handler.handleRequest(request, channel);
+
+            //Just validate params to READ operations
+            if(RestRequest.Method.GET.equals(request.method()) && !request.allParamsConsumed()){
+                channel.sendResponse(new BytesRestResponse(BAD_REQUEST, "There are wrong parameters"));
+            }
+
         } else {
             if (request.method() == RestRequest.Method.OPTIONS) {
                 // when we have OPTIONS request, simply send OK by default (with the Access Control Origin header which gets automatically added)

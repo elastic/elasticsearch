@@ -88,6 +88,8 @@ public abstract class RestRequest extends ContextAndHeaderHolder implements ToXC
 
     public abstract Map<String, String> params();
 
+    public abstract boolean allParamsConsumed();
+
     public float paramAsFloat(String key, float defaultValue) {
         String sValue = param(key);
         if (sValue == null) {

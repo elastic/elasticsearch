@@ -187,7 +187,7 @@ public class ScriptConditionTests extends ESTestCase {
 
     public void testScriptConditionAccessCtx() throws Exception {
         ScriptServiceProxy scriptService = getScriptServiceProxy(tp);
-        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.trigger.scheduled_time.getMillis() < System.currentTimeMillis() ").build()), logger, scriptService);
+        ExecutableScriptCondition condition = new ExecutableScriptCondition(new ScriptCondition(Script.inline("ctx.trigger.scheduled_time.getMillis() < new Date().time ").build()), logger, scriptService);
         SearchResponse response = new SearchResponse(InternalSearchResponse.empty(), "", 3, 3, 500l, new ShardSearchFailure[0]);
         WatchExecutionContext ctx = mockExecutionContext("_name", new DateTime(DateTimeZone.UTC), new Payload.XContent(response));
         Thread.sleep(10);

@@ -45,6 +45,7 @@ import org.elasticsearch.script.SearchScript;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.lookup.SearchLookup;
 
+import java.security.AccessControlContext;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.text.ParseException;
@@ -104,13 +105,15 @@ public class ExpressionScriptEngineService extends AbstractComponent implements 
             @Override
             public Expression run() {
                 try {
+                    // snapshot our context here, we check on behalf of the expression
+                    AccessControlContext engineContext = AccessController.getContext();
                     ClassLoader loader = getClass().getClassLoader();
                     if (sm != null) {
                         loader = new ClassLoader(loader) {
                             @Override
                             protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
                                 try {
-                                    sm.checkPermission(new ClassPermission(name));
+                                    engineContext.checkPermission(new ClassPermission(name));
                                 } catch (SecurityException e) {
                                     throw new ClassNotFoundException(name, e);
                                 }

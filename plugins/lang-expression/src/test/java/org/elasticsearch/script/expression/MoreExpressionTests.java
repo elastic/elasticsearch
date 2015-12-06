@@ -96,6 +96,16 @@ public class MoreExpressionTests extends ESIntegTestCase {
         assertEquals(1, rsp.getHits().getTotalHits());
         assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue());
     }
+    
+    public void testFunction() throws Exception {
+        createIndex("test");
+        ensureGreen("test");
+        client().prepareIndex("test", "doc", "1").setSource("foo", 4).setRefresh(true).get();
+        SearchResponse rsp = buildRequest("doc['foo'] + abs(1)").get();
+        assertSearchResponse(rsp);
+        assertEquals(1, rsp.getHits().getTotalHits());
+        assertEquals(5.0, rsp.getHits().getAt(0).field("foo").getValue());
+    }
 
     public void testBasicUsingDotValue() throws Exception {
         createIndex("test");

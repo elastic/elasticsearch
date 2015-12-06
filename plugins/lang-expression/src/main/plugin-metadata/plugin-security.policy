@@ -22,4 +22,13 @@ grant {
   permission java.lang.RuntimePermission "createClassLoader";
   // needed because of security problems in JavascriptCompiler
   permission java.lang.RuntimePermission "getClassLoader";
+  
+  // expression runtime
+  permission org.elasticsearch.script.ClassPermission "java.lang.String";
+  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.expressions.Expression";
+  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.queries.function.FunctionValues";
+  // available functions
+  permission org.elasticsearch.script.ClassPermission "java.lang.Math";
+  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.util.MathUtil";
+  permission org.elasticsearch.script.ClassPermission "org.apache.lucene.util.SloppyMath";
 };

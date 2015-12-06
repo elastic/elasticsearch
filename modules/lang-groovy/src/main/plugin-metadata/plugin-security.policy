@@ -28,4 +28,24 @@ grant {
   permission java.lang.RuntimePermission "closeClassLoader";
   // Allow executing groovy scripts with codesource of /untrusted
   permission groovy.security.GroovyCodeSourcePermission "/untrusted";
+
+  // Standard set of classes
+  permission org.elasticsearch.script.ClassPermission "<<STANDARD>>";
+  // groovy runtime (TODO: clean these up if possible)
+  permission org.elasticsearch.script.ClassPermission "groovy.grape.GrabAnnotationTransformation";
+  permission org.elasticsearch.script.ClassPermission "groovy.json.JsonOutput";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Binding";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.GroovyObject";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.GString";
+  permission org.elasticsearch.script.ClassPermission "groovy.lang.Script";
+  permission org.elasticsearch.script.ClassPermission "groovy.util.GroovyCollections";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.ast.builder.AstBuilderTransformation";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.reflection.ClassInfo";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.GStringImpl";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.powerassert.ValueRecorder";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.powerassert.AssertionRenderer";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.ScriptBytecodeAdapter";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.runtime.typehandling.DefaultTypeTransformation";
+  permission org.elasticsearch.script.ClassPermission "org.codehaus.groovy.vmplugin.v7.IndyInterface";
+  permission org.elasticsearch.script.ClassPermission "sun.reflect.ConstructorAccessorImpl";
 };

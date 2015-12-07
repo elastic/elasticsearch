@@ -13,9 +13,8 @@
             "processors": [
               {
                 "set" : {
-                  "fields" : {
-                    "field2": "_value"
-                  }
+                  "field" : "field2",
+                  "value": "_value"
                 }
               }
             ]

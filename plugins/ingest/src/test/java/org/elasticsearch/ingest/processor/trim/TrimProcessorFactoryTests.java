@@ -33,20 +33,19 @@ public class TrimProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         TrimProcessor.Factory factory = new TrimProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        List<String> fields = Collections.singletonList("field1");
-        config.put("fields", fields);
+        config.put("field", "field1");
         TrimProcessor uppercaseProcessor = factory.create(config);
-        assertThat(uppercaseProcessor.getFields(), equalTo(fields));
+        assertThat(uppercaseProcessor.getField(), equalTo("field1"));
     }
 
-    public void testCreateMissingFields() throws Exception {
+    public void testCreateMissingField() throws Exception {
         TrimProcessor.Factory factory = new TrimProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [fields] is missing"));
+            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
         }
     }
 }

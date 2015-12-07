@@ -13,9 +13,8 @@
             "processors": [
               {
                 "set" : {
-                  "fields" : {
-                    "field2" : "_value"
-                  }
+                  "field" : "field2",
+                  "value" : "_value"
                 }
               }
             ]
@@ -67,9 +66,8 @@
               "processors": [
                 {
                   "set" : {
-                    "fields" : {
-                      "field2" : "_value"
-                    }
+                    "field" : "field2",
+                    "value" : "_value"
                   }
                 }
               ]
@@ -130,16 +128,14 @@
               "processors": [
                 {
                   "set" : {
-                    "fields" : {
-                      "field2" : "_value"
-                    }
+                    "field" : "field2",
+                    "value" : "_value"
                   }
                 },
                 {
                   "set" : {
-                    "fields" : {
-                      "field3" : "third_val"
-                    }
+                    "field" : "field3",
+                    "value" : "third_val"
                   }
                 }
               ]
@@ -182,7 +178,7 @@
               "processors": [
                 {
                   "uppercase" : {
-                    "fields" : ["foo"]
+                    "field" : "foo"
                   }
                 }
               ]
@@ -227,14 +223,13 @@
               "processors": [
                 {
                   "convert" : {
-                    "fields" : {
-                      "foo": "integer"
-                    }
+                    "field" : "foo",
+                    "type" : "integer"
                   }
                 },
                 {
                   "uppercase" : {
-                    "fields" : ["bar"]
+                    "field" : "bar"
                   }
                 }
               ]

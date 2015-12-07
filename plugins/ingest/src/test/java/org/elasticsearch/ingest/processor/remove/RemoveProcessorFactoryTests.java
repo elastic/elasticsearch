@@ -33,20 +33,19 @@ public class RemoveProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         RemoveProcessor.Factory factory = new RemoveProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        List<String> fields = Collections.singletonList("field1");
-        config.put("fields", fields);
+        config.put("field", "field1");
         RemoveProcessor removeProcessor = factory.create(config);
-        assertThat(removeProcessor.getFields(), equalTo(fields));
+        assertThat(removeProcessor.getField(), equalTo("field1"));
     }
 
-    public void testCreateMissingFields() throws Exception {
+    public void testCreateMissingField() throws Exception {
         RemoveProcessor.Factory factory = new RemoveProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [fields] is missing"));
+            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
         }
     }
 }

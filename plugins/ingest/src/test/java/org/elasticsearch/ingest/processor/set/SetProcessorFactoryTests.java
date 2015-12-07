@@ -32,20 +32,47 @@ public class SetProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         SetProcessor.Factory factory = new SetProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        Map<String, String> fields = Collections.singletonMap("field1", "value1");
-        config.put("fields", fields);
+        config.put("field", "field1");
+        config.put("value", "value1");
         SetProcessor setProcessor = factory.create(config);
-        assertThat(setProcessor.getFields(), equalTo(fields));
+        assertThat(setProcessor.getField(), equalTo("field1"));
+        assertThat(setProcessor.getValue(), equalTo("value1"));
     }
 
-    public void testCreateMissingFields() throws Exception {
+    public void testCreateNoFieldPresent() throws Exception {
         SetProcessor.Factory factory = new SetProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
+        config.put("value", "value1");
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [fields] is missing"));
+            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
+        }
+    }
+
+    public void testCreateNoValuePresent() throws Exception {
+        SetProcessor.Factory factory = new SetProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("required property [value] is missing"));
+        }
+    }
+
+    public void testCreateNullValue() throws Exception {
+        SetProcessor.Factory factory = new SetProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        config.put("value", null);
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("required property [value] is missing"));
         }
     }
 }

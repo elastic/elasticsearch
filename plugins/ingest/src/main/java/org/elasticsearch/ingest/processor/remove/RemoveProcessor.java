@@ -23,9 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.util.Collection;
-import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 
 /**
@@ -35,21 +32,19 @@ public class RemoveProcessor implements Processor {
 
     public static final String TYPE = "remove";
 
-    private final Collection<String> fields;
+    private final String field;
 
-    RemoveProcessor(Collection<String> fields) {
-        this.fields = fields;
+    RemoveProcessor(String field) {
+        this.field = field;
     }
 
-    Collection<String> getFields() {
-        return fields;
+    String getField() {
+        return field;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        for(String field : fields) {
-            document.removeField(field);
-        }
+        document.removeField(field);
     }
 
     @Override
@@ -60,8 +55,8 @@ public class RemoveProcessor implements Processor {
     public static class Factory implements Processor.Factory<RemoveProcessor> {
         @Override
         public RemoveProcessor create(Map<String, Object> config) throws Exception {
-            List<String> fields = ConfigurationUtils.readList(config, "fields");
-            return new RemoveProcessor(Collections.unmodifiableList(fields));
+            String field = ConfigurationUtils.readStringProperty(config, "field");
+            return new RemoveProcessor(field);
         }
     }
 }

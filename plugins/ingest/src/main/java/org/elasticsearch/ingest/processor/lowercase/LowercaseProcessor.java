@@ -33,8 +33,8 @@ public class LowercaseProcessor extends AbstractStringProcessor {
 
     public static final String TYPE = "lowercase";
 
-    LowercaseProcessor(Collection<String> fields) {
-        super(fields);
+    LowercaseProcessor(String field) {
+        super(field);
     }
 
     @Override
@@ -49,8 +49,8 @@ public class LowercaseProcessor extends AbstractStringProcessor {
 
     public static class Factory extends AbstractStringProcessor.Factory<LowercaseProcessor> {
         @Override
-        protected LowercaseProcessor newProcessor(Collection<String> fields) {
-            return new LowercaseProcessor(fields);
+        protected LowercaseProcessor newProcessor(String field) {
+            return new LowercaseProcessor(field);
         }
     }
 }

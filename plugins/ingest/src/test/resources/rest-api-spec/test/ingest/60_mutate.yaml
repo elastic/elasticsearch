@@ -13,76 +13,59 @@
             "processors": [
               {
                 "set" : {
-                  "fields" : {
-                    "new_field": "new_value"
-                  }
+                  "field" : "new_field",
+                  "value": "new_value"
                 }
               },
               {
                 "rename" : {
-                  "fields" : {
-                    "field_to_rename": "renamed_field"
-                  }
+                  "field" : "field_to_rename",
+                  "to": "renamed_field"
                 }
               },
               {
                 "remove" : {
-                  "fields" : [
-                    "field_to_remove"
-                  ]
+                  "field" : "field_to_remove"
                 }
               },
               {
                 "lowercase" : {
-                  "fields" : [
-                    "field_to_lowercase"
-                  ]
+                  "field" : "field_to_lowercase"
                 }
               },
               {
                 "uppercase" : {
-                  "fields" : [
-                    "field_to_uppercase"
-                  ]
+                  "field" : "field_to_uppercase"
                 }
               },
               {
                 "trim" : {
-                  "fields" : [
-                    "field_to_trim"
-                  ]
+                  "field" : "field_to_trim"
                 }
               },
               {
                 "split" : {
-                  "fields" : {
-                    "field_to_split": "-"
-                  }
+                  "field" : "field_to_split",
+                  "separator": "-"
                 }
               },
               {
                 "join" : {
-                  "fields" : {
-                    "field_to_join": "-"
-                  }
+                  "field" : "field_to_join",
+                  "separator": "-"
                 }
               },
               {
                 "convert" : {
-                  "fields" : {
-                    "field_to_convert": "integer"
-                  }
+                  "field" : "field_to_convert",
+                  "type": "integer"
                 }
               },
               {
                 "gsub" : {
-                  "expressions" : [
-                    {
-                      "field": "field_to_gsub",
-                      "pattern" : "-",
-                      "replacement" : "."
-                    }
-                  ]
+                  "field": "field_to_gsub",
+                  "pattern" : "-",
+                  "replacement" : "."
                 }
               }
             ]

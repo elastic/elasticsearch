@@ -32,20 +32,34 @@ public class RenameProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         RenameProcessor.Factory factory = new RenameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        Map<String, String> fields = Collections.singletonMap("field1", "value1");
-        config.put("fields", fields);
+        config.put("field", "old_field");
+        config.put("to", "new_field");
         RenameProcessor renameProcessor = factory.create(config);
-        assertThat(renameProcessor.getFields(), equalTo(fields));
+        assertThat(renameProcessor.getOldFieldName(), equalTo("old_field"));
+        assertThat(renameProcessor.getNewFieldName(), equalTo("new_field"));
     }
 
-    public void testCreateMissingFields() throws Exception {
+    public void testCreateNoFieldPresent() throws Exception {
         RenameProcessor.Factory factory = new RenameProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
+        config.put("to", "new_field");
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [fields] is missing"));
+            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
+        }
+    }
+
+    public void testCreateNoToPresent() throws Exception {
+        RenameProcessor.Factory factory = new RenameProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "old_field");
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("required property [to] is missing"));
         }
     }
 }

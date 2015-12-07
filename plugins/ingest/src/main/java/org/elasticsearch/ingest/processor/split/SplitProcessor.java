@@ -36,25 +36,29 @@ public class SplitProcessor implements Processor {
 
     public static final String TYPE = "split";
 
-    private final Map<String, String> fields;
+    private final String field;
+    private final String separator;
 
-    SplitProcessor(Map<String, String> fields) {
-        this.fields = fields;
+    SplitProcessor(String field, String separator) {
+        this.field = field;
+        this.separator = separator;
     }
 
-    Map<String, String> getFields() {
-        return fields;
+    String getField() {
+        return field;
+    }
+
+    String getSeparator() {
+        return separator;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        for(Map.Entry<String, String> entry : fields.entrySet()) {
-            String oldVal = document.getFieldValue(entry.getKey(), String.class);
-            if (oldVal == null) {
-                throw new IllegalArgumentException("field [" + entry.getKey() + "] is null, cannot split.");
-            }
-            document.setFieldValue(entry.getKey(), Arrays.asList(oldVal.split(entry.getValue())));
+        String oldVal = document.getFieldValue(field, String.class);
+        if (oldVal == null) {
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot split.");
         }
+        document.setFieldValue(field, Arrays.asList(oldVal.split(separator)));
     }
 
     @Override
@@ -65,8 +69,8 @@ public class SplitProcessor implements Processor {
     public static class Factory implements Processor.Factory<SplitProcessor> {
         @Override
         public SplitProcessor create(Map<String, Object> config) throws Exception {
-            Map<String, String> fields = ConfigurationUtils.readMap(config, "fields");
-            return new SplitProcessor(Collections.unmodifiableMap(fields));
+            String field = ConfigurationUtils.readStringProperty(config, "field");
+            return new SplitProcessor(field, ConfigurationUtils.readStringProperty(config, "separator"));
         }
     }
 }

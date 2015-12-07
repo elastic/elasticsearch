@@ -21,7 +21,6 @@ package org.elasticsearch.ingest.processor.join;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -32,20 +31,34 @@ public class JoinProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         JoinProcessor.Factory factory = new JoinProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        Map<String, String> fields = Collections.singletonMap("field1", "-");
-        config.put("fields", fields);
+        config.put("field", "field1");
+        config.put("separator", "-");
         JoinProcessor joinProcessor = factory.create(config);
-        assertThat(joinProcessor.getFields(), equalTo(fields));
+        assertThat(joinProcessor.getField(), equalTo("field1"));
+        assertThat(joinProcessor.getSeparator(), equalTo("-"));
     }
 
-    public void testCreateMissingFields() throws Exception {
+    public void testCreateNoFieldPresent() throws Exception {
         JoinProcessor.Factory factory = new JoinProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
+        config.put("separator", "-");
         try {
             factory.create(config);
             fail("factory create should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [fields] is missing"));
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
+        }
+    }
+
+    public void testCreateNoSeparatorPresent() throws Exception {
+        JoinProcessor.Factory factory = new JoinProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("required property [separator] is missing"));
         }
     }
 }

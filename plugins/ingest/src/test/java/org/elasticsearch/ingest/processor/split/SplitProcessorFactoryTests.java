@@ -32,20 +32,34 @@ public class SplitProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         SplitProcessor.Factory factory = new SplitProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        Map<String, String> fields = Collections.singletonMap("field1", "\\.");
-        config.put("fields", fields);
+        config.put("field", "field1");
+        config.put("separator", "\\.");
         SplitProcessor splitProcessor = factory.create(config);
-        assertThat(splitProcessor.getFields(), equalTo(fields));
+        assertThat(splitProcessor.getField(), equalTo("field1"));
+        assertThat(splitProcessor.getSeparator(), equalTo("\\."));
     }
 
-    public void testCreateMissingFields() throws Exception {
+    public void testCreateNoFieldPresent() throws Exception {
         SplitProcessor.Factory factory = new SplitProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
+        config.put("separator", "\\.");
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [fields] is missing"));
+            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
+        }
+    }
+
+    public void testCreateNoSeparatorPresent() throws Exception {
+        SplitProcessor.Factory factory = new SplitProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch(IllegalArgumentException e) {
+            assertThat(e.getMessage(), equalTo("required property [separator] is missing"));
         }
     }
 }

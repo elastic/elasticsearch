@@ -33,20 +33,19 @@ public class UppercaseProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         UppercaseProcessor.Factory factory = new UppercaseProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        List<String> fields = Collections.singletonList("field1");
-        config.put("fields", fields);
+        config.put("field", "field1");
         UppercaseProcessor uppercaseProcessor = factory.create(config);
-        assertThat(uppercaseProcessor.getFields(), equalTo(fields));
+        assertThat(uppercaseProcessor.getField(), equalTo("field1"));
     }
 
-    public void testCreateMissingFields() throws Exception {
+    public void testCreateMissingField() throws Exception {
         UppercaseProcessor.Factory factory = new UppercaseProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [fields] is missing"));
+            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
         }
     }
 }

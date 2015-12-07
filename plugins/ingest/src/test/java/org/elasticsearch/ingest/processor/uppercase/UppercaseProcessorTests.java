@@ -28,8 +28,8 @@ import java.util.Locale;
 public class UppercaseProcessorTests extends AbstractStringProcessorTestCase {
 
     @Override
-    protected AbstractStringProcessor newProcessor(Collection<String> fields) {
-        return new UppercaseProcessor(fields);
+    protected AbstractStringProcessor newProcessor(String field) {
+        return new UppercaseProcessor(field);
     }
 
     @Override

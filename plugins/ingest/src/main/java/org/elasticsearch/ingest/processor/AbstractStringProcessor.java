@@ -32,25 +32,23 @@ import java.util.Map;
  */
 public abstract class AbstractStringProcessor implements Processor {
 
-    private final Collection<String> fields;
+    private final String field;
 
-    protected AbstractStringProcessor(Collection<String> fields) {
-        this.fields = fields;
+    protected AbstractStringProcessor(String field) {
+        this.field = field;
     }
 
-    public Collection<String> getFields() {
-        return fields;
+    public String getField() {
+        return field;
     }
 
     @Override
     public final void execute(IngestDocument document) {
-        for(String field : fields) {
-            String val = document.getFieldValue(field, String.class);
-            if (val == null) {
-                throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
-            }
-            document.setFieldValue(field, process(val));
+        String val = document.getFieldValue(field, String.class);
+        if (val == null) {
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot process it.");
         }
+        document.setFieldValue(field, process(val));
     }
 
     protected abstract String process(String value);
@@ -58,10 +56,10 @@ public abstract class AbstractStringProcessor implements Processor {
     public static abstract class Factory<T extends AbstractStringProcessor> implements Processor.Factory<T> {
         @Override
         public T create(Map<String, Object> config) throws Exception {
-            List<String> fields = ConfigurationUtils.readList(config, "fields");
-            return newProcessor(Collections.unmodifiableList(fields));
+            String field = ConfigurationUtils.readStringProperty(config, "field");
+            return newProcessor(field);
         }
 
-        protected abstract T newProcessor(Collection<String> fields);
+        protected abstract T newProcessor(String field);
     }
 }

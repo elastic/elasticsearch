@@ -35,68 +35,49 @@ public class JoinProcessorTests extends ESTestCase {
 
     public void testJoinStrings() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, String> fields = new HashMap<>();
-        Map<String, String> expectedResultMap = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            int numItems = randomIntBetween(1, 10);
-            String separator = randomFrom(SEPARATORS);
-            List<String> fieldValue = new ArrayList<>(numItems);
-            String expectedResult = "";
-            for (int j = 0; j < numItems; j++) {
-                String value = randomAsciiOfLengthBetween(1, 10);
-                fieldValue.add(value);
-                expectedResult += value;
-                if (j < numItems - 1) {
-                    expectedResult += separator;
-                }
+        int numItems = randomIntBetween(1, 10);
+        String separator = randomFrom(SEPARATORS);
+        List<String> fieldValue = new ArrayList<>(numItems);
+        String expectedResult = "";
+        for (int j = 0; j < numItems; j++) {
+            String value = randomAsciiOfLengthBetween(1, 10);
+            fieldValue.add(value);
+            expectedResult += value;
+            if (j < numItems - 1) {
+                expectedResult += separator;
             }
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-            expectedResultMap.put(fieldName, expectedResult);
-            fields.put(fieldName, separator);
         }
-        Processor processor = new JoinProcessor(fields);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new JoinProcessor(fieldName, separator);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, String> entry : expectedResultMap.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), String.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult));
     }
 
     public void testJoinIntegers() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, String> fields = new HashMap<>();
-        Map<String, String> expectedResultMap = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            int numItems = randomIntBetween(1, 10);
-            String separator = randomFrom(SEPARATORS);
-            List<Integer> fieldValue = new ArrayList<>(numItems);
-            String expectedResult = "";
-            for (int j = 0; j < numItems; j++) {
-                int value = randomInt();
-                fieldValue.add(value);
-                expectedResult += value;
-                if (j < numItems - 1) {
-                    expectedResult += separator;
-                }
+        int numItems = randomIntBetween(1, 10);
+        String separator = randomFrom(SEPARATORS);
+        List<Integer> fieldValue = new ArrayList<>(numItems);
+        String expectedResult = "";
+        for (int j = 0; j < numItems; j++) {
+            int value = randomInt();
+            fieldValue.add(value);
+            expectedResult += value;
+            if (j < numItems - 1) {
+                expectedResult += separator;
             }
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-            expectedResultMap.put(fieldName, expectedResult);
-            fields.put(fieldName, separator);
         }
-        Processor processor = new JoinProcessor(fields);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new JoinProcessor(fieldName, separator);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, String> entry : expectedResultMap.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), String.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedResult));
     }
 
     public void testJoinNonListField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, randomAsciiOfLengthBetween(1, 10));
-        Map<String, String> join = Collections.singletonMap(fieldName, "-");
-        Processor processor = new JoinProcessor(join);
+        Processor processor = new JoinProcessor(fieldName, "-");
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
@@ -107,7 +88,7 @@ public class JoinProcessorTests extends ESTestCase {
     public void testJoinNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new JoinProcessor(Collections.singletonMap(fieldName, "-"));
+        Processor processor = new JoinProcessor(fieldName, "-");
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {
@@ -117,7 +98,7 @@ public class JoinProcessorTests extends ESTestCase {
 
     public void testJoinNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        Processor processor = new JoinProcessor(Collections.singletonMap("field", "-"));
+        Processor processor = new JoinProcessor("field", "-");
         try {
             processor.execute(ingestDocument);
         } catch(IllegalArgumentException e) {

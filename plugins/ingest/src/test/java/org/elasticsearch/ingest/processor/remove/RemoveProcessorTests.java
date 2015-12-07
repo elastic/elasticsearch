@@ -36,22 +36,16 @@ public class RemoveProcessorTests extends ESTestCase {
 
     public void testRemoveFields() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        int numFields = randomIntBetween(1, 5);
-        Set<String> fields = new HashSet<>();
-        for (int i = 0; i < numFields; i++) {
-            fields.add(RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument));
-        }
-        Processor processor = new RemoveProcessor(fields);
+        String field = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        Processor processor = new RemoveProcessor(field);
         processor.execute(ingestDocument);
-        for (String field : fields) {
-            assertThat(ingestDocument.hasField(field), equalTo(false));
-        }
+        assertThat(ingestDocument.hasField(field), equalTo(false));
     }
 
     public void testRemoveNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new RemoveProcessor(Collections.singletonList(fieldName));
+        Processor processor = new RemoveProcessor(fieldName);
         try {
             processor.execute(ingestDocument);
             fail("remove field should have failed");

@@ -37,25 +37,17 @@ public class GsubProcessorTests extends ESTestCase {
 
     public void testGsub() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        int numFields = randomIntBetween(1, 5);
-        List<GsubExpression> expressions = new ArrayList<>();
-        for (int i = 0; i < numFields; i++) {
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
-            expressions.add(new GsubExpression(fieldName, Pattern.compile("\\."), "-"));
-        }
-        Processor processor = new GsubProcessor(expressions);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, "127.0.0.1");
+        Processor processor = new GsubProcessor(fieldName, Pattern.compile("\\."), "-");
         processor.execute(ingestDocument);
-        for (GsubExpression expression : expressions) {
-            assertThat(ingestDocument.getFieldValue(expression.getFieldName(), String.class), equalTo("127-0-0-1"));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo("127-0-0-1"));
     }
 
     public void testGsubNotAStringValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, 123);
-        List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression(fieldName, Pattern.compile("\\."), "-"));
-        Processor processor = new GsubProcessor(gsubExpressions);
+        Processor processor = new GsubProcessor(fieldName, Pattern.compile("\\."), "-");
         try {
             processor.execute(ingestDocument);
             fail("processor execution should have failed");
@@ -67,8 +59,7 @@ public class GsubProcessorTests extends ESTestCase {
     public void testGsubFieldNotFound() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression(fieldName, Pattern.compile("\\."), "-"));
-        Processor processor = new GsubProcessor(gsubExpressions);
+        Processor processor = new GsubProcessor(fieldName, Pattern.compile("\\."), "-");
         try {
             processor.execute(ingestDocument);
             fail("processor execution should have failed");
@@ -79,8 +70,7 @@ public class GsubProcessorTests extends ESTestCase {
 
     public void testGsubNullValue() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
-        List<GsubExpression> gsubExpressions = Collections.singletonList(new GsubExpression("field", Pattern.compile("\\."), "-"));
-        Processor processor = new GsubProcessor(gsubExpressions);
+        Processor processor = new GsubProcessor("field", Pattern.compile("\\."), "-");
         try {
             processor.execute(ingestDocument);
             fail("processor execution should have failed");

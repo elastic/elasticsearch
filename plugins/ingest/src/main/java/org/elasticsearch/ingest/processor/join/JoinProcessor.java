@@ -23,7 +23,7 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.util.Collections;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -36,28 +36,32 @@ public class JoinProcessor implements Processor {
 
     public static final String TYPE = "join";
 
-    private final Map<String, String> fields;
+    private final String field;
+    private final String separator;
 
-    JoinProcessor(Map<String, String> fields) {
-        this.fields = fields;
+    JoinProcessor(String field, String separator) {
+        this.field = field;
+        this.separator = separator;
     }
 
-    Map<String, String> getFields() {
-        return fields;
+    String getField() {
+        return field;
+    }
+
+    String getSeparator() {
+        return separator;
     }
 
     @Override
     public void execute(IngestDocument document) {
-        for(Map.Entry<String, String> entry : fields.entrySet()) {
-            List<?> list = document.getFieldValue(entry.getKey(), List.class);
-            if (list == null) {
-                throw new IllegalArgumentException("field [" + entry.getKey() + "] is null, cannot join.");
-            }
-            String joined = list.stream()
-                    .map(Object::toString)
-                    .collect(Collectors.joining(entry.getValue()));
-            document.setFieldValue(entry.getKey(), joined);
+        List<?> list = document.getFieldValue(field, List.class);
+        if (list == null) {
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot join.");
         }
+        String joined = list.stream()
+                .map(Object::toString)
+                .collect(Collectors.joining(separator));
+        document.setFieldValue(field, joined);
     }
 
     @Override
@@ -68,8 +72,9 @@ public class JoinProcessor implements Processor {
     public static class Factory implements Processor.Factory<JoinProcessor> {
         @Override
         public JoinProcessor create(Map<String, Object> config) throws Exception {
-            Map<String, String> fields = ConfigurationUtils.readMap(config, "fields");
-            return new JoinProcessor(Collections.unmodifiableMap(fields));
+            String field = ConfigurationUtils.readStringProperty(config, "field");
+            String separator = ConfigurationUtils.readStringProperty(config, "separator");
+            return new JoinProcessor(field, separator);
         }
     }
 }

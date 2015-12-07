@@ -34,35 +34,49 @@ public class ConvertProcessorFactoryTests extends ESTestCase {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         ConvertProcessor.Type type = randomFrom(ConvertProcessor.Type.values());
-        Map<String, String> fields = Collections.singletonMap("field1", type.toString());
-        config.put("fields", fields);
+        config.put("field", "field1");
+        config.put("type", type.toString());
         ConvertProcessor convertProcessor = factory.create(config);
-        assertThat(convertProcessor.getFields().size(), equalTo(1));
-        assertThat(convertProcessor.getFields().get("field1"), equalTo(type));
-    }
-
-    public void testCreateMissingFields() throws Exception {
-        ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
-        Map<String, Object> config = new HashMap<>();
-        try {
-            factory.create(config);
-            fail("factory create should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [fields] is missing"));
-        }
+        assertThat(convertProcessor.getField(), equalTo("field1"));
+        assertThat(convertProcessor.getConvertType(), equalTo(type));
     }
 
     public void testCreateUnsupportedType() throws Exception {
         ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
         String type = "type-" + randomAsciiOfLengthBetween(1, 10);
-        Map<String, String> fields = Collections.singletonMap("field1", type);
-        config.put("fields", fields);
+        config.put("field", "field1");
+        config.put("type", type);
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch (IllegalArgumentException e) {
             assertThat(e.getMessage(), Matchers.equalTo("type [" + type + "] not supported, cannot convert field."));
+        }
+    }
+
+    public void testCreateNoFieldPresent() throws Exception {
+        ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        String type = "type-" + randomAsciiOfLengthBetween(1, 10);
+        config.put("type", type);
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), Matchers.equalTo("required property [field] is missing"));
+        }
+    }
+
+    public void testCreateNoTypePresent() throws Exception {
+        ConvertProcessor.Factory factory = new ConvertProcessor.Factory();
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "field1");
+        try {
+            factory.create(config);
+            fail("factory create should have failed");
+        } catch (IllegalArgumentException e) {
+            assertThat(e.getMessage(), Matchers.equalTo("required property [type] is missing"));
         }
     }
 }

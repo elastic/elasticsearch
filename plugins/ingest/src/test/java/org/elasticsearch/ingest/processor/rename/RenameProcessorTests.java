@@ -34,26 +34,15 @@ public class RenameProcessorTests extends ESTestCase {
 
     public void testRename() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        int numFields = randomIntBetween(1, 5);
-        Map<String, String> fields = new HashMap<>();
-        Map<String, Object> newFields = new HashMap<>();
-        for (int i = 0; i < numFields; i++) {
-            String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-            if (fields.containsKey(fieldName)) {
-                continue;
-            }
-            String newFieldName;
-            do {
-                newFieldName = RandomDocumentPicks.randomFieldName(random());
-            } while (RandomDocumentPicks.canAddField(newFieldName, ingestDocument) == false || newFields.containsKey(newFieldName));
-            newFields.put(newFieldName, ingestDocument.getFieldValue(fieldName, Object.class));
-            fields.put(fieldName, newFieldName);
-        }
-        Processor processor = new RenameProcessor(fields);
+        String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
+        Object fieldValue = ingestDocument.getFieldValue(fieldName, Object.class);
+        String newFieldName;
+        do {
+            newFieldName = RandomDocumentPicks.randomFieldName(random());
+        } while (RandomDocumentPicks.canAddField(newFieldName, ingestDocument) == false || newFieldName.equals(fieldName));
+        Processor processor = new RenameProcessor(fieldName, newFieldName);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, Object> entry : newFields.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), Object.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(newFieldName, Object.class), equalTo(fieldValue));
     }
 
     public void testRenameArrayElement() throws Exception {
@@ -69,7 +58,7 @@ public class RenameProcessorTests extends ESTestCase {
         document.put("one", one);
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
 
-        Processor processor = new RenameProcessor(Collections.singletonMap("list.0", "item"));
+        Processor processor = new RenameProcessor("list.0", "item");
         processor.execute(ingestDocument);
         Object actualObject = ingestDocument.getSource().get("list");
         assertThat(actualObject, instanceOf(List.class));
@@ -82,7 +71,7 @@ public class RenameProcessorTests extends ESTestCase {
         assertThat(actualObject, instanceOf(String.class));
         assertThat(actualObject, equalTo("item1"));
 
-        processor = new RenameProcessor(Collections.singletonMap("list.0", "list.3"));
+        processor = new RenameProcessor("list.0", "list.3");
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -97,7 +86,7 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new RenameProcessor(Collections.singletonMap(fieldName, RandomDocumentPicks.randomFieldName(random())));
+        Processor processor = new RenameProcessor(fieldName, RandomDocumentPicks.randomFieldName(random()));
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -109,7 +98,7 @@ public class RenameProcessorTests extends ESTestCase {
     public void testRenameNewFieldAlreadyExists() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         String fieldName = RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument);
-        Processor processor = new RenameProcessor(Collections.singletonMap(RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument), fieldName));
+        Processor processor = new RenameProcessor(RandomDocumentPicks.randomExistingFieldName(random(), ingestDocument), fieldName);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -123,7 +112,7 @@ public class RenameProcessorTests extends ESTestCase {
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         ingestDocument.setFieldValue(fieldName, null);
         String newFieldName = RandomDocumentPicks.randomFieldName(random());
-        Processor processor = new RenameProcessor(Collections.singletonMap(fieldName, newFieldName));
+        Processor processor = new RenameProcessor(fieldName, newFieldName);
         processor.execute(ingestDocument);
         assertThat(ingestDocument.hasField(fieldName), equalTo(false));
         assertThat(ingestDocument.hasField(newFieldName), equalTo(true));
@@ -144,7 +133,7 @@ public class RenameProcessorTests extends ESTestCase {
         document.put("list", Collections.singletonList("item"));
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        Processor processor = new RenameProcessor(Collections.singletonMap("list", "new_field"));
+        Processor processor = new RenameProcessor("list", "new_field");
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -169,7 +158,7 @@ public class RenameProcessorTests extends ESTestCase {
         document.put("list", Collections.singletonList("item"));
 
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), document);
-        Processor processor = new RenameProcessor(Collections.singletonMap("list", "new_field"));
+        Processor processor = new RenameProcessor("list", "new_field");
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");

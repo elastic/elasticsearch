@@ -33,80 +33,51 @@ public class GsubProcessorFactoryTests extends ESTestCase {
     public void testCreate() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        List<Map<String, String>> expressions = new ArrayList<>();
-        Map<String, String> expression = new HashMap<>();
-        expression.put("field", "field1");
-        expression.put("pattern", "\\.");
-        expression.put("replacement", "-");
-        expressions.add(expression);
-        config.put("expressions", expressions);
+        config.put("field", "field1");
+        config.put("pattern", "\\.");
+        config.put("replacement", "-");
         GsubProcessor gsubProcessor = factory.create(config);
-        assertThat(gsubProcessor.getGsubExpressions().size(), equalTo(1));
-        GsubExpression gsubExpression = gsubProcessor.getGsubExpressions().get(0);
-        assertThat(gsubExpression.getFieldName(), equalTo("field1"));
-        assertThat(gsubExpression.getPattern().toString(), equalTo("\\."));
-        assertThat(gsubExpression.getReplacement(), equalTo("-"));
-    }
-
-    public void testCreateMissingExpressions() throws Exception {
-        GsubProcessor.Factory factory = new GsubProcessor.Factory();
-        Map<String, Object> config = new HashMap<>();
-        try {
-            factory.create(config);
-            fail("factory create should have failed");
-        } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("required property [expressions] is missing"));
-        }
+        assertThat(gsubProcessor.getField(), equalTo("field1"));
+        assertThat(gsubProcessor.getPattern().toString(), equalTo("\\."));
+        assertThat(gsubProcessor.getReplacement(), equalTo("-"));
     }
 
     public void testCreateNoFieldPresent() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        List<Map<String, String>> expressions = new ArrayList<>();
-        Map<String, String> expression = new HashMap<>();
-        expression.put("pattern", "\\.");
-        expression.put("replacement", "-");
-        expressions.add(expression);
-        config.put("expressions", expressions);
+        config.put("pattern", "\\.");
+        config.put("replacement", "-");
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("no [field] specified for gsub expression"));
+            assertThat(e.getMessage(), equalTo("required property [field] is missing"));
         }
     }
 
     public void testCreateNoPatternPresent() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        List<Map<String, String>> expressions = new ArrayList<>();
-        Map<String, String> expression = new HashMap<>();
-        expression.put("field", "field1");
-        expression.put("replacement", "-");
-        expressions.add(expression);
-        config.put("expressions", expressions);
+        config.put("field", "field1");
+        config.put("replacement", "-");
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("no [pattern] specified for gsub expression"));
+            assertThat(e.getMessage(), equalTo("required property [pattern] is missing"));
         }
     }
 
     public void testCreateNoReplacementPresent() throws Exception {
         GsubProcessor.Factory factory = new GsubProcessor.Factory();
         Map<String, Object> config = new HashMap<>();
-        List<Map<String, String>> expressions = new ArrayList<>();
-        Map<String, String> expression = new HashMap<>();
-        expression.put("field", "field1");
-        expression.put("pattern", "\\.");
-        expressions.add(expression);
-        config.put("expressions", expressions);
+        config.put("field", "field1");
+        config.put("pattern", "\\.");
         try {
             factory.create(config);
             fail("factory create should have failed");
         } catch(IllegalArgumentException e) {
-            assertThat(e.getMessage(), equalTo("no [replacement] specified for gsub expression"));
+            assertThat(e.getMessage(), equalTo("required property [replacement] is missing"));
         }
     }
 }

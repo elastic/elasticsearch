@@ -34,45 +34,27 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertInt() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, ConvertProcessor.Type> fields = new HashMap<>();
-        Map<String, Integer> expectedResult = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            int randomInt = randomInt();
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomInt);
-            fields.put(fieldName, Type.INTEGER);
-            expectedResult.put(fieldName, randomInt);
-        }
-        Processor processor = new ConvertProcessor(fields);
+        int randomInt = randomInt();
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomInt);
+        Processor processor = new ConvertProcessor(fieldName, Type.INTEGER);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, Integer> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), Integer.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, Integer.class), equalTo(randomInt));
     }
 
     public void testConvertIntList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, ConvertProcessor.Type> fields = new HashMap<>();
-        Map<String, List<Integer>> expectedResult = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            int numItems = randomIntBetween(1, 10);
-            List<String> fieldValue = new ArrayList<>();
-            List<Integer> expectedList = new ArrayList<>();
-            for (int j = 0; j < numItems; j++) {
-                int randomInt = randomInt();
-                fieldValue.add(Integer.toString(randomInt));
-                expectedList.add(randomInt);
-            }
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-            fields.put(fieldName, Type.INTEGER);
-            expectedResult.put(fieldName, expectedList);
+        int numItems = randomIntBetween(1, 10);
+        List<String> fieldValue = new ArrayList<>();
+        List<Integer> expectedList = new ArrayList<>();
+        for (int j = 0; j < numItems; j++) {
+            int randomInt = randomInt();
+            fieldValue.add(Integer.toString(randomInt));
+            expectedList.add(randomInt);
         }
-        Processor processor = new ConvertProcessor(fields);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new ConvertProcessor(fieldName, Type.INTEGER);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, List<Integer>> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), List.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
 
     public void testConvertIntError() throws Exception {
@@ -81,8 +63,7 @@ public class ConvertProcessorTests extends ESTestCase {
         String value = "string-" + randomAsciiOfLengthBetween(1, 10);
         ingestDocument.setFieldValue(fieldName, value);
 
-        Map<String, Type> convert = Collections.singletonMap(fieldName, Type.INTEGER);
-        Processor processor = new ConvertProcessor(convert);
+        Processor processor = new ConvertProcessor(fieldName, Type.INTEGER);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -93,46 +74,30 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertFloat() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Type> fields = new HashMap<>();
         Map<String, Float> expectedResult = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            float randomFloat = randomFloat();
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomFloat);
-            fields.put(fieldName, Type.FLOAT);
-            expectedResult.put(fieldName, randomFloat);
-        }
+        float randomFloat = randomFloat();
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, randomFloat);
+        expectedResult.put(fieldName, randomFloat);
 
-        Processor processor = new ConvertProcessor(fields);
+        Processor processor = new ConvertProcessor(fieldName, Type.FLOAT);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, Float> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), Float.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, Float.class), equalTo(randomFloat));
     }
 
     public void testConvertFloatList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Type> fields = new HashMap<>();
-        Map<String, List<Float>> expectedResult = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            int numItems = randomIntBetween(1, 10);
-            List<String> fieldValue = new ArrayList<>();
-            List<Float> expectedList = new ArrayList<>();
-            for (int j = 0; j < numItems; j++) {
-                float randomFloat = randomFloat();
-                fieldValue.add(Float.toString(randomFloat));
-                expectedList.add(randomFloat);
-            }
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-            fields.put(fieldName, Type.FLOAT);
-            expectedResult.put(fieldName, expectedList);
+        int numItems = randomIntBetween(1, 10);
+        List<String> fieldValue = new ArrayList<>();
+        List<Float> expectedList = new ArrayList<>();
+        for (int j = 0; j < numItems; j++) {
+            float randomFloat = randomFloat();
+            fieldValue.add(Float.toString(randomFloat));
+            expectedList.add(randomFloat);
         }
-        Processor processor = new ConvertProcessor(fields);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new ConvertProcessor(fieldName, Type.FLOAT);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, List<Float>> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), List.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
 
     public void testConvertFloatError() throws Exception {
@@ -141,8 +106,7 @@ public class ConvertProcessorTests extends ESTestCase {
         String value = "string-" + randomAsciiOfLengthBetween(1, 10);
         ingestDocument.setFieldValue(fieldName, value);
 
-        Map<String, Type> convert = Collections.singletonMap(fieldName, Type.FLOAT);
-        Processor processor = new ConvertProcessor(convert);
+        Processor processor = new ConvertProcessor(fieldName, Type.FLOAT);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -155,52 +119,36 @@ public class ConvertProcessorTests extends ESTestCase {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
         Map<String, Type> fields = new HashMap<>();
         Map<String, Boolean> expectedResult = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
+        boolean randomBoolean = randomBoolean();
+        String booleanString = Boolean.toString(randomBoolean);
+        if (randomBoolean) {
+            booleanString = booleanString.toUpperCase(Locale.ROOT);
+        }
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, booleanString);
+
+        Processor processor = new ConvertProcessor(fieldName, Type.BOOLEAN);
+        processor.execute(ingestDocument);
+        assertThat(ingestDocument.getFieldValue(fieldName, Boolean.class), equalTo(randomBoolean));
+    }
+
+    public void testConvertBooleanList() throws Exception {
+        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
+        int numItems = randomIntBetween(1, 10);
+        List<String> fieldValue = new ArrayList<>();
+        List<Boolean> expectedList = new ArrayList<>();
+        for (int j = 0; j < numItems; j++) {
             boolean randomBoolean = randomBoolean();
             String booleanString = Boolean.toString(randomBoolean);
             if (randomBoolean) {
                 booleanString = booleanString.toUpperCase(Locale.ROOT);
             }
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, booleanString);
-            fields.put(fieldName, Type.BOOLEAN);
-            expectedResult.put(fieldName, randomBoolean);
+            fieldValue.add(booleanString);
+            expectedList.add(randomBoolean);
         }
-
-        Processor processor = new ConvertProcessor(fields);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new ConvertProcessor(fieldName, Type.BOOLEAN);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, Boolean> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), Boolean.class), equalTo(entry.getValue()));
-        }
-    }
-
-    public void testConvertBooleanList() throws Exception {
-        IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Type> fields = new HashMap<>();
-        Map<String, List<Boolean>> expectedResult = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            int numItems = randomIntBetween(1, 10);
-            List<String> fieldValue = new ArrayList<>();
-            List<Boolean> expectedList = new ArrayList<>();
-            for (int j = 0; j < numItems; j++) {
-                boolean randomBoolean = randomBoolean();
-                String booleanString = Boolean.toString(randomBoolean);
-                if (randomBoolean) {
-                    booleanString = booleanString.toUpperCase(Locale.ROOT);
-                }
-                fieldValue.add(booleanString);
-                expectedList.add(randomBoolean);
-            }
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-            fields.put(fieldName, Type.BOOLEAN);
-            expectedResult.put(fieldName, expectedList);
-        }
-        Processor processor = new ConvertProcessor(fields);
-        processor.execute(ingestDocument);
-        for (Map.Entry<String, List<Boolean>> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), List.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
 
     public void testConvertBooleanError() throws Exception {
@@ -215,8 +163,7 @@ public class ConvertProcessorTests extends ESTestCase {
         }
         ingestDocument.setFieldValue(fieldName, fieldValue);
 
-        Map<String, Type> convert = Collections.singletonMap(fieldName, Type.BOOLEAN);
-        Processor processor = new ConvertProcessor(convert);
+        Processor processor = new ConvertProcessor(fieldName, Type.BOOLEAN);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -227,94 +174,75 @@ public class ConvertProcessorTests extends ESTestCase {
 
     public void testConvertString() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Type> fields = new HashMap<>();
-        Map<String, String> expectedResult = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            Object fieldValue;
-            String expectedFieldValue;
-            switch(randomIntBetween(0, 2)) {
-                case 0:
-                    float randomFloat = randomFloat();
-                    fieldValue = randomFloat;
-                    expectedFieldValue = Float.toString(randomFloat);
-                    break;
-                case 1:
-                    int randomInt = randomInt();
-                    fieldValue = randomInt;
-                    expectedFieldValue = Integer.toString(randomInt);
-                    break;
-                case 2:
-                    boolean randomBoolean = randomBoolean();
-                    fieldValue = randomBoolean;
-                    expectedFieldValue = Boolean.toString(randomBoolean);
-                    break;
-                default:
-                    throw new UnsupportedOperationException();
-            }
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-            fields.put(fieldName, Type.STRING);
-            expectedResult.put(fieldName, expectedFieldValue);
+        Object fieldValue;
+        String expectedFieldValue;
+        switch(randomIntBetween(0, 2)) {
+            case 0:
+                float randomFloat = randomFloat();
+                fieldValue = randomFloat;
+                expectedFieldValue = Float.toString(randomFloat);
+                break;
+            case 1:
+                int randomInt = randomInt();
+                fieldValue = randomInt;
+                expectedFieldValue = Integer.toString(randomInt);
+                break;
+            case 2:
+                boolean randomBoolean = randomBoolean();
+                fieldValue = randomBoolean;
+                expectedFieldValue = Boolean.toString(randomBoolean);
+                break;
+            default:
+                throw new UnsupportedOperationException();
         }
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
 
-        Processor processor = new ConvertProcessor(fields);
+        Processor processor = new ConvertProcessor(fieldName, Type.STRING);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, String> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), String.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, String.class), equalTo(expectedFieldValue));
     }
 
     public void testConvertStringList() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random());
-        Map<String, Type> fields = new HashMap<>();
-        Map<String, List<String>> expectedResult = new HashMap<>();
-        int numFields = randomIntBetween(1, 5);
-        for (int i = 0; i < numFields; i++) {
-            int numItems = randomIntBetween(1, 10);
-            List<Object> fieldValue = new ArrayList<>();
-            List<String> expectedList = new ArrayList<>();
-            for (int j = 0; j < numItems; j++) {
-                Object randomValue;
-                String randomValueString;
-                switch(randomIntBetween(0, 2)) {
-                    case 0:
-                        float randomFloat = randomFloat();
-                        randomValue = randomFloat;
-                        randomValueString = Float.toString(randomFloat);
-                        break;
-                    case 1:
-                        int randomInt = randomInt();
-                        randomValue = randomInt;
-                        randomValueString = Integer.toString(randomInt);
-                        break;
-                    case 2:
-                        boolean randomBoolean = randomBoolean();
-                        randomValue = randomBoolean;
-                        randomValueString = Boolean.toString(randomBoolean);
-                        break;
-                    default:
-                        throw new UnsupportedOperationException();
-                }
-                fieldValue.add(randomValue);
-                expectedList.add(randomValueString);
+        int numItems = randomIntBetween(1, 10);
+        List<Object> fieldValue = new ArrayList<>();
+        List<String> expectedList = new ArrayList<>();
+        for (int j = 0; j < numItems; j++) {
+            Object randomValue;
+            String randomValueString;
+            switch(randomIntBetween(0, 2)) {
+                case 0:
+                    float randomFloat = randomFloat();
+                    randomValue = randomFloat;
+                    randomValueString = Float.toString(randomFloat);
+                    break;
+                case 1:
+                    int randomInt = randomInt();
+                    randomValue = randomInt;
+                    randomValueString = Integer.toString(randomInt);
+                    break;
+                case 2:
+                    boolean randomBoolean = randomBoolean();
+                    randomValue = randomBoolean;
+                    randomValueString = Boolean.toString(randomBoolean);
+                    break;
+                default:
+                    throw new UnsupportedOperationException();
             }
-            String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
-            fields.put(fieldName, Type.STRING);
-            expectedResult.put(fieldName, expectedList);
+            fieldValue.add(randomValue);
+            expectedList.add(randomValueString);
         }
-        Processor processor = new ConvertProcessor(fields);
+        String fieldName = RandomDocumentPicks.addRandomField(random(), ingestDocument, fieldValue);
+        Processor processor = new ConvertProcessor(fieldName, Type.STRING);
         processor.execute(ingestDocument);
-        for (Map.Entry<String, List<String>> entry : expectedResult.entrySet()) {
-            assertThat(ingestDocument.getFieldValue(entry.getKey(), List.class), equalTo(entry.getValue()));
-        }
+        assertThat(ingestDocument.getFieldValue(fieldName, List.class), equalTo(expectedList));
     }
 
     public void testConvertNonExistingField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
         String fieldName = RandomDocumentPicks.randomFieldName(random());
         Type type = randomFrom(Type.values());
-        Map<String, Type> convert = Collections.singletonMap(fieldName, type);
-        Processor processor = new ConvertProcessor(convert);
+        Processor processor = new ConvertProcessor(fieldName, type);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");
@@ -326,8 +254,7 @@ public class ConvertProcessorTests extends ESTestCase {
     public void testConvertNullField() throws Exception {
         IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), Collections.singletonMap("field", null));
         Type type = randomFrom(Type.values());
-        Map<String, Type> convert = Collections.singletonMap("field", type);
-        Processor processor = new ConvertProcessor(convert);
+        Processor processor = new ConvertProcessor("field", type);
         try {
             processor.execute(ingestDocument);
             fail("processor execute should have failed");

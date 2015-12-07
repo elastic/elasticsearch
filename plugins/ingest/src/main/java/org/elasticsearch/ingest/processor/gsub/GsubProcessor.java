@@ -23,8 +23,6 @@ import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
 
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -37,27 +35,38 @@ public class GsubProcessor implements Processor {
 
     public static final String TYPE = "gsub";
 
-    private final List<GsubExpression> gsubExpressions;
+    private final String field;
+    private final Pattern pattern;
+    private final String replacement;
 
-    GsubProcessor(List<GsubExpression> gsubExpressions) {
-        this.gsubExpressions = gsubExpressions;
+    GsubProcessor(String field, Pattern pattern, String replacement) {
+        this.field = field;
+        this.pattern = pattern;
+        this.replacement = replacement;
     }
 
-    List<GsubExpression> getGsubExpressions() {
-        return gsubExpressions;
+    String getField() {
+        return field;
     }
+
+    Pattern getPattern() {
+        return pattern;
+    }
+
+    String getReplacement() {
+        return replacement;
+    }
+
 
     @Override
     public void execute(IngestDocument document) {
-        for (GsubExpression gsubExpression : gsubExpressions) {
-            String oldVal = document.getFieldValue(gsubExpression.getFieldName(), String.class);
-            if (oldVal == null) {
-                throw new IllegalArgumentException("field [" + gsubExpression.getFieldName() + "] is null, cannot match pattern.");
-            }
-            Matcher matcher = gsubExpression.getPattern().matcher(oldVal);
-            String newVal = matcher.replaceAll(gsubExpression.getReplacement());
-            document.setFieldValue(gsubExpression.getFieldName(), newVal);
+        String oldVal = document.getFieldValue(field, String.class);
+        if (oldVal == null) {
+            throw new IllegalArgumentException("field [" + field + "] is null, cannot match pattern.");
         }
+        Matcher matcher = pattern.matcher(oldVal);
+        String newVal = matcher.replaceAll(replacement);
+        document.setFieldValue(field, newVal);
     }
 
     @Override
@@ -68,25 +77,11 @@ public class GsubProcessor implements Processor {
     public static class Factory implements Processor.Factory<GsubProcessor> {
         @Override
         public GsubProcessor create(Map<String, Object> config) throws Exception {
-            List<Map<String, String>> gsubConfig = ConfigurationUtils.readList(config, "expressions");
-            List<GsubExpression> gsubExpressions = new ArrayList<>();
-            for (Map<String, String> stringObjectMap : gsubConfig) {
-                String field = stringObjectMap.get("field");
-                if (field == null) {
-                    throw new IllegalArgumentException("no [field] specified for gsub expression");
-                }
-                String pattern = stringObjectMap.get("pattern");
-                if (pattern == null) {
-                    throw new IllegalArgumentException("no [pattern] specified for gsub expression");
-                }
-                String replacement = stringObjectMap.get("replacement");
-                if (replacement == null) {
-                    throw new IllegalArgumentException("no [replacement] specified for gsub expression");
-                }
-                Pattern searchPattern = Pattern.compile(pattern);
-                gsubExpressions.add(new GsubExpression(field, searchPattern, replacement));
-            }
-            return new GsubProcessor(gsubExpressions);
+            String field = ConfigurationUtils.readStringProperty(config, "field");
+            String pattern = ConfigurationUtils.readStringProperty(config, "pattern");
+            String replacement = ConfigurationUtils.readStringProperty(config, "replacement");
+            Pattern searchPattern = Pattern.compile(pattern);
+            return new GsubProcessor(field, searchPattern, replacement);
         }
     }
 }

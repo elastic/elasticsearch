@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.common.ParseFieldMatcher;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -152,6 +153,117 @@ public class HighlightBuilderTests extends ESTestCase {
     }
 
     /**
+     * test that unknown array fields cause exception
+     */
+    public void testUnknownArrayNameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" : [ \"field1\" 1 \"field2\" ]\n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse array with name [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : [ \"field1\" , \"field2\" ]\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse array with name [bad_fieldname]", e.getMessage());
+        }
+    }
+
+    /**
+     * test that unknown field name cause exception
+     */
+    public void testUnknownFieldnameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" : \"value\"\n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("unexpected fieldname [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : \"value\"\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("unexpected fieldname [bad_fieldname]", e.getMessage());
+        }
+    }
+
+    /**
+     * test that unknown field name cause exception
+     */
+    public void testUnknownObjectFieldnameExpection() throws IOException {
+        QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
+        String highlightElement = "{\n" +
+                "    \"bad_fieldname\" :  { \"field\" : \"value\" }\n \n" +
+                "}\n";
+        XContentParser parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse object with name [bad_fieldname]", e.getMessage());
+        }
+
+        highlightElement = "{\n" +
+                "  \"fields\" : {\n" +
+                "     \"body\" : {\n" +
+                "        \"bad_fieldname\" : { \"field\" : \"value\" }\n" +
+                "     }\n" +
+                "   }\n" +
+                "}\n";
+        parser = XContentFactory.xContent(highlightElement).createParser(highlightElement);
+
+        context.reset(parser);
+        try {
+            HighlightBuilder.fromXContent(context);
+            fail("expected a parsing exception");
+        } catch (ParsingException e) {
+            assertEquals("cannot parse object with name [bad_fieldname]", e.getMessage());
+        }
+    }
+
+    /**
      * `tags_schema` is not produced by toXContent in the builder but should be parseable, so this
      * adds a simple json test for this.
      */
@@ -230,7 +342,7 @@ public class HighlightBuilderTests extends ESTestCase {
         return testHighlighter;
     }
 
-    @SuppressWarnings("rawtypes")
+    @SuppressWarnings({ "rawtypes", "unchecked" })
     private static void setRandomCommonOptions(AbstractHighlighterBuilder highlightBuilder) {
         if (randomBoolean()) {
             // need to set this together, otherwise parsing will complain

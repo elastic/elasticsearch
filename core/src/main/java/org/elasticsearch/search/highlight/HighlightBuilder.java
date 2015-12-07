@@ -20,6 +20,7 @@
 package org.elasticsearch.search.highlight;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -214,7 +215,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                             while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                                 if (token == XContentParser.Token.FIELD_NAME) {
                                     if (highlightFieldName != null) {
-                                        throw new IllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
+                                        throw new ParsingException(parser.getTokenLocation(), "If highlighter fields is an array it must contain objects containing a single field");
                                     }
                                     highlightFieldName = parser.currentName();
                                 } else if (token == XContentParser.Token.START_OBJECT) {
@@ -222,9 +223,11 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                                 }
                             }
                         } else {
-                            throw new IllegalArgumentException("If highlighter fields is an array it must contain objects containing a single field");
+                            throw new ParsingException(parser.getTokenLocation(), "If highlighter fields is an array it must contain objects containing a single field");
                         }
                     }
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", topLevelFieldName);
                 }
             } else if (token.isValue()) {
                 if (parseContext.parseFieldMatcher().match(topLevelFieldName, ORDER_FIELD)) {
@@ -255,12 +258,13 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                     highlightBuilder.forceSource(parser.booleanValue());
                 } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, PHRASE_LIMIT_FIELD)) {
                     highlightBuilder.phraseLimit(parser.intValue());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", topLevelFieldName);
                 }
-            } else if (token == XContentParser.Token.START_OBJECT && topLevelFieldName != null &&
-                    parseContext.parseFieldMatcher().match(topLevelFieldName, OPTIONS_FIELD)) {
-                highlightBuilder.options(parser.map());
             } else if (token == XContentParser.Token.START_OBJECT && topLevelFieldName != null) {
-                if (parseContext.parseFieldMatcher().match(topLevelFieldName, FIELDS_FIELD)) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, OPTIONS_FIELD)) {
+                    highlightBuilder.options(parser.map());
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FIELDS_FIELD)) {
                     String highlightFieldName = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -271,12 +275,14 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                     }
                 } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, HIGHLIGHT_QUERY_FIELD)) {
                     highlightBuilder.highlightQuery(parseContext.parseInnerQueryBuilder());
+                } else {
+                    throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", topLevelFieldName);
                 }
             }
         }
 
         if (highlightBuilder.preTags() != null && highlightBuilder.postTags() == null) {
-            throw new IllegalArgumentException("Highlighter global preTags are set, but global postTags are not set");
+            throw new ParsingException(parser.getTokenLocation(), "Highlighter global preTags are set, but global postTags are not set");
         }
         return highlightBuilder;
     }
@@ -435,6 +441,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                             matchedFields.add(parser.text());
                         }
                         field.matchedFields(matchedFields.toArray(new String[matchedFields.size()]));
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "cannot parse array with name [{}]", currentFieldName);
                     }
                 } else if (token.isValue()) {
                     if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_SIZE_FIELD)) {
@@ -463,12 +471,16 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                         field.forceSource(parser.booleanValue());
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, PHRASE_LIMIT_FIELD)) {
                         field.phraseLimit(parser.intValue());
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "unexpected fieldname [{}]", currentFieldName);
                     }
                 } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
                     if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_QUERY_FIELD)) {
                         field.highlightQuery(parseContext.parseInnerQueryBuilder());
                     } else if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIONS_FIELD)) {
                         field.options(parser.map());
+                    } else {
+                        throw new ParsingException(parser.getTokenLocation(), "cannot parse object with name [{}]", currentFieldName);
                     }
                 }
             }

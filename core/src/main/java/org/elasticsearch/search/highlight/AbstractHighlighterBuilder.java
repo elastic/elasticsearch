@@ -36,7 +36,7 @@ import java.util.Objects;
  * This abstract class holds parameters shared by {@link HighlightBuilder} and {@link HighlightBuilder.Field}
  * and provides the common setters, equality, hashCode calculation and common serialization
  */
-public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder> {
+public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterBuilder<?>> {
 
     public static final ParseField PRE_TAGS_FIELD = new ParseField("pre_tags");
     public static final ParseField POST_TAGS_FIELD = new ParseField("post_tags");
@@ -72,7 +72,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
 
     protected String fragmenter;
 
-    protected QueryBuilder highlightQuery;
+    protected QueryBuilder<?> highlightQuery;
 
     protected String order;
 
@@ -198,7 +198,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
      * Sets a query to be used for highlighting instead of the search query.
      */
     @SuppressWarnings("unchecked")
-    public HB highlightQuery(QueryBuilder highlightQuery) {
+    public HB highlightQuery(QueryBuilder<?> highlightQuery) {
         this.highlightQuery = highlightQuery;
         return (HB) this;
     }
@@ -206,7 +206,7 @@ public abstract class AbstractHighlighterBuilder<HB extends AbstractHighlighterB
     /**
      * @return the value set by {@link #highlightQuery(QueryBuilder)}
      */
-    public QueryBuilder highlightQuery() {
+    public QueryBuilder<?> highlightQuery() {
         return this.highlightQuery;
     }
 

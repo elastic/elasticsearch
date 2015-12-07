@@ -715,7 +715,7 @@ public final class Settings implements ToXContent {
         Builder builder = new Builder();
         int numberOfSettings = in.readVInt();
         for (int i = 0; i < numberOfSettings; i++) {
-            builder.put(in.readString(), in.readString());
+            builder.put(in.readString(), in.readOptionalString());
         }
         return builder.build();
     }
@@ -724,7 +724,7 @@ public final class Settings implements ToXContent {
         out.writeVInt(settings.getAsMap().size());
         for (Map.Entry<String, String> entry : settings.getAsMap().entrySet()) {
             out.writeString(entry.getKey());
-            out.writeString(entry.getValue());
+            out.writeOptionalString(entry.getValue());
         }
     }
 
@@ -825,6 +825,10 @@ public final class Settings implements ToXContent {
         public Builder put(String key, String value) {
             map.put(key, value);
             return this;
+        }
+
+        public Builder putNull(String key) {
+            return put(key, (String) null);
         }
 
         /**

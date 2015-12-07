@@ -19,7 +19,6 @@
 package org.elasticsearch.common.settings;
 
 import org.elasticsearch.test.ESTestCase;
-
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class SettingsServiceTests extends ESTestCase {

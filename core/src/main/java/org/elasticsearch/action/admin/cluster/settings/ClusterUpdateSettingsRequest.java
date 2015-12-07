@@ -44,8 +44,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     private Settings transientSettings = EMPTY_SETTINGS;
     private Settings persistentSettings = EMPTY_SETTINGS;
-    private Set<String> transientReset = new HashSet<>();
-    private Set<String> persistentReset = new HashSet<>();
 
     public ClusterUpdateSettingsRequest() {
     }
@@ -53,7 +51,7 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (transientSettings.getAsMap().isEmpty() && persistentSettings.getAsMap().isEmpty() && transientReset.isEmpty() && persistentReset.isEmpty()) {
+        if (transientSettings.getAsMap().isEmpty() && persistentSettings.getAsMap().isEmpty()) {
             validationException = addValidationError("no settings to update", validationException);
         }
         return validationException;
@@ -65,18 +63,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
 
     public Settings persistentSettings() {
         return persistentSettings;
-    }
-
-    public Set<String> getTransientReset() { return Collections.unmodifiableSet(transientReset); }
-
-    public Set<String> getPersistentReset() { return Collections.unmodifiableSet(persistentReset); }
-
-    public void addTransientResetKeys(Collection<String> keys) {
-        transientReset.addAll(keys);
-    }
-
-    public void addPersistentResetKeys(Collection<String> keys) {
-        persistentReset.addAll(keys);
     }
 
     /**
@@ -162,8 +148,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.readFrom(in);
         transientSettings = readSettingsFromStream(in);
         persistentSettings = readSettingsFromStream(in);
-        transientReset = new HashSet<>(Arrays.asList(in.readStringArray()));
-        persistentReset = new HashSet<>(Arrays.asList(in.readStringArray()));
         readTimeout(in);
     }
 
@@ -172,8 +156,6 @@ public class ClusterUpdateSettingsRequest extends AcknowledgedRequest<ClusterUpd
         super.writeTo(out);
         writeSettingsToStream(transientSettings, out);
         writeSettingsToStream(persistentSettings, out);
-        out.writeStringArray(transientReset.toArray(new String[0]));
-        out.writeStringArray(persistentReset.toArray(new String[0]));
         writeTimeout(out);
     }
 }

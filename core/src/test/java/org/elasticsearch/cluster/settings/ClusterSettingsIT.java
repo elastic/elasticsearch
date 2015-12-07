@@ -34,6 +34,7 @@ import org.elasticsearch.index.store.IndexStoreConfig;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 
+import static org.elasticsearch.common.inject.matcher.Matchers.not;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.ESIntegTestCase.Scope.TEST;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -59,6 +60,32 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         }
     }
 
+    public void testDeleteIsAppliedFirst() {
+        DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
+
+        assertEquals(discoverySettings.getPublishTimeout(), DiscoverySettings.PUBLISH_TIMEOUT_SETTING.get(Settings.EMPTY));
+        assertTrue(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY));
+
+        ClusterUpdateSettingsResponse response = client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder()
+                .put(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), false)
+                .put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "1s").build())
+            .get();
+
+        assertAcked(response);
+        assertEquals(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), "1s");
+        assertTrue(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.get(Settings.EMPTY));
+        assertFalse(response.getTransientSettings().getAsBoolean(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), null));
+
+        response = client().admin().cluster()
+            .prepareUpdateSettings()
+            .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "discovery.zen.*" : "*")).put(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey(), "2s"))
+            .get();
+        assertEquals(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()), "2s");
+        assertNull(response.getTransientSettings().getAsBoolean(DiscoverySettings.PUBLISH_DIFF_ENABLE_SETTING.getKey(), null));
+    }
+
     public void testResetClusterSetting() {
         DiscoverySettings discoverySettings = internalCluster().getInstance(DiscoverySettings.class);
 
@@ -78,7 +105,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         response = client().admin().cluster()
                 .prepareUpdateSettings()
-                .addTransientResetKeys(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey())
+                .setTransientSettings(Settings.builder().putNull(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()))
                 .get();
 
         assertAcked(response);
@@ -99,7 +126,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertFalse(discoverySettings.getPublishDiff());
         response = client().admin().cluster()
                 .prepareUpdateSettings()
-                .addTransientResetKeys(randomBoolean() ? "discovery.zen.*" : "*")
+                .setTransientSettings(Settings.builder().putNull((randomBoolean() ? "discovery.zen.*" : "*")))
                 .get();
 
         assertNull(response.getTransientSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));
@@ -121,7 +148,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
 
         response = client().admin().cluster()
                 .prepareUpdateSettings()
-                .addPersistentResetKeys(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey())
+                .setPersistentSettings(Settings.builder().putNull((DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey())))
                 .get();
 
         assertAcked(response);
@@ -143,7 +170,7 @@ public class ClusterSettingsIT extends ESIntegTestCase {
         assertFalse(discoverySettings.getPublishDiff());
         response = client().admin().cluster()
                 .prepareUpdateSettings()
-                .addPersistentResetKeys(randomBoolean() ? "discovery.zen.*" : "*")
+                .setPersistentSettings(Settings.builder().putNull((randomBoolean() ? "discovery.zen.*" : "*")))
                 .get();
 
         assertNull(response.getPersistentSettings().getAsMap().get(DiscoverySettings.PUBLISH_TIMEOUT_SETTING.getKey()));

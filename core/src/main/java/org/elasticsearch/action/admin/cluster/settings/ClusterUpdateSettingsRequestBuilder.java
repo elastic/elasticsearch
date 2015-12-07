@@ -99,24 +99,4 @@ public class ClusterUpdateSettingsRequestBuilder extends AcknowledgedRequestBuil
         request.persistentSettings(settings);
         return this;
     }
-
-    public ClusterUpdateSettingsRequestBuilder addTransientResetKeys(Collection<String> keys) {
-        request.addTransientResetKeys(keys);
-        return this;
-    }
-
-    public ClusterUpdateSettingsRequestBuilder addPersistentResetKeys(Collection<String> keys) {
-        request.addPersistentResetKeys(keys);
-        return this;
-    }
-
-    public ClusterUpdateSettingsRequestBuilder addTransientResetKeys(String... keys) {
-        request.addTransientResetKeys(Arrays.asList(keys));
-        return this;
-    }
-
-    public ClusterUpdateSettingsRequestBuilder addPersistentResetKeys(String... keys) {
-        request.addPersistentResetKeys(Arrays.asList(keys));
-        return this;
-    }
 }

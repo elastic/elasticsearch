@@ -19,12 +19,32 @@
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.unit.TimeValue;
+
+import java.util.List;
 
 /**
  * A task that can update the cluster state.
  */
-abstract public class ClusterStateUpdateTask {
+abstract public class ClusterStateUpdateTask extends ClusterStateTaskExecutor<ClusterStateUpdateTask> implements ClusterStateTaskConfig, ClusterStateTaskListener {
+
+    final private Priority priority;
+
+    public ClusterStateUpdateTask() {
+        this(Priority.NORMAL);
+    }
+
+    public ClusterStateUpdateTask(Priority priority) {
+        this.priority = priority;
+    }
+
+    @Override
+    final public BatchResult<ClusterStateUpdateTask> execute(ClusterState currentState, List<ClusterStateUpdateTask> tasks) throws Exception {
+        ClusterState result = execute(currentState);
+        return BatchResult.<ClusterStateUpdateTask>builder().successes(tasks).build(result);
+    }
 
     /**
      * Update the cluster state based on the current state. Return the *same instance* if no state
@@ -37,18 +57,27 @@ abstract public class ClusterStateUpdateTask {
      */
     abstract public void onFailure(String source, Throwable t);
 
+    @Override
+    public void onNoLongerMaster(String source) {
+        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+    }
 
-    /**
-     * indicates whether this task should only run if current node is master
-     */
-    public boolean runOnlyOnMaster() {
-        return true;
+    @Override
+    public void clusterStateProcessed(String source, ClusterState oldState, ClusterState newState) {
+
     }
 
     /**
-     * called when the task was rejected because the local node is no longer master
+     * If the cluster state update task wasn't processed by the provided timeout, call
+     * {@link #onFailure(String, Throwable)}. May return null to indicate no timeout is needed (default).
      */
-    public void onNoLongerMaster(String source) {
-        onFailure(source, new NotMasterException("no longer master. source: [" + source + "]"));
+    @Nullable
+    public TimeValue timeout() {
+        return null;
+    }
+
+    @Override
+    public Priority priority() {
+        return priority;
     }
 }

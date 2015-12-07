@@ -18,14 +18,29 @@
  */
 package org.elasticsearch.cluster;
 
-/**
- * A combination between {@link org.elasticsearch.cluster.ProcessedClusterStateUpdateTask} and
- * {@link org.elasticsearch.cluster.ClusterStateNonMasterUpdateTask} to allow easy creation of anonymous classes
- */
-abstract public class ProcessedClusterStateNonMasterUpdateTask extends ProcessedClusterStateUpdateTask {
+import org.elasticsearch.common.Nullable;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.unit.TimeValue;
 
-    @Override
-    public boolean runOnlyOnMaster() {
-        return false;
-    }
+/**
+ * Cluster state update task configuration for timeout and priority
+ */
+public interface ClusterStateTaskConfig {
+    /**
+     * The timeout for this cluster state update task configuration. If
+     * the cluster state update task isn't processed within this
+     * timeout, the associated {@link ClusterStateTaskListener#onFailure(String, Throwable)}
+     * is invoked.
+     *
+     * @return the timeout, or null if one is not set
+     */
+    @Nullable
+    TimeValue timeout();
+
+    /**
+     * The {@link Priority} for this cluster state update task configuration.
+     *
+     * @return the priority
+     */
+    Priority priority();
 }

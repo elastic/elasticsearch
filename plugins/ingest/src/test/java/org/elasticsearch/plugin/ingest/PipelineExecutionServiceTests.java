@@ -29,6 +29,7 @@ import org.elasticsearch.common.unit.TimeValue;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.ingest.TestTemplateService;
+import org.elasticsearch.ingest.processor.CompoundProcessor;
 import org.elasticsearch.ingest.processor.Processor;
 import org.elasticsearch.ingest.processor.set.SetProcessor;
 import org.elasticsearch.test.ESTestCase;
@@ -38,6 +39,7 @@ import org.mockito.ArgumentMatcher;
 import org.mockito.Matchers;
 import org.mockito.invocation.InvocationOnMock;
 
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -85,8 +87,8 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteSuccess() throws Exception {
-        Processor processor = mock(Processor.class);
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
+        CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
         Consumer<Throwable> failureHandler = mock(Consumer.class);
@@ -99,7 +101,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecutePropagateAllMetaDataUpdates() throws Exception {
-        Processor processor = mock(Processor.class);
+        CompoundProcessor processor = mock(CompoundProcessor.class);
         doAnswer((InvocationOnMock invocationOnMock) -> {
             IngestDocument ingestDocument = (IngestDocument) invocationOnMock.getArguments()[0];
             for (IngestDocument.MetaData metaData : IngestDocument.MetaData.values()) {
@@ -112,7 +114,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
             }
             return null;
         }).when(processor).execute(any());
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
         Consumer<Throwable> failureHandler = mock(Consumer.class);
@@ -132,9 +134,60 @@ public class PipelineExecutionServiceTests extends ESTestCase {
     }
 
     public void testExecuteFailure() throws Exception {
-        Processor processor = mock(Processor.class);
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
+        CompoundProcessor processor = mock(CompoundProcessor.class);
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", processor));
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        Consumer<Throwable> failureHandler = mock(Consumer.class);
+        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(failureHandler, times(1)).accept(any(RuntimeException.class));
+        verify(completionHandler, never()).accept(anyBoolean());
+    }
+
+    public void testExecuteSuccessWithOnFailure() throws Exception {
+        Processor processor = mock(Processor.class);
+        Processor onFailureProcessor = mock(Processor.class);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        Consumer<Throwable> failureHandler = mock(Consumer.class);
+        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        //TODO we remove metadata, this check is not valid anymore, what do we replace it with?
+        //verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(failureHandler, never()).accept(any(RuntimeException.class));
+        verify(completionHandler, times(1)).accept(true);
+    }
+
+    public void testExecuteFailureWithOnFailure() throws Exception {
+        Processor processor = mock(Processor.class);
+        Processor onFailureProcessor = mock(Processor.class);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor), Collections.singletonList(new CompoundProcessor(onFailureProcessor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        Consumer<Throwable> failureHandler = mock(Consumer.class);
+        Consumer<Boolean> completionHandler = mock(Consumer.class);
+        executionService.execute(indexRequest, "_id", failureHandler, completionHandler);
+        verify(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        verify(failureHandler, times(1)).accept(any(RuntimeException.class));
+        verify(completionHandler, never()).accept(anyBoolean());
+    }
+
+    public void testExecuteFailureWithNestedOnFailure() throws Exception {
+        Processor processor = mock(Processor.class);
+        Processor onFailureProcessor = mock(Processor.class);
+        Processor onFailureOnFailureProcessor = mock(Processor.class);
+        CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.singletonList(processor),
+            Collections.singletonList(new CompoundProcessor(Arrays.asList(onFailureProcessor),Arrays.asList(onFailureOnFailureProcessor))));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", compoundProcessor));
+        IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
+        doThrow(new RuntimeException()).when(onFailureOnFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
+        doThrow(new RuntimeException()).when(onFailureProcessor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         doThrow(new RuntimeException()).when(processor).execute(eqID("_index", "_type", "_id", Collections.emptyMap()));
         Consumer<Throwable> failureHandler = mock(Consumer.class);
         Consumer<Boolean> completionHandler = mock(Consumer.class);
@@ -152,7 +205,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         config.put("field", "_ttl");
         config.put("value", "5d");
         Processor processor = metaProcessorFactory.create(config);
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
 
         IndexRequest indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
         Consumer<Throwable> failureHandler = mock(Consumer.class);
@@ -169,7 +222,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         config.put("field", "_ttl");
         config.put("value", "abc");
         processor = metaProcessorFactory.create(config);
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.singletonList(processor)));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", new CompoundProcessor(processor)));
 
         indexRequest = new IndexRequest("_index", "_type", "_id").source(Collections.emptyMap());
         failureHandler = mock(Consumer.class);
@@ -179,7 +232,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         verify(completionHandler, never()).accept(anyBoolean());
 
         // test with provided ttl
-        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", Collections.emptyList()));
+        when(store.get("_id")).thenReturn(new Pipeline("_id", "_description", mock(CompoundProcessor.class)));
 
         indexRequest = new IndexRequest("_index", "_type", "_id")
                 .source(Collections.emptyMap())
@@ -217,10 +270,10 @@ public class PipelineExecutionServiceTests extends ESTestCase {
 
         String pipelineId = "_id";
 
-        Processor pipeline = mock(Processor.class);
+        CompoundProcessor processor = mock(CompoundProcessor.class);
         Exception error = new RuntimeException();
-        doThrow(error).when(pipeline).execute(any());
-        when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, Collections.singletonList(pipeline)));
+        doThrow(error).when(processor).execute(any());
+        when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, processor));
 
         Consumer<Throwable> requestItemErrorHandler = mock(Consumer.class);
         Consumer<Boolean> completionHandler = mock(Consumer.class);
@@ -241,7 +294,7 @@ public class PipelineExecutionServiceTests extends ESTestCase {
         }
 
         String pipelineId = "_id";
-        when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, Collections.emptyList()));
+        when(store.get(pipelineId)).thenReturn(new Pipeline(pipelineId, null, new CompoundProcessor()));
 
         Consumer<Throwable> requestItemErrorHandler = mock(Consumer.class);
         Consumer<Boolean> completionHandler = mock(Consumer.class);

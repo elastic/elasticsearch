@@ -22,6 +22,7 @@ package org.elasticsearch.ingest;
 
 import org.elasticsearch.ingest.processor.ConfigurationUtils;
 import org.elasticsearch.ingest.processor.Processor;
+import org.elasticsearch.ingest.processor.CompoundProcessor;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -36,21 +37,19 @@ public final class Pipeline {
 
     private final String id;
     private final String description;
-    private final List<Processor> processors;
+    private final CompoundProcessor compoundProcessor;
 
-    public Pipeline(String id, String description, List<Processor> processors) {
+    public Pipeline(String id, String description, CompoundProcessor compoundProcessor) {
         this.id = id;
         this.description = description;
-        this.processors = processors;
+        this.compoundProcessor = compoundProcessor;
     }
 
     /**
      * Modifies the data of a document to be indexed based on the processor this pipeline holds
      */
     public void execute(IngestDocument ingestDocument) throws Exception {
-        for (Processor processor : processors) {
-            processor.execute(ingestDocument);
-        }
+        compoundProcessor.execute(ingestDocument);
     }
 
     /**
@@ -71,33 +70,56 @@ public final class Pipeline {
      * Unmodifiable list containing each processor that operates on the data.
      */
     public List<Processor> getProcessors() {
-        return processors;
+        return compoundProcessor.getProcessors();
+    }
+
+    /**
+     * Unmodifiable list containing each on_failure processor that operates on the data in case of
+     * exception thrown in pipeline processors
+     */
+    public List<Processor> getOnFailureProcessors() {
+        return compoundProcessor.getOnFailureProcessors();
     }
 
     public final static class Factory {
+        private Processor readProcessor(Map<String, Processor.Factory> processorRegistry, String type, Map<String, Object> config) throws Exception {
+            Processor.Factory factory = processorRegistry.get(type);
+            if (factory != null) {
+                List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
+                Processor processor = factory.create(config);
+                if (config.isEmpty() == false) {
+                    throw new IllegalArgumentException("processor [" + type + "] doesn't support one or more provided configuration parameters " + Arrays.toString(config.keySet().toArray()));
+                }
+                if (onFailureProcessors.isEmpty()) {
+                    return processor;
+                } else {
+                    return new CompoundProcessor(Arrays.asList(processor), onFailureProcessors);
+                }
+            } else {
+                throw new IllegalArgumentException("No processor type exist with name [" + type + "]");
+            }
+        }
 
-        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
-            String description = ConfigurationUtils.readOptionalStringProperty(config, "description");
-            List<Processor> processors = new ArrayList<>();
-            @SuppressWarnings("unchecked")
-            List<Map<String, Map<String, Object>>> processorConfigs = (List<Map<String, Map<String, Object>>>) config.get("processors");
-            if (processorConfigs != null ) {
-                for (Map<String, Map<String, Object>> processor : processorConfigs) {
-                    for (Map.Entry<String, Map<String, Object>> entry : processor.entrySet()) {
-                        Processor.Factory factory = processorRegistry.get(entry.getKey());
-                        if (factory != null) {
-                            Map<String, Object> processorConfig = entry.getValue();
-                            processors.add(factory.create(processorConfig));
-                            if (processorConfig.isEmpty() == false) {
-                                throw new IllegalArgumentException("processor [" + entry.getKey() + "] doesn't support one or more provided configuration parameters " + Arrays.toString(processorConfig.keySet().toArray()));
-                            }
-                        } else {
-                            throw new IllegalArgumentException("No processor type exist with name [" + entry.getKey() + "]");
-                        }
+        private List<Processor> readProcessors(String fieldName, Map<String, Processor.Factory> processorRegistry, Map<String, Object> config) throws Exception {
+            List<Map<String, Map<String, Object>>> onFailureProcessorConfigs = ConfigurationUtils.readOptionalList(config, fieldName);
+            List<Processor> onFailureProcessors = new ArrayList<>();
+            if (onFailureProcessorConfigs != null) {
+                for (Map<String, Map<String, Object>> processorConfigWithKey : onFailureProcessorConfigs) {
+                    for (Map.Entry<String, Map<String, Object>> entry : processorConfigWithKey.entrySet()) {
+                        onFailureProcessors.add(readProcessor(processorRegistry, entry.getKey(), entry.getValue()));
                     }
                 }
             }
-            return new Pipeline(id, description, Collections.unmodifiableList(processors));
+
+            return onFailureProcessors;
+        }
+
+        public Pipeline create(String id, Map<String, Object> config, Map<String, Processor.Factory> processorRegistry) throws Exception {
+            String description = ConfigurationUtils.readOptionalStringProperty(config, "description");
+            List<Processor> processors = readProcessors("processors", processorRegistry, config);
+            List<Processor> onFailureProcessors = readProcessors("on_failure", processorRegistry, config);
+            CompoundProcessor compoundProcessor = new CompoundProcessor(Collections.unmodifiableList(processors), Collections.unmodifiableList(onFailureProcessors));
+            return new Pipeline(id, description, compoundProcessor);
         }
 
     }

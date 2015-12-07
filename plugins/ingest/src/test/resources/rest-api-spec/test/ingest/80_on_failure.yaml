@@ -1,0 +1,122 @@
+---
+"Test Pipeline With On Failure Block":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "rename" : {
+                  "field" : "foofield",
+                  "to" : "field1"
+                }
+              },
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "pattern" : "%{NUMBER:val} %{NUMBER:status} <%{WORD:msg}>"
+                }
+              }
+            ],
+            "on_failure" : [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "pattern" : "%{NUMBER:val:float} %{NUMBER:status:int} <%{WORD:msg}>"
+                }
+              },
+              {
+                "set" : {
+                  "field" : "_failed",
+                  "value" : true
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline"
+        body: {field1: "123.42 400 <foo>"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.val: 123.42 }
+  - match: { _source.status: 400 }
+  - match: { _source.msg: "foo" }
+  - match: { _source._failed: true }
+
+---
+"Test Pipeline With Nested Processor On Failures":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "grok" : {
+                  "field" : "field1",
+                  "pattern" : "%{NUMBER:val:float} %{NUMBER:status:int} <%{WORD:msg}>"
+                }
+              },
+              {
+                "rename" : {
+                  "field" : "foofield",
+                  "to" : "field1",
+                  "on_failure" : [
+                    {
+                      "set" : {
+                        "field" : "foofield",
+                        "value" : "exists"
+                      }
+                    },
+                    {
+                      "rename" : {
+                        "field" : "foofield2",
+                        "to" : "field1",
+                        "on_failure" : [
+                          {
+                            "set" : {
+                            "field" : "foofield2",
+                            "value" : "ran"
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  ]
+                }
+              }
+            ]
+          }
+  - match: { _id: "my_pipeline" }
+
+  - do:
+      ingest.index:
+        index: test
+        type: test
+        id: 1
+        pipeline_id: "my_pipeline"
+        body: {field1: "123.42 400 <foo>"}
+
+  - do:
+      get:
+        index: test
+        type: test
+        id: 1
+  - match: { _source.val: 123.42 }
+  - match: { _source.msg: "foo" }
+  - match: { _source.status: 400 }
+  - match: { _source.foofield: "exists" }
+  - match: { _source.foofield2: "ran" }

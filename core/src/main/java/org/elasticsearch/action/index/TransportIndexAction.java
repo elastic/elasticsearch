@@ -166,11 +166,11 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
         IndexService indexService = indicesService.indexServiceSafe(shardRequest.shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardRequest.shardId.id());
 
-        final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(request, indexShard);
+        final WriteResult<IndexResponse> result = executeIndexRequestOnPrimary(request, indexShard, mappingUpdatedAction);
 
         final IndexResponse response = result.response;
         final Translog.Location location = result.location;
-        processAfter(request.refresh(), indexShard, location);
+        processAfterWrite(request.refresh(), indexShard, location);
         return new Tuple<>(response, shardRequest.request);
     }
 
@@ -178,16 +178,64 @@ public class TransportIndexAction extends TransportReplicationAction<IndexReques
     protected void shardOperationOnReplica(ShardId shardId, IndexRequest request) {
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
+        final Engine.Index operation = executeIndexRequestOnReplica(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, operation.getTranslogLocation());
+    }
+
+    /**
+     * Execute the given {@link IndexRequest} on a replica shard, throwing a
+     * {@link RetryOnReplicaException} if the operation needs to be re-tried.
+     */
+    public static Engine.Index executeIndexRequestOnReplica(IndexRequest request, IndexShard indexShard) {
+        final ShardId shardId = indexShard.shardId();
         SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.REPLICA, request.source()).index(shardId.getIndex()).type(request.type()).id(request.id())
                 .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
 
-        final Engine.Index operation = indexShard.prepareIndex(sourceToParse, request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
+        final Engine.Index operation = indexShard.prepareIndexOnReplica(sourceToParse, request.version(), request.versionType());
         Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
         if (update != null) {
             throw new RetryOnReplicaException(shardId, "Mappings are not available on the replica yet, triggered update: " + update);
         }
         indexShard.index(operation);
-        processAfter(request.refresh(), indexShard, operation.getTranslogLocation());
+        return operation;
+    }
+
+    /** Utility method to prepare an index operation on primary shards */
+    public static Engine.Index prepareIndexOperationOnPrimary(IndexRequest request, IndexShard indexShard) {
+        SourceToParse sourceToParse = SourceToParse.source(SourceToParse.Origin.PRIMARY, request.source()).index(request.index()).type(request.type()).id(request.id())
+            .routing(request.routing()).parent(request.parent()).timestamp(request.timestamp()).ttl(request.ttl());
+        return indexShard.prepareIndexOnPrimary(sourceToParse, request.version(), request.versionType());
+    }
+
+    /**
+     * Execute the given {@link IndexRequest} on a primary shard, throwing a
+     * {@link RetryOnPrimaryException} if the operation needs to be re-tried.
+     */
+    public static WriteResult<IndexResponse> executeIndexRequestOnPrimary(IndexRequest request, IndexShard indexShard, MappingUpdatedAction mappingUpdatedAction) throws Throwable {
+        Engine.Index operation = prepareIndexOperationOnPrimary(request, indexShard);
+        Mapping update = operation.parsedDoc().dynamicMappingsUpdate();
+        final ShardId shardId = indexShard.shardId();
+        if (update != null) {
+            final String indexName = shardId.getIndex();
+            mappingUpdatedAction.updateMappingOnMasterSynchronously(indexName, request.type(), update);
+            operation = prepareIndexOperationOnPrimary(request, indexShard);
+            update = operation.parsedDoc().dynamicMappingsUpdate();
+            if (update != null) {
+                throw new RetryOnPrimaryException(shardId,
+                    "Dynamics mappings are not available on the node that holds the primary yet");
+            }
+        }
+        final boolean created = indexShard.index(operation);
+
+        // update the version on request so it will happen on the replicas
+        final long version = operation.version();
+        request.version(version);
+        request.versionType(request.versionType().versionTypeForReplicationAndRecovery());
+
+        assert request.versionType().validateVersionForWrites(request.version());
+
+        return new WriteResult<>(new IndexResponse(shardId.getIndex(), request.type(), request.id(), request.version(), created), operation.getTranslogLocation());
     }
 
 }
+

@@ -130,26 +130,36 @@ public class TransportDeleteAction extends TransportReplicationAction<DeleteRequ
     protected Tuple<DeleteResponse, DeleteRequest> shardOperationOnPrimary(ClusterState clusterState, PrimaryOperationRequest shardRequest) {
         DeleteRequest request = shardRequest.request;
         IndexShard indexShard = indicesService.indexServiceSafe(shardRequest.shardId.getIndex()).getShard(shardRequest.shardId.id());
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.PRIMARY);
+        final WriteResult<DeleteResponse> result = executeDeleteRequestOnPrimary(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, result.location);
+        return new Tuple<>(result.response, shardRequest.request);
+    }
+
+    public static WriteResult<DeleteResponse> executeDeleteRequestOnPrimary(DeleteRequest request, IndexShard indexShard) {
+        Engine.Delete delete = indexShard.prepareDeleteOnPrimary(request.type(), request.id(), request.version(), request.versionType());
         indexShard.delete(delete);
         // update the request with the version so it will go to the replicas
         request.versionType(delete.versionType().versionTypeForReplicationAndRecovery());
         request.version(delete.version());
 
         assert request.versionType().validateVersionForWrites(request.version());
-        processAfter(request.refresh(), indexShard, delete.getTranslogLocation());
-
-        DeleteResponse response = new DeleteResponse(shardRequest.shardId.getIndex(), request.type(), request.id(), delete.version(), delete.found());
-        return new Tuple<>(response, shardRequest.request);
+        return new WriteResult<>(
+            new DeleteResponse(indexShard.shardId().getIndex(), request.type(), request.id(), delete.version(), delete.found()),
+            delete.getTranslogLocation());
     }
+
+    public static Engine.Delete executeDeleteRequestOnReplica(DeleteRequest request, IndexShard indexShard) {
+        Engine.Delete delete = indexShard.prepareDeleteOnReplica(request.type(), request.id(), request.version(), request.versionType());
+        indexShard.delete(delete);
+        return delete;
+    }
+
 
     @Override
     protected void shardOperationOnReplica(ShardId shardId, DeleteRequest request) {
         IndexShard indexShard = indicesService.indexServiceSafe(shardId.getIndex()).getShard(shardId.id());
-        Engine.Delete delete = indexShard.prepareDelete(request.type(), request.id(), request.version(), request.versionType(), Engine.Operation.Origin.REPLICA);
-
-        indexShard.delete(delete);
-        processAfter(request.refresh(), indexShard, delete.getTranslogLocation());
+        Engine.Delete delete = executeDeleteRequestOnReplica(request, indexShard);
+        processAfterWrite(request.refresh(), indexShard, delete.getTranslogLocation());
     }
 
     @Override

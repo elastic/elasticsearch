@@ -11,15 +11,16 @@ import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.shield.User;
 import org.elasticsearch.shield.authz.Permission;
 import org.elasticsearch.shield.authz.Privilege;
-import org.elasticsearch.transport.TransportMessage;
 
 /**
  *
  */
-public class MarvelInternalUserHolder {
+public class InternalMarvelUser extends User.Simple {
 
     static final String NAME = "__marvel_user";
     static final String[] ROLE_NAMES = new String[] { "__marvel_role" };
+
+    public static final InternalMarvelUser INSTANCE = new InternalMarvelUser(NAME, ROLE_NAMES);
 
     public static final Permission.Global.Role ROLE = Permission.Global.Role.builder(ROLE_NAMES[0])
             .cluster(Privilege.Cluster.get(new Privilege.Name(
@@ -38,9 +39,7 @@ public class MarvelInternalUserHolder {
 
             .build();
 
-    final User user = new User.Simple(NAME, ROLE_NAMES);
-
-    public void bindUser(TransportMessage<?> message) {
-
+    InternalMarvelUser(String username, String[] roles) {
+        super(username, roles);
     }
 }

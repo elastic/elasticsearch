@@ -22,7 +22,7 @@ import org.elasticsearch.marvel.agent.settings.MarvelModule;
 import org.elasticsearch.marvel.agent.settings.MarvelSettings;
 import org.elasticsearch.marvel.license.LicenseModule;
 import org.elasticsearch.marvel.license.MarvelLicensee;
-import org.elasticsearch.marvel.shield.MarvelInternalUserHolder;
+import org.elasticsearch.marvel.shield.InternalMarvelUser;
 import org.elasticsearch.marvel.shield.MarvelShieldIntegration;
 import org.elasticsearch.marvel.shield.MarvelShieldModule;
 import org.elasticsearch.plugins.Plugin;
@@ -106,7 +106,7 @@ public class MarvelPlugin extends Plugin {
     // is enabled. This is a temporary solution until inter-plugin-communication can be worked out.
     public void onModule(Module module) {
         if (enabled && MarvelShieldIntegration.enabled(settings) && module instanceof AuthorizationModule) {
-            ((AuthorizationModule)module).registerReservedRole(MarvelInternalUserHolder.ROLE);
+            ((AuthorizationModule)module).registerReservedRole(InternalMarvelUser.ROLE);
         }
     }
 

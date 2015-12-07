@@ -39,15 +39,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
-import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
+import static org.elasticsearch.cluster.routing.ShardRoutingState.*;
 import static org.elasticsearch.common.settings.Settings.settingsBuilder;
 import static org.elasticsearch.test.VersionUtils.randomVersion;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.*;
 
 /**
  *
@@ -199,7 +194,7 @@ public class NodeVersionAllocationDeciderTests extends ESAllocationTestCase {
             DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
             int numNodes = between(1, 20);
             if (nodes.size() > numNodes) {
-                Collections.shuffle(nodes, getRandom());
+                Collections.shuffle(nodes, random());
                 nodes = nodes.subList(0, numNodes);
             } else {
                 for (int j = nodes.size(); j < numNodes; j++) {

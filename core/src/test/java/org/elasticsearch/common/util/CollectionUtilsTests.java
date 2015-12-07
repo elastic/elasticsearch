@@ -25,14 +25,7 @@ import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.List;
-import java.util.SortedSet;
-import java.util.TreeSet;
+import java.util.*;
 
 import static org.elasticsearch.common.util.CollectionUtils.eagerPartition;
 import static org.hamcrest.Matchers.equalTo;
@@ -80,7 +73,7 @@ public class CollectionUtilsTests extends ESTestCase {
             array.append(new BytesRef(s));
         }
         if (randomBoolean()) {
-            Collections.shuffle(tmpList, getRandom());
+            Collections.shuffle(tmpList, random());
             for (BytesRef ref : tmpList) {
                 array.append(ref);
             }
@@ -111,7 +104,7 @@ public class CollectionUtilsTests extends ESTestCase {
             array.append(new BytesRef(s));
         }
         if (randomBoolean()) {
-            Collections.shuffle(values, getRandom());
+            Collections.shuffle(values, random());
         }
         int[] indices = new int[array.size()];
         for (int i = 0; i < indices.length; i++) {

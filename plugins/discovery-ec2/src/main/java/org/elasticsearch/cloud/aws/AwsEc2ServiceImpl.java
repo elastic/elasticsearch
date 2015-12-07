@@ -32,6 +32,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cloud.aws.network.Ec2NameResolver;
 import org.elasticsearch.cloud.aws.node.Ec2CustomNodeAttributes;
 import org.elasticsearch.cluster.node.DiscoveryNodeService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkService;
@@ -119,7 +120,7 @@ public class AwsEc2ServiceImpl extends AbstractLifecycleComponent<AwsEc2Service>
         }
 
         // Increase the number of retries in case of 5xx API responses
-        final Random rand = new Random();
+        final Random rand = Randomness.get();
         RetryPolicy retryPolicy = new RetryPolicy(
                 RetryPolicy.RetryCondition.NO_RETRY_CONDITION,
                 new RetryPolicy.BackoffStrategy() {

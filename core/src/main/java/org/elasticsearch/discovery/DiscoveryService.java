@@ -23,6 +23,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
@@ -40,7 +41,6 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
 
     public static final String SETTING_INITIAL_STATE_TIMEOUT = "discovery.initial_state_timeout";
     public static final String SETTING_DISCOVERY_SEED = "discovery.id.seed";
-
 
     private static class InitialStateListener implements InitialStateDiscoveryListener {
 
@@ -132,10 +132,7 @@ public class DiscoveryService extends AbstractLifecycleComponent<DiscoveryServic
     }
 
     public static String generateNodeId(Settings settings) {
-        String seed = settings.get(DiscoveryService.SETTING_DISCOVERY_SEED);
-        if (seed != null) {
-            return Strings.randomBase64UUID(new Random(Long.parseLong(seed)));
-        }
-        return Strings.randomBase64UUID();
+        Random random = Randomness.get(settings, DiscoveryService.SETTING_DISCOVERY_SEED);
+        return Strings.randomBase64UUID(random);
     }
 }

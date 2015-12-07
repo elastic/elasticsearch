@@ -942,13 +942,13 @@ public class CompletionSuggestSearchIT extends ESIntegTestCase {
 
     }
     public void assertSuggestions(String suggestion, String... suggestions) {
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = RandomStrings.randomAsciiOfLength(random(), 10);
         CompletionSuggestionBuilder suggestionBuilder = SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggestion).size(10);
         assertSuggestions(suggestionName, suggestionBuilder, suggestions);
     }
 
     public void assertSuggestionsNotInOrder(String suggestString, String... suggestions) {
-        String suggestionName = RandomStrings.randomAsciiOfLength(new Random(), 10);
+        String suggestionName = RandomStrings.randomAsciiOfLength(random(), 10);
         SuggestResponse suggestResponse = client().prepareSuggest(INDEX).addSuggestion(
                 SuggestBuilders.completionSuggestion(suggestionName).field(FIELD).text(suggestString).size(10)
         ).execute().actionGet();

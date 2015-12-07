@@ -27,13 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.PriorityBlockingQueue;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -46,7 +40,7 @@ public class PrioritizedExecutorsTests extends ESTestCase {
     public void testPriorityQueue() throws Exception {
         PriorityBlockingQueue<Priority> queue = new PriorityBlockingQueue<>();
         List<Priority> priorities = Arrays.asList(Priority.values());
-        Collections.shuffle(priorities);
+        Collections.shuffle(priorities, random());
 
         for (Priority priority : priorities) {
             queue.add(priority);

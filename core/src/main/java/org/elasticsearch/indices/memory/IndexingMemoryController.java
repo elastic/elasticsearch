@@ -19,7 +19,6 @@
 
 package org.elasticsearch.indices.memory;
 
-import org.elasticsearch.common.Nullable;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
@@ -213,23 +212,19 @@ public class IndexingMemoryController extends AbstractLifecycleComponent<Indexin
     }
 
     /** returns true if shard exists and is availabe for updates */
-    protected boolean shardAvailable(@Nullable IndexShard shard) {
+    protected boolean shardAvailable(IndexShard shard) {
         // shadow replica doesn't have an indexing buffer
-        return shard != null && shard.canIndex() && CAN_UPDATE_INDEX_BUFFER_STATES.contains(shard.state());
+        return shard.canIndex() && CAN_UPDATE_INDEX_BUFFER_STATES.contains(shard.state());
     }
 
     /** set new indexing and translog buffers on this shard.  this may cause the shard to refresh to free up heap. */
     protected void updateShardBuffers(IndexShard shard, ByteSizeValue shardIndexingBufferSize, ByteSizeValue shardTranslogBufferSize) {
-        if (shard != null) {
-            try {
-                shard.updateBufferSize(shardIndexingBufferSize, shardTranslogBufferSize);
-            } catch (EngineClosedException e) {
-                // ignore
-            } catch (FlushNotAllowedEngineException e) {
-                // ignore
-            } catch (Exception e) {
-                logger.warn("failed to set shard {} index buffer to [{}]", e, shard.shardId(), shardIndexingBufferSize);
-            }
+        try {
+            shard.updateBufferSize(shardIndexingBufferSize, shardTranslogBufferSize);
+        } catch (EngineClosedException | FlushNotAllowedEngineException e) {
+            // ignore
+        } catch (Exception e) {
+            logger.warn("failed to set shard {} index buffer to [{}]", e, shard.shardId(), shardIndexingBufferSize);
         }
     }
 

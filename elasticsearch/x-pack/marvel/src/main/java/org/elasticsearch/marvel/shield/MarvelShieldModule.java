@@ -6,7 +6,6 @@
 package org.elasticsearch.marvel.shield;
 
 import org.elasticsearch.common.inject.AbstractModule;
-import org.elasticsearch.common.inject.util.Providers;
 import org.elasticsearch.common.settings.Settings;
 
 /**
@@ -14,19 +13,16 @@ import org.elasticsearch.common.settings.Settings;
  */
 public class MarvelShieldModule extends AbstractModule {
 
-    private final MarvelInternalUserHolder userHolder;
     private final boolean enabled;
 
     public MarvelShieldModule(Settings settings) {
         this.enabled = MarvelShieldIntegration.enabled(settings);
-        userHolder = enabled ? new MarvelInternalUserHolder() : null;
     }
 
     @Override
     protected void configure() {
         bind(MarvelShieldIntegration.class).asEagerSingleton();
         bind(SecuredClient.class).asEagerSingleton();
-        bind(MarvelInternalUserHolder.class).toProvider(Providers.of(userHolder));
         if (enabled) {
             bind(MarvelSettingsFilter.Shield.class).asEagerSingleton();
             bind(MarvelSettingsFilter.class).to(MarvelSettingsFilter.Shield.class);

@@ -36,9 +36,9 @@ import org.elasticsearch.watcher.input.InputModule;
 import org.elasticsearch.watcher.license.LicenseModule;
 import org.elasticsearch.watcher.license.WatcherLicensee;
 import org.elasticsearch.watcher.rest.action.*;
+import org.elasticsearch.watcher.shield.InternalWatcherUser;
 import org.elasticsearch.watcher.shield.ShieldIntegration;
 import org.elasticsearch.watcher.shield.WatcherShieldModule;
-import org.elasticsearch.watcher.shield.WatcherUserHolder;
 import org.elasticsearch.watcher.support.WatcherIndexTemplateRegistry.TemplateConfig;
 import org.elasticsearch.watcher.support.clock.ClockModule;
 import org.elasticsearch.watcher.support.http.HttpClient;
@@ -211,7 +211,7 @@ public class WatcherPlugin extends Plugin {
     // is enabled. This is a temporary solution until inter-plugin-communication can be worked out.
     public void onModule(Module module) {
         if (enabled && ShieldIntegration.enabled(settings) && module instanceof AuthorizationModule) {
-            ((AuthorizationModule)module).registerReservedRole(WatcherUserHolder.ROLE);
+            ((AuthorizationModule)module).registerReservedRole(InternalWatcherUser.ROLE);
         }
     }
 

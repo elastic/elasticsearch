@@ -31,6 +31,12 @@ import static org.mockito.Mockito.when;
 /**
  */
 public class CompareConditionSearchTests extends AbstractWatcherIntegrationTestCase {
+
+    @Override
+    protected boolean enableShield() {
+        return true;
+    }
+
     public void testExecuteWithAggs() throws Exception {
         client().admin().indices().prepareCreate("my-index")
                 .addMapping("my-type", "_timestamp", "enabled=true")

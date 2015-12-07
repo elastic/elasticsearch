@@ -45,6 +45,8 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     public static final HighlightBuilder PROTOTYPE = new HighlightBuilder();
 
+    public static final String HIGHLIGHT_ELEMENT_NAME = "highlight";
+
     private final List<Field> fields = new ArrayList<>();
 
     private String encoder;
@@ -166,7 +168,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject("highlight");
+        builder.startObject(HIGHLIGHT_ELEMENT_NAME);
         innerXContent(builder);
         builder.endObject();
         return builder;
@@ -192,19 +194,19 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             if (token == XContentParser.Token.FIELD_NAME) {
                 topLevelFieldName = parser.currentName();
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if ("pre_tags".equals(topLevelFieldName) || "preTags".equals(topLevelFieldName)) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, PRE_TAGS_FIELD)) {
                     List<String> preTagsList = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         preTagsList.add(parser.text());
                     }
                     highlightBuilder.preTags(preTagsList.toArray(new String[preTagsList.size()]));
-                } else if ("post_tags".equals(topLevelFieldName) || "postTags".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, POST_TAGS_FIELD)) {
                     List<String> postTagsList = new ArrayList<>();
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         postTagsList.add(parser.text());
                     }
                     highlightBuilder.postTags(postTagsList.toArray(new String[postTagsList.size()]));
-                } else if ("fields".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FIELDS_FIELD)) {
                     highlightBuilder.useExplicitFieldOrder(true);
                     while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                         if (token == XContentParser.Token.START_OBJECT) {
@@ -225,39 +227,40 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                     }
                 }
             } else if (token.isValue()) {
-                if ("order".equals(topLevelFieldName)) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, ORDER_FIELD)) {
                     highlightBuilder.order(parser.text());
-                } else if ("tags_schema".equals(topLevelFieldName) || "tagsSchema".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, TAGS_SCHEMA_FIELD)) {
                     highlightBuilder.tagsSchema(parser.text());
-                } else if ("highlight_filter".equals(topLevelFieldName) || "highlightFilter".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, HIGHLIGHT_FILTER_FIELD)) {
                     highlightBuilder.highlightFilter(parser.booleanValue());
-                } else if ("fragment_size".equals(topLevelFieldName) || "fragmentSize".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FRAGMENT_SIZE_FIELD)) {
                     highlightBuilder.fragmentSize(parser.intValue());
-                } else if ("number_of_fragments".equals(topLevelFieldName) || "numberOfFragments".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
                     highlightBuilder.numOfFragments(parser.intValue());
-                } else if ("encoder".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, ENCODER_FIELD)) {
                     highlightBuilder.encoder(parser.text());
-                } else if ("require_field_match".equals(topLevelFieldName) || "requireFieldMatch".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
                     highlightBuilder.requireFieldMatch(parser.booleanValue());
-                } else if ("boundary_max_scan".equals(topLevelFieldName) || "boundaryMaxScan".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
                     highlightBuilder.boundaryMaxScan(parser.intValue());
-                } else if ("boundary_chars".equals(topLevelFieldName) || "boundaryChars".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, BOUNDARY_CHARS_FIELD)) {
                     highlightBuilder.boundaryChars(parser.text().toCharArray());
-                } else if ("type".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, TYPE_FIELD)) {
                     highlightBuilder.highlighterType(parser.text());
-                } else if ("fragmenter".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FRAGMENTER_FIELD)) {
                     highlightBuilder.fragmenter(parser.text());
-                } else if ("no_match_size".equals(topLevelFieldName) || "noMatchSize".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, NO_MATCH_SIZE_FIELD)) {
                     highlightBuilder.noMatchSize(parser.intValue());
-                } else if ("force_source".equals(topLevelFieldName) || "forceSource".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, FORCE_SOURCE_FIELD)) {
                     highlightBuilder.forceSource(parser.booleanValue());
-                } else if ("phrase_limit".equals(topLevelFieldName) || "phraseLimit".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, PHRASE_LIMIT_FIELD)) {
                     highlightBuilder.phraseLimit(parser.intValue());
                 }
-            } else if (token == XContentParser.Token.START_OBJECT && "options".equals(topLevelFieldName)) {
+            } else if (token == XContentParser.Token.START_OBJECT && topLevelFieldName != null &&
+                    parseContext.parseFieldMatcher().match(topLevelFieldName, OPTIONS_FIELD)) {
                 highlightBuilder.options(parser.map());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                if ("fields".equals(topLevelFieldName)) {
+            } else if (token == XContentParser.Token.START_OBJECT && topLevelFieldName != null) {
+                if (parseContext.parseFieldMatcher().match(topLevelFieldName, FIELDS_FIELD)) {
                     String highlightFieldName = null;
                     while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
                         if (token == XContentParser.Token.FIELD_NAME) {
@@ -266,7 +269,7 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                             highlightBuilder.field(Field.fromXContent(highlightFieldName, parseContext));
                         }
                     }
-                } else if ("highlight_query".equals(topLevelFieldName) || "highlightQuery".equals(topLevelFieldName)) {
+                } else if (parseContext.parseFieldMatcher().match(topLevelFieldName, HIGHLIGHT_QUERY_FIELD)) {
                     highlightBuilder.highlightQuery(parseContext.parseInnerQueryBuilder());
                 }
             }
@@ -285,13 +288,13 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
         commonOptionsToXContent(builder);
         // special options for top-level highlighter
         if (encoder != null) {
-            builder.field("encoder", encoder);
+            builder.field(ENCODER_FIELD.getPreferredName(), encoder);
         }
         if (fields.size() > 0) {
             if (useExplicitFieldOrder) {
-                builder.startArray("fields");
+                builder.startArray(FIELDS_FIELD.getPreferredName());
             } else {
-                builder.startObject("fields");
+                builder.startObject(FIELDS_FIELD.getPreferredName());
             }
             for (Field field : fields) {
                 if (useExplicitFieldOrder) {
@@ -396,10 +399,10 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
             commonOptionsToXContent(builder);
             // write special field-highlighter options
             if (fragmentOffset != -1) {
-                builder.field("fragment_offset", fragmentOffset);
+                builder.field(FRAGMENT_OFFSET_FIELD.getPreferredName(), fragmentOffset);
             }
             if (matchedFields != null) {
-                builder.field("matched_fields", matchedFields);
+                builder.field(MATCHED_FIELDS_FIELD.getPreferredName(), matchedFields);
             }
             builder.endObject();
         }
@@ -414,19 +417,19 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                 if (token == XContentParser.Token.FIELD_NAME) {
                     currentFieldName = parser.currentName();
                 } else if (token == XContentParser.Token.START_ARRAY) {
-                    if ("pre_tags".equals(currentFieldName) || "preTags".equals(currentFieldName)) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, PRE_TAGS_FIELD)) {
                         List<String> preTagsList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             preTagsList.add(parser.text());
                         }
                         field.preTags(preTagsList.toArray(new String[preTagsList.size()]));
-                    } else if ("post_tags".equals(currentFieldName) || "postTags".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, POST_TAGS_FIELD)) {
                         List<String> postTagsList = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             postTagsList.add(parser.text());
                         }
                         field.postTags(postTagsList.toArray(new String[postTagsList.size()]));
-                    } else if ("matched_fields".equals(currentFieldName) || "matchedFields".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, MATCHED_FIELDS_FIELD)) {
                         List<String> matchedFields = new ArrayList<>();
                         while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
                             matchedFields.add(parser.text());
@@ -434,37 +437,37 @@ public class HighlightBuilder extends AbstractHighlighterBuilder<HighlightBuilde
                         field.matchedFields(matchedFields.toArray(new String[matchedFields.size()]));
                     }
                 } else if (token.isValue()) {
-                    if ("fragment_size".equals(currentFieldName) || "fragmentSize".equals(currentFieldName)) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_SIZE_FIELD)) {
                         field.fragmentSize(parser.intValue());
-                    } else if ("number_of_fragments".equals(currentFieldName) || "numberOfFragments".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, NUMBER_OF_FRAGMENTS_FIELD)) {
                         field.numOfFragments(parser.intValue());
-                    } else if ("fragment_offset".equals(currentFieldName) || "fragmentOffset".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENT_OFFSET_FIELD)) {
                         field.fragmentOffset(parser.intValue());
-                    } else if ("highlight_filter".equals(currentFieldName) || "highlightFilter".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_FILTER_FIELD)) {
                         field.highlightFilter(parser.booleanValue());
-                    } else if ("order".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, ORDER_FIELD)) {
                         field.order(parser.text());
-                    } else if ("require_field_match".equals(currentFieldName) || "requireFieldMatch".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, REQUIRE_FIELD_MATCH_FIELD)) {
                         field.requireFieldMatch(parser.booleanValue());
-                    } else if ("boundary_max_scan".equals(currentFieldName) || "boundaryMaxScan".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_MAX_SCAN_FIELD)) {
                         field.boundaryMaxScan(parser.intValue());
-                    } else if ("boundary_chars".equals(currentFieldName) || "boundaryChars".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, BOUNDARY_CHARS_FIELD)) {
                         field.boundaryChars(parser.text().toCharArray());
-                    } else if ("type".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, TYPE_FIELD)) {
                         field.highlighterType(parser.text());
-                    } else if ("fragmenter".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FRAGMENTER_FIELD)) {
                         field.fragmenter(parser.text());
-                    } else if ("no_match_size".equals(currentFieldName) || "noMatchSize".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, NO_MATCH_SIZE_FIELD)) {
                         field.noMatchSize(parser.intValue());
-                    } else if ("force_source".equals(currentFieldName) || "forceSource".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, FORCE_SOURCE_FIELD)) {
                         field.forceSource(parser.booleanValue());
-                    } else if ("phrase_limit".equals(currentFieldName) || "phraseLimit".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, PHRASE_LIMIT_FIELD)) {
                         field.phraseLimit(parser.intValue());
                     }
-                } else if (token == XContentParser.Token.START_OBJECT) {
-                    if ("highlight_query".equals(currentFieldName) || "highlightQuery".equals(currentFieldName)) {
+                } else if (token == XContentParser.Token.START_OBJECT && currentFieldName != null) {
+                    if (parseContext.parseFieldMatcher().match(currentFieldName, HIGHLIGHT_QUERY_FIELD)) {
                         field.highlightQuery(parseContext.parseInnerQueryBuilder());
-                    } else if ("options".equals(currentFieldName)) {
+                    } else if (parseContext.parseFieldMatcher().match(currentFieldName, OPTIONS_FIELD)) {
                         field.options(parser.map());
                     }
                 }

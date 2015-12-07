@@ -19,6 +19,7 @@
 
 package org.elasticsearch.search.highlight;
 
+import org.elasticsearch.common.ParseFieldMatcher;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -130,6 +131,7 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testFromXContent() throws IOException {
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         for (int runs = 0; runs < NUMBER_OF_TESTBUILDERS; runs++) {
             HighlightBuilder highlightBuilder = randomHighlighterBuilder();
             XContentBuilder builder = XContentFactory.contentBuilder(randomFrom(XContentType.values()));
@@ -155,6 +157,7 @@ public class HighlightBuilderTests extends ESTestCase {
      */
     public void testParsingTagsSchema() throws IOException {
         QueryParseContext context = new QueryParseContext(indicesQueriesRegistry);
+        context.parseFieldMatcher(new ParseFieldMatcher(Settings.EMPTY));
         String highlightElement = "{\n" +
                 "    \"tags_schema\" : \"styled\"\n" +
                 "}\n";

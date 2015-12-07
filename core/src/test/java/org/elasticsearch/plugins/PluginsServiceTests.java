@@ -133,7 +133,7 @@ public class PluginsServiceTests extends ESTestCase {
             PluginsService.getPluginBundles(pluginsDir);
             fail();
         } catch (IllegalStateException e) {
-            assertTrue(e.getMessage(), e.getMessage().contains("missing plugin descriptor"));
+            assertTrue(e.getMessage(), e.getMessage().contains("Could not load plugin descriptor for existing plugin"));
         }
     }
 }
